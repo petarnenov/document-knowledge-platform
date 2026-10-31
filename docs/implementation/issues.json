@@ -207,27 +207,48 @@
           "title": "DKP-002 6.5: publish completion/gate status, archive after reviewed integration, and continue independent ready full-project work with 15-minute statu",
           "checklistVerified": true,
           "priority": "P1",
-          "state": "open",
-          "remainingGate": "completion evidence PR integration"
+          "state": "closed",
+          "remainingGate": null
         }
       },
       "url": "https://github.com/petarnenov/document-knowledge-platform/issues/6",
       "priority": "P1",
       "implementationPR": 4,
       "implementationMerge": "3f32dc573e6d2dfc58e7c6162c04c6e89b49bd56",
-      "completionReviewIssue": 51
+      "completionReviewIssue": 51,
+      "state": "closed",
+      "completionPR": 55,
+      "completionMerge": "5486b295456974a1b0ae4f0011227d8bfbbcf254"
     },
     "DKP-001": {
       "issue": 33,
       "url": "https://github.com/petarnenov/document-knowledge-platform/issues/33",
-      "priority": "P1"
+      "priority": "P1",
+      "state": "closed"
     },
     "DKP-003": {
       "issue": 34,
       "url": "https://github.com/petarnenov/document-knowledge-platform/issues/34",
       "priority": "P1",
       "specificationIssue": 50,
-      "specificationDraftIssue": 52
+      "specificationDraftIssue": 52,
+      "specificationReviews": {
+        "security": 56,
+        "architecture": 57
+      },
+      "implementationIssues": {
+        "catalog": 58,
+        "domain": 59,
+        "persistence": 60,
+        "apiContract": 61,
+        "browser": 62,
+        "runtime": 63
+      },
+      "runtimeStarted": false,
+      "specificationReviewStates": {
+        "security": "closed/PASS",
+        "architecture": "closed/PASS"
+      }
     },
     "DKP-004": {
       "issue": 35,
@@ -310,6 +331,8 @@
     "issue": 53,
     "reviewIssue": 54,
     "implementationIssue": 35,
-    "runtimeIntroduced": false
+    "runtimeIntroduced": false,
+    "state": "closed",
+    "reviewState": "closed"
   }
 }
