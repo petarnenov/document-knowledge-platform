@@ -1,0 +1,27 @@
+plugins { id 'java-library' }
+repositories { mavenCentral() }
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}
+dependencyLocking {
+    lockAllConfigurations()
+    lockMode = LockMode.STRICT
+}
+configurations.configureEach {
+    incoming.beforeResolve {
+        dependencies.withType(ExternalModuleDependency).each { dependency ->
+            def requested = dependency.version
+            if (requested != null && (requested.contains('+') || requested.contains('[') || requested.contains('(') || requested.startsWith('latest.') || requested.endsWith('-SNAPSHOT'))) {
+                throw new GradleException("Floating dependency version forbidden: ${dependency}")
+            }
+        }
+    }
+}
+dependencies {
+    implementation platform("com.fasterxml.jackson:jackson-bom:${rootProject.libs.versions.jackson.sdk.get()}")
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    compileOnly "jakarta.annotation:jakarta.annotation-api:${rootProject.libs.versions.jakarta.annotation.get()}"
+}

@@ -1,0 +1,15 @@
+openapi: 3.1.0
+info:
+  title: Invalid fixture
+  version: 1.0.0
+paths:
+  /broken:
+    get:
+      operationId: broken
+      responses:
+        '200':
+          description: Broken reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoesNotExist'

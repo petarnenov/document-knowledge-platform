@@ -1,0 +1,26 @@
+{
+  "name": "document-knowledge-platform",
+  "private": true,
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": "24.22.1",
+    "pnpm": "12.16.1"
+  },
+  "scripts": {
+    "contracts:check": "node tools/contracts/check.mjs",
+    "contracts:generate": "node tools/contracts/generate.mjs",
+    "contracts:drift": "node tools/contracts/drift.mjs",
+    "openspec:check": "openspec validate dkp-001-monorepo-foundation --strict",
+    "format:check": "prettier --check apps/admin-portal package.json pnpm-workspace.yaml .prettierrc.json",
+    "format": "prettier --write apps/admin-portal package.json pnpm-workspace.yaml .prettierrc.json",
+    "dependencies:test": "node --test tools/dependencies/compatibility.test.mjs"
+  },
+  "devDependencies": {
+    "@asyncapi/parser": "3.6.6",
+    "@fission-ai/openspec": "1.16.0",
+    "@redocly/cli": "2.72.1",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "yaml": "2.9.1"
+  }
+}

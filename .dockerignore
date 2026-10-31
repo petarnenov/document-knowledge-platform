@@ -1,0 +1,13 @@
+.git
+**/.git
+.gradle
+**/build
+**/node_modules
+**/dist
+**/coverage
+**/playwright-report
+**/test-results
+.env
+.env.*
+local-data
+artifacts

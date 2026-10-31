@@ -1,6 +1,6 @@
 # DKP-001 Design
 
-Status: Proposed; automatic approval is authorized by the project owner on 2026-10-31, conditional on independent review and validation.
+Status: Approved for implementation on 2026-10-31 under the project owner’s standing authorization, following independent review and strict validation at revision `9987595995a8c60f3a361153a09578473954317a`. See the delivery record for evidence.
 
 ## Context
 

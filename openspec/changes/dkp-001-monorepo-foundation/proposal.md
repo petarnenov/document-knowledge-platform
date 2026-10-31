@@ -1,6 +1,6 @@
 # DKP-001 — Monorepo Foundation
 
-Status: **Proposed — automatic approval authorized, pending independent review and strict validation**. Production approval is outside this change.
+Status: **Approved for implementation on 2026-10-31 after independent review and strict validation**. Production approval is outside this change.
 
 ## Why
 

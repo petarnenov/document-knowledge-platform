@@ -1,0 +1,12 @@
+dependencies {
+    testImplementation platform(rootProject.libs.micronaut.platform)
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation rootProject.libs.archunit.junit5
+    testImplementation 'io.micronaut:micronaut-runtime'
+    ['document-management', 'knowledge-base', 'knowledge-search'].each { service ->
+        ['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap'].each { layer ->
+            testImplementation project(":services:${service}:${layer}")
+        }
+    }
+}

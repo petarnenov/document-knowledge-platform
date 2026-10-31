@@ -33,3 +33,7 @@ __pycache__/
 *.bin
 local-data/
 artifacts/
+
+# Local browser verification artifacts
+**/playwright-report/
+**/test-results/

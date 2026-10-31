@@ -1,0 +1,44 @@
+name: dkp-foundation
+services:
+  document-management:
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/service.Dockerfile
+      args:
+        SERVICE: document-management
+    ports: ["127.0.0.1:18081:8080"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+  knowledge-base:
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/service.Dockerfile
+      args:
+        SERVICE: knowledge-base
+    ports: ["127.0.0.1:18082:8080"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+  knowledge-search:
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/service.Dockerfile
+      args:
+        SERVICE: knowledge-search
+    ports: ["127.0.0.1:18083:8080"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+  admin-portal:
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/portal.Dockerfile
+    ports: ["127.0.0.1:18080:8080"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
