@@ -1,14 +1,16 @@
 # Browser BFF
 
-Independently deployable Micronaut confidential OIDC client and browser entry. Domain and application contain framework-independent identity/session policy; inbound adapters handle framework OAuth, session/CSRF and HTTP contracts; outbound adapters delegate only fixed GET context routes. Bootstrap owns configuration and default-unavailable external entitlements. The BFF owns no database.
+Independently deployable Micronaut confidential OIDC client and browser entry. Domain and application contain framework-independent identity/session policy; inbound adapters handle framework OAuth, session/CSRF and HTTP contracts; outbound adapters delegate fixed context routes and the approved metadata-only DM methods/paths. Bootstrap owns configuration and default-unavailable external entitlements. The BFF owns no database.
 
 ## Runtime contract
 
 - Browser gets only opaque `__Host-DKP-SESSION` (Secure, HttpOnly, SameSite=Lax, Path=/, no Domain). Access token stays in a redacted server identity; ID and refresh tokens are not retained.
 - Login uses framework code/S256, server-side state/nonce/verifier and a fixed callback URL. Session identifiers rotate on login and tenant selection; safe JSON always includes `selectedTenant`, initially null.
 - Exact Origin and session CSRF guard every supported mutation; only JSON is accepted. Logout is local POST only; it does not terminate the provider's SSO session.
-- Four-service identity contracts are published in `contracts/openapi/v1/identity.yaml`. Proxy requests use fixed configured hosts and an exact GET path, never caller targets/headers. Redirects, oversize/malformed responses and actor/tenant/service mismatch fail closed.
+- Four-service identity contracts are published in `contracts/openapi/v1/identity.yaml`. Context requests use exact GET paths; DM delegation maps only the reviewed `/api/v1/dm/documents` routes to `/api/v1/documents` (including UUID detail, PATCH ACL, holds and the unavailable version boundary). Requests use fixed configured hosts, never caller targets/identity headers. Redirects, oversize/malformed responses and actor/tenant/service mismatch fail closed.
 - OIDC requires HTTPS and exact issuer, plus HTTPS provider endpoints under that issuer origin. Configuration is checked before discovery; final discovered metadata is checked before token exchange. Only the explicitly named isolated `test-oidc-loopback` test environment permits HTTP loopback provider fixtures; remote HTTP is rejected there too. Real Compose/browser acceptance uses certificate verification over HTTPS.
+
+DM command success bodies contain exactly `documentId` and `revision`; inspection responses require independent DM authorization. Response schemas, document IDs, tenant scope, status codes and byte limits are checked before forwarding. Every mutation requires Origin, session CSRF and Idempotency-Key; only JSON bodies up to16KiB are accepted. No upload/content/publication readiness is fabricated.
 
 ## Required configuration
 

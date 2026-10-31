@@ -25,6 +25,9 @@ jobs:
           java-version: '25.0.5+8'
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       - run: ./gradlew --no-daemon :services:${{ matrix.service }}:bootstrap:build
+      - name: Real PostgreSQL role, CAS and restart coverage
+        if: matrix.service == 'document-management'
+        run: ./gradlew --no-daemon :services:document-management:adapters-out:persistenceCoverageVerification
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -40,7 +43,7 @@ jobs:
           distribution: temurin
           java-version: '25.0.5+8'
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
-      - run: ./gradlew --no-daemon :modules:identity-contracts:check :modules:security-micronaut:check architectureTest
+      - run: ./gradlew --no-daemon :modules:identity-contracts:check :modules:security-micronaut:check :modules:authorization-catalog:check architectureTest
 
   portal:
     runs-on: ubuntu-latest
@@ -106,14 +109,17 @@ jobs:
           /tmp/dkp-runtime-checks/bin/pip install --disable-pip-version-check -r tools/runtime/requirements.txt
           /tmp/dkp-runtime-checks/bin/coverage run --branch -m unittest discover -s tools/runtime -p 'test_*.py'
           /tmp/dkp-runtime-checks/bin/coverage run --branch --append -m unittest discover -s infra/docker-compose -p 'test_*.py'
-          /tmp/dkp-runtime-checks/bin/coverage report --include='*/smoke.py,*/bootstrap-security.py,*/identity-provider-check.py' --fail-under=75
+          /tmp/dkp-runtime-checks/bin/coverage report --include='*/smoke.py,*/bootstrap-security.py,*/identity-provider-check.py,*/document-database-check.py' --fail-under=75
       - run: python3 infra/docker-compose/bootstrap-security.py
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml config --quiet
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml up --build --wait --wait-timeout 240
       - run: /tmp/dkp-runtime-checks/bin/coverage run --branch --append tools/runtime/smoke.py
       - run: /tmp/dkp-runtime-checks/bin/coverage run --branch --append tools/runtime/identity-provider-check.py
-      - name: Real HTTPS identity provider browser journey
+      - run: /tmp/dkp-runtime-checks/bin/coverage run --branch --append tools/runtime/document-database-check.py
+      - name: Real HTTPS identity and metadata draft browser journey
         run: node tools/runtime/identity-e2e.mjs
+      - name: Real DM database outage, readiness and persistent restart
+        run: /tmp/dkp-runtime-checks/bin/coverage run --branch --append tools/runtime/document-database-check.py --exercise-outage
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml down
         if: always()
 

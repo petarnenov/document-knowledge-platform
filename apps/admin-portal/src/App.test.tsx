@@ -28,7 +28,7 @@ describe('foundation shell', () => {
         .getAttribute('aria-current'),
     ).toBe('page');
     expect(screen.getByText('Foundation shell', { exact: true })).toBeTruthy();
-    expect(screen.getAllByText('Planned capability')).toHaveLength(3);
+    expect(screen.getAllByText('Planned capability')).toHaveLength(2);
     expect(screen.getAllByRole('button')).toHaveLength(1);
     expect(container.querySelector('.shell')?.getAttribute('data-theme')).toBe(
       'dark',

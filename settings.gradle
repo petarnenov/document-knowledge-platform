@@ -11,3 +11,4 @@ include 'generated-clients:java'
 
 include 'modules:identity-contracts'
 include 'modules:security-micronaut'
+include 'modules:authorization-catalog'

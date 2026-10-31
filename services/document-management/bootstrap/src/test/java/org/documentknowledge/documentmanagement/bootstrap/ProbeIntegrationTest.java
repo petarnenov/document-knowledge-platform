@@ -13,18 +13,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ProbeIntegrationTest {
     @Test
-    void probesAreMinimalAndReadinessCanChangeWithoutKillingLiveness() throws Exception {
+    void missingDatabaseKeepsReadinessDownWithoutKillingLiveness() throws Exception {
         try (EmbeddedServer server = ApplicationContext.run(EmbeddedServer.class,
                 Map.of("micronaut.server.port", -1, "micronaut.server.host", "127.0.0.1"))) {
             HttpClient client = HttpClient.newHttpClient();
             assertProbe(client, server.getURI(), "/health/liveness", 200, "{\"status\":\"UP\"}");
-            assertProbe(client, server.getURI(), "/health/readiness", 200, "{\"status\":\"UP\"}");
+            assertProbe(client, server.getURI(), "/health/readiness", 503, "{\"status\":\"DOWN\"}");
             Readiness readiness = server.getApplicationContext().getBean(Readiness.class);
             readiness.markUnavailable();
             assertProbe(client, server.getURI(), "/health/readiness", 503, "{\"status\":\"DOWN\"}");
             assertProbe(client, server.getURI(), "/health/liveness", 200, "{\"status\":\"UP\"}");
             readiness.markAvailable();
-            assertProbe(client, server.getURI(), "/health/readiness", 200, "{\"status\":\"UP\"}");
+            assertProbe(client, server.getURI(), "/health/readiness", 503, "{\"status\":\"DOWN\"}");
         }
     }
 

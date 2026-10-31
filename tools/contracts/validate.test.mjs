@@ -92,3 +92,34 @@ test('published identity contract preserves independent trust and mutation guard
   }
   assert.equal(contract.components.securitySchemes.SessionCookie.name, '__Host-DKP-SESSION');
 });
+
+test('published DM contract preserves approved minimal receipts and independent browser guards', async () => {
+  const contract = parse(await readFile(resolve(root, 'contracts/openapi/v1/document-management.yaml'), 'utf8'));
+  const approved = JSON.parse(await readFile(resolve(root, 'openspec/changes/dkp-003-document-management/contracts/document-management.openapi.json'), 'utf8'));
+  assert.deepEqual(contract, approved);
+  const schemas = contract.components.schemas;
+  assert.equal(schemas.CommandReceipt.additionalProperties, false);
+  assert.deepEqual(Object.keys(schemas.CommandReceipt.properties).toSorted(), ['documentId', 'revision']);
+  assert.deepEqual(schemas.CommandReceipt.required.toSorted(), ['documentId', 'revision']);
+  assert.equal(schemas.Document.properties.activeVersionId.type, 'null');
+  assert.equal(schemas.Retention.properties.retainUntil.type, 'null');
+  let mutations = 0;
+  for (const [path, operations] of Object.entries(contract.paths)) {
+    assert.equal(operations.put, undefined);
+    for (const method of ['post', 'patch']) {
+      const operation = operations[method];
+      if (!operation) continue;
+      mutations++;
+      assert.ok(operation.parameters.some((parameter) => parameter.name === 'Idempotency-Key' && parameter.required));
+      for (const [status, response] of Object.entries(operation.responses)) {
+        if (status.startsWith('2')) assert.equal(response.content['application/json'].schema.$ref, '#/components/schemas/CommandReceipt');
+      }
+      const browser = path.startsWith('/api/v1/dm/');
+      assert.deepEqual(operation.security, browser ? [{ SessionCookie: [] }] : [{ BearerAuth: [] }]);
+      for (const name of browser ? ['Origin', 'X-CSRF-TOKEN'] : ['X-DKP-Tenant']) {
+        assert.ok(operation.parameters.some((parameter) => parameter.name === name && parameter.required));
+      }
+    }
+  }
+  assert.equal(mutations, 10);
+});

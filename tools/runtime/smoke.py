@@ -29,7 +29,7 @@ def verify_http():
         for path in ("/api/v1/documents", "/api/v1/knowledge/collections", "/api/v1/search", "/env", "/beans", "/routes"):
             status, _ = fetch(base + path, {"X-Tenant-Id": "synthetic-tenant"})
             assert status >= 400, (port, path, status)
-    for path in ("/", "/foundation", "/identity", "/unknown-shell-route"):
+    for path in ("/", "/foundation", "/identity", "/documents", "/unknown-shell-route"):
         status, body = fetch("https://localhost:18443" + path)
         assert status == 200 and b'<div id="root">' in body, (path, status)
     status, _ = fetch("https://localhost:18443/api/v1/session")
@@ -42,7 +42,7 @@ def verify_http():
 def verify_containers():
     command = [*COMPOSE, "ps", "-q"]
     identifiers = subprocess.check_output(command, text=True).split()
-    assert len(identifiers) == 6, identifiers
+    assert len(identifiers) == 7, identifiers
     containers = json.loads(subprocess.check_output(["docker", "inspect", *identifiers], text=True))
     for container in containers:
         name = container["Name"]
@@ -50,7 +50,7 @@ def verify_containers():
         assert container["HostConfig"]["ReadonlyRootfs"], name
         assert "ALL" in container["HostConfig"]["CapDrop"], name
         assert container["State"]["Health"]["Status"] == "healthy", name
-        for bindings in container["HostConfig"]["PortBindings"].values():
+        for bindings in (container["HostConfig"]["PortBindings"] or {}).values():
             assert all(binding["HostIp"] == "127.0.0.1" for binding in bindings), name
 
 
@@ -67,4 +67,4 @@ if __name__ == "__main__":
     verify_http()
     verify_containers()
     verify_identity_logs()
-    print("Identity smoke: probes, denial surface, trusted HTTPS portal and six non-root containers PASS")
+    print("Identity smoke: probes, denial surface, trusted HTTPS portal and seven non-root containers PASS")

@@ -1,4 +1,5 @@
 import importlib.util
+import base64
 import json
 import os
 from pathlib import Path
@@ -17,12 +18,18 @@ class SecurityBootstrapTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / 'security'
             self.assertTrue(bootstrap.generate(target, runtime_uid=1001, runtime_gid=1001))
-            before = {p.name: p.read_bytes() for p in target.iterdir()}
+            before = {str(p.relative_to(target)): p.read_bytes() for p in target.rglob('*') if p.is_file()}
             self.assertFalse(bootstrap.generate(target, runtime_uid=1001, runtime_gid=1001))
-            self.assertEqual(before, {p.name: p.read_bytes() for p in target.iterdir()})
+            self.assertEqual(before, {str(p.relative_to(target)): p.read_bytes() for p in target.rglob('*') if p.is_file()})
             self.assertEqual(0o700, target.stat().st_mode & 0o777)
             for path in target.iterdir():
-                self.assertEqual(0o600, path.stat().st_mode & 0o777)
+                if path.is_file():
+                    self.assertEqual(0o600, path.stat().st_mode & 0o777)
+            authority = target / 'authority'
+            self.assertEqual(0o550, authority.stat().st_mode & 0o777)
+            for path in authority.iterdir():
+                self.assertEqual(0o400, path.stat().st_mode & 0o777)
+            self.assertEqual(32, len(base64.b64decode((authority / 'cursor.key').read_text(), validate=False)))
             for name, hostname in [('portal', 'localhost'), ('idp', 'idp.localhost')]:
                 result = subprocess.run(['openssl', 'verify', '-CAfile', str(target / 'ca.crt'),
                                          '-verify_hostname', hostname, str(target / f'{name}.crt')],
@@ -30,6 +37,17 @@ class SecurityBootstrapTest(unittest.TestCase):
                 self.assertEqual(0, result.returncode)
             realm = json.loads((target / 'dkp-realm.json').read_text())
             self.assertEqual(300, realm['accessTokenLifespan'])
+            catalog = json.loads((authority / 'grants.json').read_text())
+            self.assertEqual(2, len(catalog['entries']))
+            for entry in catalog['entries']:
+                self.assertEqual(realm['users'][0]['id'], entry['subject'])
+                self.assertEqual('https://idp.localhost:18444/realms/dkp', entry['issuer'])
+                self.assertEqual(set(bootstrap.ACTIONS), set(entry['actions']))
+                self.assertEqual(set(bootstrap.ACTIONS), set(entry['delegationCeiling']))
+            env = dict(line.split('=', 1) for line in (target / 'runtime.env').read_text().splitlines())
+            for key in ['DKP_DB_ADMIN_PASSWORD', 'DKP_DM_MIGRATOR_PASSWORD', 'DKP_DM_RUNTIME_PASSWORD']:
+                self.assertGreater(len(env[key]), 32)
+            self.assertEqual(3, len({env[key] for key in ['DKP_DB_ADMIN_PASSWORD', 'DKP_DM_MIGRATOR_PASSWORD', 'DKP_DM_RUNTIME_PASSWORD']}))
             client = realm['clients'][0]
             self.assertEqual(['https://localhost:18443/oauth/callback/keycloak'], client['redirectUris'])
             self.assertFalse(client['directAccessGrantsEnabled'])
@@ -41,6 +59,27 @@ class SecurityBootstrapTest(unittest.TestCase):
             self.assertNotIn('unmanagedAttributePolicy', profile)  # absent means disabled in Keycloak's enum contract
             self.assertNotIn('@@', (target / 'dkp-realm.json').read_text())
             self.assertNotIn(client['secret'], bootstrap.TEMPLATE.read_text())
+
+    def test_existing_authority_permissions_cannot_be_weakened(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'security'
+            bootstrap.generate(target, runtime_uid=1001, runtime_gid=1001)
+            authority = target / 'authority'
+            authority.chmod(0o750)
+            with self.assertRaisesRegex(ValueError, 'Authority directory'):
+                bootstrap.generate(target)
+            authority.chmod(0o550)
+            (authority / 'cursor.key').chmod(0o600)
+            with self.assertRaisesRegex(ValueError, 'Authority files'):
+                bootstrap.generate(target)
+            (authority / 'cursor.key').chmod(0o400)
+            (target / 'runtime.env').chmod(0o644)
+            with self.assertRaisesRegex(ValueError, 'Security files'):
+                bootstrap.generate(target)
+            (target / 'runtime.env').chmod(0o600)
+            target.chmod(0o755)
+            with self.assertRaisesRegex(ValueError, 'owner-only'):
+                bootstrap.generate(target)
 
     def test_incomplete_existing_directory_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
