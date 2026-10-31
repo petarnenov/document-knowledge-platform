@@ -23,8 +23,21 @@ services:
       dockerfile: infra/docker-compose/service.Dockerfile
       args: { SERVICE: document-management }
     ports: ["127.0.0.1:18081:8080"]
-    environment: *api-environment
+    environment:
+      <<: *api-environment
+      DATASOURCES_DEFAULT_URL: jdbc:postgresql://dm-postgres:5432/dkp_dm?currentSchema=dm&connectTimeout=3&socketTimeout=5&sslmode=disable
+      DATASOURCES_DEFAULT_USERNAME: dkp_dm_runtime
+      DATASOURCES_DEFAULT_PASSWORD: ${DKP_DM_RUNTIME_PASSWORD:?Run bootstrap-security.py}
+      FLYWAY_DATASOURCES_DM_MIGRATIONS_URL: jdbc:postgresql://dm-postgres:5432/dkp_dm?currentSchema=dm&connectTimeout=3&socketTimeout=5&sslmode=disable
+      FLYWAY_DATASOURCES_DM_MIGRATIONS_USER: dkp_dm_migrator
+      FLYWAY_DATASOURCES_DM_MIGRATIONS_PASSWORD: ${DKP_DM_MIGRATOR_PASSWORD:?Run bootstrap-security.py}
+      DKP_DM_CATALOG_PATH: /run/dkp/authority/grants.json
+      DKP_DM_CURSOR_KEY_PATH: /run/dkp/authority/cursor.key
+    depends_on:
+      dm-postgres: { condition: service_healthy }
+    networks: [default, dm-data]
     volumes:
+      - ../../local-data/security/authority:/run/dkp/authority:ro
       - ../../local-data/security/truststore.p12:/run/dkp/truststore.p12:ro
       - ../../local-data/security/java-security.options:/run/dkp/java-security.options:ro
   knowledge-base:
@@ -111,3 +124,34 @@ services:
     networks:
       default:
         aliases: [idp.localhost]
+
+  dm-postgres:
+    user: "999:999"
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/dm-postgres.Dockerfile
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    tmpfs:
+      - /tmp:uid=999,gid=999,mode=0700
+      - /var/run/postgresql:uid=999,gid=999,mode=0700
+    environment:
+      POSTGRES_USER: dkp_local_db_admin
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${DKP_DB_ADMIN_PASSWORD:?Run bootstrap-security.py}
+      PGPASSWORD: ${DKP_DB_ADMIN_PASSWORD:?Run bootstrap-security.py}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+      DKP_DM_MIGRATOR_PASSWORD: ${DKP_DM_MIGRATOR_PASSWORD:?Run bootstrap-security.py}
+      DKP_DM_RUNTIME_PASSWORD: ${DKP_DM_RUNTIME_PASSWORD:?Run bootstrap-security.py}
+      PGDATA: /var/lib/postgresql/18/docker
+    command: ["postgres", "-c", "fsync=on", "-c", "synchronous_commit=on", "-c", "full_page_writes=on", "-c", "password_encryption=scram-sha-256", "-c", "log_statement=none", "-c", "log_min_error_statement=panic", "-c", "log_parameter_max_length_on_error=0"]
+    volumes:
+      - dm-postgres-data:/var/lib/postgresql
+    networks: [dm-data]
+
+networks:
+  dm-data:
+    internal: true
+volumes:
+  dm-postgres-data:

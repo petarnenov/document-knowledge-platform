@@ -4,6 +4,7 @@ import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { root, run, filesUnder } from './lib.mjs';
 import { ensureGenerator } from './generator.mjs';
+import { installNullModel } from './null-model.mjs';
 
 export async function generate(destination) {
   const generatorJar = await ensureGenerator();
@@ -29,6 +30,7 @@ export async function generate(destination) {
         for (const file of ['runtime.ts', 'index.ts', 'apis', 'models']) {
           await cp(join(output, file), join(target, file), { recursive: true });
         }
+        await installNullModel(target);
       }
       // Normalize template trailing whitespace consistently without hand-editing output.
       for (const file of await filesUnder(target)) {

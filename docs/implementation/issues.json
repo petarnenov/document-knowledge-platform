@@ -242,13 +242,43 @@
         "persistence": 60,
         "apiContract": 61,
         "browser": 62,
-        "runtime": 63
+        "runtime": 63,
+        "sdkNullModel": 65,
+        "httpTests": 66,
+        "httpWiring": 67,
+        "factoryBindingTests": 76
       },
-      "runtimeStarted": false,
+      "runtimeStarted": true,
       "specificationReviewStates": {
         "security": "closed/PASS",
         "architecture": "closed/PASS"
-      }
+      },
+      "specificationState": "closed",
+      "specificationDraftState": "closed",
+      "specificationPR": 64,
+      "specificationCommit": "6e53b8108d3ec7d9a473074feece3e596a1bc42e",
+      "specificationMerge": "fb08ff4f6c676b7105a5a20eccd4b5f2f8f536ac",
+      "specificationDevCI": 41221800467,
+      "implementationReviewIssues": {
+        "catalogDomainPersistenceSdk": 68,
+        "browserRuntimeHttp": 71
+      },
+      "reviewFixIssues": {
+        "catalogPath": 69,
+        "finalAuthority": 70,
+        "cursorKeyPath": 72,
+        "bridgeFixture": 73,
+        "httpBodyHeap": 74,
+        "realBrowserAcl": 77,
+        "readinessOutage": 78,
+        "completePersistenceSnapshot": 79
+      },
+      "implementationState": "Source frozen; final Linux readiness, actual ACL browser journey and seven-table outage acceptance in progress",
+      "implementationReviewStates": {
+        "catalogDomainPersistenceSdk": "closed/PASS",
+        "browserRuntimeHttp": "open"
+      },
+      "deliveryIssue": 75
     },
     "DKP-004": {
       "issue": 35,

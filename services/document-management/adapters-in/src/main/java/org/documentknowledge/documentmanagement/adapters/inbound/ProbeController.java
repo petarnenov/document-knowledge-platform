@@ -1,6 +1,8 @@
 package org.documentknowledge.documentmanagement.adapters.inbound;
 
 import io.micronaut.http.HttpResponse;
+import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Controller;
@@ -22,6 +24,7 @@ public final class ProbeController {
         return HttpResponse.ok("{\"status\":\"UP\"}");
     }
 
+    @ExecuteOn(TaskExecutors.BLOCKING)
     @Get("/readiness")
     public HttpResponse<String> readiness() {
         return readiness.isAcceptingWork()

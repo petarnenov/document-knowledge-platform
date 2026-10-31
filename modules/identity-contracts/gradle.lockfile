@@ -124,4 +124,4 @@ org.springframework:spring-framework-bom:7.0.8=testCompileClasspath,testRuntimeC
 org.testcontainers:testcontainers-bom:2.0.5=testCompileClasspath,testRuntimeClasspath
 software.amazon.awssdk:bom:2.54.3=testCompileClasspath,testRuntimeClasspath
 tools.jackson:jackson-bom:3.2.3=testCompileClasspath,testRuntimeClasspath
-empty=annotationProcessor,compileClasspath,testAnnotationProcessor
+empty=annotationProcessor,compileClasspath,runtimeClasspath,testAnnotationProcessor

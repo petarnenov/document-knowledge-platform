@@ -1,18 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { sessionKey } from './session-key';
 import {
   getContext,
   getSession,
   IdentityRequestError,
   logout,
   selectTenant,
-  type SecurityContext,
   type Service,
-  type SessionView,
 } from './identity-api';
-
-type IdentityState =
-  | { kind: 'loading' | 'anonymous' | 'unavailable' }
-  | { kind: 'authenticated'; session: SessionView };
 
 const services: { id: Service; label: string }[] = [
   { id: 'dm', label: 'Document Management' },
@@ -21,68 +17,72 @@ const services: { id: Service; label: string }[] = [
 ];
 
 export function Identity() {
-  const [state, setState] = useState<IdentityState>({ kind: 'loading' });
-  const [attempt, setAttempt] = useState(0);
-  const [tenant, setTenant] = useState('');
+  const client = useQueryClient();
+  const sessionQuery = useQuery({
+    queryKey: sessionKey,
+    queryFn: ({ signal }) => getSession(signal),
+  });
+  const [tenantChoice, setTenant] = useState<string | null>(null);
+  const [signedOut, setSignedOut] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [context, setContext] = useState<SecurityContext | null>(null);
-  const controller = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    const active = new AbortController();
-    controller.current = active;
-    getSession(active.signal)
-      .then((session) => {
-        if (active.signal.aborted) return;
-        setState({ kind: 'authenticated', session });
-        setTenant(session.selectedTenant ?? '');
-      })
-      .catch((failure: unknown) => {
-        if (active.signal.aborted) return;
-        setState({
-          kind:
-            failure instanceof IdentityRequestError && failure.status === 401
-              ? 'anonymous'
-              : 'unavailable',
-        });
-      });
-    return () => active.abort();
-  }, [attempt]);
-
+  const [service, setService] = useState<Service | null>(null);
+  const session = sessionQuery.data;
+  const tenant = tenantChoice ?? session?.selectedTenant ?? '';
+  const contextQuery = useQuery({
+    queryKey: [
+      'context',
+      session?.issuer,
+      session?.subject,
+      session?.selectedTenant,
+      service,
+    ],
+    queryFn: ({ signal }) => getContext(service!, session!, signal),
+    enabled: false,
+  });
+  const context = service ? contextQuery.data : null;
+  const state =
+    session && !signedOut && !sessionQuery.error
+      ? { kind: 'authenticated' as const, session }
+      : {
+          kind: signedOut
+            ? ('anonymous' as const)
+            : sessionQuery.isPending
+              ? ('loading' as const)
+              : sessionQuery.error instanceof IdentityRequestError &&
+                  sessionQuery.error.status === 401
+                ? ('anonymous' as const)
+                : ('unavailable' as const),
+        };
   async function perform(action: (signal: AbortSignal) => Promise<void>) {
-    const active = controller.current;
-    if (!active || active.signal.aborted) return;
     setBusy(true);
     setError(null);
-    setContext(null);
+    setService(null);
     try {
-      await action(active.signal);
+      await action(new AbortController().signal);
     } catch (failure: unknown) {
-      if (active.signal.aborted) return;
       if (failure instanceof IdentityRequestError && failure.status === 401) {
-        setState({ kind: 'anonymous' });
-        setTenant('');
+        await client.cancelQueries();
+        client.removeQueries({ predicate: (q) => q.queryKey[0] !== 'session' });
+        client.setQueryData(sessionKey, null);
+        setSignedOut(true);
         setError('Your session has expired. Sign in again to continue.');
       } else if (
         failure instanceof IdentityRequestError &&
         failure.status === 403
-      ) {
+      )
         setError(
           'This action was denied. Your tenant selection has not changed.',
         );
-      } else {
-        setError('Identity services are unavailable. Please try again.');
-      }
+      else setError('Identity services are unavailable. Please try again.');
     } finally {
-      if (!active.signal.aborted) setBusy(false);
+      setBusy(false);
     }
   }
-
   function retry() {
+    setSignedOut(false);
     setError(null);
-    setState({ kind: 'loading' });
-    setAttempt((value) => value + 1);
+    void sessionQuery.refetch();
   }
 
   return (
@@ -91,7 +91,8 @@ export function Identity() {
       <h1>Your workspace access.</h1>
       <p className="lead">
         Sign in and choose a tenant to check your verified service context.
-        Document and knowledge actions are not yet available.
+        Metadata-only drafts are available from Documents; knowledge workflows
+        remain planned.
       </p>
       {error && (
         <p className="identity-error" role="alert">
@@ -134,7 +135,12 @@ export function Identity() {
                   void perform(async (signal) => {
                     await logout(state.session, signal);
                     if (signal.aborted) return;
-                    setState({ kind: 'anonymous' });
+                    await client.cancelQueries();
+                    client.removeQueries({
+                      predicate: (q) => q.queryKey[0] !== 'session',
+                    });
+                    client.setQueryData(sessionKey, null);
+                    setSignedOut(true);
                     setTenant('');
                   })
                 }
@@ -161,7 +167,11 @@ export function Identity() {
                     signal,
                   );
                   if (signal.aborted) return;
-                  setState({ kind: 'authenticated', session });
+                  await client.cancelQueries();
+                  client.removeQueries({
+                    predicate: (q) => q.queryKey[0] !== 'session',
+                  });
+                  client.setQueryData(sessionKey, session);
                   setTenant(session.selectedTenant ?? '');
                 });
               }}
@@ -219,7 +229,19 @@ export function Identity() {
                         state.session,
                         signal,
                       );
-                      if (!signal.aborted) setContext(verified);
+                      if (!signal.aborted) {
+                        client.setQueryData(
+                          [
+                            'context',
+                            state.session.issuer,
+                            state.session.subject,
+                            state.session.selectedTenant,
+                            service.id,
+                          ],
+                          verified,
+                        );
+                        setService(service.id);
+                      }
                     })
                   }
                 >

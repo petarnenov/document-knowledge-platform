@@ -1,4 +1,6 @@
 import importlib.util
+import base64
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -68,6 +70,22 @@ class ProviderCheckTest(unittest.TestCase):
         with patch.object(handler, 'do_open', return_value='verified'):
             self.assertEqual('verified', handler.https_open(urllib.request.Request(provider.ISSUER)))
 
+    def test_explicit_subject_is_verified_not_invented(self):
+        provider.verify_subject('header.' + base64.urlsafe_b64encode(json.dumps({'iss': provider.ISSUER, 'sub': 'expected'}).encode()).decode() + '.signature', 'expected')
+        for token in ['invalid', 'header.e30.signature']:
+            with self.assertRaises(AssertionError):
+                provider.verify_subject(token, 'expected')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            realm = root / 'dkp-realm.json'
+            realm.write_text(json.dumps({'users': [{'username': 'dkp-tester', 'id': 'expected'}]}))
+            realm.chmod(0o600)
+            with patch.object(provider, 'SECURITY', root):
+                self.assertEqual('expected', provider.read_subject())
+                realm.chmod(0o644)
+                with self.assertRaises(ValueError):
+                    provider.read_subject()
+
     def test_http_rejections_remain_inspectable(self):
         opener = MagicMock()
         error = urllib.error.HTTPError(provider.ISSUER, 403, 'denied', {}, None)
@@ -78,11 +96,11 @@ class ProviderCheckTest(unittest.TestCase):
         return [
             Response(200, b'<form id="kc-form-login" action="https://idp.localhost:18444/login"></form>'),
             Response(302, headers={'Location': provider.CALLBACK + '?state=synthetic&code=synthetic-code'}),
-            Response(200, b'{"access_token":"synthetic-user-token"}'),
+            Response(200, json.dumps({'access_token': 'header.' + base64.urlsafe_b64encode(json.dumps({'iss': provider.ISSUER, 'sub': 'synthetic-subject'}).encode()).decode().rstrip('=') + '.signature'}).encode()),
             Response(200, b'{"username":"dkp-tester","attributes":{}}'),
             Response(403),
             Response(200, b'{"access_token":"synthetic-admin-token"}'),
-            Response(200, b'[{"attributes":{"dkp_tenants":["tenant-a","tenant-b"]}}]'),
+            Response(200, b'[{"id":"synthetic-subject","attributes":{"dkp_tenants":["tenant-a","tenant-b"]}}]'),
         ]
 
     def verify(self, responses):
@@ -92,6 +110,7 @@ class ProviderCheckTest(unittest.TestCase):
                   'OIDC_CLIENT_SECRET': 'synthetic', 'KC_BOOTSTRAP_ADMIN_USERNAME': 'synthetic',
                   'KC_BOOTSTRAP_ADMIN_PASSWORD': 'synthetic'}
         with patch.object(provider, 'read_local_values', return_value=values), \
+             patch.object(provider, 'read_subject', return_value='synthetic-subject'), \
              patch.object(provider.ssl, 'create_default_context'), \
              patch.object(provider.urllib.request, 'build_opener', return_value=opener), \
              patch.object(provider.secrets, 'token_urlsafe', return_value='synthetic'):
@@ -104,7 +123,7 @@ class ProviderCheckTest(unittest.TestCase):
                  (1, Response(302, headers={'Location': provider.CALLBACK + '?state=forged&code=test'})),
                  (2, Response(401)), (3, Response(403)), (4, Response(500)),
                  (5, Response(401)), (6, Response(503)),
-                 (6, Response(200, b'[{"attributes":{"dkp_tenants":["tenant-forged"]}}]'))]
+                 (6, Response(200, b'[{"id":"synthetic-subject","attributes":{"dkp_tenants":["tenant-forged"]}}]'))]
         for index, response in cases:
             with self.subTest(index=index, status=response.status):
                 fixture = self.fixture()

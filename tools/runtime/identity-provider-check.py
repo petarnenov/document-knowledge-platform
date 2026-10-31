@@ -76,6 +76,28 @@ def read_local_values():
     return dict(line.split('=', 1) for line in file.read_text().splitlines() if '=' in line)
 
 
+def read_subject():
+    file = SECURITY / 'dkp-realm.json'
+    if file.is_symlink() or file.stat().st_mode & 0o077:
+        raise ValueError('Owner-only synthetic realm required')
+    realm = json.loads(file.read_text())
+    user = realm['users'][0]
+    if user.get('username') != 'dkp-tester' or not user.get('id'):
+        raise ValueError('Explicit synthetic subject required')
+    return user['id']
+
+
+def verify_subject(token, expected):
+    # This is a test assertion on a token obtained over the verified provider TLS
+    # exchange, not an authentication implementation. APIs verify signatures.
+    try:
+        payload = token.split('.')[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)))
+        assert claims.get('iss') == ISSUER and claims.get('sub') == expected
+    except Exception:
+        raise AssertionError('Provider did not preserve the configured synthetic actor binding') from None
+
+
 def open_response(opener, request):
     try:
         return opener.open(request, timeout=10)
@@ -85,6 +107,7 @@ def open_response(opener, request):
 
 def verify():
     values = read_local_values()
+    subject = read_subject()
     context = ssl.create_default_context(cafile=str(SECURITY / 'ca.crt'))
     opener = urllib.request.build_opener(TrustedLocalHTTPS(context=context),
         urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()), ProviderRedirects())
@@ -119,6 +142,7 @@ def verify():
     if response.status != 200:
         raise AssertionError('Provider rejected confidential PKCE exchange')
     token = json.loads(response.read(128 * 1024))['access_token']
+    verify_subject(token, subject)
     headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/json', 'Origin': 'https://localhost:18443'}
     account = ISSUER + '/account/'
     response = open_response(opener, urllib.request.Request(account, headers=headers))
@@ -146,7 +170,7 @@ def verify():
     if response.status != 200:
         raise AssertionError('Authoritative local user recheck unavailable')
     users = json.loads(response.read(128 * 1024))
-    if len(users) != 1 or users[0].get('attributes', {}).get('dkp_tenants') != ['tenant-a', 'tenant-b']:
+    if len(users) != 1 or users[0].get('id') != subject or users[0].get('attributes', {}).get('dkp_tenants') != ['tenant-a', 'tenant-b']:
         raise AssertionError('Ordinary user modified tenant authority')
     return True
 

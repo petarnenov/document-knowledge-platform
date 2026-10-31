@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { BrowserSession } from '../../../generated-clients/typescript/types/models/BrowserSession';
 import type { SecurityContext } from '../../../generated-clients/typescript/types/models/SecurityContext';
 
@@ -14,41 +15,26 @@ export class IdentityRequestError extends Error {
   }
 }
 
-function object(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function text(value: unknown, maximum = 256): value is string {
-  return (
-    typeof value === 'string' && value.length > 0 && value.length <= maximum
+const bounded = (max: number) => z.string().min(1).max(max);
+const sessionSchema = z
+  .object({
+    issuer: bounded(2048),
+    subject: bounded(256),
+    displayName: bounded(256),
+    tenants: z.array(bounded(256)).max(100),
+    csrfToken: bounded(512),
+    selectedTenant: bounded(256).nullable(),
+  })
+  .refine(
+    (value) =>
+      new Set(value.tenants).size === value.tenants.length &&
+      (value.selectedTenant === null ||
+        value.tenants.includes(value.selectedTenant)),
   );
-}
-
 function parseSession(value: unknown): SessionView {
-  if (
-    !object(value) ||
-    !text(value.issuer, 2048) ||
-    !text(value.subject) ||
-    !text(value.displayName) ||
-    !Array.isArray(value.tenants) ||
-    value.tenants.length > 100 ||
-    !value.tenants.every((tenant: unknown) => text(tenant, 256)) ||
-    new Set(value.tenants).size !== value.tenants.length ||
-    !text(value.csrfToken, 512) ||
-    (value.selectedTenant !== null &&
-      (!text(value.selectedTenant, 256) ||
-        !value.tenants.includes(value.selectedTenant)))
-  ) {
-    throw new IdentityRequestError(503);
-  }
-  return {
-    issuer: value.issuer,
-    subject: value.subject,
-    displayName: value.displayName,
-    tenants: value.tenants as string[],
-    selectedTenant: value.selectedTenant,
-    csrfToken: value.csrfToken,
-  };
+  const parsed = sessionSchema.safeParse(value);
+  if (!parsed.success) throw new IdentityRequestError(503);
+  return parsed.data;
 }
 
 async function request(
@@ -117,20 +103,27 @@ export async function getContext(
   signal: AbortSignal,
 ): Promise<SecurityContext> {
   const value = await request(`/api/v1/security/context/${service}`, signal);
+  const parsed = z
+    .object({
+      service: z.enum(['dm', 'kb', 'search']),
+      issuer: bounded(2048),
+      subject: bounded(256),
+      tenant: bounded(256),
+    })
+    .safeParse(value);
   if (
-    !object(value) ||
-    value.service !== service ||
-    value.issuer !== session.issuer ||
-    value.subject !== session.subject ||
-    value.tenant !== session.selectedTenant ||
-    !text(value.tenant, 256)
-  ) {
+    !parsed.success ||
+    parsed.data.service !== service ||
+    parsed.data.issuer !== session.issuer ||
+    parsed.data.subject !== session.subject ||
+    parsed.data.tenant !== session.selectedTenant
+  )
     throw new IdentityRequestError(503);
-  }
+
   return {
     service,
     issuer: session.issuer,
     subject: session.subject,
-    tenant: value.tenant,
+    tenant: parsed.data.tenant,
   };
 }

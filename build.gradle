@@ -9,7 +9,7 @@ def serviceNames = ['document-management', 'knowledge-base', 'knowledge-search',
 def layerNames = ['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap']
 
 subprojects {
-    if (name in layerNames || name in ['architecture-tests', 'identity-contracts', 'security-micronaut']) {
+    if (name in layerNames || name in ['architecture-tests', 'identity-contracts', 'security-micronaut', 'authorization-catalog']) {
         apply plugin: 'java-library'
         apply plugin: 'jacoco'
         // Gradle resolves components by group/name/version, so repeated layer names
@@ -43,6 +43,13 @@ subprojects {
             jvmArgs '-XX:ActiveProcessorCount=2'
             testLogging { events 'failed', 'skipped' }
         }
+        if (name in layerNames) {
+            dependencies {
+                testImplementation platform(rootProject.libs.micronaut.platform)
+                testImplementation 'org.junit.jupiter:junit-jupiter'
+                testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+            }
+        }
         tasks.withType(Jar).configureEach {
             preserveFileTimestamps = false
             reproducibleFileOrder = true
@@ -53,6 +60,34 @@ subprojects {
 serviceNames.each { service ->
     def base = ":services:${service}"
     project("${base}:application") { dependencies { api project("${base}:domain") } }
+    if (service == 'document-management') {
+        project("${base}:application") { dependencies { api project(':modules:identity-contracts') } }
+        project("${base}:adapters-in") {
+            dependencies { implementation 'io.micronaut:micronaut-jackson-databind' }
+        }
+        project("${base}:adapters-out") {
+            dependencies {
+                implementation project(':modules:authorization-catalog')
+                testImplementation "org.testcontainers:testcontainers-postgresql:${rootProject.libs.versions.testcontainers.get()}"
+                testImplementation "org.flywaydb:flyway-core:${rootProject.libs.versions.flyway.get()}"
+                testRuntimeOnly "org.flywaydb:flyway-database-postgresql:${rootProject.libs.versions.flyway.get()}"
+                testImplementation "org.postgresql:postgresql:${rootProject.libs.versions.postgresql.jdbc.get()}"
+            }
+        }
+        project("${base}:bootstrap") {
+            dependencies {
+                implementation project(':modules:authorization-catalog')
+                implementation 'io.micronaut.sql:micronaut-jdbc-hikari'
+                implementation 'io.micronaut.flyway:micronaut-flyway'
+                implementation "org.flywaydb:flyway-core:${rootProject.libs.versions.flyway.get()}"
+                runtimeOnly "org.flywaydb:flyway-database-postgresql:${rootProject.libs.versions.flyway.get()}"
+                runtimeOnly "org.postgresql:postgresql:${rootProject.libs.versions.postgresql.jdbc.get()}"
+                testImplementation "org.postgresql:postgresql:${rootProject.libs.versions.postgresql.jdbc.get()}"
+                testImplementation "org.testcontainers:testcontainers-postgresql:${rootProject.libs.versions.testcontainers.get()}"
+                testImplementation "org.flywaydb:flyway-database-postgresql:${rootProject.libs.versions.flyway.get()}"
+            }
+        }
+    }
     ['adapters-in', 'adapters-out'].each { layer ->
         project("${base}:${layer}") {
             dependencies { implementation project("${base}:application") }
@@ -133,15 +168,15 @@ serviceNames.each { service ->
         tasks.named('build') { dependsOn 'installDist', 'serviceCoverageVerification' }
         def coveredProjects = layerNames.collect { project("${base}:${it}") }
         tasks.register('serviceCoverageReport', JacocoReport) {
-            dependsOn tasks.named('test')
-            executionData layout.buildDirectory.file('jacoco/test.exec')
+            dependsOn coveredProjects.collect { it.tasks.named('test') }
+            executionData.from coveredProjects.collect { it.layout.buildDirectory.file('jacoco/test.exec') }
             sourceDirectories.from coveredProjects.collect { it.sourceSets.main.allSource.srcDirs }
             classDirectories.from coveredProjects.collect { it.sourceSets.main.output.classesDirs }
             reports { xml.required = true; html.required = true }
         }
         tasks.register('serviceCoverageVerification', JacocoCoverageVerification) {
             dependsOn tasks.named('serviceCoverageReport')
-            executionData layout.buildDirectory.file('jacoco/test.exec')
+            executionData.from coveredProjects.collect { it.layout.buildDirectory.file('jacoco/test.exec') }
             sourceDirectories.from coveredProjects.collect { it.sourceSets.main.allSource.srcDirs }
             classDirectories.from coveredProjects.collect { it.sourceSets.main.output.classesDirs }
             violationRules {
@@ -158,7 +193,8 @@ serviceNames.each { service ->
 // Validate project declarations as well as compiled class dependencies.
 def allowedLayerDependency = { String from, String target ->
     def f = from.tokenize(':'); def t = target.tokenize(':')
-    if (target == ':modules:identity-contracts') return from.startsWith(':services:') || from == ':modules:security-micronaut'
+    if (target == ':modules:identity-contracts') return from.startsWith(':services:') || from in [':modules:security-micronaut', ':modules:authorization-catalog']
+    if (target == ':modules:authorization-catalog') return from in [':services:document-management:adapters-out', ':services:document-management:bootstrap']
     if (target == ':modules:security-micronaut') return f.size() == 3 && f[0] == 'services' && f[2] in ['adapters-in', 'adapters-out', 'bootstrap']
     if (f.size() != 3 || t.size() != 3 || f[0] != 'services' || t[0] != 'services') return false
     if (f[1] != t[1]) return false
@@ -181,7 +217,11 @@ tasks.register('architectureDependencyTest') {
         assert allowedLayerDependency(':services:browser-bff:application', ':modules:identity-contracts')
         assert !allowedLayerDependency(':services:browser-bff:domain', ':modules:security-micronaut')
         assert !allowedLayerDependency(':modules:identity-contracts', ':modules:security-micronaut')
-        (serviceProjects + [project(':modules:identity-contracts'), project(':modules:security-micronaut')]).each { p ->
+        assert allowedLayerDependency(':modules:authorization-catalog', ':modules:identity-contracts')
+        assert allowedLayerDependency(':services:document-management:adapters-out', ':modules:authorization-catalog')
+        assert !allowedLayerDependency(':services:document-management:application', ':modules:authorization-catalog')
+        assert !allowedLayerDependency(':services:knowledge-base:adapters-out', ':modules:authorization-catalog')
+        (serviceProjects + [project(':modules:identity-contracts'), project(':modules:security-micronaut'), project(':modules:authorization-catalog')]).each { p ->
                 def layer = p.name
                 p.configurations.matching { it.name in ['api', 'implementation', 'compileOnly', 'runtimeOnly'] }.each { config ->
                     config.dependencies.each { dependency ->

@@ -1,8 +1,18 @@
 import { useState } from 'react';
 import { Link, NavLink, Route, Routes } from 'react-router-dom';
 import { Identity } from './Identity';
+import { Documents } from './Documents';
+import { ServerState } from './query';
 
 export function App() {
+  return (
+    <ServerState>
+      <Shell />
+    </ServerState>
+  );
+}
+
+function Shell() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   return (
@@ -44,6 +54,7 @@ export function App() {
             </NavLink>
             <NavLink to="/foundation">Foundation</NavLink>
             <NavLink to="/identity">Workspace access</NavLink>
+            <NavLink to="/documents">Documents</NavLink>
           </nav>
           <p className="sidebar-note">
             Built around clear boundaries.
@@ -56,12 +67,13 @@ export function App() {
             <Route path="/" element={<Overview />} />
             <Route path="/foundation" element={<Foundation />} />
             <Route path="/identity" element={<Identity />} />
+            <Route path="/documents" element={<Documents />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
       </div>
       <footer>
-        Independent platform · Foundation shell · No business data connected
+        Independent platform · Metadata-only drafts · No content uploads
       </footer>
     </div>
   );
@@ -83,9 +95,9 @@ function Overview() {
         <span className="card-kicker">START HERE</span>
         <h2 id="welcome-title">Structure before content.</h2>
         <p>
-          This shell establishes navigation and presentation. Document
-          management, collections and search will arrive through separately
-          reviewed changes.
+          This shell establishes navigation and presentation. Metadata-only
+          document drafts are available through verified workspace access.
+          Collections and search remain planned.
         </p>
         <Link className="primary-link" to="/foundation">
           Explore the foundation <span aria-hidden="true">↗</span>
@@ -132,7 +144,11 @@ function DomainCard({
       <span className="domain-number">{number}</span>
       <h3>{title}</h3>
       <p>{description}</p>
-      <span className="planned">Planned capability</span>
+      <span className="planned">
+        {title === 'Document Management'
+          ? 'Metadata drafts available'
+          : 'Planned capability'}
+      </span>
     </article>
   );
 }
@@ -143,8 +159,8 @@ function Foundation() {
       <p className="eyebrow">DKP / FOUNDATION</p>
       <h1>Built to grow with care.</h1>
       <p className="lead">
-        This is an engineering foundation, with no document or knowledge
-        business functionality connected.
+        This is an engineering foundation, with authorized metadata-only draft
+        management. Knowledge workflows remain planned.
       </p>
       <section className="info-card" aria-labelledby="principles-title">
         <h2 id="principles-title">Guiding principles</h2>
@@ -162,8 +178,9 @@ function Foundation() {
         <h2 id="scope-title">What you can do here</h2>
         <p>
           Navigate the shell, choose a display theme and verify your workspace
-          access. Uploading, searching, publishing and administering permissions
-          are not available in this foundation.
+          access. Uploading, searching, publishing and purging are not
+          available. Draft metadata, bounded access rules and legal holds are
+          available in Documents.
         </p>
       </section>
     </>

@@ -1,1 +1,32 @@
-// Shared build conventions are defined in the root build.gradle.
+// Service-wide conventions and dependency pins are defined in the root build.
+tasks.register('persistenceCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+        include 'org/documentknowledge/documentmanagement/adapters/outbound/persistence/**'
+    }
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('persistenceCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('persistenceCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+        include 'org/documentknowledge/documentmanagement/adapters/outbound/persistence/**'
+    }
+    violationRules {
+        rule {
+            limit { counter = 'LINE'; minimum = 0.75 }
+            limit { counter = 'BRANCH'; minimum = 0.75 }
+        }
+    }
+}
+tasks.named('check') { dependsOn 'persistenceCoverageVerification' }
+
+// Authority fixtures must retain the real provider's ancestor protection.
+tasks.named('test') {
+    def authorityTmp = layout.buildDirectory.dir('authority-test-tmp')
+    systemProperty 'java.io.tmpdir', authorityTmp.get().asFile.absolutePath
+    doFirst { authorityTmp.get().asFile.mkdirs() }
+}

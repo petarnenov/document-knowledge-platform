@@ -42,6 +42,36 @@
     },
     "/health/readiness": {
       "$ref": "./operational.yaml#/paths/~1health~1readiness"
+    },
+    "/api/v1/documents": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents"
+    },
+    "/api/v1/documents/{documentId}": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1%7BdocumentId%7D"
+    },
+    "/api/v1/documents/{documentId}/acl": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1%7BdocumentId%7D~1acl"
+    },
+    "/api/v1/documents/{documentId}/legal-holds": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1%7BdocumentId%7D~1legal-holds"
+    },
+    "/api/v1/documents/{documentId}/versions": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1%7BdocumentId%7D~1versions"
+    },
+    "/api/v1/dm/documents": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents"
+    },
+    "/api/v1/dm/documents/{documentId}": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1%7BdocumentId%7D"
+    },
+    "/api/v1/dm/documents/{documentId}/acl": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1%7BdocumentId%7D~1acl"
+    },
+    "/api/v1/dm/documents/{documentId}/legal-holds": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1%7BdocumentId%7D~1legal-holds"
+    },
+    "/api/v1/dm/documents/{documentId}/versions": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1%7BdocumentId%7D~1versions"
     }
   },
   "components": {
@@ -80,6 +110,60 @@
       },
       "UnavailableStatus": {
         "$ref": "./operational.yaml#/components/schemas/UnavailableStatus"
+      },
+      "Actor": {
+        "$ref": "./document-management.yaml#/components/schemas/Actor"
+      },
+      "Action": {
+        "$ref": "./document-management.yaml#/components/schemas/Action"
+      },
+      "Error": {
+        "$ref": "./document-management.yaml#/components/schemas/Error"
+      },
+      "Metadata": {
+        "$ref": "./document-management.yaml#/components/schemas/Metadata"
+      },
+      "CreateDraft": {
+        "$ref": "./document-management.yaml#/components/schemas/CreateDraft"
+      },
+      "Retention": {
+        "$ref": "./document-management.yaml#/components/schemas/Retention"
+      },
+      "Document": {
+        "$ref": "./document-management.yaml#/components/schemas/Document"
+      },
+      "UpdateMetadata": {
+        "$ref": "./document-management.yaml#/components/schemas/UpdateMetadata"
+      },
+      "AclRule": {
+        "$ref": "./document-management.yaml#/components/schemas/AclRule"
+      },
+      "AclChange": {
+        "$ref": "./document-management.yaml#/components/schemas/AclChange"
+      },
+      "Acl": {
+        "$ref": "./document-management.yaml#/components/schemas/Acl"
+      },
+      "PlaceHold": {
+        "$ref": "./document-management.yaml#/components/schemas/PlaceHold"
+      },
+      "Hold": {
+        "$ref": "./document-management.yaml#/components/schemas/Hold"
+      },
+      "Holds": {
+        "$ref": "./document-management.yaml#/components/schemas/Holds"
+      },
+      "AppendVersion": {
+        "$ref": "./document-management.yaml#/components/schemas/AppendVersion"
+      },
+      "DocumentPage": {
+        "$ref": "./document-management.yaml#/components/schemas/DocumentPage"
+      },
+      "CommandReceipt": {
+        "$ref": "./document-management.yaml#/components/schemas/CommandReceipt"
+      },
+      "AclChangeEntry": {
+        "$ref": "./document-management.yaml#/components/schemas/AclChangeEntry"
       }
     }
   },

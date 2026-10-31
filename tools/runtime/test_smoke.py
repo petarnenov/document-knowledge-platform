@@ -43,10 +43,10 @@ class SmokeTests(unittest.TestCase):
                 "State": {"Health": {"Status": "healthy"}}}
 
         def verify(containers):
-            with patch("smoke.subprocess.check_output", side_effect=["a b c d e f", json.dumps(containers)]):
+            with patch("smoke.subprocess.check_output", side_effect=["a b c d e f g", json.dumps(containers)]):
                 smoke.verify_containers()
 
-        verify([deepcopy(safe) for _ in range(6)])
+        verify([deepcopy(safe) for _ in range(7)])
         for section, key, value in [("Config", "User", "root"),
                                     ("HostConfig", "ReadonlyRootfs", False),
                                     ("HostConfig", "CapDrop", []),
