@@ -33,6 +33,10 @@ Invoke only a real mechanism that compacts the **current session**. If the envir
 
 Standing automatic specification approval and PR merging do not remove this lifecycle. No additional owner confirmation is needed for routine issue creation, evidence updates or verified closure within the authorized project work.
 
+## Owner-selected object store
+
+Owner decision on 2026-10-31: use **RustFS** when the project first introduces object storage. Tracking: [#53](https://github.com/petarnenov/document-knowledge-platform/issues/53), implementation [BP-03 / #35](https://github.com/petarnenov/document-knowledge-platform/issues/35). Keep the storage port S3-compatible; validate the exact required operations against the [official S3 compatibility guidance](https://github.com/rustfs/docs.rustfs.com/blob/main/content/en/administration/protocols/s3.md) and [official container documentation](https://docs.rustfs.com/en/installation/container) when integrating. Select a maintained version and immutable image digest during BP-03, with actual quarantine/private-bucket/scoped-credential/content-access and failure tests. This selection does not waive upload scanning, tenant isolation, retention or production gates. BP-02 may define verified-artifact contracts without starting an object-store runtime.
+
 ## Local worktree commands
 
 Run from an existing clone:

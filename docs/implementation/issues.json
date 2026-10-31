@@ -1,7 +1,9 @@
 {
   "protocol": {
     "issue": 5,
-    "reviewIssue": 7
+    "reviewIssue": 7,
+    "state": "closed",
+    "reviewState": "closed"
   },
   "packages": {
     "DKP-002": {
@@ -12,179 +14,208 @@
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/8",
           "title": "DKP-002 1.1: map BP-01 acceptance and full-project queue, preserve security/production gates and latest automatic-merge authorization.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "1.2": {
           "number": 9,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/9",
           "title": "DKP-002 1.2: inspect exact managed security/session sources and record unsafe defaults, selected provider version and public protocol guidance.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "1.3": {
           "number": 10,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/10",
           "title": "DKP-002 1.3: author proposal, capability deltas, design, frozen route/DTO contract and positive/negative test matrix.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "1.4": {
           "number": 11,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/11",
           "title": "DKP-002 1.4: review specification against architecture and threat cases; root resolves findings and runs strict OpenSpec validation.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "1.5": {
           "number": 12,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/12",
           "title": "DKP-002 1.5: record automatic specification approval with reviewed artifact digest and resolved review evidence before runtime changes.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "2.1": {
           "number": 13,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/13",
           "title": "DKP-002 2.1: add immutable technical identity/authority contracts and deny/unavailable resource/workload ports with tests.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "2.2": {
           "number": 14,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/14",
           "title": "DKP-002 2.2: implement framework-backed strict JWT/JWK policies, bounded JWKS behavior and issuer-bound membership; test all claim, rotation and outag",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "2.3": {
           "number": 15,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/15",
           "title": "DKP-002 2.3: integrate all three APIs with independent tenant selection and safe security-context DTO; HTTP-test direct bypass and tenant negatives.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "2.4": {
           "number": 16,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/16",
-          "title": "DKP-002 2.4: extend Gradle/architecture coverage for four services and narrow technical-module exceptions, including negative boundary fixtures and ≥7",
+          "title": "DKP-002 2.4: extend Gradle/architecture coverage for four services and narrow technical-module exceptions, including negative boundary fixtures and \u22657",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "3.1": {
           "number": 17,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/17",
           "title": "DKP-002 3.1: create five independent layers, framework confidential OIDC S256 login and server token custody; test protocol tampering and no authentic",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "3.2": {
           "number": 18,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/18",
           "title": "DKP-002 3.2: implement constrained cookie/session lifetime, rotation, safe session DTO and local-only logout with lifecycle tests.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "3.3": {
           "number": 19,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/19",
           "title": "DKP-002 3.3: enforce CSRF and exact Origin on every accepted unsafe request type, deny alternate mutation routes and test state preservation.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "3.4": {
           "number": 20,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/20",
-          "title": "DKP-002 3.4: implement fixed context delegation, stripping/validation/timeout/response limits; test SSRF, redirect and forged authority cases with ≥75",
+          "title": "DKP-002 3.4: implement fixed context delegation, stripping/validation/timeout/response limits; test SSRF, redirect and forged authority cases with \u226575",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "4.1": {
           "number": 21,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/21",
           "title": "DKP-002 4.1: publish OpenAPI identity contracts and regenerate checked Java/TypeScript SDKs; validate compatibility and deterministic generation.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "4.2": {
           "number": 22,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/22",
           "title": "DKP-002 4.2: implement same-origin login/session/tenant/context/logout UI, accessible failures and real identity states; use contract types without br",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "4.3": {
           "number": 23,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/23",
-          "title": "DKP-002 4.3: add component and browser tests for identity lifecycle, expiry/denial/unavailability and existing navigation/theme regression; meet ≥75% ",
+          "title": "DKP-002 4.3: add component and browser tests for identity lifecycle, expiry/denial/unavailability and existing navigation/theme regression; meet \u226575% ",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "5.1": {
           "number": 24,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/24",
           "title": "DKP-002 5.1: pin Keycloak image digest and add secret-free realm template with exact issuer/client/audiences, admin-only tenant mapping, fixed token l",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "5.2": {
           "number": 25,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/25",
           "title": "DKP-002 5.2: implement/test ignored local security bootstrap, restrictive permissions, dedicated CA trust and idempotency without secret output or glo",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "5.3": {
           "number": 26,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/26",
           "title": "DKP-002 5.3: wire HTTPS portal/BFF/IdP and three APIs into hardened Compose; document ephemeral single-BFF session and production/workload gates.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "5.4": {
           "number": 27,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/27",
-          "title": "DKP-002 5.4: run real Keycloak HTTPS Playwright login → tenant select → all contexts → logout E2E plus runtime security/probe checks; preserve failure",
+          "title": "DKP-002 5.4: run real Keycloak HTTPS Playwright login \u2192 tenant select \u2192 all contexts \u2192 logout E2E plus runtime security/probe checks; preserve failure",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "6.1": {
           "number": 28,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/28",
           "title": "DKP-002 6.1: update pinned CI for four services, contracts, architecture, portal, real identity E2E, coverage, supply-chain/secret scans and runtime c",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "6.2": {
           "number": 29,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/29",
           "title": "DKP-002 6.2: execute affected gates and record exact commands/results/coverage with no skipped acceptance evidence; audit every requirement/scenario a",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "6.3": {
           "number": 30,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/30",
           "title": "DKP-002 6.3: review final diff, security boundaries, tests and acceptance evidence; root resolves and retests findings.",
           "checklistVerified": true,
-          "priority": "P1"
+          "priority": "P1",
+          "state": "closed"
         },
         "6.4": {
           "number": 31,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/31",
           "title": "DKP-002 6.4: open PR targeting dev with evidence and rollback plan, run required CI; automatically merge into dev only after independent review and al",
-          "checklistVerified": false,
-          "priority": "P1"
+          "checklistVerified": true,
+          "priority": "P1",
+          "state": "closed"
         },
         "6.5": {
           "number": 32,
           "url": "https://github.com/petarnenov/document-knowledge-platform/issues/32",
           "title": "DKP-002 6.5: publish completion/gate status, archive after reviewed integration, and continue independent ready full-project work with 15-minute statu",
-          "checklistVerified": false,
-          "priority": "P1"
+          "checklistVerified": true,
+          "priority": "P1",
+          "state": "open",
+          "remainingGate": "completion evidence PR integration"
         }
       },
       "url": "https://github.com/petarnenov/document-knowledge-platform/issues/6",
-      "priority": "P1"
+      "priority": "P1",
+      "implementationPR": 4,
+      "implementationMerge": "3f32dc573e6d2dfc58e7c6162c04c6e89b49bd56",
+      "completionReviewIssue": 51
     },
     "DKP-001": {
       "issue": 33,
@@ -194,7 +225,9 @@
     "DKP-003": {
       "issue": 34,
       "url": "https://github.com/petarnenov/document-knowledge-platform/issues/34",
-      "priority": "P1"
+      "priority": "P1",
+      "specificationIssue": 50,
+      "specificationDraftIssue": 52
     },
     "DKP-004": {
       "issue": 35,
@@ -271,5 +304,12 @@
       "url": "https://github.com/petarnenov/document-knowledge-platform/issues/49",
       "priority": "P1"
     }
+  },
+  "objectStoreSelection": {
+    "provider": "RustFS",
+    "issue": 53,
+    "reviewIssue": 54,
+    "implementationIssue": 35,
+    "runtimeIntroduced": false
   }
 }
