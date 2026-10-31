@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://document-knowledge-platform.example/schemas/development-kb-grant-catalog-v1",
+  "title": "Proposed development KB authoritative actions and audience relations",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "entries"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "issuer",
+          "subject",
+          "tenant",
+          "actions"
+        ],
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "format": "uri",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "tenant": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "actions": {
+            "type": "array",
+            "uniqueItems": true,
+            "maxItems": 32,
+            "items": {
+              "enum": [
+                "knowledge.collection.create",
+                "knowledge.collection.inspect",
+                "knowledge.collection.update",
+                "knowledge.collection.archive",
+                "knowledge.acl.restrict",
+                "knowledge.acl.delegate",
+                "knowledge.audience.manage",
+                "knowledge.membership.manage",
+                "knowledge.policy.evaluate"
+              ]
+            }
+          },
+          "delegationCeiling": {
+            "type": "array",
+            "uniqueItems": true,
+            "maxItems": 32,
+            "items": {
+              "enum": [
+                "knowledge.collection.create",
+                "knowledge.collection.inspect",
+                "knowledge.collection.update",
+                "knowledge.collection.archive",
+                "knowledge.acl.restrict",
+                "knowledge.acl.delegate",
+                "knowledge.audience.manage",
+                "knowledge.membership.manage",
+                "knowledge.policy.evaluate"
+              ]
+            }
+          },
+          "firms": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "uniqueItems": true
+          },
+          "resourceScopes": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    }
+  }
+}
