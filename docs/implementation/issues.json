@@ -273,7 +273,7 @@
         "readinessOutage": 78,
         "completePersistenceSnapshot": 79
       },
-      "implementationState": "verified/integrated; canonical archive in progress",
+      "implementationState": "verified/closed",
       "implementationReviewStates": {
         "catalogDomainPersistenceSdk": "closed/PASS",
         "browserRuntimeHttp": "closed/PASS"
@@ -309,12 +309,46 @@
       },
       "completionFixIssue": 83,
       "archiveContractFixIssue": 84,
-      "completionReviewState": "closed/PASS"
+      "completionReviewState": "closed/PASS",
+      "state": "closed",
+      "completionPR": 85,
+      "completionHead": "b4bf61b3935da5099b72ccc6746caa24d8936413",
+      "completionMerge": "3de7840728c126eb3f9efdb90f568013437af8e2",
+      "completionDevCI": 41229510527,
+      "completionState": "closed"
     },
     "DKP-004": {
       "issue": 35,
       "url": "https://github.com/petarnenov/document-knowledge-platform/issues/35",
-      "priority": "P1"
+      "priority": "P1",
+      "state": "specification approved; integration pending",
+      "researchIssue": 86,
+      "designDecisionIssue": 87,
+      "specificationIssue": 88,
+      "specificationReviews": {
+        "security": 89,
+        "architecture": 90
+      },
+      "runtimeStarted": false,
+      "implementationIssues": {
+        "2.1": 91,
+        "2.2": 92,
+        "2.3": 93,
+        "2.4": 94,
+        "2.5": 95,
+        "2.6": 96,
+        "2.7": 97,
+        "2.8": 98,
+        "2.9": 99
+      },
+      "implementationState": "planned; issues91-99 open, NOT STARTED pending reviewed approval",
+      "specificationReviewStates": {
+        "security": "PASS; pure review closure pending",
+        "architecture": "PASS; pure review closure pending"
+      },
+      "holdCleanupDecisionIssue": 100,
+      "specificationState": "approved for development",
+      "specificationFingerprint": "e0facfe24f840857a3988b7bd19fddcf3a53cb763e8819b96d32ecdb44a966af"
     },
     "DKP-005": {
       "issue": 36,

@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://documentknowledge.invalid/contracts/dkp-004/verified-receipt.schema.json",
+  "title": "Private persisted verified receipt; NEVER accepted from browser",
+  "description": "Task88 draft. Original bucket must be dkp-originals; schema identity is shared with quarantine evidence. Application enforces canonical MIME/family, exact identity/hash/actor/tenant/document and expiry constraints. Stored facts insert-only; separate atomic consumption record.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "receiptId",
+    "uploadId",
+    "tenant",
+    "actor",
+    "documentId",
+    "sha256",
+    "sizeBytes",
+    "format",
+    "mimeType",
+    "original",
+    "evidenceId",
+    "verification",
+    "createdAt",
+    "expiresAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "uploadId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "tenant": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issuer",
+        "subject"
+      ],
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    },
+    "documentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sizeBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000000
+    },
+    "format": {
+      "type": "string",
+      "enum": [
+        "PDF",
+        "DOCX",
+        "PPTX",
+        "XLSX"
+      ]
+    },
+    "mimeType": {
+      "type": "string",
+      "enum": [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ]
+    },
+    "original": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bucket",
+        "key",
+        "versionId"
+      ],
+      "properties": {
+        "bucket": {
+          "const": "dkp-originals"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}/[0-9a-f-]{36}/[0-9a-f-]{36}$",
+          "maxLength": 138
+        },
+        "versionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      }
+    },
+    "evidenceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inspectorPlugin",
+        "inspectorVersion",
+        "inspectorImageDigest",
+        "profileDigest",
+        "inspectedAt",
+        "scannerEngineVersion",
+        "standardDatabaseVersion",
+        "standardDatabaseUpdatedAt",
+        "standardDatabaseDigest",
+        "scannedAt"
+      ],
+      "properties": {
+        "inspectorPlugin": {
+          "const": "dkp-structure-inspector"
+        },
+        "inspectorVersion": {
+          "const": "1"
+        },
+        "inspectorImageDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "profileDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "inspectedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "scannerEngineVersion": {
+          "const": "1.5.4"
+        },
+        "standardDatabaseVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "standardDatabaseUpdatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "standardDatabaseDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scannedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

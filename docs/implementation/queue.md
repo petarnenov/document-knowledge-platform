@@ -22,8 +22,8 @@ Package names and acceptance come from System Design §14; DKP identifiers below
 |---|---|---|---|---|
 | [DKP-001 #33](https://github.com/petarnenov/document-knowledge-platform/issues/33) | BP-00 | Monorepo, independent builds, CI, OpenSpec, architecture/coverage/contract gates and SDK generation | None | Complete: PRs #2/#3 merged; canonical foundation specs and delivery record |
 | [DKP-002 #6](https://github.com/petarnenov/document-knowledge-platform/issues/6) | BP-01 | Standalone/external OIDC, trusted BFF, tenant context, default-deny identity/authorization ports and workload abstractions | BP-00 | Complete: PRs #4/#55 integrated; dev5486b29 and all checks passed; canonical archive/evidence; parent #6 closed |
-| [DKP-003 #34](https://github.com/petarnenov/document-knowledge-platform/issues/34) | BP-02 | DM aggregates, immutable versions, ACL/retention and owned PostgreSQL migrations | BP-01 | Implementation integrated: PR80/5b35b8e, all11 PR checks and dev41228406275 all9 passed; canonical archive/completion #81 and review #82 in progress |
-| [DKP-004 #35](https://github.com/petarnenov/document-knowledge-platform/issues/35) | BP-03 | RustFS S3-compatible quarantine/upload/scan and secured content access | BP-02 | Queued; owner selected RustFS as first object store (#53) |
+| [DKP-003 #34](https://github.com/petarnenov/document-knowledge-platform/issues/34) | BP-02 | DM aggregates, immutable versions, ACL/retention and owned PostgreSQL migrations | BP-01 | Complete: PR80 implementation and PR85 canonical archive integrated; final dev3de7840 /41229510527 all9checks passed; parent34 and verified children closed |
+| [DKP-004 #35](https://github.com/petarnenov/document-knowledge-platform/issues/35) | BP-03 | RustFS S3-compatible quarantine/upload/scan and secured content access | BP-02 | Specification88 approved after independent89/90 PASS; specification integration pending; runtime91–99 unstarted; RustFS first store |
 | [DKP-005 #36](https://github.com/petarnenov/document-knowledge-platform/issues/36) | BP-04 | KB collections, audiences, memberships and policy revisions | BP-01/BP-02 | Queued |
 | [DKP-006 #37](https://github.com/petarnenov/document-knowledge-platform/issues/37) | BP-05 | Durable processing intent, Temporal dispatch and transactional Kafka outbox | BP-02/BP-03 | Queued |
 | [DKP-007 #38](https://github.com/petarnenov/document-knowledge-platform/issues/38) | BP-06 | Isolated Docling parsing and versioned source artifacts | BP-03/BP-05 | Queued |
@@ -52,3 +52,7 @@ Do not mark the goal complete until all of the following have current, direct ev
 - Every queue item and any added implementation subtask is finished and independently reviewed, required CI is green, and delivery PRs are reviewed and integrated into dev after passing the required gates. No hidden TODO, dummy adapter, skipped gate or package boundary substitutes for project completion.
 
 When an external resource or a production-only owner decision blocks a criterion, preserve it visibly and continue every independent ready task. Never redefine success around the completed subset.
+
+## BP03 development sequencing — #87/#88
+
+The reviewed BP03 development specification uses separate verified-upload completion and existing explicit version append201. It must not expose processing readiness. BP05 retains atomic version/run/intent/outbox creation with202ACCEPTED_PENDING_DISPATCH and must explicitly reconcile legacy append compatibility and pre-processing versions. Independent security89/architecture90 accepted this sequencing and development approval is recorded in DKP-004. It does not change final project acceptance or grant production approval.

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://documentknowledge.invalid/contracts/dkp-004/inspection-result.schema.json",
+  "title": "Isolated structural inspector response, not malware evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "format",
+    "mimeType",
+    "sizeBytes",
+    "sha256",
+    "pageCount",
+    "inspectorVersion",
+    "profileDigest"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "format": {
+      "type": "string",
+      "enum": [
+        "PDF",
+        "DOCX",
+        "PPTX",
+        "XLSX"
+      ]
+    },
+    "mimeType": {
+      "type": "string",
+      "enum": [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ]
+    },
+    "sizeBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000000
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "pageCount": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 1000
+    },
+    "inspectorVersion": {
+      "const": "1"
+    },
+    "profileDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "format": {
+            "const": "PDF"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "pageCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "pageCount": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}
