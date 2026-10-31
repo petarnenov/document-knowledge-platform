@@ -155,3 +155,9 @@ Authenticated faults166/173 independent170 re-review PASS; all138 Python3.14 tes
 ### Owner-requested fast expiry split178 and review-driven tests180
 
 `node tools/runtime/upload-expiry.mjs fast`:64 application tests, zero failures/errors/skips; focused UploadLifecycleTest44. Report-only JaCoCo XML confirms409/418 lines(97.85%) and503/622 branches(80.87%). Exact selector CI command:5 tests,100% lines/branches/functions. Independent179/180 reviewer verified source hashes, fresh JUnit counts and JaCoCo counters. Original-slot -1microsecond/exact/+1microsecond, delayed retries retaining initial expiresAt, consumed replay/discovery, expired activehold and unresolved deletion conservative accounting, plus per-confirmed-copy settlement control are covered. No production source, TTL, session, tenant check or live provider was changed. Real60-minute final acceptance remains separate and RUNNING, and CI/integration remain required.
+
+### 2026-10-31 23:23 UTC first genuine authenticated fault CI success
+
+On remote148c037, Foundation41250740065 job124683539258 completed the real authenticated provider-fault/receipt-state/retry-accounting stage166/173 successfully. This is distinct from the earlier quiescent five-fault143 durability proof. The subsequent updated both-theme browser, combined COPY/FENCE and separate fresh quota stages remain pending at this checkpoint; no full job or real sixty-minute success is inferred.
+
+Approved BP04specPR184 integrated as6262d10 after finalc65c441 all9 Foundation jobs plus hygiene passed. Local merge into BP03 is documentation/specification only: sole adjacent-queue-row conflict preserves both actual statuses, incoming BP04 source equals dev, production/runtime/test/build/lock/published-contract bytes equal reviewed148c037. Independent181 bounded re-review PASS; strict OpenSpec12/12, staged diff clean and secret scan0leaks. Final combined-head CI and dev integration remain required.

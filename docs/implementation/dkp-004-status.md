@@ -1,3 +1,9 @@
+## 2026-10-31 23:22 UTC BP04 specification integration and updated BP03 baseline
+
+BP04 specification PR184 merged into dev as6262d1011d3d7b044991e16ab14cc4d6298976b7 after all9 Foundation jobs plus hygiene passed on reviewedc65c441. Post-merge dev Foundation41252101000 is running. Latest standing185 automatic development merge authorization was independently186 reviewed and preserves all acceptance gates.
+
+BP03 local policy commitbe232dd is merging that integrated dev baseline. The only conflict is adjacent BP03/BP04 queue rows; resolution preserves actual BP03 progress and records BP04 specification integration/runtime-unstarted state. Production, runtime, test and dependency bytes remain unchanged from reviewed148c037; strict OpenSpec12/12 passes with both changes present. Final-source CI must rerun after pushing the combined head. Current remote148 CI is still executing real authenticated166 provider faults, and host genuine sixty-minute expiry38213 remains active until23:44:19UTC+ final assertions. No BP03 completion is claimed.
+
 ## 2026-10-31 23:13 UTC renewed owner merge authorization —185
 
 The owner explicitly renewed standing automatic merging after green tests and CI. This supersedes the prior prohibition for current/future development PRs until revoked. AGENTS.md and the protocol now preserve approved specifications, independent review and all applicable acceptance/coverage/security gates. PR146 still requires final-source real-provider CI and genuine sixty-minute expiry; PR184 requires its reviewed specification CI. No production, CID or formal security/architecture sign-off is granted. Earlier no-merge checkpoints below are historical.
