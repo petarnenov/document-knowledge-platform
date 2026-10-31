@@ -135,3 +135,5 @@ Runtime issues91–99 were created before execution. Development specification a
 - [ ] [#180](https://github.com/petarnenov/document-knowledge-platform/issues/180) P2: close179 review gaps using injected-clock application tests for the original exact expiry boundary, delayed retry preserving its deadline and expired held accounting; no production TTL/runtime change.
 
 178/179/180 checkpoint23:01UTC: selector5 tests100% coverage; actualfast64 application tests pass,97.85% lines/80.87% branches; independent source re-review PASS. Required real60-minute acceptance remains RUNNING, final CI/integration pending.
+
+- [ ] [#185](https://github.com/petarnenov/document-knowledge-platform/issues/185) P1: persist renewed owner automatic dev merge permission after green tests/CI, retaining independent review and every applicable acceptance gate; supersedes earlier no-merge policy.

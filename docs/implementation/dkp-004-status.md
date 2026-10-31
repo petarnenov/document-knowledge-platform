@@ -1,3 +1,7 @@
+## 2026-10-31 23:13 UTC renewed owner merge authorization —185
+
+The owner explicitly renewed standing automatic merging after green tests and CI. This supersedes the prior prohibition for current/future development PRs until revoked. AGENTS.md and the protocol now preserve approved specifications, independent review and all applicable acceptance/coverage/security gates. PR146 still requires final-source real-provider CI and genuine sixty-minute expiry; PR184 requires its reviewed specification CI. No production, CID or formal security/architecture sign-off is granted. Earlier no-merge checkpoints below are historical.
+
 ## 2026-10-31 23:01 UTC owner-requested178 ready for CI
 
 The scoped178 selector and180 boundary tests passed independent179 source re-review. Actual fast command:64 application tests,0 failures/errors/skips; focused lifecycle44 tests. Fresh application JaCoCo:409/418 lines97.85%,503/622 branches80.87%. Five selector tests:100% line/branch/function coverage. Added tests exercise the original slot one microsecond before, exactly at and after expiry, delayed retry preserving its initial deadline, consumed-receipt replay/discovery, active-hold expiry preserving both copies/charges/evidence, and unresolved DELETE preserving charges despite observed absence/service recreation. A known-terminal control releases charges per confirmed copy and admission only after the last copy. These are injected-clock application results, not physical-provider or elapsed-time evidence.
