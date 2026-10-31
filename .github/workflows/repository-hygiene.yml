@@ -1,0 +1,19 @@
+name: Repository hygiene
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  basic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check forbidden committed file types
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -Ei '(^|/)(\.env($|\.)|secrets/)|\.(pem|p12|pfx|key|pdf|docx|pptx|xlsx|gguf|safetensors)$'; then
+            echo 'Potential secrets or nonpublic binary artifacts tracked; review required.'
+            exit 1
+          fi
+          echo 'Basic hygiene checks passed.'
