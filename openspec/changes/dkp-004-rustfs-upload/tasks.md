@@ -107,7 +107,7 @@ Runtime issues91–99 were created before execution. Development specification a
 
 - [ ] [#160](https://github.com/petarnenov/document-knowledge-platform/issues/160) P1: consistent Python3.14 coverage core and transparent per-helper metrics; all121 tests and six unchanged floors pass locally, CI pending.
 - [ ] [#161](https://github.com/petarnenov/document-knowledge-platform/issues/161) P1: actual curl HEAD config parser correction; real native403/nonmutating preparation passes, combined cases pending.
-- [ ] [#162](https://github.com/petarnenov/document-knowledge-platform/issues/162) P1: independent review of HEAD, coverage and isolated spool fixture fixes.
+- [x] [#162](https://github.com/petarnenov/document-knowledge-platform/issues/162) P1: independent review of HEAD, coverage and isolated spool fixture fixes.
 - [ ] [#163](https://github.com/petarnenov/document-knowledge-platform/issues/163) P1: configure both real combined-test S3 adapters with the service isolated spool directory; production direct-parent guard preserved, actual rerun pending.
 
 - [ ] [#164](https://github.com/petarnenov/document-knowledge-platform/issues/164) P1: persist latest owner-provided prohibition on automatic merging across governing delivery docs; PR146 stays unmerged.
@@ -115,3 +115,23 @@ Runtime issues91–99 were created before execution. Development specification a
 - [ ] [#165](https://github.com/petarnenov/document-knowledge-platform/issues/165) P1: actual physical PostgreSQL restart recovery diagnosis; first combined case reaches restart but finite verification fails, mapping hypothesis under investigation.
 
 - [ ] [#166](https://github.com/petarnenov/document-knowledge-platform/issues/166) P1: complete genuine authenticated outage/retry and verified-unconsumed/consumed receipt restart acceptance; source work in progress, no concurrent provider faults while combined acceptance owns the runtime.
+
+- [ ] [#168](https://github.com/petarnenov/document-knowledge-platform/issues/168) P1: real quota unsafe-mutation assertion must match existing BFF guard contract; first full quota run failed after six-concurrent/five-admitted proof, fresh rerun required.
+
+- [ ] [#169](https://github.com/petarnenov/document-knowledge-platform/issues/169) P1: diagnose actual quota visible-capacity draft discovery/pagination synchronization; no full quota PASS claimed.
+
+- [ ] [#170](https://github.com/petarnenov/document-knowledge-platform/issues/170) P1: independent authenticated fault acceptance review; three blockers recorded before real execution.
+- [ ] [#173](https://github.com/petarnenov/document-knowledge-platform/issues/173) P1: correct route/service-specific503 contracts and reject extra wrong-outcome audit rows from review170.
+
+## Side-conversation owner request — fast expiry execution (#178)
+
+- [ ] [#178](https://github.com/petarnenov/document-knowledge-platform/issues/178): explicit `node tools/runtime/upload-expiry.mjs fast` application regression versus `acceptance` real sixty-minute profile. Scoped selector/tests and [execution guide](../../../docs/development/upload-expiry-testing.md) added; review and PR integration remain pending. No runtime TTL or final acceptance gate is changed; the final real-time result remains mandatory.
+
+- [ ] [#175](https://github.com/petarnenov/document-knowledge-platform/issues/175) P1: integrate real authenticated faults, seven helper coverage floors and a separate fresh genuine quota runtime into CI; independent177 review passes, actual CI pending.
+- [ ] [#176](https://github.com/petarnenov/document-knowledge-platform/issues/176) P1: observe genuine metadata create through exact authorized idempotent replay and UI/discovery binding;23 helper tests100% coverage and independent177 review pass, actual final-source two-theme/quota CI pending.
+- [ ] [#177](https://github.com/petarnenov/document-knowledge-platform/issues/177) P1: independently review176 and175 integration; corrected cleanup attempts both owned runtimes and preserves nonzero failure. Review PASS, handoff pending.
+- [ ] [#179](https://github.com/petarnenov/document-knowledge-platform/issues/179) P2: independent review of concurrent owner-side178 fast versus real-time expiry selection; no genuine sixty-minute success claimed early.
+
+- [ ] [#180](https://github.com/petarnenov/document-knowledge-platform/issues/180) P2: close179 review gaps using injected-clock application tests for the original exact expiry boundary, delayed retry preserving its deadline and expired held accounting; no production TTL/runtime change.
+
+178/179/180 checkpoint23:01UTC: selector5 tests100% coverage; actualfast64 application tests pass,97.85% lines/80.87% branches; independent source re-review PASS. Required real60-minute acceptance remains RUNNING, final CI/integration pending.

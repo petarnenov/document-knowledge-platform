@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { expect, test, type Route } from '@playwright/test';
+import { confirmSingleCreate, replayUiCreate } from './ui-create-receipt';
 
 const uploadProfile = process.env.DKP_UPLOAD_E2E_ENABLED;
 if (
@@ -92,32 +93,46 @@ for (const scheme of ['dark', 'light'] as const) {
     }
 
     // No routes or business results are mocked: these requests reach the real DM/PG/catalog.
+    const initialDrafts = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === '/api/v1/dm/documents',
+    );
     await page.getByRole('link', { name: 'Documents', exact: true }).click();
+    const initialPage = await initialDrafts;
+    expect(initialPage.status()).toBe(200);
+    await initialPage.finished();
+    await expect(
+      page.getByText('Loading drafts…', { exact: true }),
+    ).toHaveCount(0);
     const title = `Synthetic draft ${Date.now()}`;
     await page.getByLabel('Title', { exact: true }).fill(title);
     await page
       .getByLabel('Description', { exact: true })
       .fill('Synthetic metadata; no document content uploaded.');
-    const createdResponse = page
-      .waitForResponse(
-        (response) =>
-          response.url().endsWith('/api/v1/dm/documents') &&
-          response.request().method() === 'POST',
-      )
-      .then(async (response) => ({
-        status: response.status(),
-        receipt: await response.json(),
-      }));
+    const createdResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/v1/dm/documents') &&
+        response.request().method() === 'POST',
+    );
     await page
       .getByRole('button', { name: 'Create draft', exact: true })
       .click();
-    const created = await createdResponse;
-    expect(created.status).toBe(201);
-    const receipt = created.receipt as {
-      documentId: string;
-      revision: number;
+    const intended = {
+      origin,
+      title,
+      description: 'Synthetic metadata; no document content uploaded.',
     };
-    expect(Object.keys(receipt).sort()).toEqual(['documentId', 'revision']);
+    const receipt = await replayUiCreate(
+      page.request,
+      await createdResponse,
+      intended,
+    );
+    await expect(
+      page.getByRole('status').filter({
+        hasText: `Saved document ${receipt.documentId}, revision ${receipt.revision}.`,
+      }),
+    ).toBeVisible();
     const root = `/api/v1/dm/documents/${receipt.documentId}`;
     await expect(
       page.getByRole('button', { name: 'Create draft', exact: true }),
@@ -147,6 +162,7 @@ for (const scheme of ['dark', 'light'] as const) {
     await expect(
       page.getByRole('heading', { name: title, exact: true }),
     ).toBeVisible();
+    await confirmSingleCreate(page.request, intended, receipt.documentId);
     await page
       .getByRole('button', { name: 'Use current metadata', exact: true })
       .click();

@@ -162,9 +162,91 @@ class UploadLifecycleTest {
   clock.advance(3599);var another=admitted(uploads(),UploadFormat.PDF); // deadline remains initializedAt+60min, never retry-extended
   clock.advance(2);failure(409,"UPLOAD_EXPIRED",()->app.complete(caller,slot,"expired"));assertEquals(UploadState.INITIALIZED,uploads().status(caller,another).state());
  }
+ @Test void originalUploadWorksOneMicrosecondBeforeExpiryAndRejectsExactlyAtAndAfter(){
+  var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);Instant expires=app.status(caller,slot).expiresAt();
+  assertEquals(clock.instant().plusSeconds(3600),expires);
+  clock.now=expires.minusNanos(1000);
+  assertEquals(slot,app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes())).uploadId());
+  var receipt=app.complete(caller,slot,"complete");
+  assertEquals(receipt,app.complete(caller,slot,"complete"));
+  assertEquals(expires,store.uploads.receipt(caller.tenant(),receipt.receiptId()).orElseThrow().expiresAt());
+  var before=store.uploads.slot(caller.tenant(),slot).orElseThrow();var accounts=store.uploads.global;int outcomes=store.uploads.outcomes.size();
+  for(Instant boundary:List.of(expires,expires.plusNanos(1000))){
+   clock.now=boundary;
+   failure(409,"UPLOAD_EXPIRED",()->app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes())));
+   failure(409,"UPLOAD_EXPIRED",()->app.complete(caller,slot,"complete"));
+   failure(409,"UPLOAD_EXPIRED",()->documents().appendVersion(caller,document,0,"append",receipt.receiptId().toString()));
+   assertEquals(before,store.uploads.slot(caller.tenant(),slot).orElseThrow());assertEquals(accounts,store.uploads.global);
+   assertEquals(outcomes,store.uploads.outcomes.size());assertEquals(1,store.uploads.receipts.size());assertEquals(1,store.uploads.evidence.size());
+   assertTrue(store.docs.get(document).versions().isEmpty());assertTrue(store.uploads.consumed.isEmpty());assertEquals(2,storage.objects.size());
+  }
+ }
+ @Test void receiptConsumedImmediatelyBeforeExpiryKeepsOnlyOriginalReplayAndDiscoveryAtBoundary(){
+  var app=uploads();var receipt=verified(app,UploadFormat.PDF);Instant expires=app.status(caller,receipt.uploadId()).expiresAt();
+  clock.now=expires.minusNanos(1000);
+  var committed=documents().appendVersion(caller,document,0,"append",receipt.receiptId().toString());
+  var mapping=app.discover(caller,document,receipt.receiptId());
+  for(Instant boundary:List.of(expires,expires.plusNanos(1000))){
+   clock.now=boundary;
+   assertEquals(committed,documents().appendVersion(caller,document,0,"append",receipt.receiptId().toString()));
+   assertEquals(mapping,app.discover(caller,document,receipt.receiptId()));
+   failure(409,"RECEIPT_CONSUMED",()->documents().appendVersion(caller,document,1,"different",receipt.receiptId().toString()));
+   assertEquals(1,store.docs.get(document).versions().size());assertEquals(1,store.uploads.consumed.size());
+  }
+ }
+ @Test void delayedTransientRetriesAndLateVerificationNeverExtendOriginalDeadline(){
+  var available=scanner;scanner=source->{throw new IllegalStateException("Synthetic transient scanner outage");};
+  var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);Instant expires=app.status(caller,slot).expiresAt();
+  app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));
+  for(int attempt=1;attempt<=2;attempt++){
+   clock.advance(600);String key="retry"+attempt;
+   failure(503,"UNAVAILABLE",()->app.complete(caller,slot,key));
+   assertEquals(expires,app.status(caller,slot).expiresAt());assertEquals(UploadState.QUARANTINED,app.status(caller,slot).state());
+   assertEquals(attempt,store.uploads.slot(caller.tenant(),slot).orElseThrow().verificationAttempts());
+   assertTrue(store.uploads.receipts.isEmpty());assertEquals(2*bytes().length,store.uploads.global.transientBytes());
+  }
+  scanner=available;clock.now=expires.minusNanos(1000);var receipt=uploads().complete(caller,slot,"last-retry");
+  assertEquals(expires,app.status(caller,slot).expiresAt());
+  assertEquals(expires,store.uploads.receipt(caller.tenant(),receipt.receiptId()).orElseThrow().expiresAt());
+  assertEquals(3,store.uploads.slot(caller.tenant(),slot).orElseThrow().verificationAttempts());
+  clock.now=expires;
+  failure(409,"UPLOAD_EXPIRED",()->app.complete(caller,slot,"last-retry"));
+  failure(409,"UPLOAD_EXPIRED",()->documents().appendVersion(caller,document,0,"append",receipt.receiptId().toString()));
+ }
+ @Test void expiredActiveHoldPreservesAllObjectsEvidenceAndExactChargesWithoutDeletion(){
+  var app=uploads();var receipt=verified(app,UploadFormat.PDF);Instant expires=app.status(caller,receipt.uploadId()).expiresAt();
+  documents().placeHold(caller,document,0,"hold","Synthetic preservation reason");
+  var held=store.docs.get(document);var global=store.uploads.global;var tenantAccounts=new HashMap<>(store.uploads.accounts);
+  var objects=new HashMap<ObjectIdentity,byte[]>();storage.objects.forEach((key,value)->objects.put(key,value.clone()));
+  for(Instant boundary:List.of(expires,expires.plusSeconds(3600))){
+   clock.now=boundary;cleanup().expire(caller.tenant(),receipt.uploadId());
+   assertEquals(UploadState.EXPIRED,app.status(caller,receipt.uploadId()).state());
+   for(var work:store.uploads.pendingCleanup(caller.tenant(),receipt.uploadId()))failure(503,"UNAVAILABLE",()->cleanup().cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));
+   assertEquals(held,store.docs.get(document));assertEquals(global,store.uploads.global);assertEquals(tenantAccounts,store.uploads.accounts);
+   assertEquals(1,global.admittedCount());assertEquals(2*bytes().length,global.transientBytes());assertEquals(bytes().length,global.promisedBytes());assertEquals(0,global.retainedBytes());
+   assertEquals(objects.keySet(),storage.objects.keySet());objects.forEach((key,value)->assertArrayEquals(value,storage.objects.get(key)));
+   assertEquals(0,storage.deleteCalls);assertTrue(store.uploads.fences.isEmpty());assertEquals(1,store.uploads.receipts.size());assertEquals(1,store.uploads.evidence.size());
+  }
+ }
+ @Test void expiredUnsettledDeleteKeepsFullChargesDespiteObservedAbsenceAndServiceRecreation(){
+  var receipt=verified(uploads(),UploadFormat.PDF);clock.now=uploads().status(caller,receipt.uploadId()).expiresAt();cleanup().expire(caller.tenant(),receipt.uploadId());
+  var work=store.uploads.pendingCleanup(caller.tenant(),receipt.uploadId()).getFirst();var accounts=store.uploads.global;
+  storage.deletion=fence->{storage.objects.remove(fence.object());return new UploadStoragePort.DeletionResult(fence.attemptId(),fence.object(),"synthetic-lost-terminal-proof",false,false,true,false);};
+  failure(503,"UNAVAILABLE",()->cleanup().cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));
+  var fence=store.uploads.unresolvedFence(caller.tenant(),document).orElseThrow();assertEquals(FencePhase.DISPATCHED,fence.phase());assertFalse(storage.objects.containsKey(fence.object()));
+  clock.advance(3601);
+  failure(503,"UNAVAILABLE",()->new UploadCleanupService(store,storage,clock).cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));
+  failure(503,"UNAVAILABLE",()->documents().placeHold(caller,document,0,"latehold","Synthetic reason"));
+  assertEquals(fence,store.uploads.unresolvedFence(caller.tenant(),document).orElseThrow());assertEquals(accounts,store.uploads.global);
+  assertEquals(1,accounts.admittedCount());assertEquals(2*bytes().length,accounts.transientBytes());assertEquals(bytes().length,accounts.promisedBytes());
+  assertEquals(1,storage.deleteCalls);assertFalse(store.uploads.cleanup(caller.tenant(),work.workId()).orElseThrow().complete());
+ }
  @Test void expiryCleanupPreservesHistoricalEvidenceAndFreesAllCopiesOnlyAfterSuccess(){
   var receipt=verified(uploads(),UploadFormat.PDF);clock.advance(3601);var clean=cleanup();clean.expire(caller.tenant(),receipt.uploadId());
-  for(var work:new ArrayList<>(store.uploads.pendingCleanup(caller.tenant(),receipt.uploadId())))assertTrue(clean.cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));
+  var work=new ArrayList<>(store.uploads.pendingCleanup(caller.tenant(),receipt.uploadId()));assertEquals(2,work.size());assertEquals(2*bytes().length,store.uploads.global.transientBytes());
+  assertTrue(clean.cleanup(caller.tenant(),work.getFirst().workId(),UUID.randomUUID()));
+  assertEquals(1,store.uploads.global.admittedCount());assertEquals(bytes().length,store.uploads.global.transientBytes());assertEquals(bytes().length,store.uploads.global.promisedBytes());assertEquals(1,storage.objects.size());
+  assertTrue(clean.cleanup(caller.tenant(),work.getLast().workId(),UUID.randomUUID()));assertTrue(storage.objects.isEmpty());assertEquals(2,storage.deleteCalls);
   assertEquals(0,store.uploads.global.admittedCount());assertEquals(0,store.uploads.global.transientBytes());assertEquals(0,store.uploads.global.promisedBytes());assertEquals(1,store.uploads.receipts.size());assertEquals(1,store.uploads.evidence.size());assertTrue(store.uploads.dueCleanup(clock.instant().plusSeconds(61),50).isEmpty());
  }
  @Test void knownSettledUnknownVersionRecoveryEnumeratesWithoutInferringWriterSettlement(){

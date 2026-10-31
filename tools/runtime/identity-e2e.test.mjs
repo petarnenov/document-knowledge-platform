@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { findAddress, main, readCredentials, redact, requirePrivateFile, runtimeArguments, uploadProject } from './identity-e2e.mjs';
+import { faultInput, findAddress, main, readCredentials, redact, requirePrivateFile, runtimeArguments, uploadProject } from './identity-e2e.mjs';
 
 test('reads only synthetic browser credentials without evaluating environment text', () => {
   assert.deepEqual(readCredentials('OIDC_CLIENT_SECRET=not-read\nDKP_TEST_USERNAME=tester\nDKP_TEST_PASSWORD=$(never-executed)\n'), { username: 'tester', password: '$(never-executed)' });
@@ -219,4 +219,51 @@ test('built runner trust probe uses string URLs on the configured isolated ports
     fetch: async (url) => { fetched = url; return { ok: true }; }, console,
   });
   assert.equal(fetched, 'https://localhost:19443');
+});
+
+const faultSeed = { schemaVersion: 1, phase: 'seed', service: null, fixture: null };
+function faultFixture() {
+  const id = '00000000-0000-4000-8000-000000000001';
+  const artifact = { documentId: id, uploadId: id, receiptId: id, versionId: id, completeKey: id, appendKey: id };
+  return { tenant: 'tenant-a', sha256: 'a'.repeat(64), sizeBytes: 346, consumed: { ...artifact }, unconsumed: { ...artifact, versionId: null }, candidate: null };
+}
+test('fault input is closed finite synthetic metadata without host or authority selectors', () => {
+  assert.deepEqual(faultInput(faultSeed), faultSeed);
+  const valid = { schemaVersion: 1, phase: 'verify', service: null, fixture: faultFixture() };
+  faultInput(valid);
+  for (const value of [{ ...faultSeed, extra: 'x' }, { ...faultSeed, schemaVersion: 2 }, { ...faultSeed, phase: 'execute' }, { ...faultSeed, service: 'foreign' }, { ...faultSeed, fixture: {} }, { ...faultSeed, service: 'pg' }]) assert.throws(() => faultInput(value));
+  for (const [key, value] of [['extra', 'x'], ['tenant', 'foreign'], ['sha256', 'http://host'], ['sizeBytes', true], ['sizeBytes', 0], ['sizeBytes', 100000001]]) assert.throws(() => faultInput({ ...valid, fixture: { ...valid.fixture, [key]: value } }));
+  for (const [key, value] of [['extra', 'x'], ['documentId', '../path'], ['versionId', 'bad'], ['versionId', null], ['receiptId', null]]) assert.throws(() => faultInput({ ...valid, fixture: { ...valid.fixture, consumed: { ...valid.fixture.consumed, [key]: value } } }));
+  assert.throws(() => faultInput({ ...valid, phase: 'readonly-outage' }), /service/);
+  assert.throws(() => faultInput({ ...valid, phase: 'recover', service: 'pg' }), /candidate/);
+  faultInput({ ...valid, phase: 'candidate-outage', service: 'pg', fixture: { ...valid.fixture, candidate: { ...valid.fixture.consumed, receiptId: null, versionId: null } } });
+});
+test('fault browser gets exact dedicated spec and only bounded synthetic metadata', () => {
+  const input = { portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca', uploadRuntime: true, uploadFaultInput: faultSeed };
+  const args = runtimeArguments(input);
+  assert.equal(args.at(-1), 'upload-faults.spec.ts');
+  assert.ok(args.includes('DKP_UPLOAD_FAULT_INPUT=' + JSON.stringify(faultSeed)));
+  assert.equal(args.filter(value => value.includes('DKP_UPLOAD_FAULT_INPUT=')).length, 1);
+  for (const changes of [{ uploadRuntime: false }, { uploadDurabilityFixture: true }, { uploadLimitsProfile: 'quota' }]) assert.throws(() => runtimeArguments({ ...input, ...changes }), /Separate/);
+  assert.equal(runtimeArguments({ ...input, uploadFaultInput: undefined }).includes('upload-faults.spec.ts'), false);
+});
+test('private fault input implies recorded upload stack and rejects oversized or conflicting profiles before Docker', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'dkp-fault-run-')); const calls = [];
+  try {
+    writeFileSync(join(directory, 'runtime.env'), 'DKP_TEST_USERNAME=tester\nDKP_TEST_PASSWORD=synthetic-password\nDKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\n', { mode: 0o600 });
+    writeFileSync(join(directory, 'ca.crt'), 'synthetic-public-ca', { mode: 0o600 });
+    const input = join(directory, 'input.json');writeFileSync(input, JSON.stringify(faultSeed), { mode: 0o600 });
+    const execute = args => {
+      calls.push(args);
+      if (args[0] === 'compose') return 'a'.repeat(64);
+      if (args[0] === 'inspect') return JSON.stringify([{ NetworkSettings: { Networks: { isolated: { IPAddress: '172.20.0.4' } } } }]);
+      return '';
+    };
+    main({ uploadFaultInputFile: input, securityDirectory: directory, execute, log: () => {} });
+    assert.ok(calls[0].includes('dkp-bp03-012345abcdef'));
+    assert.ok(calls.at(-1).includes('DKP_UPLOAD_E2E_ENABLED=true'));
+    assert.equal(calls.at(-1).at(-1), 'upload-faults.spec.ts');
+    for (const conflict of [{ uploadDurabilityFixture: true }, { uploadLimitsProfile: 'expiry' }]) assert.throws(() => main({ ...conflict, uploadFaultInputFile: input }), /Separate/);
+    writeFileSync(input, ' '.repeat(16385));assert.throws(() => main({ uploadFaultInputFile: input }), /Bounded/);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });

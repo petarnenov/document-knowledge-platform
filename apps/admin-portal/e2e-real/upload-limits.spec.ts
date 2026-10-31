@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import type { APIResponse, Page } from '@playwright/test';
+import { confirmSingleCreate, replayUiCreate } from './ui-create-receipt';
 
 // These destructive admission exercises require their own fresh recorded runtime.
 // The default identity journey does not silently run a one-hour resource test.
@@ -214,12 +215,16 @@ if (profile === 'quota') {
         method: 'PUT',
         data: bytes,
         type: 'application/octet-stream',
+        browserGuardCode: 'OPERATION_DENIED',
+        browserAuthenticationCode: 'UNAUTHENTICATED',
       },
       {
         path: `${base}/uploads/${winner.id}/complete`,
         method: 'POST',
         data: {},
         type: 'application/json',
+        browserGuardCode: 'OPERATION_DENIED',
+        browserAuthenticationCode: 'UNAUTHENTICATED',
       },
       {
         path: append,
@@ -229,6 +234,9 @@ if (profile === 'quota') {
           receiptId: receipt.receiptId,
         },
         type: 'application/json',
+        // Append retains the existing BP02 browser-session error contract.
+        browserGuardCode: 'REQUEST_DENIED',
+        browserAuthenticationCode: 'AUTHENTICATION_REQUIRED',
       },
     ];
     for (const call of calls)
@@ -244,7 +252,7 @@ if (profile === 'quota') {
             headers: { ...guard, 'Content-Type': call.type },
           }),
           403,
-          'OPERATION_DENIED',
+          call.browserGuardCode,
         );
       }
     await denyAppend(page, winner.draft, actor);
@@ -305,15 +313,50 @@ if (profile === 'quota') {
     // This is a two-tenant ten-global acceptance; a third-tenant global-vs-tenant distinction
     // requires a separately authorized third catalog actor, never an invented grant.
     await selectTenant(page, tenant);
+    const initialList = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === base,
+    );
     await page.goto('/documents');
+    const initial = await initialList;
+    expect(initial.status()).toBe(200);
+    await initial.finished();
+    await expect(
+      page.getByText('Loading drafts…', { exact: true }),
+    ).toHaveCount(0);
     const visibleTitle = `Synthetic visible capacity ${randomUUID()}`;
     await page.getByLabel('Title', { exact: true }).fill(visibleTitle);
+    const createdResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === base,
+    );
     await page
       .getByRole('button', { name: 'Create draft', exact: true })
       .click();
+    const intended = {
+      origin: new URL(page.url()).origin,
+      title: visibleTitle,
+      description: '',
+    };
+    const createdReceipt = await replayUiCreate(
+      page.request,
+      await createdResponse,
+      intended,
+    );
     await expect(
-      page.getByRole('status').filter({ hasText: 'Saved document' }),
+      page.getByRole('status').filter({
+        hasText: `Saved document ${createdReceipt.documentId}, revision ${createdReceipt.revision}.`,
+      }),
     ).toBeVisible();
+    // The receipt precedes the async query reset; mutation completion waits for it.
+    await expect(
+      page.getByRole('button', { name: 'Create draft', exact: true }),
+    ).toBeEnabled();
+    await expect(
+      page.getByText('Loading drafts…', { exact: true }),
+    ).toHaveCount(0);
     for (
       let pages = 0;
       pages < 20 &&
@@ -323,19 +366,27 @@ if (profile === 'quota') {
       pages++
     ) {
       const next = page.getByRole('button', { name: 'Next page', exact: true });
-      await expect(next).toBeVisible();
+      if ((await next.count()) === 0) break;
       const loaded = page.waitForResponse(
         (response) =>
           response.request().method() === 'GET' &&
-          response.url().includes('/api/v1/dm/documents?'),
+          new URL(response.url()).pathname === base &&
+          new URL(response.url()).searchParams.has('cursor'),
       );
       await next.click();
-      await loaded;
+      const listed = await loaded;
+      expect(listed.status()).toBe(200);
+      await listed.finished();
       await expect(
         page.getByText('Loading drafts…', { exact: true }),
       ).toHaveCount(0);
     }
     await page.getByRole('button', { name: visibleTitle, exact: true }).click();
+    await confirmSingleCreate(
+      page.request,
+      intended,
+      createdReceipt.documentId,
+    );
     await page.locator('input[type=file]').setInputFiles(fixture);
     await page
       .getByRole('button', { name: 'Upload and append', exact: true })
@@ -369,7 +420,7 @@ if (profile === 'quota') {
           },
         }),
         401,
-        'UNAUTHENTICATED',
+        call.browserAuthenticationCode,
       );
   });
 }

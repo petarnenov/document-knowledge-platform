@@ -60,6 +60,16 @@ jobs:
       - run: pnpm --filter admin-portal typecheck
       - run: pnpm --filter admin-portal build
       - run: pnpm --filter admin-portal test:coverage
+      - name: Shared real-browser acceptance helper coverage
+        run: >-
+          pnpm --filter admin-portal exec vitest run
+          src/upload-fault-contract.test.tsx src/ui-create-receipt.test.tsx
+          --coverage
+          --coverage.include=e2e-real/upload-fault-contract.ts
+          --coverage.include=e2e-real/ui-create-receipt.ts
+          --coverage.reportsDirectory=coverage/acceptance-helpers
+          --coverage.thresholds.lines=75 --coverage.thresholds.branches=75
+          --coverage.thresholds.functions=75 --coverage.thresholds.statements=75
       - run: pnpm --filter admin-portal exec playwright install --with-deps chromium
       - run: pnpm --filter admin-portal test:e2e
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -117,6 +127,12 @@ jobs:
         with:
           node-version: '24.22.1'
       - run: node --experimental-test-coverage --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test tools/runtime/identity-e2e.test.mjs
+      - name: Fast versus real-time upload expiry selector
+        run: >-
+          node --test --experimental-test-coverage
+          --test-coverage-include=tools/runtime/upload-expiry.mjs
+          --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75
+          tools/runtime/upload-expiry.test.mjs
       - name: Verify private security bootstrap and runtime assertions
         run: |
           python3 -m venv /tmp/dkp-runtime-checks
@@ -174,7 +190,7 @@ jobs:
           python3 - <<'PY'
           import json
           report = json.load(open('/tmp/dkp-upload-helper-coverage.json'))
-          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py', 'upload-durability.py', 'upload-accounting-acceptance.py', 'upload-acceptance.py'):
+          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py', 'upload-durability.py', 'upload-accounting-acceptance.py', 'upload-acceptance.py', 'upload-faults.py'):
               matches = [v['summary'] for p, v in report['files'].items() if p.endswith('/' + name)]
               if len(matches) != 1:
                   raise SystemExit('Missing source coverage for ' + name)
@@ -243,6 +259,11 @@ jobs:
           for service in pg rustfs scanner inspector dm; do
             python3 tools/runtime/upload-durability.py --directory local-data/security/bp03-upload/ci --exercise "$service" --wait-cleanup
           done
+      - name: Real authenticated provider faults, both receipt states and retry accounting
+        run: >-
+          python3 tools/runtime/upload-faults.py
+          --directory local-data/security/bp03-upload/authenticated-faults-ci
+          --runtime-directory local-data/security/bp03-upload/ci
       - name: Real strict HTTPS four-format uploads and downloads in both themes
         run: >-
           node tools/runtime/identity-e2e.mjs --upload-runtime
@@ -261,12 +282,30 @@ jobs:
           if test -f local-data/security/bp03-ci-combined/state.json; then
             python3 tools/runtime/rustfs-compat-harness.py cleanup --directory local-data/security/bp03-ci-combined
           fi
+      - name: Release the owned main runtime before fresh quota acceptance
+        run: python3 tools/runtime/upload-runtime.py stop --directory local-data/security/bp03-upload/ci
+      - name: Start a separate fresh runtime for genuine quota acceptance
+        run: python3 tools/runtime/upload-runtime.py start --directory local-data/security/bp03-upload/ci-quota
+      - name: Verify the separate quota runtime
+        run: python3 tools/runtime/upload-runtime.py verify --directory local-data/security/bp03-upload/ci-quota
+      - name: Genuine concurrent quota admission and authorized UI recovery
+        run: >-
+          node tools/runtime/identity-e2e.mjs --upload-limits-profile quota
+          --security-directory local-data/security/bp03-upload/ci-quota/identity
+          --runtime-env-file local-data/security/bp03-upload/ci-quota/runtime.env
       - name: Stop only recorded BP03 project resources
         if: always()
         run: |
-          if test -f local-data/security/bp03-upload/ci/state.json; then
-            python3 tools/runtime/upload-runtime.py stop --directory local-data/security/bp03-upload/ci
-          fi
+          set -euo pipefail
+          dkp_stop_status=0
+          for directory in local-data/security/bp03-upload/ci local-data/security/bp03-upload/ci-quota; do
+            if test -f "$directory/state.json"; then
+              if ! python3 tools/runtime/upload-runtime.py stop --directory "$directory"; then
+                dkp_stop_status=1
+              fi
+            fi
+          done
+          exit "$dkp_stop_status"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

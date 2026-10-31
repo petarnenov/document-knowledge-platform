@@ -45,7 +45,34 @@ export function findAddress(inspection, network) {
   return address;
 }
 
-export function runtimeArguments({ portalId, address, certificate, portalPort = 18443, idpPort = 18444, uploadRuntime = false, uploadLimitsProfile, uploadDurabilityFixture = false }) {
+export function faultInput(value) {
+  const closed = (object, keys) => object !== null && typeof object === 'object' && !Array.isArray(object) && Object.keys(object).sort().join(',') === keys.sort().join(',');
+  if (!closed(value, ['schemaVersion', 'phase', 'service', 'fixture']) || value.schemaVersion !== 1
+      || !['seed', 'verify', 'readonly-outage', 'candidate', 'candidate-outage', 'recover', 'consume'].includes(value.phase)
+      || ![null, 'pg', 'rustfs', 'scanner', 'inspector', 'dm'].includes(value.service)) throw new Error('Closed finite upload fault input required');
+  if (value.phase === 'seed') {
+    if (value.fixture !== null || value.service !== null) throw new Error('Fresh seed cannot adopt fixtures');
+    return value;
+  }
+  const fixture = value.fixture;
+  if (!closed(fixture, ['tenant', 'sha256', 'sizeBytes', 'consumed', 'unconsumed', 'candidate'])
+      || !['tenant-a', 'tenant-b'].includes(fixture.tenant) || !/^[a-f0-9]{64}$/.test(fixture.sha256)
+      || !Number.isSafeInteger(fixture.sizeBytes) || fixture.sizeBytes < 1 || fixture.sizeBytes > 100000000) throw new Error('Closed synthetic fixture required');
+  for (const [name, artifact] of Object.entries({ consumed: fixture.consumed, unconsumed: fixture.unconsumed, candidate: fixture.candidate })) {
+    if (artifact === null && name === 'candidate') continue;
+    if (!closed(artifact, ['documentId', 'uploadId', 'receiptId', 'versionId', 'completeKey', 'appendKey'])) throw new Error('Closed synthetic artifact required');
+    for (const key of ['documentId', 'uploadId', 'completeKey', 'appendKey']) if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(artifact[key])) throw new Error('Canonical synthetic UUID required');
+    for (const key of ['receiptId', 'versionId']) if (artifact[key] !== null && !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(artifact[key])) throw new Error('Canonical synthetic UUID required');
+    if (name !== 'candidate' && artifact.receiptId === null) throw new Error('Verified receipt required');
+    if (name === 'consumed' && artifact.versionId === null) throw new Error('Consumed version required');
+  }
+  if (['readonly-outage', 'candidate-outage', 'recover'].includes(value.phase) && value.service === null) throw new Error('Finite fault service required');
+  if (['candidate-outage', 'recover'].includes(value.phase) && fixture.candidate === null) throw new Error('Owned candidate required');
+  return value;
+}
+
+export function runtimeArguments({ portalId, address, certificate, portalPort = 18443, idpPort = 18444, uploadRuntime = false, uploadLimitsProfile, uploadDurabilityFixture = false, uploadFaultInput }) {
+  if (uploadFaultInput !== undefined) { faultInput(uploadFaultInput); if (!uploadRuntime || uploadDurabilityFixture || uploadLimitsProfile !== undefined) throw new Error('Separate upload fault profile required'); }
   if (typeof uploadRuntime !== 'boolean') throw new Error('Explicit boolean upload profile required');
   if (typeof uploadDurabilityFixture !== 'boolean' || (uploadDurabilityFixture && (!uploadRuntime || uploadLimitsProfile !== undefined))) throw new Error('Explicit durability fixture requires its own upload runtime profile');
   if (uploadLimitsProfile !== undefined && (!['quota', 'expiry'].includes(uploadLimitsProfile) || !uploadRuntime)) throw new Error('Explicit upload limits profile requires upload runtime');
@@ -66,9 +93,11 @@ export function runtimeArguments({ portalId, address, certificate, portalPort = 
     ...(uploadRuntime ? ['--env', 'DKP_UPLOAD_E2E_ENABLED=true'] : []),
     ...(uploadLimitsProfile ? ['--env', `DKP_UPLOAD_LIMITS_PROFILE=${uploadLimitsProfile}`] : []),
     ...(uploadDurabilityFixture ? ['--env', 'DKP_UPLOAD_DURABILITY_FIXTURE=true'] : []),
+    ...(uploadFaultInput !== undefined ? ['--env', `DKP_UPLOAD_FAULT_INPUT=${JSON.stringify(uploadFaultInput)}`] : []),
     image,
     ...(uploadLimitsProfile ? ['upload-limits.spec.ts'] : []),
     ...(uploadDurabilityFixture ? ['upload-durability.spec.ts'] : []),
+    ...(uploadFaultInput !== undefined ? ['upload-faults.spec.ts'] : []),
   ];
 }
 
@@ -90,11 +119,19 @@ function docker(args, { environment = process.env, password, quiet = false } = {
   return result.stdout.trim();
 }
 
-export function main({ uploadRuntime = false, uploadLimitsProfile, uploadDurabilityFixture = false, securityDirectory, runtimeEnvironmentFile, execute = docker, log = console.log } = {}) {
+export function main({ uploadRuntime = false, uploadLimitsProfile, uploadDurabilityFixture = false, uploadFaultInputFile, securityDirectory, runtimeEnvironmentFile, execute = docker, log = console.log } = {}) {
   if (typeof uploadDurabilityFixture !== 'boolean' || (uploadDurabilityFixture && uploadLimitsProfile !== undefined)) throw new Error('Explicit durability fixture requires a separate profile');
   if (uploadDurabilityFixture) uploadRuntime = true;
   if (uploadLimitsProfile !== undefined) {
     if (!['quota', 'expiry'].includes(uploadLimitsProfile)) throw new Error('Invalid upload limits profile');
+    uploadRuntime = true;
+  }
+  let uploadFaultInput;
+  if (uploadFaultInputFile !== undefined) {
+    if (uploadDurabilityFixture || uploadLimitsProfile !== undefined) throw new Error('Separate upload fault profile required');
+    requirePrivateFile(uploadFaultInputFile);
+    if (lstatSync(uploadFaultInputFile).size > 16384) throw new Error('Bounded fault input required');
+    uploadFaultInput = faultInput(JSON.parse(readFileSync(uploadFaultInputFile, 'utf8')));
     uploadRuntime = true;
   }
   const security = securityDirectory ?? resolve(root, uploadRuntime ? 'local-data/security/bp03-upload/identity' : 'local-data/security');
@@ -119,7 +156,7 @@ export function main({ uploadRuntime = false, uploadLimitsProfile, uploadDurabil
   log('Building isolated Chromium identity verification runtime.');
   execute(['build', '-f', 'infra/docker-compose/identity-e2e.Dockerfile', '-t', image, '.']);
   log('Running strict-HTTPS real-provider browser verification.');
-  execute(runtimeArguments({ portalId, address, certificate, portalPort: uploadRuntime ? 19443 : 18443, idpPort: uploadRuntime ? 19444 : 18444, uploadRuntime, uploadLimitsProfile, uploadDurabilityFixture }), {
+  execute(runtimeArguments({ portalId, address, certificate, portalPort: uploadRuntime ? 19443 : 18443, idpPort: uploadRuntime ? 19444 : 18444, uploadRuntime, uploadLimitsProfile, uploadDurabilityFixture, uploadFaultInput }), {
     environment: { ...process.env, DKP_IDENTITY_USERNAME: credentials.username, DKP_IDENTITY_PASSWORD: credentials.password },
     password: credentials.password,
   });
@@ -133,7 +170,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     if (environmentIndex >= 0 && (!process.argv[environmentIndex + 1] || process.argv[environmentIndex + 1].startsWith('--'))) throw new Error('Runtime environment file is required');
     const limitsIndex = process.argv.indexOf('--upload-limits-profile');
     if (limitsIndex >= 0 && (!process.argv[limitsIndex + 1] || process.argv[limitsIndex + 1].startsWith('--'))) throw new Error('Upload limits profile is required');
-    main({ uploadRuntime: process.argv.includes('--upload-runtime'), uploadDurabilityFixture: process.argv.includes('--upload-durability-fixture'), ...(limitsIndex >= 0 ? { uploadLimitsProfile: process.argv[limitsIndex + 1] } : {}), ...(index >= 0 ? { securityDirectory: resolve(process.argv[index + 1]) } : {}), ...(environmentIndex >= 0 ? { runtimeEnvironmentFile: resolve(process.argv[environmentIndex + 1]) } : {}) });
+    const faultIndex = process.argv.indexOf('--upload-fault-input-file');
+    if (faultIndex >= 0 && (!process.argv[faultIndex + 1] || process.argv[faultIndex + 1].startsWith('--'))) throw new Error('Private fault input required');
+    main({ ...(faultIndex >= 0 ? { uploadFaultInputFile: resolve(process.argv[faultIndex + 1]) } : {}), uploadRuntime: process.argv.includes('--upload-runtime'), uploadDurabilityFixture: process.argv.includes('--upload-durability-fixture'), ...(limitsIndex >= 0 ? { uploadLimitsProfile: process.argv[limitsIndex + 1] } : {}), ...(index >= 0 ? { securityDirectory: resolve(process.argv[index + 1]) } : {}), ...(environmentIndex >= 0 ? { runtimeEnvironmentFile: resolve(process.argv[environmentIndex + 1]) } : {}) });
   } catch {
     // Never dump captured Docker inspect/env data or credential-bearing errors.
     console.error('Real identity E2E failed; inspect sanitized output and verify the running Compose runtime and owner-only local security material.');

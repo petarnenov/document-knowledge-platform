@@ -1,4 +1,46 @@
+## 2026-10-31 23:01 UTC owner-requested178 ready for CI
+
+The scoped178 selector and180 boundary tests passed independent179 source re-review. Actual fast command:64 application tests,0 failures/errors/skips; focused lifecycle44 tests. Fresh application JaCoCo:409/418 lines97.85%,503/622 branches80.87%. Five selector tests:100% line/branch/function coverage. Added tests exercise the original slot one microsecond before, exactly at and after expiry, delayed retry preserving its initial deadline, consumed-receipt replay/discovery, active-hold expiry preserving both copies/charges/evidence, and unresolved DELETE preserving charges despite observed absence/service recreation. A known-terminal control releases charges per confirmed copy and admission only after the last copy. These are injected-clock application results, not physical-provider or elapsed-time evidence.
+
+The shared worktree includes the owner-added178 files unchanged except the reviewed explanatory test coverage paragraph. Only the application test fixture changed; no production TTL/session/authorization/runtime source changed. PR146 update and full final-source CI follow. Real sixty-minute expiry remains running and mandatory; explicit owner authorization permits this reviewed PR's integration after every applicable gate passes.
+
+## 2026-10-31 22:58 UTC explicit integration instruction
+
+The owner explicitly requested inclusion of the local178 files in PR146 and completion of checks and integration into dev. This authorizes that concrete PR integration after all required independent reviews and acceptance gates pass; the general AGENTS.md prohibition on automatic merges remains in force for other work. The genuine sixty-minute acceptance and unchanged production lifetime remain mandatory. Independent179 selector review passes; missing precise application clock regressions are tracked in180 before implementation, and178 remains open until its scope and integration are verified.
+
+## 2026-10-31 22:56 UTC final acceptance and CI checkpoint
+
+RustFS is the first object store, persisted in AGENTS.md, the implementation protocol and approved BP03 specification. Full real HTTPS two-theme/four-format acceptance, all eight real COPY/FENCE cases and the dedicated genuine quota profile have passed. These results do not replace outstanding final-source CI or integration.
+
+The genuine sixty-minute expiry profile is running on its dedicated fresh2238 runtime using a frozen public source snapshot. Six genuine slots expire no earlier than23:44:19 UTC; no elapsed-time success is claimed before the complete assertions finish. No host provider faults may disturb this fixture. The platform automatically compacted the session after review162 closure; the resumable handoff was retained and no manual compaction invocation is claimed.
+
+Authenticated five-provider fault source166/173 passed independent170 re-review. Browser create observation176 passed independent177 review with23 meaningful tests and100% helper coverage; actual verification of the updated observer remains pending. Workflow175 adds the genuine fault journey and a separate fresh quota runtime, preserving all seven per-helper75% line/branch floors. Review177 caught and verified correction of final cleanup so a failed first stop cannot prevent attempting the second owned runtime. Full138 Python tests pass under Python3.14 with the C tracer; strict portal types/lint/format and18 runner/Compose tests pass. Concurrent owner-side expiry selector178 is being independently reviewed under179 before integration.
+
+BP04 specification167/174 remains unapproved while an explicit bounded DM batch assessment proposal resolves architecture171/security172 review findings. No production, architecture or security sign-off is invented. PR146 remains draft and unmerged under the latest owner-provided AGENTS.md.
+
 ## Current task status — 2026-10-31 20:14 UTC / 22:14 Sofia
+
+## 2026-10-31 22:35 UTC genuine quota PASS
+
+Fresh recorded quota2231 completed start/verify and the full strict HTTPS/OIDC quota profile: one test PASS in5.4 seconds. This includes six concurrent/five successful tenant admissions, two genuine authorized tenants reaching ten global slots, existing independent real-PG third-tenant global-cap evidence, exact route-specific CSRF/origin/logout codes, current ACL and replay denials, and the visible capacity error/retry UI. #168/#169 fixes preserve production behavior and use real initial list/create/query-reset/network-completion barriers without mocks, response rewrites or sleeps. Failed2222/2226 runs remain retained. The owned2231 stack is stopping with data/authority retained before a distinct fresh genuine sixty-minute expiry runtime.
+
+#166 independent review170 requested three test/helper corrections now tracked in173: route/service-specific legacy versus upload503 codes, removing arbitrary502/504 tolerance, and counting every scoped failure audit row so wrong-outcome extras cannot disappear. No provider-fault execution is claimed yet. BP04 independent architecture171/security172 reviews of frozen specification167 are in progress. Review162 is the only closed issue this turn; current-session compaction remains recorded pending because no tool is exposed. PR146 remains draft/unmerged.
+
+
+## 2026-10-31 22:28 UTC quota and review checkpoint
+
+Pure independent review162 was accepted and closed with its source, test, safety and syntax evidence. Implementation tasks remain open for required remaining acceptance/CI/integration. Resumable state is saved; current-session `/compact` is pending because no invocation mechanism is exposed. Already active work continues; no new task has been started after that closure.
+
+Fresh quota2222 start/verify and strict TLS succeeded; six concurrent admissions yielded exactly five accepted. The complete quota test then failed an exact error-body assertion: new upload routes canonically return OPERATION_DENIED, while the existing append endpoint preserves REQUEST_DENIED. #168 independently verified that contract and corrected only per-call test expectations, preserving exact403/body and later current-DM404 assertions. Typecheck, focused lint, format and discovery pass. The failed run is retained and owned containers stopped; newly recorded quota2226 start passed and verify/full rerun are pending. Existing real-PG21-test report independently proves the global limit by denying an empty third tenant after two five-slot tenants, with exact balances; browser-only ten-slot results are not overstated.
+
+BP04 specification167 is independently ready from integrated BP01/BP02 and is being drafted in its own origin/dev worktree. Authenticated fault acceptance166 remains in source development; it cannot interfere with quota or the future genuine sixty-minute expiry runtime. No PR merge or full BP03 completion is claimed.
+
+## 2026-10-31 22:21 UTC combined acceptance PASS
+
+The actual current-source, immutable-image-attested combined profile completed every required case exactly once: COPY-01, COPY-02, COPY-03 and FENCE-01 through FENCE-05; required8/passed8/skipped0. Native readonly403 and unchanged exact bytes, real pinned RustFS, genuine ClamAV/inspector and physically restarted PostgreSQL were used. Same-container/all-mount identity and actual postmaster advancement passed; observed Docker port changes were refreshed without changing ownership, state-equality or thirty-second recovery checks. Failed prior runs remain retained. Private source-bound directory151-2219 has the closed success record. #144/#151/#155/#157/#158/#161/#163/#165 still await required exact-head CI/integration; no issue closure is claimed.
+
+The owned2158 BP03 stack is being stopped with data/authority retained before a dedicated fresh quota145 run. Authenticated fault acceptance166 is being implemented independently and cannot stop providers during the quota run. Real sixty-minute expiry remains pending. Latest pushed implementation head bc526db remains on draft PR146; no merge occurred.
+
 
 ## 2026-10-31 22:19 UTC physical restart checkpoint
 
