@@ -178,4 +178,3 @@ public class UnavailableStatus {
     return joiner.toString();
   }
 }
-

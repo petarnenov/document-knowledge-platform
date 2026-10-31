@@ -73,4 +73,3 @@ export function HealthyStatusToJSONTyped(value?: HealthyStatus | null, ignoreDis
         'status': value['status'],
     };
 }
-

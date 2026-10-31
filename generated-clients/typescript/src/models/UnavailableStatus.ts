@@ -73,4 +73,3 @@ export function UnavailableStatusToJSONTyped(value?: UnavailableStatus | null, i
         'status': value['status'],
     };
 }
-

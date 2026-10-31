@@ -33,7 +33,7 @@ export async function generate(destination) {
       // Normalize template trailing whitespace consistently without hand-editing output.
       for (const file of await filesUnder(target)) {
         const content = await readFile(file, 'utf8');
-        await writeFile(file, content.replace(/[ \t]+$/gm, ''));
+        await writeFile(file, content.replace(/[ \t]+$/gm, '').trimEnd() + '\n');
       }
     }
   } finally {
