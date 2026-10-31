@@ -16,7 +16,7 @@ export async function generate(destination) {
     ]) {
       const output = join(scratch, language);
       run(java, ['-jar', generatorJar,
-        'generate', '-i', resolve(root, 'contracts/openapi/v1/operational.yaml'),
+        'generate', '-i', resolve(root, 'contracts/openapi/v1/platform.yaml'),
         '-g', generator, '-o', output, '--additional-properties', properties,
         '--global-property', 'apiTests=false,modelTests=false,apiDocs=false,modelDocs=false',
       ]);
@@ -35,6 +35,22 @@ export async function generate(destination) {
         const content = await readFile(file, 'utf8');
         await writeFile(file, content.replace(/[ \t]+$/gm, '').trimEnd() + '\n');
       }
+      if (language === 'typescript') {
+        // Consumer applications retain stricter flags than the generator. Publish
+        // checked declarations at the SDK boundary rather than importing its internals.
+        const declarations = join(destination, language, 'types');
+        await rm(declarations, { recursive: true, force: true });
+        const configuration = join(scratch, 'declarations.json');
+        await writeFile(configuration, JSON.stringify({
+          extends: resolve(root, 'generated-clients/typescript/tsconfig.json'),
+          compilerOptions: {
+            noEmit: false, declaration: true, emitDeclarationOnly: true,
+            rootDir: target, outDir: declarations,
+          },
+          include: [join(target, '**/*.ts')],
+        }));
+        run(resolve(root, 'node_modules/.bin/tsc'), ['--project', configuration]);
+      }
     }
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -42,5 +58,5 @@ export async function generate(destination) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   await generate(resolve(root, 'generated-clients'));
-  console.log('Generated Java and TypeScript operational clients.');
+  console.log('Generated Java and TypeScript platform clients.');
 }

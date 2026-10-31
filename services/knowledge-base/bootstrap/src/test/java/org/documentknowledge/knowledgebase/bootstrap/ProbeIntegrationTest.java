@@ -33,10 +33,10 @@ class ProbeIntegrationTest {
         try (EmbeddedServer server = ApplicationContext.run(EmbeddedServer.class,
                 Map.of("micronaut.server.port", -1, "micronaut.server.host", "127.0.0.1"))) {
             HttpClient client = HttpClient.newHttpClient();
-            for (String path : new String[]{"/api/v1/documents", "/api/v1/knowledge/collections", "/api/v1/search", "/env", "/beans", "/routes", "/health"}) {
+            for (String path : new String[]{"/api/v1/documents", "/api/v1/knowledge/collections", "/api/v1/search", "/env", "/beans", "/routes", "/health", "/login", "/logout", "/oauth/access_token"}) {
                 var response = client.send(HttpRequest.newBuilder(server.getURI().resolve(path))
                         .header("X-Tenant-Id", "invented-tenant").GET().build(), HttpResponse.BodyHandlers.ofString());
-                assertEquals(404, response.statusCode(), path);
+                assertTrue(response.statusCode() >= 400 && response.statusCode() < 500, path);
                 assertFalse(response.body().contains("invented-tenant"));
             }
         }

@@ -1,8 +1,8 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
- * DKP Operational Probes
- * Minimal anonymous probes shared by all three independently deployed foundation services.
+ * DKP Versioned API Clients
+ * Aggregate for deterministic client generation; per-runtime published contracts remain separate.
  *
  * The version of the OpenAPI document: 1.0.0
  *
@@ -14,15 +14,20 @@
 
 import * as runtime from '../runtime.js';
 import {
-    type HealthyStatus,
-    HealthyStatusFromJSON,
-    HealthyStatusToJSON,
-} from '../models/HealthyStatus.js';
+    type GetLiveness200Response,
+    GetLiveness200ResponseFromJSON,
+    GetLiveness200ResponseToJSON,
+} from '../models/GetLiveness200Response.js';
 import {
-    type UnavailableStatus,
-    UnavailableStatusFromJSON,
-    UnavailableStatusToJSON,
-} from '../models/UnavailableStatus.js';
+    type GetReadiness200Response,
+    GetReadiness200ResponseFromJSON,
+    GetReadiness200ResponseToJSON,
+} from '../models/GetReadiness200Response.js';
+import {
+    type GetReadiness503Response,
+    GetReadiness503ResponseFromJSON,
+    GetReadiness503ResponseToJSON,
+} from '../models/GetReadiness503Response.js';
 
 /**
  *
@@ -51,17 +56,17 @@ export class OperationsApi extends runtime.BaseAPI {
     /**
      * Check process liveness
      */
-    async getLivenessRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<HealthyStatus>> {
+    async getLivenessRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<GetLiveness200Response>> {
         const requestOptions = await this.getLivenessRequestOpts();
         const response = await this.request(requestOptions, initOverrides);
 
-        return new runtime.JSONApiResponse(response, (jsonValue) => HealthyStatusFromJSON(jsonValue));
+        return new runtime.JSONApiResponse(response, (jsonValue) => GetLiveness200ResponseFromJSON(jsonValue));
     }
 
     /**
      * Check process liveness
      */
-    async getLiveness(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<HealthyStatus> {
+    async getLiveness(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GetLiveness200Response> {
         const response = await this.getLivenessRaw(initOverrides);
         return await response.value();
     }
@@ -88,17 +93,17 @@ export class OperationsApi extends runtime.BaseAPI {
     /**
      * Check whether this process accepts work
      */
-    async getReadinessRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<HealthyStatus>> {
+    async getReadinessRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<GetReadiness200Response>> {
         const requestOptions = await this.getReadinessRequestOpts();
         const response = await this.request(requestOptions, initOverrides);
 
-        return new runtime.JSONApiResponse(response, (jsonValue) => HealthyStatusFromJSON(jsonValue));
+        return new runtime.JSONApiResponse(response, (jsonValue) => GetReadiness200ResponseFromJSON(jsonValue));
     }
 
     /**
      * Check whether this process accepts work
      */
-    async getReadiness(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<HealthyStatus> {
+    async getReadiness(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GetReadiness200Response> {
         const response = await this.getReadinessRaw(initOverrides);
         return await response.value();
     }

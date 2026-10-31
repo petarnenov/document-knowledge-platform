@@ -1,44 +1,113 @@
 name: dkp-foundation
+
+x-app: &app
+  user: "${DKP_LOCAL_UID:?Run bootstrap-security.py}:${DKP_LOCAL_GID:?Run bootstrap-security.py}"
+  read_only: true
+  tmpfs: ["/tmp"]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+
+x-api-environment: &api-environment
+  OIDC_PROFILE: standalone
+  OIDC_ISSUER: https://idp.localhost:18444/realms/dkp
+  OIDC_STANDALONE_ISSUER: https://idp.localhost:18444/realms/dkp
+  OIDC_JWKS_URL: https://idp.localhost:18444/realms/dkp/protocol/openid-connect/certs
+  OIDC_AUTHORIZED_PARTIES: dkp-bff
+  JAVA_OPTS: "@/run/dkp/java-security.options"
+
 services:
   document-management:
+    <<: *app
     build:
       context: ../..
       dockerfile: infra/docker-compose/service.Dockerfile
-      args:
-        SERVICE: document-management
+      args: { SERVICE: document-management }
     ports: ["127.0.0.1:18081:8080"]
-    read_only: true
-    tmpfs: ["/tmp"]
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: ["ALL"]
+    environment: *api-environment
+    volumes:
+      - ../../local-data/security/truststore.p12:/run/dkp/truststore.p12:ro
+      - ../../local-data/security/java-security.options:/run/dkp/java-security.options:ro
   knowledge-base:
+    <<: *app
     build:
       context: ../..
       dockerfile: infra/docker-compose/service.Dockerfile
-      args:
-        SERVICE: knowledge-base
+      args: { SERVICE: knowledge-base }
     ports: ["127.0.0.1:18082:8080"]
-    read_only: true
-    tmpfs: ["/tmp"]
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: ["ALL"]
+    environment: *api-environment
+    volumes:
+      - ../../local-data/security/truststore.p12:/run/dkp/truststore.p12:ro
+      - ../../local-data/security/java-security.options:/run/dkp/java-security.options:ro
   knowledge-search:
+    <<: *app
     build:
       context: ../..
       dockerfile: infra/docker-compose/service.Dockerfile
-      args:
-        SERVICE: knowledge-search
+      args: { SERVICE: knowledge-search }
     ports: ["127.0.0.1:18083:8080"]
-    read_only: true
-    tmpfs: ["/tmp"]
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: ["ALL"]
+    environment: *api-environment
+    volumes:
+      - ../../local-data/security/truststore.p12:/run/dkp/truststore.p12:ro
+      - ../../local-data/security/java-security.options:/run/dkp/java-security.options:ro
+  browser-bff:
+    <<: *app
+    # BP-01 only: one ephemeral session-store instance; durability/scaling is BP-16.
+    deploy:
+      replicas: 1
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/service.Dockerfile
+      args: { SERVICE: browser-bff }
+    environment:
+      <<: *api-environment
+      DKP_PORTAL_ORIGIN: https://localhost:18443
+      OIDC_ENABLED: "true"
+      OIDC_CLIENT_ID: dkp-bff
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?Run bootstrap-security.py}
+      DKP_DM_URL: http://document-management:8080
+      DKP_KB_URL: http://knowledge-base:8080
+      DKP_SEARCH_URL: http://knowledge-search:8080
+    volumes:
+      - ../../local-data/security/truststore.p12:/run/dkp/truststore.p12:ro
+      - ../../local-data/security/java-security.options:/run/dkp/java-security.options:ro
+    depends_on:
+      keycloak: { condition: service_healthy }
   admin-portal:
+    <<: *app
     build:
       context: ../..
       dockerfile: infra/docker-compose/portal.Dockerfile
-    ports: ["127.0.0.1:18080:8080"]
-    read_only: true
-    tmpfs: ["/tmp"]
-    security_opt: ["no-new-privileges:true"]
-    cap_drop: ["ALL"]
+    ports: ["127.0.0.1:18443:18443"]
+    volumes:
+      - ../../local-data/security/portal.crt:/run/dkp/portal.crt:ro
+      - ../../local-data/security/portal.key:/run/dkp/portal.key:ro
+    depends_on:
+      browser-bff: { condition: service_healthy }
+  keycloak:
+    <<: *app
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/keycloak.Dockerfile
+    command: ["start", "--optimized", "--import-realm"]
+    ports: ["127.0.0.1:18444:18444"]
+    tmpfs:
+      - /tmp
+      - /opt/keycloak/data:uid=${DKP_LOCAL_UID},gid=${DKP_LOCAL_GID},mode=0700
+    environment:
+      KC_DB: dev-file
+      KC_HOSTNAME: https://idp.localhost:18444
+      KC_HTTP_ENABLED: "false"
+      KC_HTTPS_PORT: "18444"
+      KC_HTTPS_CERTIFICATE_FILE: /run/dkp/idp.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /run/dkp/idp.key
+      KC_HTTP_MANAGEMENT_SCHEME: http
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:?Run bootstrap-security.py}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?Run bootstrap-security.py}
+      KC_LOG_LEVEL: warn
+    volumes:
+      - ../../local-data/security/idp.crt:/run/dkp/idp.crt:ro
+      - ../../local-data/security/idp.key:/run/dkp/idp.key:ro
+      - ../../local-data/security/dkp-realm.json:/opt/keycloak/data/import/dkp-realm.json:ro
+    networks:
+      default:
+        aliases: [idp.localhost]

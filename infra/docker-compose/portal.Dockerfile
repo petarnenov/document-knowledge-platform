@@ -5,6 +5,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY patches/ patches/
 COPY apps/admin-portal/package.json apps/admin-portal/package.json
 RUN pnpm install --frozen-lockfile
+COPY generated-clients/typescript generated-clients/typescript
 COPY apps/admin-portal apps/admin-portal
 RUN pnpm --filter admin-portal build
 

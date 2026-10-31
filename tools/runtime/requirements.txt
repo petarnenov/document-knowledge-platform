@@ -1,0 +1,2 @@
+# Isolated verification tooling, selected from official PyPI metadata.
+coverage==7.17.0

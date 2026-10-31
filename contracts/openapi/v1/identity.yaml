@@ -1,0 +1,734 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DKP Identity and Browser Boundary",
+    "version": "1.0.0",
+    "description": "BFF routes use the same-origin HTTPS portal; direct service routes use each independently protected API base URL."
+  },
+  "servers": [
+    {
+      "url": "https://localhost:18443",
+      "description": "Local HTTPS BFF entry; override for independently deployed domain context endpoint."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Identity",
+      "description": "Verified actor, tenant selection and server session lifecycle."
+    }
+  ],
+  "paths": {
+    "/api/v1/session": {
+      "get": {
+        "operationId": "getSession",
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Read the authenticated server session",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified safe identity representation.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/session/tenant": {
+      "post": {
+        "operationId": "selectTenant",
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Select an independently verified tenant",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified safe identity representation.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantSelection"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/session/logout": {
+      "post": {
+        "operationId": "logoutSession",
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Invalidate the local browser session",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Session invalidated.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/context/{service}": {
+      "get": {
+        "operationId": "getDelegatedSecurityContext",
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Read verified context through a fixed BFF upstream",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified safe identity representation.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityContext"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "service",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "dm",
+                "kb",
+                "search"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/security/context": {
+      "get": {
+        "operationId": "getServiceSecurityContext",
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Independently verify API actor and tenant",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified safe identity representation.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityContext"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Safe public error; no identity-provider diagnostics or credentials.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-DKP-Tenant",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-DKP-SESSION",
+        "description": "Opaque Secure HttpOnly host-only server session; never a bearer token."
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Strict per-service issuer, audience, authorized party and signature validation."
+      }
+    },
+    "schemas": {
+      "BrowserSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "issuer",
+          "subject",
+          "displayName",
+          "tenants",
+          "selectedTenant",
+          "csrfToken"
+        ],
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "format": "uri"
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "displayName": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "tenants": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          "selectedTenant": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "csrfToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        }
+      },
+      "TenantSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tenantId"
+        ],
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "LogoutRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "maxProperties": 0
+      },
+      "SecurityContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service",
+          "issuer",
+          "subject",
+          "tenant"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "enum": [
+              "dm",
+              "kb",
+              "search"
+            ]
+          },
+          "issuer": {
+            "type": "string",
+            "format": "uri"
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "tenant": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "SecurityError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          }
+        }
+      }
+    }
+  }
+}

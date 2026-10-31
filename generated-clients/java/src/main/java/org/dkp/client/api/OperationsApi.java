@@ -1,6 +1,6 @@
 /*
- * DKP Operational Probes
- * Minimal anonymous probes shared by all three independently deployed foundation services.
+ * DKP Versioned API Clients
+ * Aggregate for deterministic client generation; per-runtime published contracts remain separate.
  *
  * The version of the OpenAPI document: 1.0.0
  *
@@ -18,8 +18,9 @@ import org.dkp.client.ApiResponse;
 import org.dkp.client.Configuration;
 import org.dkp.client.Pair;
 
-import org.dkp.client.model.HealthyStatus;
-import org.dkp.client.model.UnavailableStatus;
+import org.dkp.client.model.GetLiveness200Response;
+import org.dkp.client.model.GetReadiness200Response;
+import org.dkp.client.model.GetReadiness503Response;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -166,10 +167,10 @@ public class OperationsApi {
   /**
    * Check process liveness
    *
-   * @return HealthyStatus
+   * @return GetLiveness200Response
    * @throws ApiException if fails to make API call
    */
-  public HealthyStatus getLiveness() throws ApiException {
+  public GetLiveness200Response getLiveness() throws ApiException {
     return getLiveness(null);
   }
 
@@ -177,21 +178,21 @@ public class OperationsApi {
    * Check process liveness
    *
    * @param headers Optional headers to include in the request
-   * @return HealthyStatus
+   * @return GetLiveness200Response
    * @throws ApiException if fails to make API call
    */
-  public HealthyStatus getLiveness(Map<String, String> headers) throws ApiException {
-    ApiResponse<HealthyStatus> localVarResponse = getLivenessWithHttpInfo(headers);
+  public GetLiveness200Response getLiveness(Map<String, String> headers) throws ApiException {
+    ApiResponse<GetLiveness200Response> localVarResponse = getLivenessWithHttpInfo(headers);
     return localVarResponse.getData();
   }
 
   /**
    * Check process liveness
    *
-   * @return ApiResponse&lt;HealthyStatus&gt;
+   * @return ApiResponse&lt;GetLiveness200Response&gt;
    * @throws ApiException if fails to make API call
    */
-  public ApiResponse<HealthyStatus> getLivenessWithHttpInfo() throws ApiException {
+  public ApiResponse<GetLiveness200Response> getLivenessWithHttpInfo() throws ApiException {
     return getLivenessWithHttpInfo(null);
   }
 
@@ -199,10 +200,10 @@ public class OperationsApi {
    * Check process liveness
    *
    * @param headers Optional headers to include in the request
-   * @return ApiResponse&lt;HealthyStatus&gt;
+   * @return ApiResponse&lt;GetLiveness200Response&gt;
    * @throws ApiException if fails to make API call
    */
-  public ApiResponse<HealthyStatus> getLivenessWithHttpInfo(Map<String, String> headers) throws ApiException {
+  public ApiResponse<GetLiveness200Response> getLivenessWithHttpInfo(Map<String, String> headers) throws ApiException {
     HttpRequest.Builder localVarRequestBuilder = getLivenessRequestBuilder(headers);
     try {
       HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
@@ -218,7 +219,7 @@ public class OperationsApi {
         }
         localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
         if (localVarResponseBody == null) {
-          return new ApiResponse<HealthyStatus>(
+          return new ApiResponse<GetLiveness200Response>(
               localVarResponse.statusCode(),
               localVarResponse.headers().map(),
               null
@@ -228,10 +229,10 @@ public class OperationsApi {
 
 
         String responseBody = new String(localVarResponseBody.readAllBytes());
-        HealthyStatus responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<HealthyStatus>() {});
+        GetLiveness200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<GetLiveness200Response>() {});
 
 
-        return new ApiResponse<HealthyStatus>(
+        return new ApiResponse<GetLiveness200Response>(
             localVarResponse.statusCode(),
             localVarResponse.headers().map(),
             responseValue
@@ -275,10 +276,10 @@ public class OperationsApi {
   /**
    * Check whether this process accepts work
    *
-   * @return HealthyStatus
+   * @return GetReadiness200Response
    * @throws ApiException if fails to make API call
    */
-  public HealthyStatus getReadiness() throws ApiException {
+  public GetReadiness200Response getReadiness() throws ApiException {
     return getReadiness(null);
   }
 
@@ -286,21 +287,21 @@ public class OperationsApi {
    * Check whether this process accepts work
    *
    * @param headers Optional headers to include in the request
-   * @return HealthyStatus
+   * @return GetReadiness200Response
    * @throws ApiException if fails to make API call
    */
-  public HealthyStatus getReadiness(Map<String, String> headers) throws ApiException {
-    ApiResponse<HealthyStatus> localVarResponse = getReadinessWithHttpInfo(headers);
+  public GetReadiness200Response getReadiness(Map<String, String> headers) throws ApiException {
+    ApiResponse<GetReadiness200Response> localVarResponse = getReadinessWithHttpInfo(headers);
     return localVarResponse.getData();
   }
 
   /**
    * Check whether this process accepts work
    *
-   * @return ApiResponse&lt;HealthyStatus&gt;
+   * @return ApiResponse&lt;GetReadiness200Response&gt;
    * @throws ApiException if fails to make API call
    */
-  public ApiResponse<HealthyStatus> getReadinessWithHttpInfo() throws ApiException {
+  public ApiResponse<GetReadiness200Response> getReadinessWithHttpInfo() throws ApiException {
     return getReadinessWithHttpInfo(null);
   }
 
@@ -308,10 +309,10 @@ public class OperationsApi {
    * Check whether this process accepts work
    *
    * @param headers Optional headers to include in the request
-   * @return ApiResponse&lt;HealthyStatus&gt;
+   * @return ApiResponse&lt;GetReadiness200Response&gt;
    * @throws ApiException if fails to make API call
    */
-  public ApiResponse<HealthyStatus> getReadinessWithHttpInfo(Map<String, String> headers) throws ApiException {
+  public ApiResponse<GetReadiness200Response> getReadinessWithHttpInfo(Map<String, String> headers) throws ApiException {
     HttpRequest.Builder localVarRequestBuilder = getReadinessRequestBuilder(headers);
     try {
       HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
@@ -327,7 +328,7 @@ public class OperationsApi {
         }
         localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
         if (localVarResponseBody == null) {
-          return new ApiResponse<HealthyStatus>(
+          return new ApiResponse<GetReadiness200Response>(
               localVarResponse.statusCode(),
               localVarResponse.headers().map(),
               null
@@ -337,10 +338,10 @@ public class OperationsApi {
 
 
         String responseBody = new String(localVarResponseBody.readAllBytes());
-        HealthyStatus responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<HealthyStatus>() {});
+        GetReadiness200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<GetReadiness200Response>() {});
 
 
-        return new ApiResponse<HealthyStatus>(
+        return new ApiResponse<GetReadiness200Response>(
             localVarResponse.statusCode(),
             localVarResponse.headers().map(),
             responseValue

@@ -1,6 +1,6 @@
 /*
- * DKP Operational Probes
- * Minimal anonymous probes shared by all three independently deployed foundation services.
+ * DKP Versioned API Clients
+ * Aggregate for deterministic client generation; per-runtime published contracts remain separate.
  *
  * The version of the OpenAPI document: 1.0.0
  *
@@ -168,7 +168,7 @@ public class ApiClient {
   public ApiClient() {
     this.builder = createDefaultHttpClientBuilder();
     this.mapper = createDefaultObjectMapper();
-    updateBaseUri("http://localhost:8080");
+    updateBaseUri("https://localhost:18443");
     interceptor = null;
     readTimeout = null;
     connectTimeout = null;
@@ -186,7 +186,7 @@ public class ApiClient {
   public ApiClient(HttpClient.Builder builder, ObjectMapper mapper, String baseUri) {
     this.builder = builder;
     this.mapper = mapper;
-    updateBaseUri(baseUri != null ? baseUri : "http://localhost:8080");
+    updateBaseUri(baseUri != null ? baseUri : "https://localhost:18443");
     interceptor = null;
     readTimeout = null;
     connectTimeout = null;

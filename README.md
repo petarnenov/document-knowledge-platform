@@ -65,17 +65,19 @@ pnpm openspec:check
 pnpm format:check
 ```
 
-Run one API with `./gradlew :services:document-management:bootstrap:run` (port 8080), or run the UI with `pnpm --filter admin-portal dev` (port 5173). Each API exposes only minimal `GET /health/liveness` and `GET /health/readiness`; readiness measures the scaffold process, not future database/index readiness. The shell provides navigation and theme selection. No business operations or credentials are configured.
+Run one API with `./gradlew :services:document-management:bootstrap:run` (port 8080), or run the UI with `pnpm --filter admin-portal dev` (port 5173). Each API exposes minimal anonymous process probes and an independently authenticated tenant security-context route. The portal provides navigation, themes and real OIDC identity actions. Use the HTTPS composition below for the complete browser identity journey; direct development servers do not replace secure cookie/TLS integration. Unimplemented business operations remain denied.
 
 With Docker Compose available:
 
 ```bash
-docker compose -f infra/docker-compose/compose.yaml up --build --wait --wait-timeout 180
+python3 infra/docker-compose/bootstrap-security.py
+docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml up --build --wait --wait-timeout 240
 python3 tools/runtime/smoke.py
-docker compose -f infra/docker-compose/compose.yaml down
+node tools/runtime/identity-e2e.mjs
+docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml down
 ```
 
-Loopback ports: portal **18080**, Document Management **18081**, Knowledge Base **18082**, Knowledge Search **18083**. Each image builds independently from the repository root; Compose starts only these four components. Full processing infrastructure and Kubernetes/GitOps deployments require later specifications. The [DKP-001 delivery record](docs/implementation/dkp-001-status.md) tracks scope, approval, review and evidence.
+Loopback entry: portal **https://localhost:18443**, standalone issuer **https://idp.localhost:18444/realms/dkp**, Document Management **18081**, Knowledge Base **18082**, Knowledge Search **18083**. Compose runs the three APIs, BFF, portal and Keycloak. Generated owner-only development credentials and explicit CA trust are described in [environment configuration](docs/development/configuration.md). Each image builds independently from the repository root. Full processing infrastructure and Kubernetes/GitOps deployments require later specifications. The [DKP-001 delivery record](docs/implementation/dkp-001-status.md) tracks scope, approval, review and evidence.
 
 ## Security
 
