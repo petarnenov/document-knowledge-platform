@@ -45,6 +45,16 @@ provider faults, quota saturation or other mutations against that same fixture
 while the expiry profile owns it. Independent source work and tests may run
 concurrently when they cannot disturb its runtime or resources.
 
+After the genuine deadline, the profile immediately checks all three rejected
+mutation paths. It then observes read-only status for at most thirty seconds:
+the persisted `EXPIRED` transition follows the ten-second background sweep.
+Every observation must retain the original `expiresAt`; an invalid status,
+authority error or changed deadline remains a failure even if a later response
+would succeed. This observation window neither extends admission nor retries
+the rejected mutations. Remaining held quota, consumed receipt, mapping and
+cleanup assertions still run afterward. A failed run remains failed; fixes
+require a fresh genuine sixty-minute acceptance run.
+
 Record fast regression and real-time acceptance results separately. Fast test
 success cannot be reported as evidence that the long scenario passed. No
 production TTL, contract, authorization, acceptance or coverage gate changes.

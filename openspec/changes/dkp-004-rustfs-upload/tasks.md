@@ -129,8 +129,8 @@ Runtime issues91–99 were created before execution. Development specification a
 
 - [ ] [#175](https://github.com/petarnenov/document-knowledge-platform/issues/175) P1: integrate real authenticated faults, seven helper coverage floors and a separate fresh genuine quota runtime into CI; independent177 review passes, actual CI pending.
 - [ ] [#176](https://github.com/petarnenov/document-knowledge-platform/issues/176) P1: observe genuine metadata create through exact authorized idempotent replay and UI/discovery binding;23 helper tests100% coverage and independent177 review pass, actual final-source two-theme/quota CI pending.
-- [ ] [#177](https://github.com/petarnenov/document-knowledge-platform/issues/177) P1: independently review176 and175 integration; corrected cleanup attempts both owned runtimes and preserves nonzero failure. Review PASS, handoff pending.
-- [ ] [#179](https://github.com/petarnenov/document-knowledge-platform/issues/179) P2: independent review of concurrent owner-side178 fast versus real-time expiry selection; no genuine sixty-minute success claimed early.
+- [x] [#177](https://github.com/petarnenov/document-knowledge-platform/issues/177) P1: independently review176 and175 integration; corrected cleanup attempts both owned runtimes and preserves nonzero failure. Review PASS, handoff pending.
+- [x] [#179](https://github.com/petarnenov/document-knowledge-platform/issues/179) P2: independent review of concurrent owner-side178 fast versus real-time expiry selection; no genuine sixty-minute success claimed early.
 
 - [ ] [#180](https://github.com/petarnenov/document-knowledge-platform/issues/180) P2: close179 review gaps using injected-clock application tests for the original exact expiry boundary, delayed retry preserving its deadline and expired held accounting; no production TTL/runtime change.
 
@@ -144,3 +144,6 @@ Runtime issues91–99 were created before execution. Development specification a
 
 - [ ] [#194](https://github.com/petarnenov/document-knowledge-platform/issues/194) P1: actual light-mode initialGET200/CDP-finished timeout; test-only success-UI barrier correction reviewed195, actual final-source CI pending.
 - [ ] [#195](https://github.com/petarnenov/document-knowledge-platform/issues/195) P1: independent194 source review PASS; expirybranch/current production source unchanged, actual runtime gates remain mandatory.
+
+- [ ] [#198](https://github.com/petarnenov/document-knowledge-platform/issues/198) P1: first genuine sixty-minute run FAILED on asynchronous persisted-state observation; automatic expiry+6.59seconds and immediate409 verified read-only. Minimal bounded status observation reviewed; NEWfresh real sixty-minute acceptance and integration pending.
+- [x] [#199](https://github.com/petarnenov/document-knowledge-platform/issues/199) P1: independent expiry observation review PASS; unchanged real-hour wait, immediate409 and all remaining assertions, invariant deadline every observation, latched invalid response and finite30second observation. This is source review, not elapsed-time acceptance.

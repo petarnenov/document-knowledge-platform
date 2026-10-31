@@ -596,9 +596,28 @@ if (profile === 'expiry') {
       }),
     ])
       await safeError(response, 409, 'UPLOAD_EXPIRED');
-    const expired = await status(page, heldId);
-    expect(expired.expiresAt).toBe(original.expiresAt);
-    expect(expired.state).toBe('EXPIRED');
+    // Operational rejection is immediate; the durable state follows the 10s
+    // cleanup sweep. Observe only status, never retry the rejected mutations.
+    let invalidObservation: unknown;
+    await expect
+      .poll(
+        async () => {
+          // Preserve any invalid response/deadline rather than letting a later
+          // successful observation hide an earlier authority/invariant failure.
+          if (invalidObservation !== undefined) throw invalidObservation;
+          try {
+            const observed = await status(page, heldId);
+            expect(observed.expiresAt).toBe(original.expiresAt);
+            expect(['VERIFIED', 'EXPIRED']).toContain(observed.state);
+            return observed.state;
+          } catch (failure) {
+            invalidObservation = failure;
+            throw failure;
+          }
+        },
+        { timeout: 30_000, intervals: [1_000, 2_000, 5_000] },
+      )
+      .toBe('EXPIRED');
     expect((await status(page, consumedId)).state).toBe('CONSUMED');
     const unchanged = await page.request.get(`${base}/${heldDraft.documentId}`);
     expect(unchanged.status()).toBe(200);
