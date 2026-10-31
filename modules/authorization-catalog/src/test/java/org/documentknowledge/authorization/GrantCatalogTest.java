@@ -63,4 +63,12 @@ class GrantCatalogTest {
  @org.junit.jupiter.api.condition.EnabledOnOs(org.junit.jupiter.api.condition.OS.LINUX)
  @Test void productionLinuxPlatformUsesTheDefaultFactory()throws Exception{Path p=file();write(p,catalog());assertEquals(AuthorityDecision.ALLOW,new GrantCatalog(p).authorize(actor,"tenant-a","document.create",""));}
 
+ @Test void additiveContentActionRequiresExplicitGrantAndCeilingWithAllOldActionsPreserved()throws Exception{
+  Path p=file();assertEquals(10,GrantCatalog.ACTIONS.size());
+  for(String action:GrantCatalog.ACTIONS){if(action.equals("document.create"))continue;write(p,catalog().replace("document.inspect-draft",action));assertEquals(AuthorityDecision.ALLOW,catalog(p).authorize(actor,"tenant-a",action,""));assertEquals(AuthorityDecision.ALLOW,catalog(p).delegationCeiling(actor,"tenant-a",action));}
+  write(p,catalog());assertEquals(AuthorityDecision.DENY,catalog(p).authorize(actor,"tenant-a","document.content.review",""));assertEquals(AuthorityDecision.DENY,catalog(p).delegationCeiling(actor,"tenant-a","document.content.review"));
+  write(p,catalog().replace("document.inspect-draft","document.content.review"));assertEquals(AuthorityDecision.ALLOW,catalog(p).authorize(actor,"tenant-a","document.content.review",""));
+  for(String invalid:List.of("document.content.*","admin","document.content.review.extra")){write(p,catalog().replace("document.inspect-draft",invalid));assertEquals(AuthorityDecision.UNAVAILABLE,decide(p));}
+ }
+
 }

@@ -37,6 +37,7 @@ public final class JdbcDocumentStore implements DocumentUnitOfWork {
     private static final class Repository implements DocumentRepository {
         private final Connection connection;
         Repository(Connection connection) { this.connection = connection; }
+        @Override public org.documentknowledge.documentmanagement.application.upload.UploadRepository uploads() { return new JdbcUploadRepository(connection); }
         private PreparedStatement prepare(String sql, Object... values) throws SQLException {
             PreparedStatement statement = connection.prepareStatement(sql);
             try {

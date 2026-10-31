@@ -49,7 +49,11 @@ class DocumentHttpIntegrationTest {
         Path parent=directory.toRealPath();Files.setPosixFilePermissions(parent,PosixFilePermissions.fromString("rwx------"));
         catalog=parent.resolve("grants.json");cursorKey=parent.resolve("cursor.key");byte[] key=new byte[32];new java.security.SecureRandom().nextBytes(key);Files.writeString(cursorKey,Base64.getEncoder().encodeToString(key)+"\n");Files.setPosixFilePermissions(cursorKey,PosixFilePermissions.fromString("rw-------"));
         grants(entry("user","tenant-a",ALL,ALL),entry("user","tenant-b",ALL,ALL),entry("other","tenant-a",ALL,ALL));
-        try(Connection c=admin.getConnection();Statement s=c.createStatement();ResultSet r=s.executeQuery("SELECT to_regclass('dm.documents')")){if(r.next() && r.getString(1)!=null)try(Statement clear=c.createStatement()){clear.execute("TRUNCATE dm.documents CASCADE");}}
+        try(Connection c=admin.getConnection();Statement s=c.createStatement();ResultSet r=s.executeQuery("SELECT to_regclass('dm.documents')")){if(r.next() && r.getString(1)!=null)try(Statement clear=c.createStatement()){
+            clear.execute("TRUNCATE dm.documents CASCADE");
+            clear.execute("TRUNCATE dm.upload_resource_accounts CASCADE");
+            clear.execute("UPDATE dm.upload_global_resource_account SET admitted_count=0,reserved_transient_bytes=0,promised_original_bytes=0,retained_original_bytes=0,revision=0");
+        }}
     }
     private Map<String,Object> configuration() {
         var c=security.settings("standalone");c.put("dkp.dm.catalog.path",catalog.toString());c.put("dkp.dm.cursor.key-path",cursorKey.toString());
@@ -94,8 +98,80 @@ class DocumentHttpIntegrationTest {
             assertEquals(200,call(server,"GET",BASE+"/"+id,"other","tenant-a",null,null).statusCode());
             receipt(call(server,"POST",BASE+"/"+id+"/legal-holds","user","tenant-a","hold",Map.of("expectedRevision",2,"reason","preserve")),201,3);
             var holds=body(call(server,"GET",BASE+"/"+id+"/legal-holds","user","tenant-a",null,null));assertEquals(Set.of("items"),holds.keySet());var hold=items(holds.get("items")).getFirst();assertEquals(Set.of("holdId","documentId","revision","active","reason","placedBy","placedAt"),hold.keySet());UUID.fromString((String)hold.get("holdId"));java.time.Instant.parse((String)hold.get("placedAt"));assertEquals(id.toString(),hold.get("documentId"));assertEquals(3,((Number)hold.get("revision")).longValue());assertEquals(true,hold.get("active"));assertEquals("preserve",hold.get("reason"));assertEquals(Map.of("issuer",ISSUER,"subject","user"),hold.get("placedBy"));
-            error(call(server,"POST",BASE+"/"+id+"/versions","user","tenant-a","append",Map.of("expectedRevision",3,"receiptId","untrusted-opaque-receipt")),503);
+            error(call(server,"POST",BASE+"/"+id+"/versions","user","tenant-a","append",Map.of("expectedRevision",3,"receiptId","untrusted-opaque-receipt")),404);
             assertEquals(3,((Number)body(call(server,"GET",BASE+"/"+id,"user","tenant-a",null,null)).get("revision")).longValue());
+        }
+    }
+    @Test void realAuthenticatedUploadAdmissionAndClosedBinaryBoundaries() throws Exception {
+        try(var server=server()) {
+            UUID id=created(server,"tenant-a");String uploads=BASE+"/uploads";
+            var command=Map.of("documentId",id.toString(),"expectedRevision",0,"format","PDF","sizeBytes",4);
+            var initialized=call(server,"POST",uploads,"user","tenant-a","upload-init",command);
+            assertEquals(201,initialized.statusCode(),initialized.body());assertEquals(Set.of("uploadId"),body(initialized).keySet());assertNoStore(initialized);
+            String slot=(String)body(initialized).get("uploadId");UUID.fromString(slot);
+            assertInitializedUploadFacts(id,UUID.fromString(slot));
+            assertEquals(body(initialized),body(call(server,"POST",uploads,"user","tenant-a","upload-init",command)));
+            assertInitializedUploadFacts(id,UUID.fromString(slot));
+            var status=call(server,"GET",uploads+"/"+slot+"/status","user","tenant-a",null,null);
+            assertEquals(200,status.statusCode(),status.body());assertEquals(Set.of("uploadId","state","expiresAt","failureCode"),body(status).keySet());assertEquals("INITIALIZED",body(status).get("state"));assertNull(body(status).get("failureCode"));
+            error(call(server,"GET",uploads+"/"+slot+"/status","other","tenant-a",null,null),404);
+            error(send(server,"PUT",uploads+"/"+slot+"/content",token("user"),"tenant-a","wrong-type","text/plain","1234"),415);
+            // Preserve the original encoding header and bytes until the closed
+            // upload boundary rejects them; no scanner/storage or state transition.
+            byte[] plain="1234".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+            var compressed=new java.io.ByteArrayOutputStream();
+            try(var gzip=new java.util.zip.GZIPOutputStream(compressed)){gzip.write(plain);}
+            for(byte[] encoded:List.of(plain,compressed.toByteArray())) {
+                for(int attempt=0;attempt<3;attempt++) {
+                    var encodedRequest=HttpRequest.newBuilder(server.getURI().resolve(uploads+"/"+slot+"/content"))
+                        .header("Authorization","Bearer "+token("user")).header("X-DKP-Tenant","tenant-a")
+                        .header("Idempotency-Key","encoded-"+UUID.randomUUID()).header("Content-Type","application/octet-stream")
+                        .header("Content-Encoding","gzip").PUT(HttpRequest.BodyPublishers.ofByteArray(encoded)).build();
+                    var encodedResponse=client.send(encodedRequest,HttpResponse.BodyHandlers.ofString());
+                    error(encodedResponse,400);assertEquals("INVALID_REQUEST",body(encodedResponse).get("code"));
+                }
+            }
+            error(call(server,"POST",uploads+"/"+slot+"/complete","user","tenant-a","extra",Map.of("extra",true)),400);
+            error(call(server,"POST",uploads+"/"+slot+"/complete","user","tenant-a","not-transferred",Map.of()),409);
+            error(call(server,"GET",BASE+"/"+id+"/upload-receipts/"+UUID.randomUUID()+"/version","user","tenant-a",null,null),404);
+            error(call(server,"GET",BASE+"/"+id+"/versions/"+UUID.randomUUID()+"/content","user","tenant-a",null,null),404);
+            error(call(server,"POST",uploads,"user","tenant-a","too-large",Map.of("documentId",id.toString(),"expectedRevision",0,"format","PDF","sizeBytes",100000001)),413);
+            error(call(server,"POST",uploads,"user","tenant-a","unknown-format",Map.of("documentId",id.toString(),"expectedRevision",0,"format","HTML","sizeBytes",4)),400);
+            var metadataLarge=" ".repeat(16384)+"{}";var oversized=send(server,"POST",uploads,token("user"),"tenant-a","metadata-large","application/json",metadataLarge);error(oversized,413);assertEquals("PAYLOAD_TOO_LARGE",body(oversized).get("code"));
+            var oldOversized=send(server,"POST",BASE,token("user"),"tenant-a","old-metadata-large","application/json",metadataLarge);error(oldOversized,413);assertEquals("REQUEST_TOO_LARGE",body(oldOversized).get("code"));
+            var unauthenticated=send(server,"GET",uploads+"/"+slot+"/status",null,"tenant-a",null,null,null);error(unauthenticated,401);assertEquals("UNAUTHENTICATED",body(unauthenticated).get("code"));
+            assertEquals(0,((Number)body(call(server,"GET",BASE+"/"+id,"user","tenant-a",null,null)).get("revision")).longValue());
+            assertInitializedUploadFacts(id,UUID.fromString(slot));
+        }
+    }
+    private void assertInitializedUploadFacts(UUID document,UUID slot) throws Exception {
+        // Inspect committed facts using the test owner; every HTTP mutation still uses the runtime role.
+        try(Connection c=admin.getConnection();Statement s=c.createStatement()) {
+            for(String table:List.of("upload_slots","upload_command_outcomes","upload_audit_facts")) {
+                try(ResultSet r=s.executeQuery("SELECT count(*) FROM dm."+table)) {assertTrue(r.next());assertEquals(1,r.getInt(1),table+" must not duplicate on replay");}
+            }
+            try(var statement=c.prepareStatement("SELECT tenant_id,document_id,actor_issuer,actor_subject,state,declared_size FROM dm.upload_slots WHERE upload_id=?")) {
+                statement.setObject(1,slot);
+                try(ResultSet r=statement.executeQuery()) {assertTrue(r.next());assertEquals("tenant-a",r.getString(1));assertEquals(document,r.getObject(2,UUID.class));assertEquals(ISSUER,r.getString(3));assertEquals("user",r.getString(4));assertEquals("INITIALIZED",r.getString(5));assertEquals(4,r.getLong(6));}
+            }
+            try(ResultSet r=s.executeQuery("SELECT operation,status,idempotency_key FROM dm.upload_command_outcomes")) {assertTrue(r.next());assertEquals("upload.initialize",r.getString(1));assertEquals(201,r.getInt(2));assertEquals("upload-init",r.getString(3));}
+            try(ResultSet r=s.executeQuery("SELECT operation,outcome_code,state_revision FROM dm.upload_audit_facts")) {assertTrue(r.next());assertEquals("upload.initialize",r.getString(1));assertEquals("OK",r.getString(2));assertEquals(0,r.getLong(3));}
+            for(String table:List.of("upload_global_resource_account","upload_resource_accounts")) {
+                try(ResultSet r=s.executeQuery("SELECT admitted_count,reserved_transient_bytes,promised_original_bytes,retained_original_bytes,revision FROM dm."+table)) {
+                    assertTrue(r.next());assertEquals(1,r.getLong(1));assertEquals(8,r.getLong(2));assertEquals(4,r.getLong(3));assertEquals(0,r.getLong(4));assertEquals(1,r.getLong(5));assertFalse(r.next());
+                }
+            }
+        }
+    }
+    @Test void uploadMembershipOutageAndFrameworkOversizeUseFiniteCodes() throws Exception {
+        var settings=configuration();settings.put("dkp.security.profile","external");
+        try(var server=ApplicationContext.run(EmbeddedServer.class,settings)){
+            String slot=UUID.randomUUID().toString();var unavailable=call(server,"GET",BASE+"/uploads/"+slot+"/status","user","tenant-a",null,null);error(unavailable,503);assertEquals("UNAVAILABLE",body(unavailable).get("code"));
+            var metadata=call(server,"GET",BASE+"/"+UUID.randomUUID(),"user","tenant-a",null,null);error(metadata,503);assertEquals("AUTHORITY_UNAVAILABLE",body(metadata).get("code"));
+        }
+        settings=configuration();settings.put("micronaut.server.max-request-size",64);
+        try(var server=ApplicationContext.run(EmbeddedServer.class,settings)){
+            var oversized=send(server,"PUT",BASE+"/uploads/"+UUID.randomUUID()+"/content",token("user"),"tenant-a","framework-limit","application/octet-stream","x".repeat(65));error(oversized,413);assertEquals("PAYLOAD_TOO_LARGE",body(oversized).get("code"));
         }
     }
     @Test void strictJwtMembershipAndForwardedHeadersCannotBypassDirectApi() throws Exception {

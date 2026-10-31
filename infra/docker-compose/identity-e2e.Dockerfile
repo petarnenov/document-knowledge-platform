@@ -43,12 +43,15 @@ try {
   browser = await chromium.launch({ args: [`--host-resolver-rules=MAP idp.localhost ${address}`] });
   const context = await browser.newContext({ ignoreHTTPSErrors: false });
   const page = await context.newPage();
-  for (const url of ['https://localhost:18443/', 'https://idp.localhost:18444/realms/dkp/.well-known/openid-configuration']) {
-    const response = await page.goto(url);
+  const portal = new URL(process.env.DKP_IDENTITY_BASE_URL);
+  const provider = new URL(process.env.DKP_IDENTITY_IDP_BASE_URL);
+  if (portal.protocol !== 'https:' || portal.hostname !== 'localhost' || provider.protocol !== 'https:' || provider.hostname !== 'idp.localhost' || portal.username || portal.password || provider.username || provider.password) throw new Error('Invalid trusted local origins');
+  for (const url of [new URL('/', portal), new URL('/realms/dkp/.well-known/openid-configuration', provider)]) {
+    const response = await page.goto(url.href);
     if (response?.status() !== 200) throw new Error('Expected trusted HTTPS response');
   }
   let denied = false;
-  try { await page.goto('https://wrong-name.localhost:18443/'); }
+  try { await page.goto(`https://wrong-name.localhost:${portal.port}/`); }
   catch (error) { denied = error.message.includes('ERR_CERT_COMMON_NAME_INVALID'); }
   if (!denied) throw new Error('Wrong certificate hostname was not denied');
   console.log('Strict Chromium CA/hostname verification passed.');
@@ -72,7 +75,7 @@ chown -R pwuser:pwuser "$DKP_BROWSER_HOME"
 runuser -u pwuser -- certutil -N -d "sql:$DKP_BROWSER_HOME/.local/share/pki/nssdb" --empty-password
 runuser -u pwuser -- certutil -A -d "sql:$DKP_BROWSER_HOME/.local/share/pki/nssdb" -n DKP-local-test-CA -t 'C,,' -i "$NODE_EXTRA_CA_CERTS"
 # Verify Node-side HTTPS through the same CA before running the browser.
-runuser -u pwuser -- node --input-type=module -e 'try { const response = await fetch("https://localhost:18443/"); if (!response.ok) process.exit(1); } catch { console.error("Portal HTTPS trust verification failed."); process.exit(1); }'
+runuser -u pwuser -- node --input-type=module -e 'try { const response = await fetch(process.env.DKP_IDENTITY_BASE_URL); if (!response.ok) process.exit(1); } catch { console.error("Portal HTTPS trust verification failed."); process.exit(1); }'
 runuser -u pwuser -- node /workspace/apps/admin-portal/browser-trust-smoke.mjs
 cd /workspace/apps/admin-portal
 exec runuser -u pwuser -- node /workspace/apps/admin-portal/node_modules/@playwright/test/cli.js test --config playwright.identity.runtime.config.ts

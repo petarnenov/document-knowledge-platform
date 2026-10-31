@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.documentknowledge.documentmanagement.domain.*;
 /** Each instance is bound to one transaction. Implementations must scope SQL by tenant. */
 public interface DocumentRepository {
+ default org.documentknowledge.documentmanagement.application.upload.UploadRepository uploads(){throw new DmFailure(503,"UNAVAILABLE");}
  void lockCommand(CommandKey key);
  Optional<StoredCommand> command(CommandKey key);
  Optional<DocumentAggregate> find(String tenant,UUID id);

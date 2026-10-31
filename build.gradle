@@ -9,7 +9,7 @@ def serviceNames = ['document-management', 'knowledge-base', 'knowledge-search',
 def layerNames = ['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap']
 
 subprojects {
-    if (name in layerNames || name in ['architecture-tests', 'identity-contracts', 'security-micronaut', 'authorization-catalog']) {
+    if (name in layerNames || name in ['architecture-tests', 'identity-contracts', 'security-micronaut', 'authorization-catalog', 'structure-inspector']) {
         apply plugin: 'java-library'
         apply plugin: 'jacoco'
         // Gradle resolves components by group/name/version, so repeated layer names
@@ -43,7 +43,7 @@ subprojects {
             jvmArgs '-XX:ActiveProcessorCount=2'
             testLogging { events 'failed', 'skipped' }
         }
-        if (name in layerNames) {
+        if (name in layerNames || name == 'structure-inspector') {
             dependencies {
                 testImplementation platform(rootProject.libs.micronaut.platform)
                 testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -63,15 +63,27 @@ serviceNames.each { service ->
     if (service == 'document-management') {
         project("${base}:application") { dependencies { api project(':modules:identity-contracts') } }
         project("${base}:adapters-in") {
-            dependencies { implementation 'io.micronaut:micronaut-jackson-databind' }
+            dependencies {
+                implementation 'io.micronaut:micronaut-jackson-databind'
+                implementation 'io.micronaut:micronaut-http-server'
+            }
         }
         project("${base}:adapters-out") {
             dependencies {
                 implementation project(':modules:authorization-catalog')
+                implementation platform(rootProject.libs.micronaut.platform)
+                implementation 'tools.jackson.core:jackson-databind'
+                implementation("software.amazon.awssdk:s3:${rootProject.libs.versions.aws.sdk.get()}") {
+                    exclude group: 'software.amazon.awssdk', module: 'apache-client'
+                    exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+                }
+                implementation "software.amazon.awssdk:apache5-client:${rootProject.libs.versions.aws.sdk.get()}"
+                testImplementation "software.amazon.awssdk:url-connection-client:${rootProject.libs.versions.aws.sdk.get()}"
                 testImplementation "org.testcontainers:testcontainers-postgresql:${rootProject.libs.versions.testcontainers.get()}"
                 testImplementation "org.flywaydb:flyway-core:${rootProject.libs.versions.flyway.get()}"
                 testRuntimeOnly "org.flywaydb:flyway-database-postgresql:${rootProject.libs.versions.flyway.get()}"
                 testImplementation "org.postgresql:postgresql:${rootProject.libs.versions.postgresql.jdbc.get()}"
+                testImplementation project(':workers:structure-inspector')
             }
         }
         project("${base}:bootstrap") {
@@ -114,6 +126,7 @@ serviceNames.each { service ->
                     implementation platform(rootProject.libs.micronaut.platform)
                     implementation 'jakarta.inject:jakarta.inject-api'
                     implementation 'io.micronaut:micronaut-jackson-databind'
+                    if (layer == 'adapters-in') implementation 'io.micronaut:micronaut-http-server'
                 }
             }
         }
@@ -221,7 +234,9 @@ tasks.register('architectureDependencyTest') {
         assert allowedLayerDependency(':services:document-management:adapters-out', ':modules:authorization-catalog')
         assert !allowedLayerDependency(':services:document-management:application', ':modules:authorization-catalog')
         assert !allowedLayerDependency(':services:knowledge-base:adapters-out', ':modules:authorization-catalog')
-        (serviceProjects + [project(':modules:identity-contracts'), project(':modules:security-micronaut'), project(':modules:authorization-catalog')]).each { p ->
+        assert !allowedLayerDependency(':workers:structure-inspector', ':services:document-management:application')
+        assert !allowedLayerDependency(':services:document-management:application', ':workers:structure-inspector')
+        (serviceProjects + [project(':modules:identity-contracts'), project(':modules:security-micronaut'), project(':modules:authorization-catalog'), project(':workers:structure-inspector')]).each { p ->
                 def layer = p.name
                 p.configurations.matching { it.name in ['api', 'implementation', 'compileOnly', 'runtimeOnly'] }.each { config ->
                     config.dependencies.each { dependency ->

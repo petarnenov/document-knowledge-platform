@@ -31,7 +31,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 import org.dkp.client.ApiClient;
 /**
- * Sole success body for every BP-02 mutation; no inspection-only facts. Replay requires current original-operation authority+ACL, create catalog only.
+ * CommandReceipt
  */
 @JsonPropertyOrder({
   CommandReceipt.JSON_PROPERTY_DOCUMENT_ID,

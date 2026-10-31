@@ -30,3 +30,88 @@ tasks.named('test') {
     systemProperty 'java.io.tmpdir', authorityTmp.get().asFile.absolutePath
     doFirst { authorityTmp.get().asFile.mkdirs() }
 }
+
+// Independent scanner/inspection trust adapters have their own source coverage floor.
+tasks.register('verificationCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+        include 'org/documentknowledge/documentmanagement/adapters/outbound/verification/**'
+    }
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('verificationCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('verificationCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+        include 'org/documentknowledge/documentmanagement/adapters/outbound/verification/**'
+    }
+    violationRules {
+        rule {
+            limit { counter = 'LINE'; minimum = 0.75 }
+            limit { counter = 'BRANCH'; minimum = 0.75 }
+        }
+    }
+}
+tasks.named('check') { dependsOn 'verificationCoverageVerification' }
+
+// Storage authority and failure settlement must meet the same independent coverage floor.
+tasks.register('storageCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+        include 'org/documentknowledge/documentmanagement/adapters/outbound/storage/**'
+    }
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('storageCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('storageCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+        include 'org/documentknowledge/documentmanagement/adapters/outbound/storage/**'
+    }
+    violationRules {
+        rule {
+            limit { counter = 'LINE'; minimum = 0.75 }
+            limit { counter = 'BRANCH'; minimum = 0.75 }
+        }
+    }
+}
+tasks.named('check') { dependsOn 'storageCoverageVerification' }
+
+tasks.register('realScannerAcceptance', JavaExec) {
+    group = 'verification'
+    description = 'Requires actual ClamAV and the same read-only standard-definition generation.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.documentknowledge.documentmanagement.adapters.outbound.verification.RealScannerAcceptance'
+    jvmArgs '-XX:ActiveProcessorCount=2'
+    doFirst {
+        args = ['dkpScannerHost', 'dkpScannerPort', 'dkpScannerDefinitions'].collect { key ->
+            def value = providers.gradleProperty(key).orNull
+            if (!value) throw new GradleException("Explicit real-scanner property required: ${key}")
+            value
+        }
+    }
+}
+
+tasks.register('realInspectorAcceptance', JavaExec) {
+    group = 'verification'
+    description = 'Requires the actual isolated TLS inspector, pinned profile/image and four real format fixtures.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.documentknowledge.documentmanagement.adapters.outbound.verification.RealInspectorAcceptance'
+    jvmArgs '-XX:ActiveProcessorCount=2'
+    doFirst {
+        args = ['dkpInspectorEndpoint', 'dkpInspectorCa', 'dkpInspectorKey',
+                'dkpInspectorProfile', 'dkpInspectorImage', 'dkpInspectorFixtures'].collect { key ->
+            def value = providers.gradleProperty(key).orNull
+            if (!value) throw new GradleException("Explicit real-inspector property required: ${key}")
+            value
+        }
+    }
+}

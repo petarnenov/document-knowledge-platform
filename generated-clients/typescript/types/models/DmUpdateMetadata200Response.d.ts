@@ -10,7 +10,7 @@
  * Do not edit the class manually.
  */
 /**
- * Sole success body for every BP-02 mutation; no inspection-only facts. Replay requires current original-operation authority+ACL, create catalog only.
+ *
  * @export
  * @interface DmUpdateMetadata200Response
  */

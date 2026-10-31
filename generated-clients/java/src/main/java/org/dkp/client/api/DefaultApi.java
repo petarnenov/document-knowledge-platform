@@ -20,25 +20,38 @@ import org.dkp.client.Pair;
 
 import org.dkp.client.model.BffAppendVersionRequest;
 import org.dkp.client.model.BffChangeAclRequest;
+import org.dkp.client.model.BffCompleteUpload200Response;
 import org.dkp.client.model.BffCreateDraftRequest;
+import org.dkp.client.model.BffInitializeUploadRequest;
 import org.dkp.client.model.BffInspectDraftAcl200Response;
 import org.dkp.client.model.BffInspectHolds200Response;
+import org.dkp.client.model.BffInspectUpload200Response;
 import org.dkp.client.model.BffListDrafts200Response;
 import org.dkp.client.model.BffPlaceHoldRequest;
+import org.dkp.client.model.BffResolveConsumedUploadVersion200Response;
 import org.dkp.client.model.BffUpdateMetadataRequest;
+import org.dkp.client.model.DmAppendVersion400Response;
+import org.dkp.client.model.DmAppendVersion401Response;
 import org.dkp.client.model.DmAppendVersionRequest;
 import org.dkp.client.model.DmChangeAclRequest;
+import org.dkp.client.model.DmCompleteUpload200Response;
 import org.dkp.client.model.DmCreateDraft201Response;
 import org.dkp.client.model.DmCreateDraftRequest;
+import org.dkp.client.model.DmInitializeUpload201Response;
+import org.dkp.client.model.DmInitializeUploadRequest;
 import org.dkp.client.model.DmInspectDraftAcl200Response;
 import org.dkp.client.model.DmInspectHolds200Response;
+import org.dkp.client.model.DmInspectUpload200Response;
 import org.dkp.client.model.DmListDrafts200Response;
 import org.dkp.client.model.DmListDrafts200ResponseItemsInner;
 import org.dkp.client.model.DmListDrafts400Response;
 import org.dkp.client.model.DmListDrafts401Response;
 import org.dkp.client.model.DmPlaceHoldRequest;
+import org.dkp.client.model.DmResolveConsumedUploadVersion200Response;
+import org.dkp.client.model.DmTransferUpload200Response;
 import org.dkp.client.model.DmUpdateMetadata200Response;
 import org.dkp.client.model.DmUpdateMetadataRequest;
+import java.io.File;
 import java.net.URI;
 import java.util.UUID;
 
@@ -185,66 +198,66 @@ public class DefaultApi {
   }
 
   /**
-   * AppendVersion
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-   * @param documentId  (required)
+   * dmAppendVerifiedVersion
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
    * @param idempotencyKey  (required)
-   * @param origin  (required)
+   * @param documentId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
    * @param X_CSRF_TOKEN  (required)
    * @param bffAppendVersionRequest  (required)
    * @return DmUpdateMetadata200Response
    * @throws ApiException if fails to make API call
    */
-  public DmUpdateMetadata200Response bffAppendVersion(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffAppendVersionRequest bffAppendVersionRequest) throws ApiException {
-    return bffAppendVersion(documentId, idempotencyKey, origin, X_CSRF_TOKEN, bffAppendVersionRequest, null);
+  public DmUpdateMetadata200Response bffAppendVersion(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffAppendVersionRequest bffAppendVersionRequest) throws ApiException {
+    return bffAppendVersion(idempotencyKey, documentId, origin, X_CSRF_TOKEN, bffAppendVersionRequest, null);
   }
 
   /**
-   * AppendVersion
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-   * @param documentId  (required)
+   * dmAppendVerifiedVersion
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
    * @param idempotencyKey  (required)
-   * @param origin  (required)
+   * @param documentId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
    * @param X_CSRF_TOKEN  (required)
    * @param bffAppendVersionRequest  (required)
    * @param headers Optional headers to include in the request
    * @return DmUpdateMetadata200Response
    * @throws ApiException if fails to make API call
    */
-  public DmUpdateMetadata200Response bffAppendVersion(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffAppendVersionRequest bffAppendVersionRequest, Map<String, String> headers) throws ApiException {
-    ApiResponse<DmUpdateMetadata200Response> localVarResponse = bffAppendVersionWithHttpInfo(documentId, idempotencyKey, origin, X_CSRF_TOKEN, bffAppendVersionRequest, headers);
+  public DmUpdateMetadata200Response bffAppendVersion(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffAppendVersionRequest bffAppendVersionRequest, Map<String, String> headers) throws ApiException {
+    ApiResponse<DmUpdateMetadata200Response> localVarResponse = bffAppendVersionWithHttpInfo(idempotencyKey, documentId, origin, X_CSRF_TOKEN, bffAppendVersionRequest, headers);
     return localVarResponse.getData();
   }
 
   /**
-   * AppendVersion
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-   * @param documentId  (required)
+   * dmAppendVerifiedVersion
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
    * @param idempotencyKey  (required)
-   * @param origin  (required)
+   * @param documentId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
    * @param X_CSRF_TOKEN  (required)
    * @param bffAppendVersionRequest  (required)
    * @return ApiResponse&lt;DmUpdateMetadata200Response&gt;
    * @throws ApiException if fails to make API call
    */
-  public ApiResponse<DmUpdateMetadata200Response> bffAppendVersionWithHttpInfo(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffAppendVersionRequest bffAppendVersionRequest) throws ApiException {
-    return bffAppendVersionWithHttpInfo(documentId, idempotencyKey, origin, X_CSRF_TOKEN, bffAppendVersionRequest, null);
+  public ApiResponse<DmUpdateMetadata200Response> bffAppendVersionWithHttpInfo(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffAppendVersionRequest bffAppendVersionRequest) throws ApiException {
+    return bffAppendVersionWithHttpInfo(idempotencyKey, documentId, origin, X_CSRF_TOKEN, bffAppendVersionRequest, null);
   }
 
   /**
-   * AppendVersion
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-   * @param documentId  (required)
+   * dmAppendVerifiedVersion
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
    * @param idempotencyKey  (required)
-   * @param origin  (required)
+   * @param documentId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
    * @param X_CSRF_TOKEN  (required)
    * @param bffAppendVersionRequest  (required)
    * @param headers Optional headers to include in the request
    * @return ApiResponse&lt;DmUpdateMetadata200Response&gt;
    * @throws ApiException if fails to make API call
    */
-  public ApiResponse<DmUpdateMetadata200Response> bffAppendVersionWithHttpInfo(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffAppendVersionRequest bffAppendVersionRequest, Map<String, String> headers) throws ApiException {
-    HttpRequest.Builder localVarRequestBuilder = bffAppendVersionRequestBuilder(documentId, idempotencyKey, origin, X_CSRF_TOKEN, bffAppendVersionRequest, headers);
+  public ApiResponse<DmUpdateMetadata200Response> bffAppendVersionWithHttpInfo(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffAppendVersionRequest bffAppendVersionRequest, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = bffAppendVersionRequestBuilder(idempotencyKey, documentId, origin, X_CSRF_TOKEN, bffAppendVersionRequest, headers);
     try {
       HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
           localVarRequestBuilder.build(),
@@ -291,14 +304,14 @@ public class DefaultApi {
     }
   }
 
-  private HttpRequest.Builder bffAppendVersionRequestBuilder(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffAppendVersionRequest bffAppendVersionRequest, Map<String, String> headers) throws ApiException {
-    // verify the required parameter 'documentId' is set
-    if (documentId == null) {
-      throw new ApiException(400, "Missing the required parameter 'documentId' when calling bffAppendVersion");
-    }
+  private HttpRequest.Builder bffAppendVersionRequestBuilder(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffAppendVersionRequest bffAppendVersionRequest, Map<String, String> headers) throws ApiException {
     // verify the required parameter 'idempotencyKey' is set
     if (idempotencyKey == null) {
       throw new ApiException(400, "Missing the required parameter 'idempotencyKey' when calling bffAppendVersion");
+    }
+    // verify the required parameter 'documentId' is set
+    if (documentId == null) {
+      throw new ApiException(400, "Missing the required parameter 'documentId' when calling bffAppendVersion");
     }
     // verify the required parameter 'origin' is set
     if (origin == null) {
@@ -351,7 +364,7 @@ public class DefaultApi {
 
   /**
    * ChangeAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param idempotencyKey  (required)
    * @param origin  (required)
@@ -366,7 +379,7 @@ public class DefaultApi {
 
   /**
    * ChangeAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param idempotencyKey  (required)
    * @param origin  (required)
@@ -383,7 +396,7 @@ public class DefaultApi {
 
   /**
    * ChangeAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param idempotencyKey  (required)
    * @param origin  (required)
@@ -398,7 +411,7 @@ public class DefaultApi {
 
   /**
    * ChangeAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param idempotencyKey  (required)
    * @param origin  (required)
@@ -500,6 +513,171 @@ public class DefaultApi {
     try {
       byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(bffChangeAclRequest);
       localVarRequestBuilder.method("PATCH", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * dmCompleteUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param body  (required)
+   * @return BffCompleteUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public BffCompleteUpload200Response bffCompleteUpload(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull Object body) throws ApiException {
+    return bffCompleteUpload(idempotencyKey, uploadId, origin, X_CSRF_TOKEN, body, null);
+  }
+
+  /**
+   * dmCompleteUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param body  (required)
+   * @param headers Optional headers to include in the request
+   * @return BffCompleteUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public BffCompleteUpload200Response bffCompleteUpload(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull Object body, Map<String, String> headers) throws ApiException {
+    ApiResponse<BffCompleteUpload200Response> localVarResponse = bffCompleteUploadWithHttpInfo(idempotencyKey, uploadId, origin, X_CSRF_TOKEN, body, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * dmCompleteUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param body  (required)
+   * @return ApiResponse&lt;BffCompleteUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<BffCompleteUpload200Response> bffCompleteUploadWithHttpInfo(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull Object body) throws ApiException {
+    return bffCompleteUploadWithHttpInfo(idempotencyKey, uploadId, origin, X_CSRF_TOKEN, body, null);
+  }
+
+  /**
+   * dmCompleteUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param body  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;BffCompleteUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<BffCompleteUpload200Response> bffCompleteUploadWithHttpInfo(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull Object body, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = bffCompleteUploadRequestBuilder(idempotencyKey, uploadId, origin, X_CSRF_TOKEN, body, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("bffCompleteUpload", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<BffCompleteUpload200Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+
+        String responseBody = new String(localVarResponseBody.readAllBytes());
+        BffCompleteUpload200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<BffCompleteUpload200Response>() {});
+
+
+        return new ApiResponse<BffCompleteUpload200Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder bffCompleteUploadRequestBuilder(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull Object body, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'idempotencyKey' is set
+    if (idempotencyKey == null) {
+      throw new ApiException(400, "Missing the required parameter 'idempotencyKey' when calling bffCompleteUpload");
+    }
+    // verify the required parameter 'uploadId' is set
+    if (uploadId == null) {
+      throw new ApiException(400, "Missing the required parameter 'uploadId' when calling bffCompleteUpload");
+    }
+    // verify the required parameter 'origin' is set
+    if (origin == null) {
+      throw new ApiException(400, "Missing the required parameter 'origin' when calling bffCompleteUpload");
+    }
+    // verify the required parameter 'X_CSRF_TOKEN' is set
+    if (X_CSRF_TOKEN == null) {
+      throw new ApiException(400, "Missing the required parameter 'X_CSRF_TOKEN' when calling bffCompleteUpload");
+    }
+    // verify the required parameter 'body' is set
+    if (body == null) {
+      throw new ApiException(400, "Missing the required parameter 'body' when calling bffCompleteUpload");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/dm/documents/uploads/{uploadId}/complete"
+        .replace("{uploadId}", ApiClient.urlEncode(uploadId.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    if (idempotencyKey != null) {
+      localVarRequestBuilder.header("Idempotency-Key", idempotencyKey.toString());
+    }
+    if (origin != null) {
+      localVarRequestBuilder.header("Origin", origin.toString());
+    }
+    if (X_CSRF_TOKEN != null) {
+      localVarRequestBuilder.header("X-CSRF-TOKEN", X_CSRF_TOKEN.toString());
+    }
+    localVarRequestBuilder.header("Content-Type", "application/json");
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    try {
+      byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(body);
+      localVarRequestBuilder.method("POST", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
     } catch (IOException e) {
       throw new ApiException(e);
     }
@@ -671,6 +849,295 @@ public class DefaultApi {
   }
 
   /**
+   * dmDownloadVersionOriginal
+   * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param documentId  (required)
+   * @param versionId  (required)
+   * @param range Optional one bytes&#x3D;start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes. (optional)
+   * @return File
+   * @throws ApiException if fails to make API call
+   */
+  public File bffDownloadVersionOriginal(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID versionId, @jakarta.annotation.Nullable String range) throws ApiException {
+    return bffDownloadVersionOriginal(documentId, versionId, range, null);
+  }
+
+  /**
+   * dmDownloadVersionOriginal
+   * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param documentId  (required)
+   * @param versionId  (required)
+   * @param range Optional one bytes&#x3D;start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes. (optional)
+   * @param headers Optional headers to include in the request
+   * @return File
+   * @throws ApiException if fails to make API call
+   */
+  public File bffDownloadVersionOriginal(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID versionId, @jakarta.annotation.Nullable String range, Map<String, String> headers) throws ApiException {
+    ApiResponse<File> localVarResponse = bffDownloadVersionOriginalWithHttpInfo(documentId, versionId, range, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * dmDownloadVersionOriginal
+   * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param documentId  (required)
+   * @param versionId  (required)
+   * @param range Optional one bytes&#x3D;start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes. (optional)
+   * @return ApiResponse&lt;File&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<File> bffDownloadVersionOriginalWithHttpInfo(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID versionId, @jakarta.annotation.Nullable String range) throws ApiException {
+    return bffDownloadVersionOriginalWithHttpInfo(documentId, versionId, range, null);
+  }
+
+  /**
+   * dmDownloadVersionOriginal
+   * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param documentId  (required)
+   * @param versionId  (required)
+   * @param range Optional one bytes&#x3D;start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes. (optional)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;File&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<File> bffDownloadVersionOriginalWithHttpInfo(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID versionId, @jakarta.annotation.Nullable String range, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = bffDownloadVersionOriginalRequestBuilder(documentId, versionId, range, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("bffDownloadVersionOriginal", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<File>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+        // Handle file downloading.
+        File responseValue = downloadFileFromResponse(localVarResponse, localVarResponseBody);
+
+
+        return new ApiResponse<File>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder bffDownloadVersionOriginalRequestBuilder(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID versionId, @jakarta.annotation.Nullable String range, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'documentId' is set
+    if (documentId == null) {
+      throw new ApiException(400, "Missing the required parameter 'documentId' when calling bffDownloadVersionOriginal");
+    }
+    // verify the required parameter 'versionId' is set
+    if (versionId == null) {
+      throw new ApiException(400, "Missing the required parameter 'versionId' when calling bffDownloadVersionOriginal");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/dm/documents/{documentId}/versions/{versionId}/content"
+        .replace("{documentId}", ApiClient.urlEncode(documentId.toString()))
+        .replace("{versionId}", ApiClient.urlEncode(versionId.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    if (range != null) {
+      localVarRequestBuilder.header("Range", range.toString());
+    }
+    localVarRequestBuilder.header("Accept", "application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/vnd.openxmlformats-officedocument.presentationml.presentation, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json");
+
+    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * dmInitializeUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param bffInitializeUploadRequest  (required)
+   * @return DmTransferUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmTransferUpload200Response bffInitializeUpload(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffInitializeUploadRequest bffInitializeUploadRequest) throws ApiException {
+    return bffInitializeUpload(idempotencyKey, origin, X_CSRF_TOKEN, bffInitializeUploadRequest, null);
+  }
+
+  /**
+   * dmInitializeUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param bffInitializeUploadRequest  (required)
+   * @param headers Optional headers to include in the request
+   * @return DmTransferUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmTransferUpload200Response bffInitializeUpload(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffInitializeUploadRequest bffInitializeUploadRequest, Map<String, String> headers) throws ApiException {
+    ApiResponse<DmTransferUpload200Response> localVarResponse = bffInitializeUploadWithHttpInfo(idempotencyKey, origin, X_CSRF_TOKEN, bffInitializeUploadRequest, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * dmInitializeUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param bffInitializeUploadRequest  (required)
+   * @return ApiResponse&lt;DmTransferUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmTransferUpload200Response> bffInitializeUploadWithHttpInfo(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffInitializeUploadRequest bffInitializeUploadRequest) throws ApiException {
+    return bffInitializeUploadWithHttpInfo(idempotencyKey, origin, X_CSRF_TOKEN, bffInitializeUploadRequest, null);
+  }
+
+  /**
+   * dmInitializeUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param bffInitializeUploadRequest  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;DmTransferUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmTransferUpload200Response> bffInitializeUploadWithHttpInfo(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffInitializeUploadRequest bffInitializeUploadRequest, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = bffInitializeUploadRequestBuilder(idempotencyKey, origin, X_CSRF_TOKEN, bffInitializeUploadRequest, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("bffInitializeUpload", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<DmTransferUpload200Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+
+        String responseBody = new String(localVarResponseBody.readAllBytes());
+        DmTransferUpload200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<DmTransferUpload200Response>() {});
+
+
+        return new ApiResponse<DmTransferUpload200Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder bffInitializeUploadRequestBuilder(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull BffInitializeUploadRequest bffInitializeUploadRequest, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'idempotencyKey' is set
+    if (idempotencyKey == null) {
+      throw new ApiException(400, "Missing the required parameter 'idempotencyKey' when calling bffInitializeUpload");
+    }
+    // verify the required parameter 'origin' is set
+    if (origin == null) {
+      throw new ApiException(400, "Missing the required parameter 'origin' when calling bffInitializeUpload");
+    }
+    // verify the required parameter 'X_CSRF_TOKEN' is set
+    if (X_CSRF_TOKEN == null) {
+      throw new ApiException(400, "Missing the required parameter 'X_CSRF_TOKEN' when calling bffInitializeUpload");
+    }
+    // verify the required parameter 'bffInitializeUploadRequest' is set
+    if (bffInitializeUploadRequest == null) {
+      throw new ApiException(400, "Missing the required parameter 'bffInitializeUploadRequest' when calling bffInitializeUpload");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/dm/documents/uploads";
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    if (idempotencyKey != null) {
+      localVarRequestBuilder.header("Idempotency-Key", idempotencyKey.toString());
+    }
+    if (origin != null) {
+      localVarRequestBuilder.header("Origin", origin.toString());
+    }
+    if (X_CSRF_TOKEN != null) {
+      localVarRequestBuilder.header("X-CSRF-TOKEN", X_CSRF_TOKEN.toString());
+    }
+    localVarRequestBuilder.header("Content-Type", "application/json");
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    try {
+      byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(bffInitializeUploadRequest);
+      localVarRequestBuilder.method("POST", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
    * InspectDraft
    * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
    * @param documentId  (required)
@@ -790,7 +1257,7 @@ public class DefaultApi {
 
   /**
    * InspectDraftAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @return BffInspectDraftAcl200Response
    * @throws ApiException if fails to make API call
@@ -801,7 +1268,7 @@ public class DefaultApi {
 
   /**
    * InspectDraftAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param headers Optional headers to include in the request
    * @return BffInspectDraftAcl200Response
@@ -814,7 +1281,7 @@ public class DefaultApi {
 
   /**
    * InspectDraftAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @return ApiResponse&lt;BffInspectDraftAcl200Response&gt;
    * @throws ApiException if fails to make API call
@@ -825,7 +1292,7 @@ public class DefaultApi {
 
   /**
    * InspectDraftAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param headers Optional headers to include in the request
    * @return ApiResponse&lt;BffInspectDraftAcl200Response&gt;
@@ -1025,6 +1492,124 @@ public class DefaultApi {
   }
 
   /**
+   * dmInspectUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param uploadId  (required)
+   * @return BffInspectUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public BffInspectUpload200Response bffInspectUpload(@jakarta.annotation.Nonnull UUID uploadId) throws ApiException {
+    return bffInspectUpload(uploadId, null);
+  }
+
+  /**
+   * dmInspectUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param uploadId  (required)
+   * @param headers Optional headers to include in the request
+   * @return BffInspectUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public BffInspectUpload200Response bffInspectUpload(@jakarta.annotation.Nonnull UUID uploadId, Map<String, String> headers) throws ApiException {
+    ApiResponse<BffInspectUpload200Response> localVarResponse = bffInspectUploadWithHttpInfo(uploadId, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * dmInspectUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param uploadId  (required)
+   * @return ApiResponse&lt;BffInspectUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<BffInspectUpload200Response> bffInspectUploadWithHttpInfo(@jakarta.annotation.Nonnull UUID uploadId) throws ApiException {
+    return bffInspectUploadWithHttpInfo(uploadId, null);
+  }
+
+  /**
+   * dmInspectUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param uploadId  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;BffInspectUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<BffInspectUpload200Response> bffInspectUploadWithHttpInfo(@jakarta.annotation.Nonnull UUID uploadId, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = bffInspectUploadRequestBuilder(uploadId, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("bffInspectUpload", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<BffInspectUpload200Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+
+        String responseBody = new String(localVarResponseBody.readAllBytes());
+        BffInspectUpload200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<BffInspectUpload200Response>() {});
+
+
+        return new ApiResponse<BffInspectUpload200Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder bffInspectUploadRequestBuilder(@jakarta.annotation.Nonnull UUID uploadId, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'uploadId' is set
+    if (uploadId == null) {
+      throw new ApiException(400, "Missing the required parameter 'uploadId' when calling bffInspectUpload");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/dm/documents/uploads/{uploadId}/status"
+        .replace("{uploadId}", ApiClient.urlEncode(uploadId.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
    * ListDrafts
    * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
    * @param limit  (optional, default to 20)
@@ -1160,7 +1745,7 @@ public class DefaultApi {
 
   /**
    * PlaceHold
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
    * @param documentId  (required)
    * @param idempotencyKey  (required)
    * @param origin  (required)
@@ -1175,7 +1760,7 @@ public class DefaultApi {
 
   /**
    * PlaceHold
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
    * @param documentId  (required)
    * @param idempotencyKey  (required)
    * @param origin  (required)
@@ -1192,7 +1777,7 @@ public class DefaultApi {
 
   /**
    * PlaceHold
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
    * @param documentId  (required)
    * @param idempotencyKey  (required)
    * @param origin  (required)
@@ -1207,7 +1792,7 @@ public class DefaultApi {
 
   /**
    * PlaceHold
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
    * @param documentId  (required)
    * @param idempotencyKey  (required)
    * @param origin  (required)
@@ -1309,6 +1894,298 @@ public class DefaultApi {
     try {
       byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(bffPlaceHoldRequest);
       localVarRequestBuilder.method("POST", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * Resolve the consumed version of an actor-owned upload receipt
+   * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution. BFF fixed DM destination only; verified server session/current selected tenant, no redirects or arbitrary target; token remains server-side.
+   * @param documentId  (required)
+   * @param receiptId  (required)
+   * @return BffResolveConsumedUploadVersion200Response
+   * @throws ApiException if fails to make API call
+   */
+  public BffResolveConsumedUploadVersion200Response bffResolveConsumedUploadVersion(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID receiptId) throws ApiException {
+    return bffResolveConsumedUploadVersion(documentId, receiptId, null);
+  }
+
+  /**
+   * Resolve the consumed version of an actor-owned upload receipt
+   * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution. BFF fixed DM destination only; verified server session/current selected tenant, no redirects or arbitrary target; token remains server-side.
+   * @param documentId  (required)
+   * @param receiptId  (required)
+   * @param headers Optional headers to include in the request
+   * @return BffResolveConsumedUploadVersion200Response
+   * @throws ApiException if fails to make API call
+   */
+  public BffResolveConsumedUploadVersion200Response bffResolveConsumedUploadVersion(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID receiptId, Map<String, String> headers) throws ApiException {
+    ApiResponse<BffResolveConsumedUploadVersion200Response> localVarResponse = bffResolveConsumedUploadVersionWithHttpInfo(documentId, receiptId, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * Resolve the consumed version of an actor-owned upload receipt
+   * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution. BFF fixed DM destination only; verified server session/current selected tenant, no redirects or arbitrary target; token remains server-side.
+   * @param documentId  (required)
+   * @param receiptId  (required)
+   * @return ApiResponse&lt;BffResolveConsumedUploadVersion200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<BffResolveConsumedUploadVersion200Response> bffResolveConsumedUploadVersionWithHttpInfo(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID receiptId) throws ApiException {
+    return bffResolveConsumedUploadVersionWithHttpInfo(documentId, receiptId, null);
+  }
+
+  /**
+   * Resolve the consumed version of an actor-owned upload receipt
+   * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution. BFF fixed DM destination only; verified server session/current selected tenant, no redirects or arbitrary target; token remains server-side.
+   * @param documentId  (required)
+   * @param receiptId  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;BffResolveConsumedUploadVersion200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<BffResolveConsumedUploadVersion200Response> bffResolveConsumedUploadVersionWithHttpInfo(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID receiptId, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = bffResolveConsumedUploadVersionRequestBuilder(documentId, receiptId, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("bffResolveConsumedUploadVersion", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<BffResolveConsumedUploadVersion200Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+
+        String responseBody = new String(localVarResponseBody.readAllBytes());
+        BffResolveConsumedUploadVersion200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<BffResolveConsumedUploadVersion200Response>() {});
+
+
+        return new ApiResponse<BffResolveConsumedUploadVersion200Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder bffResolveConsumedUploadVersionRequestBuilder(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID receiptId, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'documentId' is set
+    if (documentId == null) {
+      throw new ApiException(400, "Missing the required parameter 'documentId' when calling bffResolveConsumedUploadVersion");
+    }
+    // verify the required parameter 'receiptId' is set
+    if (receiptId == null) {
+      throw new ApiException(400, "Missing the required parameter 'receiptId' when calling bffResolveConsumedUploadVersion");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/dm/documents/{documentId}/upload-receipts/{receiptId}/version"
+        .replace("{documentId}", ApiClient.urlEncode(documentId.toString()))
+        .replace("{receiptId}", ApiClient.urlEncode(receiptId.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * dmTransferUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param body Raw bytes1..100000000; streamed count must equal admitted size. SHA256 server-computed. No multipart, caller key, URL or MIME authority. Content-Length when present must equal admitted size; absent length is bounded while streaming. (required)
+   * @return DmTransferUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmTransferUpload200Response bffTransferUpload(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull File body) throws ApiException {
+    return bffTransferUpload(idempotencyKey, uploadId, origin, X_CSRF_TOKEN, body, null);
+  }
+
+  /**
+   * dmTransferUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param body Raw bytes1..100000000; streamed count must equal admitted size. SHA256 server-computed. No multipart, caller key, URL or MIME authority. Content-Length when present must equal admitted size; absent length is bounded while streaming. (required)
+   * @param headers Optional headers to include in the request
+   * @return DmTransferUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmTransferUpload200Response bffTransferUpload(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull File body, Map<String, String> headers) throws ApiException {
+    ApiResponse<DmTransferUpload200Response> localVarResponse = bffTransferUploadWithHttpInfo(idempotencyKey, uploadId, origin, X_CSRF_TOKEN, body, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * dmTransferUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param body Raw bytes1..100000000; streamed count must equal admitted size. SHA256 server-computed. No multipart, caller key, URL or MIME authority. Content-Length when present must equal admitted size; absent length is bounded while streaming. (required)
+   * @return ApiResponse&lt;DmTransferUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmTransferUpload200Response> bffTransferUploadWithHttpInfo(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull File body) throws ApiException {
+    return bffTransferUploadWithHttpInfo(idempotencyKey, uploadId, origin, X_CSRF_TOKEN, body, null);
+  }
+
+  /**
+   * dmTransferUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param origin Must exactly match configured portal origin; absent/null/multiple/foreign rejected. (required)
+   * @param X_CSRF_TOKEN  (required)
+   * @param body Raw bytes1..100000000; streamed count must equal admitted size. SHA256 server-computed. No multipart, caller key, URL or MIME authority. Content-Length when present must equal admitted size; absent length is bounded while streaming. (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;DmTransferUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmTransferUpload200Response> bffTransferUploadWithHttpInfo(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull File body, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = bffTransferUploadRequestBuilder(idempotencyKey, uploadId, origin, X_CSRF_TOKEN, body, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("bffTransferUpload", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<DmTransferUpload200Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+
+        String responseBody = new String(localVarResponseBody.readAllBytes());
+        DmTransferUpload200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<DmTransferUpload200Response>() {});
+
+
+        return new ApiResponse<DmTransferUpload200Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder bffTransferUploadRequestBuilder(@jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull URI origin, @jakarta.annotation.Nonnull String X_CSRF_TOKEN, @jakarta.annotation.Nonnull File body, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'idempotencyKey' is set
+    if (idempotencyKey == null) {
+      throw new ApiException(400, "Missing the required parameter 'idempotencyKey' when calling bffTransferUpload");
+    }
+    // verify the required parameter 'uploadId' is set
+    if (uploadId == null) {
+      throw new ApiException(400, "Missing the required parameter 'uploadId' when calling bffTransferUpload");
+    }
+    // verify the required parameter 'origin' is set
+    if (origin == null) {
+      throw new ApiException(400, "Missing the required parameter 'origin' when calling bffTransferUpload");
+    }
+    // verify the required parameter 'X_CSRF_TOKEN' is set
+    if (X_CSRF_TOKEN == null) {
+      throw new ApiException(400, "Missing the required parameter 'X_CSRF_TOKEN' when calling bffTransferUpload");
+    }
+    // verify the required parameter 'body' is set
+    if (body == null) {
+      throw new ApiException(400, "Missing the required parameter 'body' when calling bffTransferUpload");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/dm/documents/uploads/{uploadId}/content"
+        .replace("{uploadId}", ApiClient.urlEncode(uploadId.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    if (idempotencyKey != null) {
+      localVarRequestBuilder.header("Idempotency-Key", idempotencyKey.toString());
+    }
+    if (origin != null) {
+      localVarRequestBuilder.header("Origin", origin.toString());
+    }
+    if (X_CSRF_TOKEN != null) {
+      localVarRequestBuilder.header("X-CSRF-TOKEN", X_CSRF_TOKEN.toString());
+    }
+    localVarRequestBuilder.header("Content-Type", "application/octet-stream");
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    try {
+      byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(body);
+      localVarRequestBuilder.method("PUT", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
     } catch (IOException e) {
       throw new ApiException(e);
     }
@@ -1489,62 +2366,62 @@ public class DefaultApi {
   }
 
   /**
-   * AppendVersion
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-   * @param documentId  (required)
-   * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
+   * dmAppendVerifiedVersion
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
    * @param idempotencyKey  (required)
+   * @param documentId  (required)
    * @param dmAppendVersionRequest  (required)
    * @return DmUpdateMetadata200Response
    * @throws ApiException if fails to make API call
    */
-  public DmUpdateMetadata200Response dmAppendVersion(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull DmAppendVersionRequest dmAppendVersionRequest) throws ApiException {
-    return dmAppendVersion(documentId, xDKPTenant, idempotencyKey, dmAppendVersionRequest, null);
+  public DmUpdateMetadata200Response dmAppendVersion(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull DmAppendVersionRequest dmAppendVersionRequest) throws ApiException {
+    return dmAppendVersion(xDKPTenant, idempotencyKey, documentId, dmAppendVersionRequest, null);
   }
 
   /**
-   * AppendVersion
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-   * @param documentId  (required)
-   * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
+   * dmAppendVerifiedVersion
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
    * @param idempotencyKey  (required)
+   * @param documentId  (required)
    * @param dmAppendVersionRequest  (required)
    * @param headers Optional headers to include in the request
    * @return DmUpdateMetadata200Response
    * @throws ApiException if fails to make API call
    */
-  public DmUpdateMetadata200Response dmAppendVersion(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull DmAppendVersionRequest dmAppendVersionRequest, Map<String, String> headers) throws ApiException {
-    ApiResponse<DmUpdateMetadata200Response> localVarResponse = dmAppendVersionWithHttpInfo(documentId, xDKPTenant, idempotencyKey, dmAppendVersionRequest, headers);
+  public DmUpdateMetadata200Response dmAppendVersion(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull DmAppendVersionRequest dmAppendVersionRequest, Map<String, String> headers) throws ApiException {
+    ApiResponse<DmUpdateMetadata200Response> localVarResponse = dmAppendVersionWithHttpInfo(xDKPTenant, idempotencyKey, documentId, dmAppendVersionRequest, headers);
     return localVarResponse.getData();
   }
 
   /**
-   * AppendVersion
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-   * @param documentId  (required)
-   * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
+   * dmAppendVerifiedVersion
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
    * @param idempotencyKey  (required)
+   * @param documentId  (required)
    * @param dmAppendVersionRequest  (required)
    * @return ApiResponse&lt;DmUpdateMetadata200Response&gt;
    * @throws ApiException if fails to make API call
    */
-  public ApiResponse<DmUpdateMetadata200Response> dmAppendVersionWithHttpInfo(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull DmAppendVersionRequest dmAppendVersionRequest) throws ApiException {
-    return dmAppendVersionWithHttpInfo(documentId, xDKPTenant, idempotencyKey, dmAppendVersionRequest, null);
+  public ApiResponse<DmUpdateMetadata200Response> dmAppendVersionWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull DmAppendVersionRequest dmAppendVersionRequest) throws ApiException {
+    return dmAppendVersionWithHttpInfo(xDKPTenant, idempotencyKey, documentId, dmAppendVersionRequest, null);
   }
 
   /**
-   * AppendVersion
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-   * @param documentId  (required)
-   * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
+   * dmAppendVerifiedVersion
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
    * @param idempotencyKey  (required)
+   * @param documentId  (required)
    * @param dmAppendVersionRequest  (required)
    * @param headers Optional headers to include in the request
    * @return ApiResponse&lt;DmUpdateMetadata200Response&gt;
    * @throws ApiException if fails to make API call
    */
-  public ApiResponse<DmUpdateMetadata200Response> dmAppendVersionWithHttpInfo(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull DmAppendVersionRequest dmAppendVersionRequest, Map<String, String> headers) throws ApiException {
-    HttpRequest.Builder localVarRequestBuilder = dmAppendVersionRequestBuilder(documentId, xDKPTenant, idempotencyKey, dmAppendVersionRequest, headers);
+  public ApiResponse<DmUpdateMetadata200Response> dmAppendVersionWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull DmAppendVersionRequest dmAppendVersionRequest, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = dmAppendVersionRequestBuilder(xDKPTenant, idempotencyKey, documentId, dmAppendVersionRequest, headers);
     try {
       HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
           localVarRequestBuilder.build(),
@@ -1591,11 +2468,7 @@ public class DefaultApi {
     }
   }
 
-  private HttpRequest.Builder dmAppendVersionRequestBuilder(@jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull DmAppendVersionRequest dmAppendVersionRequest, Map<String, String> headers) throws ApiException {
-    // verify the required parameter 'documentId' is set
-    if (documentId == null) {
-      throw new ApiException(400, "Missing the required parameter 'documentId' when calling dmAppendVersion");
-    }
+  private HttpRequest.Builder dmAppendVersionRequestBuilder(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull DmAppendVersionRequest dmAppendVersionRequest, Map<String, String> headers) throws ApiException {
     // verify the required parameter 'xDKPTenant' is set
     if (xDKPTenant == null) {
       throw new ApiException(400, "Missing the required parameter 'xDKPTenant' when calling dmAppendVersion");
@@ -1603,6 +2476,10 @@ public class DefaultApi {
     // verify the required parameter 'idempotencyKey' is set
     if (idempotencyKey == null) {
       throw new ApiException(400, "Missing the required parameter 'idempotencyKey' when calling dmAppendVersion");
+    }
+    // verify the required parameter 'documentId' is set
+    if (documentId == null) {
+      throw new ApiException(400, "Missing the required parameter 'documentId' when calling dmAppendVersion");
     }
     // verify the required parameter 'dmAppendVersionRequest' is set
     if (dmAppendVersionRequest == null) {
@@ -1644,7 +2521,7 @@ public class DefaultApi {
 
   /**
    * ChangeAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @param idempotencyKey  (required)
@@ -1658,7 +2535,7 @@ public class DefaultApi {
 
   /**
    * ChangeAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @param idempotencyKey  (required)
@@ -1674,7 +2551,7 @@ public class DefaultApi {
 
   /**
    * ChangeAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @param idempotencyKey  (required)
@@ -1688,7 +2565,7 @@ public class DefaultApi {
 
   /**
    * ChangeAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @param idempotencyKey  (required)
@@ -1782,6 +2659,160 @@ public class DefaultApi {
     try {
       byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(dmChangeAclRequest);
       localVarRequestBuilder.method("PATCH", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * dmCompleteUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param requestBody  (required)
+   * @return DmCompleteUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmCompleteUpload200Response dmCompleteUpload(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull Map<String, Object> requestBody) throws ApiException {
+    return dmCompleteUpload(xDKPTenant, idempotencyKey, uploadId, requestBody, null);
+  }
+
+  /**
+   * dmCompleteUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param requestBody  (required)
+   * @param headers Optional headers to include in the request
+   * @return DmCompleteUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmCompleteUpload200Response dmCompleteUpload(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull Map<String, Object> requestBody, Map<String, String> headers) throws ApiException {
+    ApiResponse<DmCompleteUpload200Response> localVarResponse = dmCompleteUploadWithHttpInfo(xDKPTenant, idempotencyKey, uploadId, requestBody, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * dmCompleteUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param requestBody  (required)
+   * @return ApiResponse&lt;DmCompleteUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmCompleteUpload200Response> dmCompleteUploadWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull Map<String, Object> requestBody) throws ApiException {
+    return dmCompleteUploadWithHttpInfo(xDKPTenant, idempotencyKey, uploadId, requestBody, null);
+  }
+
+  /**
+   * dmCompleteUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param requestBody  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;DmCompleteUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmCompleteUpload200Response> dmCompleteUploadWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull Map<String, Object> requestBody, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = dmCompleteUploadRequestBuilder(xDKPTenant, idempotencyKey, uploadId, requestBody, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("dmCompleteUpload", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<DmCompleteUpload200Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+
+        String responseBody = new String(localVarResponseBody.readAllBytes());
+        DmCompleteUpload200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<DmCompleteUpload200Response>() {});
+
+
+        return new ApiResponse<DmCompleteUpload200Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder dmCompleteUploadRequestBuilder(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull Map<String, Object> requestBody, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'xDKPTenant' is set
+    if (xDKPTenant == null) {
+      throw new ApiException(400, "Missing the required parameter 'xDKPTenant' when calling dmCompleteUpload");
+    }
+    // verify the required parameter 'idempotencyKey' is set
+    if (idempotencyKey == null) {
+      throw new ApiException(400, "Missing the required parameter 'idempotencyKey' when calling dmCompleteUpload");
+    }
+    // verify the required parameter 'uploadId' is set
+    if (uploadId == null) {
+      throw new ApiException(400, "Missing the required parameter 'uploadId' when calling dmCompleteUpload");
+    }
+    // verify the required parameter 'requestBody' is set
+    if (requestBody == null) {
+      throw new ApiException(400, "Missing the required parameter 'requestBody' when calling dmCompleteUpload");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/documents/uploads/{uploadId}/complete"
+        .replace("{uploadId}", ApiClient.urlEncode(uploadId.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    if (xDKPTenant != null) {
+      localVarRequestBuilder.header("X-DKP-Tenant", xDKPTenant.toString());
+    }
+    if (idempotencyKey != null) {
+      localVarRequestBuilder.header("Idempotency-Key", idempotencyKey.toString());
+    }
+    localVarRequestBuilder.header("Content-Type", "application/json");
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    try {
+      byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(requestBody);
+      localVarRequestBuilder.method("POST", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
     } catch (IOException e) {
       throw new ApiException(e);
     }
@@ -1942,6 +2973,295 @@ public class DefaultApi {
   }
 
   /**
+   * dmDownloadVersionOriginal
+   * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param documentId  (required)
+   * @param versionId  (required)
+   * @param range Optional one bytes&#x3D;start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes. (optional)
+   * @return File
+   * @throws ApiException if fails to make API call
+   */
+  public File dmDownloadVersionOriginal(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID versionId, @jakarta.annotation.Nullable String range) throws ApiException {
+    return dmDownloadVersionOriginal(xDKPTenant, documentId, versionId, range, null);
+  }
+
+  /**
+   * dmDownloadVersionOriginal
+   * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param documentId  (required)
+   * @param versionId  (required)
+   * @param range Optional one bytes&#x3D;start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes. (optional)
+   * @param headers Optional headers to include in the request
+   * @return File
+   * @throws ApiException if fails to make API call
+   */
+  public File dmDownloadVersionOriginal(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID versionId, @jakarta.annotation.Nullable String range, Map<String, String> headers) throws ApiException {
+    ApiResponse<File> localVarResponse = dmDownloadVersionOriginalWithHttpInfo(xDKPTenant, documentId, versionId, range, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * dmDownloadVersionOriginal
+   * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param documentId  (required)
+   * @param versionId  (required)
+   * @param range Optional one bytes&#x3D;start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes. (optional)
+   * @return ApiResponse&lt;File&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<File> dmDownloadVersionOriginalWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID versionId, @jakarta.annotation.Nullable String range) throws ApiException {
+    return dmDownloadVersionOriginalWithHttpInfo(xDKPTenant, documentId, versionId, range, null);
+  }
+
+  /**
+   * dmDownloadVersionOriginal
+   * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param documentId  (required)
+   * @param versionId  (required)
+   * @param range Optional one bytes&#x3D;start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes. (optional)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;File&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<File> dmDownloadVersionOriginalWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID versionId, @jakarta.annotation.Nullable String range, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = dmDownloadVersionOriginalRequestBuilder(xDKPTenant, documentId, versionId, range, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("dmDownloadVersionOriginal", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<File>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+        // Handle file downloading.
+        File responseValue = downloadFileFromResponse(localVarResponse, localVarResponseBody);
+
+
+        return new ApiResponse<File>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder dmDownloadVersionOriginalRequestBuilder(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID versionId, @jakarta.annotation.Nullable String range, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'xDKPTenant' is set
+    if (xDKPTenant == null) {
+      throw new ApiException(400, "Missing the required parameter 'xDKPTenant' when calling dmDownloadVersionOriginal");
+    }
+    // verify the required parameter 'documentId' is set
+    if (documentId == null) {
+      throw new ApiException(400, "Missing the required parameter 'documentId' when calling dmDownloadVersionOriginal");
+    }
+    // verify the required parameter 'versionId' is set
+    if (versionId == null) {
+      throw new ApiException(400, "Missing the required parameter 'versionId' when calling dmDownloadVersionOriginal");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/documents/{documentId}/versions/{versionId}/content"
+        .replace("{documentId}", ApiClient.urlEncode(documentId.toString()))
+        .replace("{versionId}", ApiClient.urlEncode(versionId.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    if (xDKPTenant != null) {
+      localVarRequestBuilder.header("X-DKP-Tenant", xDKPTenant.toString());
+    }
+    if (range != null) {
+      localVarRequestBuilder.header("Range", range.toString());
+    }
+    localVarRequestBuilder.header("Accept", "application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/vnd.openxmlformats-officedocument.presentationml.presentation, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json");
+
+    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * dmInitializeUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param dmInitializeUploadRequest  (required)
+   * @return DmInitializeUpload201Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmInitializeUpload201Response dmInitializeUpload(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull DmInitializeUploadRequest dmInitializeUploadRequest) throws ApiException {
+    return dmInitializeUpload(xDKPTenant, idempotencyKey, dmInitializeUploadRequest, null);
+  }
+
+  /**
+   * dmInitializeUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param dmInitializeUploadRequest  (required)
+   * @param headers Optional headers to include in the request
+   * @return DmInitializeUpload201Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmInitializeUpload201Response dmInitializeUpload(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull DmInitializeUploadRequest dmInitializeUploadRequest, Map<String, String> headers) throws ApiException {
+    ApiResponse<DmInitializeUpload201Response> localVarResponse = dmInitializeUploadWithHttpInfo(xDKPTenant, idempotencyKey, dmInitializeUploadRequest, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * dmInitializeUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param dmInitializeUploadRequest  (required)
+   * @return ApiResponse&lt;DmInitializeUpload201Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmInitializeUpload201Response> dmInitializeUploadWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull DmInitializeUploadRequest dmInitializeUploadRequest) throws ApiException {
+    return dmInitializeUploadWithHttpInfo(xDKPTenant, idempotencyKey, dmInitializeUploadRequest, null);
+  }
+
+  /**
+   * dmInitializeUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param dmInitializeUploadRequest  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;DmInitializeUpload201Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmInitializeUpload201Response> dmInitializeUploadWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull DmInitializeUploadRequest dmInitializeUploadRequest, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = dmInitializeUploadRequestBuilder(xDKPTenant, idempotencyKey, dmInitializeUploadRequest, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("dmInitializeUpload", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<DmInitializeUpload201Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+
+        String responseBody = new String(localVarResponseBody.readAllBytes());
+        DmInitializeUpload201Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<DmInitializeUpload201Response>() {});
+
+
+        return new ApiResponse<DmInitializeUpload201Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder dmInitializeUploadRequestBuilder(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull DmInitializeUploadRequest dmInitializeUploadRequest, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'xDKPTenant' is set
+    if (xDKPTenant == null) {
+      throw new ApiException(400, "Missing the required parameter 'xDKPTenant' when calling dmInitializeUpload");
+    }
+    // verify the required parameter 'idempotencyKey' is set
+    if (idempotencyKey == null) {
+      throw new ApiException(400, "Missing the required parameter 'idempotencyKey' when calling dmInitializeUpload");
+    }
+    // verify the required parameter 'dmInitializeUploadRequest' is set
+    if (dmInitializeUploadRequest == null) {
+      throw new ApiException(400, "Missing the required parameter 'dmInitializeUploadRequest' when calling dmInitializeUpload");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/documents/uploads";
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    if (xDKPTenant != null) {
+      localVarRequestBuilder.header("X-DKP-Tenant", xDKPTenant.toString());
+    }
+    if (idempotencyKey != null) {
+      localVarRequestBuilder.header("Idempotency-Key", idempotencyKey.toString());
+    }
+    localVarRequestBuilder.header("Content-Type", "application/json");
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    try {
+      byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(dmInitializeUploadRequest);
+      localVarRequestBuilder.method("POST", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
    * InspectDraft
    * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
    * @param documentId  (required)
@@ -2072,7 +3392,7 @@ public class DefaultApi {
 
   /**
    * InspectDraftAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @return DmInspectDraftAcl200Response
@@ -2084,7 +3404,7 @@ public class DefaultApi {
 
   /**
    * InspectDraftAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @param headers Optional headers to include in the request
@@ -2098,7 +3418,7 @@ public class DefaultApi {
 
   /**
    * InspectDraftAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @return ApiResponse&lt;DmInspectDraftAcl200Response&gt;
@@ -2110,7 +3430,7 @@ public class DefaultApi {
 
   /**
    * InspectDraftAcl
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @param headers Optional headers to include in the request
@@ -2329,6 +3649,135 @@ public class DefaultApi {
   }
 
   /**
+   * dmInspectUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param uploadId  (required)
+   * @return DmInspectUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmInspectUpload200Response dmInspectUpload(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID uploadId) throws ApiException {
+    return dmInspectUpload(xDKPTenant, uploadId, null);
+  }
+
+  /**
+   * dmInspectUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param uploadId  (required)
+   * @param headers Optional headers to include in the request
+   * @return DmInspectUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmInspectUpload200Response dmInspectUpload(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID uploadId, Map<String, String> headers) throws ApiException {
+    ApiResponse<DmInspectUpload200Response> localVarResponse = dmInspectUploadWithHttpInfo(xDKPTenant, uploadId, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * dmInspectUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param uploadId  (required)
+   * @return ApiResponse&lt;DmInspectUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmInspectUpload200Response> dmInspectUploadWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID uploadId) throws ApiException {
+    return dmInspectUploadWithHttpInfo(xDKPTenant, uploadId, null);
+  }
+
+  /**
+   * dmInspectUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param uploadId  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;DmInspectUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmInspectUpload200Response> dmInspectUploadWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID uploadId, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = dmInspectUploadRequestBuilder(xDKPTenant, uploadId, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("dmInspectUpload", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<DmInspectUpload200Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+
+        String responseBody = new String(localVarResponseBody.readAllBytes());
+        DmInspectUpload200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<DmInspectUpload200Response>() {});
+
+
+        return new ApiResponse<DmInspectUpload200Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder dmInspectUploadRequestBuilder(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID uploadId, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'xDKPTenant' is set
+    if (xDKPTenant == null) {
+      throw new ApiException(400, "Missing the required parameter 'xDKPTenant' when calling dmInspectUpload");
+    }
+    // verify the required parameter 'uploadId' is set
+    if (uploadId == null) {
+      throw new ApiException(400, "Missing the required parameter 'uploadId' when calling dmInspectUpload");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/documents/uploads/{uploadId}/status"
+        .replace("{uploadId}", ApiClient.urlEncode(uploadId.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    if (xDKPTenant != null) {
+      localVarRequestBuilder.header("X-DKP-Tenant", xDKPTenant.toString());
+    }
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
    * ListDrafts
    * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
@@ -2475,7 +3924,7 @@ public class DefaultApi {
 
   /**
    * PlaceHold
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @param idempotencyKey  (required)
@@ -2489,7 +3938,7 @@ public class DefaultApi {
 
   /**
    * PlaceHold
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @param idempotencyKey  (required)
@@ -2505,7 +3954,7 @@ public class DefaultApi {
 
   /**
    * PlaceHold
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @param idempotencyKey  (required)
@@ -2519,7 +3968,7 @@ public class DefaultApi {
 
   /**
    * PlaceHold
-   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+   * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
    * @param documentId  (required)
    * @param xDKPTenant Untrusted selector independently checked against verified membership. (required)
    * @param idempotencyKey  (required)
@@ -2613,6 +4062,298 @@ public class DefaultApi {
     try {
       byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(dmPlaceHoldRequest);
       localVarRequestBuilder.method("POST", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * Resolve the consumed version of an actor-owned upload receipt
+   * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param documentId  (required)
+   * @param receiptId  (required)
+   * @return DmResolveConsumedUploadVersion200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmResolveConsumedUploadVersion200Response dmResolveConsumedUploadVersion(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID receiptId) throws ApiException {
+    return dmResolveConsumedUploadVersion(xDKPTenant, documentId, receiptId, null);
+  }
+
+  /**
+   * Resolve the consumed version of an actor-owned upload receipt
+   * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param documentId  (required)
+   * @param receiptId  (required)
+   * @param headers Optional headers to include in the request
+   * @return DmResolveConsumedUploadVersion200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmResolveConsumedUploadVersion200Response dmResolveConsumedUploadVersion(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID receiptId, Map<String, String> headers) throws ApiException {
+    ApiResponse<DmResolveConsumedUploadVersion200Response> localVarResponse = dmResolveConsumedUploadVersionWithHttpInfo(xDKPTenant, documentId, receiptId, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * Resolve the consumed version of an actor-owned upload receipt
+   * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param documentId  (required)
+   * @param receiptId  (required)
+   * @return ApiResponse&lt;DmResolveConsumedUploadVersion200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmResolveConsumedUploadVersion200Response> dmResolveConsumedUploadVersionWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID receiptId) throws ApiException {
+    return dmResolveConsumedUploadVersionWithHttpInfo(xDKPTenant, documentId, receiptId, null);
+  }
+
+  /**
+   * Resolve the consumed version of an actor-owned upload receipt
+   * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param documentId  (required)
+   * @param receiptId  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;DmResolveConsumedUploadVersion200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmResolveConsumedUploadVersion200Response> dmResolveConsumedUploadVersionWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID receiptId, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = dmResolveConsumedUploadVersionRequestBuilder(xDKPTenant, documentId, receiptId, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("dmResolveConsumedUploadVersion", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<DmResolveConsumedUploadVersion200Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+
+        String responseBody = new String(localVarResponseBody.readAllBytes());
+        DmResolveConsumedUploadVersion200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<DmResolveConsumedUploadVersion200Response>() {});
+
+
+        return new ApiResponse<DmResolveConsumedUploadVersion200Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder dmResolveConsumedUploadVersionRequestBuilder(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull UUID documentId, @jakarta.annotation.Nonnull UUID receiptId, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'xDKPTenant' is set
+    if (xDKPTenant == null) {
+      throw new ApiException(400, "Missing the required parameter 'xDKPTenant' when calling dmResolveConsumedUploadVersion");
+    }
+    // verify the required parameter 'documentId' is set
+    if (documentId == null) {
+      throw new ApiException(400, "Missing the required parameter 'documentId' when calling dmResolveConsumedUploadVersion");
+    }
+    // verify the required parameter 'receiptId' is set
+    if (receiptId == null) {
+      throw new ApiException(400, "Missing the required parameter 'receiptId' when calling dmResolveConsumedUploadVersion");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/documents/{documentId}/upload-receipts/{receiptId}/version"
+        .replace("{documentId}", ApiClient.urlEncode(documentId.toString()))
+        .replace("{receiptId}", ApiClient.urlEncode(receiptId.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    if (xDKPTenant != null) {
+      localVarRequestBuilder.header("X-DKP-Tenant", xDKPTenant.toString());
+    }
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * dmTransferUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param body Raw bytes1..100000000; streamed count must equal admitted size. SHA256 server-computed. No multipart, caller key, URL or MIME authority. Content-Length when present must equal admitted size; absent length is bounded while streaming. (required)
+   * @return DmTransferUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmTransferUpload200Response dmTransferUpload(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull File body) throws ApiException {
+    return dmTransferUpload(xDKPTenant, idempotencyKey, uploadId, body, null);
+  }
+
+  /**
+   * dmTransferUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param body Raw bytes1..100000000; streamed count must equal admitted size. SHA256 server-computed. No multipart, caller key, URL or MIME authority. Content-Length when present must equal admitted size; absent length is bounded while streaming. (required)
+   * @param headers Optional headers to include in the request
+   * @return DmTransferUpload200Response
+   * @throws ApiException if fails to make API call
+   */
+  public DmTransferUpload200Response dmTransferUpload(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull File body, Map<String, String> headers) throws ApiException {
+    ApiResponse<DmTransferUpload200Response> localVarResponse = dmTransferUploadWithHttpInfo(xDKPTenant, idempotencyKey, uploadId, body, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * dmTransferUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param body Raw bytes1..100000000; streamed count must equal admitted size. SHA256 server-computed. No multipart, caller key, URL or MIME authority. Content-Length when present must equal admitted size; absent length is bounded while streaming. (required)
+   * @return ApiResponse&lt;DmTransferUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmTransferUpload200Response> dmTransferUploadWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull File body) throws ApiException {
+    return dmTransferUploadWithHttpInfo(xDKPTenant, idempotencyKey, uploadId, body, null);
+  }
+
+  /**
+   * dmTransferUpload
+   * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+   * @param xDKPTenant Selector independently checked against verified actor membership; BFF constructs it server-side. (required)
+   * @param idempotencyKey  (required)
+   * @param uploadId  (required)
+   * @param body Raw bytes1..100000000; streamed count must equal admitted size. SHA256 server-computed. No multipart, caller key, URL or MIME authority. Content-Length when present must equal admitted size; absent length is bounded while streaming. (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;DmTransferUpload200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<DmTransferUpload200Response> dmTransferUploadWithHttpInfo(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull File body, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = dmTransferUploadRequestBuilder(xDKPTenant, idempotencyKey, uploadId, body, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("dmTransferUpload", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<DmTransferUpload200Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+
+
+        String responseBody = new String(localVarResponseBody.readAllBytes());
+        DmTransferUpload200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<DmTransferUpload200Response>() {});
+
+
+        return new ApiResponse<DmTransferUpload200Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder dmTransferUploadRequestBuilder(@jakarta.annotation.Nonnull String xDKPTenant, @jakarta.annotation.Nonnull String idempotencyKey, @jakarta.annotation.Nonnull UUID uploadId, @jakarta.annotation.Nonnull File body, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'xDKPTenant' is set
+    if (xDKPTenant == null) {
+      throw new ApiException(400, "Missing the required parameter 'xDKPTenant' when calling dmTransferUpload");
+    }
+    // verify the required parameter 'idempotencyKey' is set
+    if (idempotencyKey == null) {
+      throw new ApiException(400, "Missing the required parameter 'idempotencyKey' when calling dmTransferUpload");
+    }
+    // verify the required parameter 'uploadId' is set
+    if (uploadId == null) {
+      throw new ApiException(400, "Missing the required parameter 'uploadId' when calling dmTransferUpload");
+    }
+    // verify the required parameter 'body' is set
+    if (body == null) {
+      throw new ApiException(400, "Missing the required parameter 'body' when calling dmTransferUpload");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/documents/uploads/{uploadId}/content"
+        .replace("{uploadId}", ApiClient.urlEncode(uploadId.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    if (xDKPTenant != null) {
+      localVarRequestBuilder.header("X-DKP-Tenant", xDKPTenant.toString());
+    }
+    if (idempotencyKey != null) {
+      localVarRequestBuilder.header("Idempotency-Key", idempotencyKey.toString());
+    }
+    localVarRequestBuilder.header("Content-Type", "application/octet-stream");
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    try {
+      byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(body);
+      localVarRequestBuilder.method("PUT", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
     } catch (IOException e) {
       throw new ApiException(e);
     }

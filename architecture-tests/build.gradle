@@ -4,6 +4,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation rootProject.libs.archunit.junit5
     testImplementation 'io.micronaut:micronaut-runtime'
+    testImplementation project(':workers:structure-inspector')
     ['document-management', 'knowledge-base', 'knowledge-search', 'browser-bff'].each { service ->
         ['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap'].each { layer ->
             testImplementation project(":services:${service}:${layer}")

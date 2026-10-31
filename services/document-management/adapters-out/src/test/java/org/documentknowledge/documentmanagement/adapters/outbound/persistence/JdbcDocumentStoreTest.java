@@ -43,7 +43,7 @@ class JdbcDocumentStoreTest {
         }
         migrator=source("dkp_dm_migrator",MIGRATOR_PASSWORD);runtime=source("dkp_dm_runtime",RUNTIME_PASSWORD);
         flyway=Flyway.configure().dataSource(migrator).defaultSchema("dm").schemas("dm").locations("classpath:db/migration").load();
-        assertEquals(1,flyway.migrate().migrationsExecuted);
+        assertEquals(2,flyway.migrate().migrationsExecuted);
         store=new JdbcDocumentStore(runtime);
     }
     @AfterAll static void cleanup() { POSTGRES.stop(); }
@@ -163,7 +163,7 @@ class JdbcDocumentStoreTest {
         assertEquals(404,assertThrows(DmFailure.class,()->service.changeAcl(caller,created.documentId(),2,"self-restrict",restrict)).status());
         var hold=service.placeHold(caller,created.documentId(),3,"hold","preserve for review");
         assertEquals(4,hold.revision());assertEquals(hold,service.placeHold(caller,created.documentId(),3,"hold","preserve for review"));
-        assertEquals(503,assertThrows(DmFailure.class,()->service.appendVersion(caller,created.documentId(),4,"unavailable-artifact","opaque-receipt")).status());
+        assertEquals(404,assertThrows(DmFailure.class,()->service.appendVersion(caller,created.documentId(),4,"unavailable-artifact","opaque-receipt")).status());
         allowed.set(false);
         assertEquals(403,assertThrows(DmFailure.class,()->service.updateMetadata(caller,created.documentId(),0,"metadata",new Metadata("updated","description"))).status());
         assertEquals(5,count("command_outcomes",created.documentId()));assertEquals(5,count("audit_facts",created.documentId()));

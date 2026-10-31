@@ -6,10 +6,11 @@ import java.util.Set;
 
 /** Explicit closed wire boundary shared by fixed routing and response validation. */
 public final class DocumentWire {
-    public static final Set<String> ACTIONS = Set.of("document.create", "document.inspect-draft", "document.read", "document.update-metadata", "document.acl.restrict", "document.acl.delegate", "document.version.append", "document.legal-hold.place", "document.legal-hold.inspect");
+    public static final Set<String> ACTIONS = Set.of("document.create", "document.inspect-draft", "document.read", "document.update-metadata", "document.acl.restrict", "document.acl.delegate", "document.version.append", "document.legal-hold.place", "document.legal-hold.inspect", "document.content.review");
     private DocumentWire() { }
     public static boolean uuid(Object value) { return value instanceof String s && s.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"); }
     public static boolean route(String method, String path) {
+        if (UploadWire.jsonRoute(method,path)) return true;
         if (path.equals("/api/v1/documents")) return Set.of("GET", "POST").contains(method);
         String[] parts = path.split("/", -1);
         if (parts.length < 5 || !path.startsWith("/api/v1/documents/") || !uuid(parts[4])) return false;
@@ -18,6 +19,7 @@ public final class DocumentWire {
         return switch (parts[5]) { case "acl" -> Set.of("GET", "PATCH").contains(method); case "legal-holds" -> Set.of("GET", "POST").contains(method); case "versions" -> method.equals("POST"); default -> false; };
     }
     public static void request(String method, String path, Map<String, String> query, Map<String, Object> body, String key) {
+        if(UploadWire.jsonRoute(method,path)){UploadWire.request(method,path,query,body,key);return;}
         if (!route(method, path)) fail(404, "NOT_FOUND");
         if (method.equals("GET")) {
             if (!query.isEmpty() && !path.equals("/api/v1/documents")) fail(400, "INVALID_REQUEST");
@@ -41,6 +43,7 @@ public final class DocumentWire {
         return body.get("changes") instanceof List<?> changes && !changes.isEmpty() && changes.size() <= 100 && changes.stream().allMatch(v -> v instanceof Map<?, ?> m && keys(m, "operation", "principal", "action") && actor(m.get("principal")) && member(ACTIONS, m.get("action")) && member(Set.of("ADD_ALLOW", "REMOVE_ALLOW", "ADD_DENY", "REMOVE_DENY"), m.get("operation")));
     }
     public static boolean response(String method, String path, Map<?, ?> body, String tenant, int limit) {
+        if(UploadWire.jsonRoute(method,path))return UploadWire.response(path,body);
         if (!method.equals("GET")) return keys(body, "documentId", "revision") && uuid(body.get("documentId")) && revision(body.get("revision")) && (path.equals("/api/v1/documents") || path.split("/")[4].equalsIgnoreCase((String) body.get("documentId")));
         if (path.equals("/api/v1/documents")) return keys(body, "items", "nextCursor") && (body.get("nextCursor") == null || text(body.get("nextCursor"), 1, 2048)) && body.get("items") instanceof List<?> items && items.size() <= limit && items.stream().allMatch(v -> v instanceof Map<?, ?> m && document(m, tenant));
         if (path.endsWith("/acl")) return keys(body, "documentId", "revision", "rules") && path.split("/")[4].equalsIgnoreCase(String.valueOf(body.get("documentId"))) && revision(body.get("revision")) && body.get("rules") instanceof List<?> rules && rules.size() <= 100 && rules.stream().allMatch(v -> v instanceof Map<?, ?> r && keys(r, "principal", "action", "effect") && actor(r.get("principal")) && member(ACTIONS, r.get("action")) && member(Set.of("ALLOW", "DENY"), r.get("effect")));

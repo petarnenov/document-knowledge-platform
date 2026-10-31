@@ -26,25 +26,20 @@ button {
 a {
   color: inherit;
 }
+:root {
+  --bg: var(--mantine-color-body);
+  --surface: var(--mantine-color-default);
+  --border: var(--mantine-color-default-border);
+  --text: var(--mantine-color-text);
+  --muted: var(--mantine-color-dimmed);
+  --accent: var(--dkp-accent);
+}
 .shell {
-  --bg: #101723;
-  --surface: #172130;
-  --border: #2a3647;
-  --text: #edf2f7;
-  --muted: #a8b6c8;
-  --accent: #91d8ca;
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
 }
-.shell[data-theme='light'] {
-  --bg: #f5f7f9;
-  --surface: #ffffff;
-  --border: #d7e0e7;
-  --text: #172330;
-  --muted: #516174;
-  --accent: #176a5e;
-}
+.shell :is(input, textarea, select):focus-visible,
 :focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 5px;
@@ -404,27 +399,6 @@ footer {
 .tenant-form label {
   font-size: 13px;
 }
-.tenant-form select,
-.identity-button {
-  font: inherit;
-  font-size: 12px;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 11px 14px;
-  max-width: 100%;
-}
-.identity-button {
-  cursor: pointer;
-}
-.identity-button:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-.identity-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 .identity-error {
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
@@ -439,32 +413,34 @@ footer {
   gap: 0.75rem;
   margin-block: 1rem;
 }
-.documents input,
-.documents textarea,
-.documents select {
-  width: 100%;
-  max-width: 48rem;
-  padding: 0.65rem;
-  color: inherit;
-  background: var(--surface, transparent);
-  border: 1px solid currentColor;
-  border-radius: 0.35rem;
-}
-.documents button {
-  padding: 0.55rem 0.8rem;
-  cursor: pointer;
-  margin: 0.25rem;
-}
-.documents button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
 .documents li {
   overflow-wrap: anywhere;
   margin-block: 0.5rem;
 }
 .documents [role='alert'] {
   color: var(--text, inherit);
-  border-left: 3px solid #bd6f52;
+  border-left: 3px solid var(--dkp-danger);
   padding-left: 0.75rem;
+}
+
+.theme-control {
+  min-width: 0;
+  max-width: 100%;
+  flex-shrink: 1;
+  flex-wrap: wrap;
+}
+.documents,
+main,
+.info-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
 }

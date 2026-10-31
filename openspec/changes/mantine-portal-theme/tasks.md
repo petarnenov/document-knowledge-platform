@@ -17,3 +17,7 @@
 - [ ] 2.6 Pass strict TS/lint/build/format/OpenSpec/contracts/SDK/dependency/SBOM/secrets and affected CI; record exact evidence and unresolved failures honestly.
 - [ ] 2.7 Independent implementation review/fixes, PR into dev and verified PR/post-merge checks; archive through official OpenSpec and record completion before closing102/children.
 - [ ] 2.8 Save resumable handoff after each verified closure and execute real current-session /compact where available; otherwise record compaction pending without claiming execution.
+
+## Tracked implementation compatibility follow-up
+
+- [ ] #124: declaration-only pinned Mantine compatibility repair, strict positive/negative compile fixtures, reproducible frozen installation and applicable both-theme checks; independent review/integration required before closure.

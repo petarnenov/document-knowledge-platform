@@ -44,10 +44,10 @@
       "serviceAccountsEnabled": false,
       "consentRequired": false,
       "redirectUris": [
-        "https://localhost:18443/oauth/callback/keycloak"
+        "@@PORTAL_ORIGIN@@/oauth/callback/keycloak"
       ],
       "webOrigins": [
-        "https://localhost:18443"
+        "@@PORTAL_ORIGIN@@"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",

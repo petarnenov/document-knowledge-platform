@@ -66,6 +66,7 @@ export const AclChangeEntryActionEnum = {
     DocumentVersionAppend: 'document.version.append',
     DocumentLegalHoldPlace: 'document.legal-hold.place',
     DocumentLegalHoldInspect: 'document.legal-hold.inspect',
+    DocumentContentReview: 'document.content.review',
 } as const;
 export type AclChangeEntryActionEnum = typeof AclChangeEntryActionEnum[keyof typeof AclChangeEntryActionEnum];
 

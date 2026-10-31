@@ -39,6 +39,11 @@ class SecurityBootstrapTest(unittest.TestCase):
             self.assertEqual(300, realm['accessTokenLifespan'])
             catalog = json.loads((authority / 'grants.json').read_text())
             self.assertEqual(2, len(catalog['entries']))
+            # BP03 explicitly adds this privilege to fresh synthetic development catalogs.
+            # Read/admin/creator privileges never imply content access or delegation.
+            self.assertIn('document.content.review', bootstrap.ACTIONS)
+            self.assertEqual(10, len(set(bootstrap.ACTIONS)))
+            self.assertNotIn('*', bootstrap.ACTIONS)
             for entry in catalog['entries']:
                 self.assertEqual(realm['users'][0]['id'], entry['subject'])
                 self.assertEqual('https://idp.localhost:18444/realms/dkp', entry['issuer'])
@@ -59,6 +64,77 @@ class SecurityBootstrapTest(unittest.TestCase):
             self.assertNotIn('unmanagedAttributePolicy', profile)  # absent means disabled in Keycloak's enum contract
             self.assertNotIn('@@', (target / 'dkp-realm.json').read_text())
             self.assertNotIn(client['secret'], bootstrap.TEMPLATE.read_text())
+
+    def test_bp03_origins_are_bound_and_reuse_never_rewrites_mismatched_material(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'identity'
+            self.assertTrue(bootstrap.generate(target, runtime_uid=1001, runtime_gid=1001,
+                                               portal_port=19443, idp_port=19444))
+            realm = json.loads((target / 'dkp-realm.json').read_text())
+            client = realm['clients'][0]
+            self.assertEqual(['https://localhost:19443/oauth/callback/keycloak'], client['redirectUris'])
+            self.assertEqual(['https://localhost:19443'], client['webOrigins'])
+            catalog = json.loads((target / 'authority/grants.json').read_text())
+            for entry in catalog['entries']:
+                self.assertEqual('https://idp.localhost:19444/realms/dkp', entry['issuer'])
+                self.assertEqual(10, len(entry['actions']))
+                self.assertEqual(set(bootstrap.ACTIONS), set(entry['actions']))
+                self.assertEqual(set(bootstrap.ACTIONS), set(entry['delegationCeiling']))
+            before = {str(p.relative_to(target)): p.read_bytes() for p in target.rglob('*') if p.is_file()}
+            self.assertFalse(bootstrap.generate(target, portal_port=19443, idp_port=19444))
+            self.assertEqual(before, {str(p.relative_to(target)): p.read_bytes() for p in target.rglob('*') if p.is_file()})
+            for ports in ({}, {'portal_port': 19445, 'idp_port': 19444}, {'portal_port': 19443, 'idp_port': 19445}):
+                with self.assertRaisesRegex(ValueError, 'different identity origins'):
+                    bootstrap.generate(target, **ports)
+                self.assertEqual(before, {str(p.relative_to(target)): p.read_bytes() for p in target.rglob('*') if p.is_file()})
+            env = dict(line.split('=', 1) for line in (target / 'runtime.env').read_text().splitlines())
+            self.assertEqual('19443', env['DKP_PORTAL_PORT']);self.assertEqual('19444', env['DKP_IDP_PORT'])
+            # Individually detect tampered redirect, issuer and recorded ports without
+            # regenerating credentials or silently repairing existing material.
+            for relative in ('dkp-realm.json', 'authority/grants.json', 'runtime.env'):
+                path = target / relative;saved = path.read_bytes();mode = path.stat().st_mode & 0o777
+                changed = saved.replace(b':19443', b':19445') if relative == 'dkp-realm.json' else (
+                    saved.replace(b':19444', b':19445') if relative.endswith('grants.json') else
+                    saved.replace(b'DKP_IDP_PORT=19444', b'DKP_IDP_PORT=19445'))
+                path.chmod(0o600);path.write_bytes(changed);path.chmod(mode)
+                with self.assertRaisesRegex(ValueError, 'different identity origins'):
+                    bootstrap.generate(target, portal_port=19443, idp_port=19444)
+                self.assertEqual(changed, path.read_bytes())
+                path.chmod(0o600);path.write_bytes(saved);path.chmod(mode)
+            options = (target / 'java-security.options').read_text()
+            self.assertIn('-Djavax.net.ssl.trustStore=/run/dkp/truststore.p12\n', options)
+            (target / 'java-security.options').write_text(options + '-Dunsafe.option=true\n')
+            with self.assertRaisesRegex(ValueError, 'trust options'):
+                bootstrap.generate(target, portal_port=19443, idp_port=19444)
+
+    def test_default_legacy_material_preserves_existing_grants_and_credentials(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'identity'
+            bootstrap.generate(target, runtime_uid=1001, runtime_gid=1001)
+            # Older BP02 runtime.env had no port keys and nine explicit grants.
+            env = target / 'runtime.env'
+            env.write_text(''.join(line + '\n' for line in env.read_text().splitlines()
+                                   if not line.startswith(('DKP_PORTAL_PORT=', 'DKP_IDP_PORT='))))
+            path = target / 'authority/grants.json';catalog = json.loads(path.read_text())
+            for entry in catalog['entries']:
+                for field in ('actions', 'delegationCeiling'):
+                    entry[field].remove('document.content.review')
+            path.chmod(0o600);path.write_text(json.dumps(catalog));path.chmod(0o400)
+            before = {str(p.relative_to(target)): p.read_bytes() for p in target.rglob('*') if p.is_file()}
+            self.assertFalse(bootstrap.generate(target))
+            self.assertEqual(before, {str(p.relative_to(target)): p.read_bytes() for p in target.rglob('*') if p.is_file()})
+            self.assertNotIn('document.content.review', json.loads(path.read_text())['entries'][0]['actions'])
+
+    def test_identity_ports_reject_unsafe_noncanonical_and_colliding_inputs_without_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'identity'
+            for portal, idp in ((443, 19444), (19443, 65536), (19443, 19443), (19081, 19444),
+                                (19443, 18083), (True, 19444), ('19443', 19444), (19443, '19444'),
+                                ('https://evil.test', 19444), ('19443;echo unsafe', 19444)):
+                with self.subTest(portal=portal, idp=idp), self.assertRaisesRegex(ValueError, 'identity ports'):
+                    bootstrap.generate(target, portal_port=portal, idp_port=idp)
+                self.assertFalse(target.exists())
+            self.assertEqual(('https://localhost:1024', 'https://idp.localhost:65535/realms/dkp'), bootstrap.origins(1024, 65535))
 
     def test_existing_authority_permissions_cannot_be_weakened(self):
         with tempfile.TemporaryDirectory() as directory:

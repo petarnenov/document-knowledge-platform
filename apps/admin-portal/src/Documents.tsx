@@ -1,3 +1,13 @@
+import { Uploads } from './Uploads';
+import {
+  Alert,
+  Button,
+  NativeSelect,
+  Paper,
+  TextInput,
+  Textarea,
+  Title,
+} from '@mantine/core';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -28,7 +38,7 @@ export function Documents() {
   if (!session.data || session.error)
     return (
       <section>
-        <h1>Documents</h1>
+        <Title order={1}>Documents</Title>
         <p role="alert">
           {session.error instanceof IdentityRequestError &&
           session.error.status !== 401
@@ -41,7 +51,7 @@ export function Documents() {
   if (!session.data.selectedTenant)
     return (
       <section>
-        <h1>Documents</h1>
+        <Title order={1}>Documents</Title>
         <p>Choose a tenant before opening documents.</p>
         <Link to="/identity">Workspace access</Link>
       </section>
@@ -178,7 +188,7 @@ function DraftWorkspace({ session }: { session: SessionView }) {
   if (expired)
     return (
       <section>
-        <h1>Documents</h1>
+        <Title order={1}>Documents</Title>
         <p role="alert">Your session has expired. Sign in again.</p>
         <Link to="/identity">Workspace access</Link>
       </section>
@@ -228,10 +238,10 @@ function DraftWorkspace({ session }: { session: SessionView }) {
   return (
     <section className="documents" aria-busy={mutation.isPending}>
       <p className="eyebrow">DKP / DOCUMENTS</p>
-      <h1>Document drafts</h1>
+      <Title order={1}>Document drafts</Title>
       <p>
-        Tenant: {session.selectedTenant}. Metadata only; uploading and
-        publication are unavailable.
+        Tenant: {session.selectedTenant}. Draft metadata and verified uploads.
+        Publication is unavailable.
       </p>
       <p>
         Retention is unresolved; destruction is forbidden. Legal holds have no
@@ -239,14 +249,14 @@ function DraftWorkspace({ session }: { session: SessionView }) {
       </p>
       {receipt && <p role="status">{receipt}</p>}
       {failures.filter(Boolean).map((error, index) => (
-        <p role="alert" key={index}>
+        <Alert role="alert" key={index} variant="outline" color="red">
           {documentError(error)}
-        </p>
+        </Alert>
       ))}
       <form className="info-card" onSubmit={(event) => submit(event, 'create')}>
         <h2>Create a draft</h2>
         <label htmlFor="draft-title">Title</label>
-        <input
+        <TextInput
           id="draft-title"
           required
           maxLength={256}
@@ -254,17 +264,21 @@ function DraftWorkspace({ session }: { session: SessionView }) {
           onChange={(e) => setTitle(e.target.value)}
         />
         <label htmlFor="draft-description">Description</label>
-        <textarea
+        <Textarea
           id="draft-description"
           maxLength={4096}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
-        <button disabled={mutation.isPending} type="submit">
+        <Button disabled={mutation.isPending} type="submit">
           Create draft
-        </button>
+        </Button>
       </form>
-      <section className="info-card" aria-labelledby="draft-list">
+      <Paper
+        component="section"
+        className="info-card"
+        aria-labelledby="draft-list"
+      >
         <h2 id="draft-list">Accessible drafts</h2>
         {page.isPending && <p role="status">Loading drafts…</p>}
         {page.isSuccess && (
@@ -272,9 +286,9 @@ function DraftWorkspace({ session }: { session: SessionView }) {
             <ul>
               {page.data.items.map((draft) => (
                 <li key={draft.documentId}>
-                  <button type="button" onClick={() => open(draft.documentId)}>
+                  <Button type="button" onClick={() => open(draft.documentId)}>
                     {draft.metadata.title}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -282,7 +296,7 @@ function DraftWorkspace({ session }: { session: SessionView }) {
               <p>No accessible drafts on this page.</p>
             )}
             {page.data.nextCursor && (
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   setCursor(page.data.nextCursor ?? undefined);
@@ -290,11 +304,11 @@ function DraftWorkspace({ session }: { session: SessionView }) {
                 }}
               >
                 Next page
-              </button>
+              </Button>
             )}
           </>
         )}
-        <button
+        <Button
           type="button"
           onClick={() => {
             setCursor(undefined);
@@ -302,19 +316,19 @@ function DraftWorkspace({ session }: { session: SessionView }) {
           }}
         >
           Refresh drafts
-        </button>
-      </section>
+        </Button>
+      </Paper>
       {selected && (
-        <section className="info-card">
+        <Paper component="section" className="info-card">
           <h2>Draft detail</h2>
-          <button
+          <Button
             type="button"
             onClick={() => {
               void detail.refetch();
             }}
           >
             Refresh document
-          </button>
+          </Button>
           {detail.isPending && <p role="status">Checking draft access…</p>}
           {detail.isSuccess && (
             <>
@@ -324,7 +338,13 @@ function DraftWorkspace({ session }: { session: SessionView }) {
                 Revision {detail.data.revision} · DRAFT · development-restricted
               </p>
               <p>Retention: UNRESOLVED · Destruction forbidden</p>
-              <button
+              <Uploads
+                key={selected}
+                documentId={selected}
+                revision={detail.data.revision}
+                session={session}
+              />
+              <Button
                 type="button"
                 onClick={() => {
                   setTitle(detail.data.metadata.title);
@@ -332,17 +352,17 @@ function DraftWorkspace({ session }: { session: SessionView }) {
                 }}
               >
                 Use current metadata
-              </button>
+              </Button>
               <form onSubmit={(event) => submit(event, 'metadata')}>
                 <h3>Update metadata</h3>
                 <p>Uses the Title and Description fields above.</p>
-                <button type="submit" disabled={mutation.isPending || !title}>
+                <Button type="submit" disabled={mutation.isPending || !title}>
                   Save metadata
-                </button>
+                </Button>
               </form>
-              <button type="button" onClick={() => setShowAcl(true)}>
+              <Button type="button" onClick={() => setShowAcl(true)}>
                 Inspect access rules
-              </button>
+              </Button>
               {showAcl && acl.isSuccess && (
                 <ul aria-label="Access rules">
                   {acl.data.rules.map((rule, index) => (
@@ -356,7 +376,7 @@ function DraftWorkspace({ session }: { session: SessionView }) {
               <form onSubmit={(event) => submit(event, 'acl')}>
                 <h3>Change access</h3>
                 <label htmlFor="acl-mode">Access mode</label>
-                <select
+                <NativeSelect
                   id="acl-mode"
                   value={mode}
                   onChange={(e) => {
@@ -366,11 +386,11 @@ function DraftWorkspace({ session }: { session: SessionView }) {
                 >
                   <option value="RESTRICT">Restrict my access</option>
                   <option value="DELEGATE">Delegate within my ceiling</option>
-                </select>
+                </NativeSelect>
                 {mode === 'DELEGATE' && (
                   <>
                     <label htmlFor="target-issuer">Target issuer</label>
-                    <input
+                    <TextInput
                       id="target-issuer"
                       type="url"
                       required
@@ -379,7 +399,7 @@ function DraftWorkspace({ session }: { session: SessionView }) {
                       onChange={(e) => setTargetIssuer(e.target.value)}
                     />
                     <label htmlFor="target-subject">Target subject</label>
-                    <input
+                    <TextInput
                       id="target-subject"
                       required
                       maxLength={256}
@@ -389,7 +409,7 @@ function DraftWorkspace({ session }: { session: SessionView }) {
                   </>
                 )}
                 <label htmlFor="acl-operation">Rule operation</label>
-                <select
+                <NativeSelect
                   id="acl-operation"
                   value={operation}
                   onChange={(e) =>
@@ -402,9 +422,9 @@ function DraftWorkspace({ session }: { session: SessionView }) {
                   ).map((value) => (
                     <option key={value}>{value}</option>
                   ))}
-                </select>
+                </NativeSelect>
                 <label htmlFor="acl-action">Document action</label>
-                <select
+                <NativeSelect
                   id="acl-action"
                   value={action}
                   onChange={(e) => setAction(e.target.value as typeof action)}
@@ -412,14 +432,14 @@ function DraftWorkspace({ session }: { session: SessionView }) {
                   {actions.map((value) => (
                     <option key={value}>{value}</option>
                   ))}
-                </select>
-                <button type="submit" disabled={mutation.isPending}>
+                </NativeSelect>
+                <Button type="submit" disabled={mutation.isPending}>
                   Apply access change
-                </button>
+                </Button>
               </form>
-              <button type="button" onClick={() => setShowHolds(true)}>
+              <Button type="button" onClick={() => setShowHolds(true)}>
                 Inspect legal holds
-              </button>
+              </Button>
               {showHolds && holds.isSuccess && (
                 <ul aria-label="Legal holds">
                   {holds.data.items.map((hold) => (
@@ -432,20 +452,20 @@ function DraftWorkspace({ session }: { session: SessionView }) {
               <form onSubmit={(event) => submit(event, 'hold')}>
                 <h3>Place a legal hold</h3>
                 <label htmlFor="hold-reason">Hold reason</label>
-                <textarea
+                <Textarea
                   id="hold-reason"
                   required
                   maxLength={1024}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                 />
-                <button type="submit" disabled={mutation.isPending}>
+                <Button type="submit" disabled={mutation.isPending}>
                   Place hold
-                </button>
+                </Button>
               </form>
             </>
           )}
-        </section>
+        </Paper>
       )}
     </section>
   );

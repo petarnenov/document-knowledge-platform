@@ -14,6 +14,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.BiConsumer;
+import org.documentknowledge.documentmanagement.application.upload.*;
+import org.documentknowledge.documentmanagement.domain.upload.*;
+import org.documentknowledge.documentmanagement.domain.upload.UploadModels.*;
 import org.documentknowledge.documentmanagement.domain.*;
 import org.documentknowledge.identity.Actor;
 import org.documentknowledge.identity.AuthorityDecision;
@@ -140,14 +144,41 @@ public final class DocumentService {
         },201);
     }
     public CommandReceipt appendVersion(DocumentCaller caller,UUID id,long expected,String key,String receiptId) {
-        Validation.text(receiptId,256,false);
-        return mutate(caller,id,expected,key,Action.VERSION_APPEND,fingerprint("version",expected,receiptId),document->{
-            var artifact=artifacts.verify(caller.actor(),caller.tenant(),id,receiptId);
-            if(artifact==null)throw new DmFailure(503,"UNAVAILABLE");
+        Validation.text(receiptId,256,false);route(caller,Action.VERSION_APPEND,id.toString(),false);
+        String fingerprint=fingerprint("version",expected,receiptId);CommandKey commandKey=key(caller,Action.VERSION_APPEND,id.toString(),key);
+        // Current authorized replay precedes expiry/preflight. No network work is performed under the document transaction.
+        CommandReceipt replayed=transactions.execute(repository->{repository.lockCommand(commandKey);repository.uploads().lockAccounts(caller.tenant());
+            load(repository,caller,id,Action.VERSION_APPEND);var old=repository.command(commandKey);
+            if(old.isPresent()){route(caller,Action.VERSION_APPEND,id.toString(),false);requireAcl(repository.find(caller.tenant(),id).orElseThrow(DocumentService::hidden),caller,Action.VERSION_APPEND);return replay(old.get(),fingerprint);}
+            receipt(repository,caller,id,receiptId);return null;});
+        if(replayed!=null)return replayed;
+        var artifact=artifacts.verify(caller.actor(),caller.tenant(),id,receiptId);
+        if(artifact==null)throw new DmFailure(503,"UNAVAILABLE");
+        return mutate(caller,id,expected,key,Action.VERSION_APPEND,fingerprint,document->{
             var next=new ArrayList<>(document.versions());
             next.add(new DocumentVersion(UUID.randomUUID(),id,next.size()+1,artifact.sha256(),artifact.mimeType(),artifact.originalArtifactRef(),artifact.producer(),caller.principal(),now()));
             return document.next(document.metadata(),document.rules(),document.holds(),next);
-        },201);
+        },201,()->{},(repository,changed)->{
+            var receipt=receipt(repository,caller,id,receiptId);
+            if(!receipt.sha256().equals(artifact.sha256())||!receipt.format().mime().equals(artifact.mimeType())||!receipt.receiptId().toString().equals(artifact.originalArtifactRef()))throw new DmFailure(503,"UNAVAILABLE");
+            var u=repository.uploads();var slot=u.slot(caller.tenant(),receipt.uploadId()).orElseThrow(DocumentService::hidden);
+            if(slot.state()!=UploadState.VERIFIED||!slot.actor().equals(caller.principal()))throw hidden();
+            var accounts=u.lockAccounts(caller.tenant());long size=receipt.sizeBytes();long transientReleased=slot.transientReservation()-(slot.quarantineCleanupConfirmed()?0:size);
+            u.consume(new ReceiptConsumption(caller.tenant(),receipt.receiptId(),id,changed.versions().getLast().versionId(),caller.principal(),key,fingerprint,now()));
+            u.updateSlot(slot.consumed(),slot.revision());
+            u.saveAccounts(caller.tenant(),accounts,new Accounts(accounts.global().change(-1,-transientReleased,-size,size),accounts.tenant().change(-1,-transientReleased,-size,size)));
+        });
+    }
+    private UploadReceipt receipt(DocumentRepository repository,DocumentCaller caller,UUID id,String identifier) {
+        UUID receiptId;try{receiptId=UUID.fromString(identifier);}catch(IllegalArgumentException bad){throw hidden();}
+        var u=repository.uploads();var receipt=u.receipt(caller.tenant(),receiptId).orElseThrow(DocumentService::hidden);
+        if(!receipt.tenant().equals(caller.tenant())||!receipt.documentId().equals(id)||!receipt.actor().equals(caller.principal()))throw hidden();
+        if(u.consumption(caller.tenant(),receiptId).isPresent())throw new DmFailure(409,"RECEIPT_CONSUMED");
+        if(!now().isBefore(receipt.expiresAt()))throw new DmFailure(409,"UPLOAD_EXPIRED");
+        if(u.unresolvedFence(caller.tenant(),id).isPresent())throw new DmFailure(503,"UNAVAILABLE");
+        var evidence=u.evidence(caller.tenant(),receipt.evidenceId()).orElseThrow(()->new DmFailure(503,"UNAVAILABLE"));
+        if(!evidence.uploadId().equals(receipt.uploadId())||!evidence.inspection().sha256().equals(receipt.sha256())||evidence.inspection().sizeBytes()!=receipt.sizeBytes())throw new DmFailure(503,"UNAVAILABLE");
+        return receipt;
     }
     private CommandReceipt mutate(DocumentCaller caller,UUID id,long expected,String key,Action action,String fingerprint,
             Function<DocumentAggregate,DocumentAggregate> update,int status) {
@@ -155,14 +186,20 @@ public final class DocumentService {
     }
     private CommandReceipt mutate(DocumentCaller caller,UUID id,long expected,String key,Action action,String fingerprint,
             Function<DocumentAggregate,DocumentAggregate> update,int status,Runnable finalAuthority) {
+        return mutate(caller,id,expected,key,action,fingerprint,update,status,finalAuthority,(repository,changed)->{});
+    }
+    private CommandReceipt mutate(DocumentCaller caller,UUID id,long expected,String key,Action action,String fingerprint,
+            Function<DocumentAggregate,DocumentAggregate> update,int status,Runnable finalAuthority,BiConsumer<DocumentRepository,DocumentAggregate> afterUpdate) {
         route(caller,action,id.toString(),false);
         CommandKey commandKey=key(caller,action,id.toString(),key);
         return transactions.execute(repository->{
             repository.lockCommand(commandKey);
+            if(action==Action.HOLD_PLACE||action==Action.VERSION_APPEND)repository.uploads().lockAccounts(caller.tenant());
             route(caller,action,id.toString(),false);
             DocumentAggregate document=load(repository,caller,id,action);
             var prior=repository.command(commandKey);
             if(prior.isPresent()){route(caller,action,id.toString(),false);requireAcl(repository.find(caller.tenant(),id).orElseThrow(DocumentService::hidden),caller,action);return replay(prior.get(),fingerprint);}
+            if(action==Action.HOLD_PLACE&&repository.uploads().unresolvedFence(caller.tenant(),id).isPresent())throw new DmFailure(503,"UNAVAILABLE");
             if(expected!=document.revision())throw new DmFailure(409,"REVISION_CONFLICT");
             DocumentAggregate changed=update.apply(document);
             // Recheck operation/membership and original ACL before commit, allowing an authorized self-restriction.
@@ -173,6 +210,7 @@ public final class DocumentService {
             route(caller,action,id.toString(),false);
             requireAcl(repository.find(caller.tenant(),id).orElseThrow(DocumentService::hidden),caller,action);
             repository.update(changed,expected);
+            afterUpdate.accept(repository,changed);
             return record(repository,commandKey,fingerprint,status,changed,action);
         });
     }

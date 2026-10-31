@@ -87,6 +87,20 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm openspec:check
       - run: pnpm dependencies:test
+      - name: Reproducible public-lock SBOM source coverage
+        run: >-
+          node --experimental-test-coverage --test-coverage-lines=75
+          --test-coverage-branches=75 --test-coverage-functions=75 --test
+          tools/dependencies/bp03-sbom.test.mjs
+      - name: Generate standard SBOM from public pinned dependency inputs
+        run: node tools/dependencies/bp03-sbom.mjs . build/sbom
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bp03-public-source-sbom
+          if-no-files-found: error
+          path: |
+            build/sbom/bp03-source.cdx.json
+            build/sbom/bp03-source-provenance.json
       - run: pnpm contracts:check
       - run: git diff --exit-code -- pnpm-lock.yaml generated-clients
 
@@ -122,6 +136,107 @@ jobs:
         run: /tmp/dkp-runtime-checks/bin/coverage run --branch --append tools/runtime/document-database-check.py --exercise-outage
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml down
         if: always()
+
+  uploads:
+    name: BP03 / real private upload providers and HTTPS journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25.0.5+8'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.22.1'
+      - name: Upload runner and actual Compose contract regressions
+        run: >-
+          node --experimental-test-coverage --test-coverage-lines=75
+          --test-coverage-branches=75 --test-coverage-functions=75 --test
+          tools/runtime/identity-e2e.test.mjs tools/runtime/compose-upload.test.mjs
+      - name: Strict per-helper source and branch coverage
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/dkp-upload-checks
+          /tmp/dkp-upload-checks/bin/pip install --disable-pip-version-check -r tools/runtime/requirements.txt
+          /tmp/dkp-upload-checks/bin/coverage run --branch -m unittest discover -s tools/runtime -p 'test_*.py'
+          /tmp/dkp-upload-checks/bin/coverage json -o /tmp/dkp-upload-helper-coverage.json
+          python3 - <<'PY'
+          import json
+          report = json.load(open('/tmp/dkp-upload-helper-coverage.json'))
+          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py'):
+              matches = [v['summary'] for p, v in report['files'].items() if p.endswith('/' + name)]
+              if len(matches) != 1:
+                  raise SystemExit('Missing source coverage for ' + name)
+              summary = matches[0]
+              if (summary['covered_lines'] / summary['num_statements'] < .75
+                      or summary['num_branches'] == 0
+                      or summary['covered_branches'] / summary['num_branches'] < .75):
+                  raise SystemExit('Source/branch coverage below75% for ' + name)
+              print(name + ': source and branch coverage PASS')
+          PY
+      - name: Genuine inspector tests and source coverage
+        run: ./gradlew --no-daemon --max-workers=2 :workers:structure-inspector:check
+      - name: Build pinned Linux real-provider test runtime
+        run: |
+          set -euo pipefail
+          cat > /tmp/dkp-upload-tests.Dockerfile <<'DOCKERFILE'
+          FROM eclipse-temurin:25.0.5_8-jdk@sha256:83f4a7fc27df94dcc7b8de04d14cbbba8da14406f921e966969c3b09000aa507
+          WORKDIR /workspace
+          COPY --chown=10001:0 . .
+          RUN chown 10001:0 /workspace && chmod 0755 /workspace && mkdir -p /tmp/dkp-gradle && chown 10001:0 /tmp/dkp-gradle
+          ENV GRADLE_USER_HOME=/tmp/dkp-gradle
+          USER 10001:0
+          DOCKERFILE
+          docker build -f /tmp/dkp-upload-tests.Dockerfile -t dkp-upload-ci-tests:local .
+      - name: Real pinned RustFS TLS, native IAM and combined adapter coverage
+        run: |
+          set -euo pipefail
+          python3 tools/runtime/rustfs-compat-harness.py prepare --directory local-data/security/bp03-ci-compat
+          python3 tools/runtime/rustfs-compat-harness.py run --directory local-data/security/bp03-ci-compat --image dkp-upload-ci-tests:local
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as XML
+          root = Path('local-data/security/bp03-ci-compat')
+          reports = Path((root / 'latest-reports.private').read_text().strip())
+          suites = [XML.parse(p).getroot() for p in (reports / 'junit').glob('TEST-*.xml')]
+          if not suites or any(int(s.get(k, '0')) for s in suites for k in ('failures', 'errors', 'skipped')):
+              raise SystemExit('Actual Linux adapter suite must pass with zero skips')
+          provider = [s for s in suites if s.get('name', '').endswith('RustFsUploadStorageIntegrationTest')]
+          if len(provider) != 1 or int(provider[0].get('tests', '0')) < 6:
+              raise SystemExit('Missing mandatory real RustFS acceptance tests')
+          print('Actual RustFS/combined adapter tests passed with zero skips')
+          PY
+      - name: Remove only owned compatibility fixture before full runtime
+        if: always()
+        run: |
+          if test -f local-data/security/bp03-ci-compat/state.json; then
+            python3 tools/runtime/rustfs-compat-harness.py cleanup --directory local-data/security/bp03-ci-compat
+          fi
+      - name: Start fresh BP03 with genuine recorded FreshClam generation
+        run: python3 tools/runtime/upload-runtime.py start --directory local-data/security/bp03-upload/ci
+      - name: Verify private providers, bounded health and runtime attestation
+        run: python3 tools/runtime/upload-runtime.py verify --directory local-data/security/bp03-upload/ci
+      - name: Real strict HTTPS four-format uploads and downloads in both themes
+        run: >-
+          node tools/runtime/identity-e2e.mjs --upload-runtime
+          --security-directory local-data/security/bp03-upload/ci/identity
+          --runtime-env-file local-data/security/bp03-upload/ci/runtime.env
+      - name: Stop only recorded BP03 project resources
+        if: always()
+        run: |
+          if test -f local-data/security/bp03-upload/ci/state.json; then
+            python3 tools/runtime/upload-runtime.py stop --directory local-data/security/bp03-upload/ci
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: bp03-source-and-provider-reports
+          path: |
+            /tmp/dkp-upload-helper-coverage.json
+            workers/structure-inspector/build/reports
+            local-data/security/bp03-ci-compat/reports
 
   supply-chain:
     runs-on: ubuntu-latest

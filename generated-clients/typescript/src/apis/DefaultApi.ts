@@ -24,10 +24,20 @@ import {
     BffChangeAclRequestToJSON,
 } from '../models/BffChangeAclRequest.js';
 import {
+    type BffCompleteUpload200Response,
+    BffCompleteUpload200ResponseFromJSON,
+    BffCompleteUpload200ResponseToJSON,
+} from '../models/BffCompleteUpload200Response.js';
+import {
     type BffCreateDraftRequest,
     BffCreateDraftRequestFromJSON,
     BffCreateDraftRequestToJSON,
 } from '../models/BffCreateDraftRequest.js';
+import {
+    type BffInitializeUploadRequest,
+    BffInitializeUploadRequestFromJSON,
+    BffInitializeUploadRequestToJSON,
+} from '../models/BffInitializeUploadRequest.js';
 import {
     type BffInspectDraftAcl200Response,
     BffInspectDraftAcl200ResponseFromJSON,
@@ -39,6 +49,11 @@ import {
     BffInspectHolds200ResponseToJSON,
 } from '../models/BffInspectHolds200Response.js';
 import {
+    type BffInspectUpload200Response,
+    BffInspectUpload200ResponseFromJSON,
+    BffInspectUpload200ResponseToJSON,
+} from '../models/BffInspectUpload200Response.js';
+import {
     type BffListDrafts200Response,
     BffListDrafts200ResponseFromJSON,
     BffListDrafts200ResponseToJSON,
@@ -49,10 +64,25 @@ import {
     BffPlaceHoldRequestToJSON,
 } from '../models/BffPlaceHoldRequest.js';
 import {
+    type BffResolveConsumedUploadVersion200Response,
+    BffResolveConsumedUploadVersion200ResponseFromJSON,
+    BffResolveConsumedUploadVersion200ResponseToJSON,
+} from '../models/BffResolveConsumedUploadVersion200Response.js';
+import {
     type BffUpdateMetadataRequest,
     BffUpdateMetadataRequestFromJSON,
     BffUpdateMetadataRequestToJSON,
 } from '../models/BffUpdateMetadataRequest.js';
+import {
+    type DmAppendVersion400Response,
+    DmAppendVersion400ResponseFromJSON,
+    DmAppendVersion400ResponseToJSON,
+} from '../models/DmAppendVersion400Response.js';
+import {
+    type DmAppendVersion401Response,
+    DmAppendVersion401ResponseFromJSON,
+    DmAppendVersion401ResponseToJSON,
+} from '../models/DmAppendVersion401Response.js';
 import {
     type DmAppendVersionRequest,
     DmAppendVersionRequestFromJSON,
@@ -64,6 +94,11 @@ import {
     DmChangeAclRequestToJSON,
 } from '../models/DmChangeAclRequest.js';
 import {
+    type DmCompleteUpload200Response,
+    DmCompleteUpload200ResponseFromJSON,
+    DmCompleteUpload200ResponseToJSON,
+} from '../models/DmCompleteUpload200Response.js';
+import {
     type DmCreateDraft201Response,
     DmCreateDraft201ResponseFromJSON,
     DmCreateDraft201ResponseToJSON,
@@ -74,6 +109,16 @@ import {
     DmCreateDraftRequestToJSON,
 } from '../models/DmCreateDraftRequest.js';
 import {
+    type DmInitializeUpload201Response,
+    DmInitializeUpload201ResponseFromJSON,
+    DmInitializeUpload201ResponseToJSON,
+} from '../models/DmInitializeUpload201Response.js';
+import {
+    type DmInitializeUploadRequest,
+    DmInitializeUploadRequestFromJSON,
+    DmInitializeUploadRequestToJSON,
+} from '../models/DmInitializeUploadRequest.js';
+import {
     type DmInspectDraftAcl200Response,
     DmInspectDraftAcl200ResponseFromJSON,
     DmInspectDraftAcl200ResponseToJSON,
@@ -83,6 +128,11 @@ import {
     DmInspectHolds200ResponseFromJSON,
     DmInspectHolds200ResponseToJSON,
 } from '../models/DmInspectHolds200Response.js';
+import {
+    type DmInspectUpload200Response,
+    DmInspectUpload200ResponseFromJSON,
+    DmInspectUpload200ResponseToJSON,
+} from '../models/DmInspectUpload200Response.js';
 import {
     type DmListDrafts200Response,
     DmListDrafts200ResponseFromJSON,
@@ -109,6 +159,16 @@ import {
     DmPlaceHoldRequestToJSON,
 } from '../models/DmPlaceHoldRequest.js';
 import {
+    type DmResolveConsumedUploadVersion200Response,
+    DmResolveConsumedUploadVersion200ResponseFromJSON,
+    DmResolveConsumedUploadVersion200ResponseToJSON,
+} from '../models/DmResolveConsumedUploadVersion200Response.js';
+import {
+    type DmTransferUpload200Response,
+    DmTransferUpload200ResponseFromJSON,
+    DmTransferUpload200ResponseToJSON,
+} from '../models/DmTransferUpload200Response.js';
+import {
     type DmUpdateMetadata200Response,
     DmUpdateMetadata200ResponseFromJSON,
     DmUpdateMetadata200ResponseToJSON,
@@ -123,13 +183,13 @@ export interface BffAppendVersionOperationRequest {
     /**
      *
      */
-    documentId: string;
-    /**
-     *
-     */
     idempotencyKey: string;
     /**
      *
+     */
+    documentId: string;
+    /**
+     * Must exactly match configured portal origin; absent/null/multiple/foreign rejected.
      */
     origin: string;
     /**
@@ -165,6 +225,29 @@ export interface BffChangeAclOperationRequest {
     bffChangeAclRequest: BffChangeAclRequest;
 }
 
+export interface BffCompleteUploadRequest {
+    /**
+     *
+     */
+    idempotencyKey: string;
+    /**
+     *
+     */
+    uploadId: string;
+    /**
+     * Must exactly match configured portal origin; absent/null/multiple/foreign rejected.
+     */
+    origin: string;
+    /**
+     *
+     */
+    xCSRFTOKEN: string;
+    /**
+     *
+     */
+    body: object;
+}
+
 export interface BffCreateDraftOperationRequest {
     /**
      *
@@ -182,6 +265,40 @@ export interface BffCreateDraftOperationRequest {
      *
      */
     bffCreateDraftRequest: BffCreateDraftRequest;
+}
+
+export interface BffDownloadVersionOriginalRequest {
+    /**
+     *
+     */
+    documentId: string;
+    /**
+     *
+     */
+    versionId: string;
+    /**
+     * Optional one bytes=start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes.
+     */
+    range?: string;
+}
+
+export interface BffInitializeUploadOperationRequest {
+    /**
+     *
+     */
+    idempotencyKey: string;
+    /**
+     * Must exactly match configured portal origin; absent/null/multiple/foreign rejected.
+     */
+    origin: string;
+    /**
+     *
+     */
+    xCSRFTOKEN: string;
+    /**
+     *
+     */
+    bffInitializeUploadRequest: BffInitializeUploadRequest;
 }
 
 export interface BffInspectDraftRequest {
@@ -203,6 +320,13 @@ export interface BffInspectHoldsRequest {
      *
      */
     documentId: string;
+}
+
+export interface BffInspectUploadRequest {
+    /**
+     *
+     */
+    uploadId: string;
 }
 
 export interface BffListDraftsRequest {
@@ -239,6 +363,40 @@ export interface BffPlaceHoldOperationRequest {
     bffPlaceHoldRequest: BffPlaceHoldRequest;
 }
 
+export interface BffResolveConsumedUploadVersionRequest {
+    /**
+     *
+     */
+    documentId: string;
+    /**
+     *
+     */
+    receiptId: string;
+}
+
+export interface BffTransferUploadRequest {
+    /**
+     *
+     */
+    idempotencyKey: string;
+    /**
+     *
+     */
+    uploadId: string;
+    /**
+     * Must exactly match configured portal origin; absent/null/multiple/foreign rejected.
+     */
+    origin: string;
+    /**
+     *
+     */
+    xCSRFTOKEN: string;
+    /**
+     *
+     */
+    body: Blob;
+}
+
 export interface BffUpdateMetadataOperationRequest {
     /**
      *
@@ -264,17 +422,17 @@ export interface BffUpdateMetadataOperationRequest {
 
 export interface DmAppendVersionOperationRequest {
     /**
-     *
-     */
-    documentId: string;
-    /**
-     * Untrusted selector independently checked against verified membership.
+     * Selector independently checked against verified actor membership; BFF constructs it server-side.
      */
     xDKPTenant: string;
     /**
      *
      */
     idempotencyKey: string;
+    /**
+     *
+     */
+    documentId: string;
     /**
      *
      */
@@ -300,6 +458,25 @@ export interface DmChangeAclOperationRequest {
     dmChangeAclRequest: DmChangeAclRequest;
 }
 
+export interface DmCompleteUploadRequest {
+    /**
+     * Selector independently checked against verified actor membership; BFF constructs it server-side.
+     */
+    xDKPTenant: string;
+    /**
+     *
+     */
+    idempotencyKey: string;
+    /**
+     *
+     */
+    uploadId: string;
+    /**
+     *
+     */
+    requestBody: { [key: string]: any | null; };
+}
+
 export interface DmCreateDraftOperationRequest {
     /**
      * Untrusted selector independently checked against verified membership.
@@ -313,6 +490,40 @@ export interface DmCreateDraftOperationRequest {
      *
      */
     dmCreateDraftRequest: DmCreateDraftRequest;
+}
+
+export interface DmDownloadVersionOriginalRequest {
+    /**
+     * Selector independently checked against verified actor membership; BFF constructs it server-side.
+     */
+    xDKPTenant: string;
+    /**
+     *
+     */
+    documentId: string;
+    /**
+     *
+     */
+    versionId: string;
+    /**
+     * Optional one bytes=start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes.
+     */
+    range?: string;
+}
+
+export interface DmInitializeUploadOperationRequest {
+    /**
+     * Selector independently checked against verified actor membership; BFF constructs it server-side.
+     */
+    xDKPTenant: string;
+    /**
+     *
+     */
+    idempotencyKey: string;
+    /**
+     *
+     */
+    dmInitializeUploadRequest: DmInitializeUploadRequest;
 }
 
 export interface DmInspectDraftRequest {
@@ -346,6 +557,17 @@ export interface DmInspectHoldsRequest {
      * Untrusted selector independently checked against verified membership.
      */
     xDKPTenant: string;
+}
+
+export interface DmInspectUploadRequest {
+    /**
+     * Selector independently checked against verified actor membership; BFF constructs it server-side.
+     */
+    xDKPTenant: string;
+    /**
+     *
+     */
+    uploadId: string;
 }
 
 export interface DmListDraftsRequest {
@@ -382,6 +604,40 @@ export interface DmPlaceHoldOperationRequest {
     dmPlaceHoldRequest: DmPlaceHoldRequest;
 }
 
+export interface DmResolveConsumedUploadVersionRequest {
+    /**
+     * Selector independently checked against verified actor membership; BFF constructs it server-side.
+     */
+    xDKPTenant: string;
+    /**
+     *
+     */
+    documentId: string;
+    /**
+     *
+     */
+    receiptId: string;
+}
+
+export interface DmTransferUploadRequest {
+    /**
+     * Selector independently checked against verified actor membership; BFF constructs it server-side.
+     */
+    xDKPTenant: string;
+    /**
+     *
+     */
+    idempotencyKey: string;
+    /**
+     *
+     */
+    uploadId: string;
+    /**
+     *
+     */
+    body: Blob;
+}
+
 export interface DmUpdateMetadataOperationRequest {
     /**
      *
@@ -410,17 +666,17 @@ export class DefaultApi extends runtime.BaseAPI {
      * Creates request options for bffAppendVersion without sending the request
      */
     async bffAppendVersionRequestOpts(requestParameters: BffAppendVersionOperationRequest): Promise<runtime.RequestOpts> {
-        if (requestParameters['documentId'] == null) {
-            throw new runtime.RequiredError(
-                'documentId',
-                'Required parameter "documentId" was null or undefined when calling bffAppendVersion().'
-            );
-        }
-
         if (requestParameters['idempotencyKey'] == null) {
             throw new runtime.RequiredError(
                 'idempotencyKey',
                 'Required parameter "idempotencyKey" was null or undefined when calling bffAppendVersion().'
+            );
+        }
+
+        if (requestParameters['documentId'] == null) {
+            throw new runtime.RequiredError(
+                'documentId',
+                'Required parameter "documentId" was null or undefined when calling bffAppendVersion().'
             );
         }
 
@@ -477,8 +733,8 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-     * AppendVersion
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
+     * dmAppendVerifiedVersion
      */
     async bffAppendVersionRaw(requestParameters: BffAppendVersionOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmUpdateMetadata200Response>> {
         const requestOptions = await this.bffAppendVersionRequestOpts(requestParameters);
@@ -488,8 +744,8 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-     * AppendVersion
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
+     * dmAppendVerifiedVersion
      */
     async bffAppendVersion(requestParameters: BffAppendVersionOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmUpdateMetadata200Response> {
         const response = await this.bffAppendVersionRaw(requestParameters, initOverrides);
@@ -567,7 +823,7 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
      * ChangeAcl
      */
     async bffChangeAclRaw(requestParameters: BffChangeAclOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmUpdateMetadata200Response>> {
@@ -578,11 +834,101 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
      * ChangeAcl
      */
     async bffChangeAcl(requestParameters: BffChangeAclOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmUpdateMetadata200Response> {
         const response = await this.bffChangeAclRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for bffCompleteUpload without sending the request
+     */
+    async bffCompleteUploadRequestOpts(requestParameters: BffCompleteUploadRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['idempotencyKey'] == null) {
+            throw new runtime.RequiredError(
+                'idempotencyKey',
+                'Required parameter "idempotencyKey" was null or undefined when calling bffCompleteUpload().'
+            );
+        }
+
+        if (requestParameters['uploadId'] == null) {
+            throw new runtime.RequiredError(
+                'uploadId',
+                'Required parameter "uploadId" was null or undefined when calling bffCompleteUpload().'
+            );
+        }
+
+        if (requestParameters['origin'] == null) {
+            throw new runtime.RequiredError(
+                'origin',
+                'Required parameter "origin" was null or undefined when calling bffCompleteUpload().'
+            );
+        }
+
+        if (requestParameters['xCSRFTOKEN'] == null) {
+            throw new runtime.RequiredError(
+                'xCSRFTOKEN',
+                'Required parameter "xCSRFTOKEN" was null or undefined when calling bffCompleteUpload().'
+            );
+        }
+
+        if (requestParameters['body'] == null) {
+            throw new runtime.RequiredError(
+                'body',
+                'Required parameter "body" was null or undefined when calling bffCompleteUpload().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (requestParameters['idempotencyKey'] != null) {
+            headerParameters['Idempotency-Key'] = String(requestParameters['idempotencyKey']);
+        }
+
+        if (requestParameters['origin'] != null) {
+            headerParameters['Origin'] = String(requestParameters['origin']);
+        }
+
+        if (requestParameters['xCSRFTOKEN'] != null) {
+            headerParameters['X-CSRF-TOKEN'] = String(requestParameters['xCSRFTOKEN']);
+        }
+
+
+        let urlPath = `/api/v1/dm/documents/uploads/{uploadId}/complete`;
+        urlPath = urlPath.replace('{uploadId}', encodeURIComponent(String(requestParameters['uploadId'])));
+
+        return {
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: requestParameters['body'] as any,
+        };
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+     * dmCompleteUpload
+     */
+    async bffCompleteUploadRaw(requestParameters: BffCompleteUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<BffCompleteUpload200Response>> {
+        const requestOptions = await this.bffCompleteUploadRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => BffCompleteUpload200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+     * dmCompleteUpload
+     */
+    async bffCompleteUpload(requestParameters: BffCompleteUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<BffCompleteUpload200Response> {
+        const response = await this.bffCompleteUploadRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
@@ -669,6 +1015,147 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
+     * Creates request options for bffDownloadVersionOriginal without sending the request
+     */
+    async bffDownloadVersionOriginalRequestOpts(requestParameters: BffDownloadVersionOriginalRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['documentId'] == null) {
+            throw new runtime.RequiredError(
+                'documentId',
+                'Required parameter "documentId" was null or undefined when calling bffDownloadVersionOriginal().'
+            );
+        }
+
+        if (requestParameters['versionId'] == null) {
+            throw new runtime.RequiredError(
+                'versionId',
+                'Required parameter "versionId" was null or undefined when calling bffDownloadVersionOriginal().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (requestParameters['range'] != null) {
+            headerParameters['Range'] = String(requestParameters['range']);
+        }
+
+
+        let urlPath = `/api/v1/dm/documents/{documentId}/versions/{versionId}/content`;
+        urlPath = urlPath.replace('{documentId}', encodeURIComponent(String(requestParameters['documentId'])));
+        urlPath = urlPath.replace('{versionId}', encodeURIComponent(String(requestParameters['versionId'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+     * dmDownloadVersionOriginal
+     */
+    async bffDownloadVersionOriginalRaw(requestParameters: BffDownloadVersionOriginalRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<runtime.HttpFile>> {
+        const requestOptions = await this.bffDownloadVersionOriginalRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.BlobApiResponse(response);
+    }
+
+    /**
+     * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+     * dmDownloadVersionOriginal
+     */
+    async bffDownloadVersionOriginal(requestParameters: BffDownloadVersionOriginalRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.HttpFile> {
+        const response = await this.bffDownloadVersionOriginalRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for bffInitializeUpload without sending the request
+     */
+    async bffInitializeUploadRequestOpts(requestParameters: BffInitializeUploadOperationRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['idempotencyKey'] == null) {
+            throw new runtime.RequiredError(
+                'idempotencyKey',
+                'Required parameter "idempotencyKey" was null or undefined when calling bffInitializeUpload().'
+            );
+        }
+
+        if (requestParameters['origin'] == null) {
+            throw new runtime.RequiredError(
+                'origin',
+                'Required parameter "origin" was null or undefined when calling bffInitializeUpload().'
+            );
+        }
+
+        if (requestParameters['xCSRFTOKEN'] == null) {
+            throw new runtime.RequiredError(
+                'xCSRFTOKEN',
+                'Required parameter "xCSRFTOKEN" was null or undefined when calling bffInitializeUpload().'
+            );
+        }
+
+        if (requestParameters['bffInitializeUploadRequest'] == null) {
+            throw new runtime.RequiredError(
+                'bffInitializeUploadRequest',
+                'Required parameter "bffInitializeUploadRequest" was null or undefined when calling bffInitializeUpload().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (requestParameters['idempotencyKey'] != null) {
+            headerParameters['Idempotency-Key'] = String(requestParameters['idempotencyKey']);
+        }
+
+        if (requestParameters['origin'] != null) {
+            headerParameters['Origin'] = String(requestParameters['origin']);
+        }
+
+        if (requestParameters['xCSRFTOKEN'] != null) {
+            headerParameters['X-CSRF-TOKEN'] = String(requestParameters['xCSRFTOKEN']);
+        }
+
+
+        let urlPath = `/api/v1/dm/documents/uploads`;
+
+        return {
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: BffInitializeUploadRequestToJSON(requestParameters['bffInitializeUploadRequest']),
+        };
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+     * dmInitializeUpload
+     */
+    async bffInitializeUploadRaw(requestParameters: BffInitializeUploadOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmTransferUpload200Response>> {
+        const requestOptions = await this.bffInitializeUploadRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => DmTransferUpload200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+     * dmInitializeUpload
+     */
+    async bffInitializeUpload(requestParameters: BffInitializeUploadOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmTransferUpload200Response> {
+        const response = await this.bffInitializeUploadRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
      * Creates request options for bffInspectDraft without sending the request
      */
     async bffInspectDraftRequestOpts(requestParameters: BffInspectDraftRequest): Promise<runtime.RequestOpts> {
@@ -743,7 +1230,7 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
      * InspectDraftAcl
      */
     async bffInspectDraftAclRaw(requestParameters: BffInspectDraftAclRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<BffInspectDraftAcl200Response>> {
@@ -754,7 +1241,7 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
      * InspectDraftAcl
      */
     async bffInspectDraftAcl(requestParameters: BffInspectDraftAclRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<BffInspectDraftAcl200Response> {
@@ -806,6 +1293,53 @@ export class DefaultApi extends runtime.BaseAPI {
      */
     async bffInspectHolds(requestParameters: BffInspectHoldsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<BffInspectHolds200Response> {
         const response = await this.bffInspectHoldsRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for bffInspectUpload without sending the request
+     */
+    async bffInspectUploadRequestOpts(requestParameters: BffInspectUploadRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['uploadId'] == null) {
+            throw new runtime.RequiredError(
+                'uploadId',
+                'Required parameter "uploadId" was null or undefined when calling bffInspectUpload().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+
+        let urlPath = `/api/v1/dm/documents/uploads/{uploadId}/status`;
+        urlPath = urlPath.replace('{uploadId}', encodeURIComponent(String(requestParameters['uploadId'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+     * dmInspectUpload
+     */
+    async bffInspectUploadRaw(requestParameters: BffInspectUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<BffInspectUpload200Response>> {
+        const requestOptions = await this.bffInspectUploadRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => BffInspectUpload200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+     * dmInspectUpload
+     */
+    async bffInspectUpload(requestParameters: BffInspectUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<BffInspectUpload200Response> {
+        const response = await this.bffInspectUploadRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
@@ -927,7 +1461,7 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
      * PlaceHold
      */
     async bffPlaceHoldRaw(requestParameters: BffPlaceHoldOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmUpdateMetadata200Response>> {
@@ -938,11 +1472,156 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
      * PlaceHold
      */
     async bffPlaceHold(requestParameters: BffPlaceHoldOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmUpdateMetadata200Response> {
         const response = await this.bffPlaceHoldRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for bffResolveConsumedUploadVersion without sending the request
+     */
+    async bffResolveConsumedUploadVersionRequestOpts(requestParameters: BffResolveConsumedUploadVersionRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['documentId'] == null) {
+            throw new runtime.RequiredError(
+                'documentId',
+                'Required parameter "documentId" was null or undefined when calling bffResolveConsumedUploadVersion().'
+            );
+        }
+
+        if (requestParameters['receiptId'] == null) {
+            throw new runtime.RequiredError(
+                'receiptId',
+                'Required parameter "receiptId" was null or undefined when calling bffResolveConsumedUploadVersion().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+
+        let urlPath = `/api/v1/dm/documents/{documentId}/upload-receipts/{receiptId}/version`;
+        urlPath = urlPath.replace('{documentId}', encodeURIComponent(String(requestParameters['documentId'])));
+        urlPath = urlPath.replace('{receiptId}', encodeURIComponent(String(requestParameters['receiptId'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution. BFF fixed DM destination only; verified server session/current selected tenant, no redirects or arbitrary target; token remains server-side.
+     * Resolve the consumed version of an actor-owned upload receipt
+     */
+    async bffResolveConsumedUploadVersionRaw(requestParameters: BffResolveConsumedUploadVersionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<BffResolveConsumedUploadVersion200Response>> {
+        const requestOptions = await this.bffResolveConsumedUploadVersionRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => BffResolveConsumedUploadVersion200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution. BFF fixed DM destination only; verified server session/current selected tenant, no redirects or arbitrary target; token remains server-side.
+     * Resolve the consumed version of an actor-owned upload receipt
+     */
+    async bffResolveConsumedUploadVersion(requestParameters: BffResolveConsumedUploadVersionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<BffResolveConsumedUploadVersion200Response> {
+        const response = await this.bffResolveConsumedUploadVersionRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for bffTransferUpload without sending the request
+     */
+    async bffTransferUploadRequestOpts(requestParameters: BffTransferUploadRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['idempotencyKey'] == null) {
+            throw new runtime.RequiredError(
+                'idempotencyKey',
+                'Required parameter "idempotencyKey" was null or undefined when calling bffTransferUpload().'
+            );
+        }
+
+        if (requestParameters['uploadId'] == null) {
+            throw new runtime.RequiredError(
+                'uploadId',
+                'Required parameter "uploadId" was null or undefined when calling bffTransferUpload().'
+            );
+        }
+
+        if (requestParameters['origin'] == null) {
+            throw new runtime.RequiredError(
+                'origin',
+                'Required parameter "origin" was null or undefined when calling bffTransferUpload().'
+            );
+        }
+
+        if (requestParameters['xCSRFTOKEN'] == null) {
+            throw new runtime.RequiredError(
+                'xCSRFTOKEN',
+                'Required parameter "xCSRFTOKEN" was null or undefined when calling bffTransferUpload().'
+            );
+        }
+
+        if (requestParameters['body'] == null) {
+            throw new runtime.RequiredError(
+                'body',
+                'Required parameter "body" was null or undefined when calling bffTransferUpload().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/octet-stream';
+
+        if (requestParameters['idempotencyKey'] != null) {
+            headerParameters['Idempotency-Key'] = String(requestParameters['idempotencyKey']);
+        }
+
+        if (requestParameters['origin'] != null) {
+            headerParameters['Origin'] = String(requestParameters['origin']);
+        }
+
+        if (requestParameters['xCSRFTOKEN'] != null) {
+            headerParameters['X-CSRF-TOKEN'] = String(requestParameters['xCSRFTOKEN']);
+        }
+
+
+        let urlPath = `/api/v1/dm/documents/uploads/{uploadId}/content`;
+        urlPath = urlPath.replace('{uploadId}', encodeURIComponent(String(requestParameters['uploadId'])));
+
+        return {
+            path: urlPath,
+            method: 'PUT',
+            headers: headerParameters,
+            query: queryParameters,
+            body: requestParameters['body'] as any,
+        };
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+     * dmTransferUpload
+     */
+    async bffTransferUploadRaw(requestParameters: BffTransferUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmTransferUpload200Response>> {
+        const requestOptions = await this.bffTransferUploadRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => DmTransferUpload200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.
+     * dmTransferUpload
+     */
+    async bffTransferUpload(requestParameters: BffTransferUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmTransferUpload200Response> {
+        const response = await this.bffTransferUploadRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
@@ -1040,13 +1719,6 @@ export class DefaultApi extends runtime.BaseAPI {
      * Creates request options for dmAppendVersion without sending the request
      */
     async dmAppendVersionRequestOpts(requestParameters: DmAppendVersionOperationRequest): Promise<runtime.RequestOpts> {
-        if (requestParameters['documentId'] == null) {
-            throw new runtime.RequiredError(
-                'documentId',
-                'Required parameter "documentId" was null or undefined when calling dmAppendVersion().'
-            );
-        }
-
         if (requestParameters['xDKPTenant'] == null) {
             throw new runtime.RequiredError(
                 'xDKPTenant',
@@ -1058,6 +1730,13 @@ export class DefaultApi extends runtime.BaseAPI {
             throw new runtime.RequiredError(
                 'idempotencyKey',
                 'Required parameter "idempotencyKey" was null or undefined when calling dmAppendVersion().'
+            );
+        }
+
+        if (requestParameters['documentId'] == null) {
+            throw new runtime.RequiredError(
+                'documentId',
+                'Required parameter "documentId" was null or undefined when calling dmAppendVersion().'
             );
         }
 
@@ -1104,8 +1783,8 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-     * AppendVersion
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
+     * dmAppendVerifiedVersion
      */
     async dmAppendVersionRaw(requestParameters: DmAppendVersionOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmUpdateMetadata200Response>> {
         const requestOptions = await this.dmAppendVersionRequestOpts(requestParameters);
@@ -1115,8 +1794,8 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.
-     * AppendVersion
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.
+     * dmAppendVerifiedVersion
      */
     async dmAppendVersion(requestParameters: DmAppendVersionOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmUpdateMetadata200Response> {
         const response = await this.dmAppendVersionRaw(requestParameters, initOverrides);
@@ -1191,7 +1870,7 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
      * ChangeAcl
      */
     async dmChangeAclRaw(requestParameters: DmChangeAclOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmUpdateMetadata200Response>> {
@@ -1202,11 +1881,98 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
      * ChangeAcl
      */
     async dmChangeAcl(requestParameters: DmChangeAclOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmUpdateMetadata200Response> {
         const response = await this.dmChangeAclRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for dmCompleteUpload without sending the request
+     */
+    async dmCompleteUploadRequestOpts(requestParameters: DmCompleteUploadRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['xDKPTenant'] == null) {
+            throw new runtime.RequiredError(
+                'xDKPTenant',
+                'Required parameter "xDKPTenant" was null or undefined when calling dmCompleteUpload().'
+            );
+        }
+
+        if (requestParameters['idempotencyKey'] == null) {
+            throw new runtime.RequiredError(
+                'idempotencyKey',
+                'Required parameter "idempotencyKey" was null or undefined when calling dmCompleteUpload().'
+            );
+        }
+
+        if (requestParameters['uploadId'] == null) {
+            throw new runtime.RequiredError(
+                'uploadId',
+                'Required parameter "uploadId" was null or undefined when calling dmCompleteUpload().'
+            );
+        }
+
+        if (requestParameters['requestBody'] == null) {
+            throw new runtime.RequiredError(
+                'requestBody',
+                'Required parameter "requestBody" was null or undefined when calling dmCompleteUpload().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (requestParameters['xDKPTenant'] != null) {
+            headerParameters['X-DKP-Tenant'] = String(requestParameters['xDKPTenant']);
+        }
+
+        if (requestParameters['idempotencyKey'] != null) {
+            headerParameters['Idempotency-Key'] = String(requestParameters['idempotencyKey']);
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/documents/uploads/{uploadId}/complete`;
+        urlPath = urlPath.replace('{uploadId}', encodeURIComponent(String(requestParameters['uploadId'])));
+
+        return {
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: requestParameters['requestBody'],
+        };
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+     * dmCompleteUpload
+     */
+    async dmCompleteUploadRaw(requestParameters: DmCompleteUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmCompleteUpload200Response>> {
+        const requestOptions = await this.dmCompleteUploadRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => DmCompleteUpload200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+     * dmCompleteUpload
+     */
+    async dmCompleteUpload(requestParameters: DmCompleteUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmCompleteUpload200Response> {
+        const response = await this.dmCompleteUploadRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
@@ -1286,6 +2052,163 @@ export class DefaultApi extends runtime.BaseAPI {
      */
     async dmCreateDraft(requestParameters: DmCreateDraftOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmCreateDraft201Response> {
         const response = await this.dmCreateDraftRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for dmDownloadVersionOriginal without sending the request
+     */
+    async dmDownloadVersionOriginalRequestOpts(requestParameters: DmDownloadVersionOriginalRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['xDKPTenant'] == null) {
+            throw new runtime.RequiredError(
+                'xDKPTenant',
+                'Required parameter "xDKPTenant" was null or undefined when calling dmDownloadVersionOriginal().'
+            );
+        }
+
+        if (requestParameters['documentId'] == null) {
+            throw new runtime.RequiredError(
+                'documentId',
+                'Required parameter "documentId" was null or undefined when calling dmDownloadVersionOriginal().'
+            );
+        }
+
+        if (requestParameters['versionId'] == null) {
+            throw new runtime.RequiredError(
+                'versionId',
+                'Required parameter "versionId" was null or undefined when calling dmDownloadVersionOriginal().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (requestParameters['xDKPTenant'] != null) {
+            headerParameters['X-DKP-Tenant'] = String(requestParameters['xDKPTenant']);
+        }
+
+        if (requestParameters['range'] != null) {
+            headerParameters['Range'] = String(requestParameters['range']);
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/documents/{documentId}/versions/{versionId}/content`;
+        urlPath = urlPath.replace('{documentId}', encodeURIComponent(String(requestParameters['documentId'])));
+        urlPath = urlPath.replace('{versionId}', encodeURIComponent(String(requestParameters['versionId'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original.
+     * dmDownloadVersionOriginal
+     */
+    async dmDownloadVersionOriginalRaw(requestParameters: DmDownloadVersionOriginalRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<runtime.HttpFile>> {
+        const requestOptions = await this.dmDownloadVersionOriginalRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.BlobApiResponse(response);
+    }
+
+    /**
+     * Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original.
+     * dmDownloadVersionOriginal
+     */
+    async dmDownloadVersionOriginal(requestParameters: DmDownloadVersionOriginalRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.HttpFile> {
+        const response = await this.dmDownloadVersionOriginalRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for dmInitializeUpload without sending the request
+     */
+    async dmInitializeUploadRequestOpts(requestParameters: DmInitializeUploadOperationRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['xDKPTenant'] == null) {
+            throw new runtime.RequiredError(
+                'xDKPTenant',
+                'Required parameter "xDKPTenant" was null or undefined when calling dmInitializeUpload().'
+            );
+        }
+
+        if (requestParameters['idempotencyKey'] == null) {
+            throw new runtime.RequiredError(
+                'idempotencyKey',
+                'Required parameter "idempotencyKey" was null or undefined when calling dmInitializeUpload().'
+            );
+        }
+
+        if (requestParameters['dmInitializeUploadRequest'] == null) {
+            throw new runtime.RequiredError(
+                'dmInitializeUploadRequest',
+                'Required parameter "dmInitializeUploadRequest" was null or undefined when calling dmInitializeUpload().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (requestParameters['xDKPTenant'] != null) {
+            headerParameters['X-DKP-Tenant'] = String(requestParameters['xDKPTenant']);
+        }
+
+        if (requestParameters['idempotencyKey'] != null) {
+            headerParameters['Idempotency-Key'] = String(requestParameters['idempotencyKey']);
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/documents/uploads`;
+
+        return {
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: DmInitializeUploadRequestToJSON(requestParameters['dmInitializeUploadRequest']),
+        };
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+     * dmInitializeUpload
+     */
+    async dmInitializeUploadRaw(requestParameters: DmInitializeUploadOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmInitializeUpload201Response>> {
+        const requestOptions = await this.dmInitializeUploadRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => DmInitializeUpload201ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+     * dmInitializeUpload
+     */
+    async dmInitializeUpload(requestParameters: DmInitializeUploadOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmInitializeUpload201Response> {
+        const response = await this.dmInitializeUploadRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
@@ -1402,7 +2325,7 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
      * InspectDraftAcl
      */
     async dmInspectDraftAclRaw(requestParameters: DmInspectDraftAclRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmInspectDraftAcl200Response>> {
@@ -1413,7 +2336,7 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.
      * InspectDraftAcl
      */
     async dmInspectDraftAcl(requestParameters: DmInspectDraftAclRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmInspectDraftAcl200Response> {
@@ -1484,6 +2407,72 @@ export class DefaultApi extends runtime.BaseAPI {
      */
     async dmInspectHolds(requestParameters: DmInspectHoldsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmInspectHolds200Response> {
         const response = await this.dmInspectHoldsRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for dmInspectUpload without sending the request
+     */
+    async dmInspectUploadRequestOpts(requestParameters: DmInspectUploadRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['xDKPTenant'] == null) {
+            throw new runtime.RequiredError(
+                'xDKPTenant',
+                'Required parameter "xDKPTenant" was null or undefined when calling dmInspectUpload().'
+            );
+        }
+
+        if (requestParameters['uploadId'] == null) {
+            throw new runtime.RequiredError(
+                'uploadId',
+                'Required parameter "uploadId" was null or undefined when calling dmInspectUpload().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (requestParameters['xDKPTenant'] != null) {
+            headerParameters['X-DKP-Tenant'] = String(requestParameters['xDKPTenant']);
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/documents/uploads/{uploadId}/status`;
+        urlPath = urlPath.replace('{uploadId}', encodeURIComponent(String(requestParameters['uploadId'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+     * dmInspectUpload
+     */
+    async dmInspectUploadRaw(requestParameters: DmInspectUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmInspectUpload200Response>> {
+        const requestOptions = await this.dmInspectUploadRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => DmInspectUpload200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+     * dmInspectUpload
+     */
+    async dmInspectUpload(requestParameters: DmInspectUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmInspectUpload200Response> {
+        const response = await this.dmInspectUploadRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
@@ -1621,7 +2610,7 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
      * PlaceHold
      */
     async dmPlaceHoldRaw(requestParameters: DmPlaceHoldOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmUpdateMetadata200Response>> {
@@ -1632,11 +2621,172 @@ export class DefaultApi extends runtime.BaseAPI {
     }
 
     /**
-     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.
+     * Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.
      * PlaceHold
      */
     async dmPlaceHold(requestParameters: DmPlaceHoldOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmUpdateMetadata200Response> {
         const response = await this.dmPlaceHoldRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for dmResolveConsumedUploadVersion without sending the request
+     */
+    async dmResolveConsumedUploadVersionRequestOpts(requestParameters: DmResolveConsumedUploadVersionRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['xDKPTenant'] == null) {
+            throw new runtime.RequiredError(
+                'xDKPTenant',
+                'Required parameter "xDKPTenant" was null or undefined when calling dmResolveConsumedUploadVersion().'
+            );
+        }
+
+        if (requestParameters['documentId'] == null) {
+            throw new runtime.RequiredError(
+                'documentId',
+                'Required parameter "documentId" was null or undefined when calling dmResolveConsumedUploadVersion().'
+            );
+        }
+
+        if (requestParameters['receiptId'] == null) {
+            throw new runtime.RequiredError(
+                'receiptId',
+                'Required parameter "receiptId" was null or undefined when calling dmResolveConsumedUploadVersion().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (requestParameters['xDKPTenant'] != null) {
+            headerParameters['X-DKP-Tenant'] = String(requestParameters['xDKPTenant']);
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/documents/{documentId}/upload-receipts/{receiptId}/version`;
+        urlPath = urlPath.replace('{documentId}', encodeURIComponent(String(requestParameters['documentId'])));
+        urlPath = urlPath.replace('{receiptId}', encodeURIComponent(String(requestParameters['receiptId'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution.
+     * Resolve the consumed version of an actor-owned upload receipt
+     */
+    async dmResolveConsumedUploadVersionRaw(requestParameters: DmResolveConsumedUploadVersionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmResolveConsumedUploadVersion200Response>> {
+        const requestOptions = await this.dmResolveConsumedUploadVersionRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => DmResolveConsumedUploadVersion200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution.
+     * Resolve the consumed version of an actor-owned upload receipt
+     */
+    async dmResolveConsumedUploadVersion(requestParameters: DmResolveConsumedUploadVersionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmResolveConsumedUploadVersion200Response> {
+        const response = await this.dmResolveConsumedUploadVersionRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for dmTransferUpload without sending the request
+     */
+    async dmTransferUploadRequestOpts(requestParameters: DmTransferUploadRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['xDKPTenant'] == null) {
+            throw new runtime.RequiredError(
+                'xDKPTenant',
+                'Required parameter "xDKPTenant" was null or undefined when calling dmTransferUpload().'
+            );
+        }
+
+        if (requestParameters['idempotencyKey'] == null) {
+            throw new runtime.RequiredError(
+                'idempotencyKey',
+                'Required parameter "idempotencyKey" was null or undefined when calling dmTransferUpload().'
+            );
+        }
+
+        if (requestParameters['uploadId'] == null) {
+            throw new runtime.RequiredError(
+                'uploadId',
+                'Required parameter "uploadId" was null or undefined when calling dmTransferUpload().'
+            );
+        }
+
+        if (requestParameters['body'] == null) {
+            throw new runtime.RequiredError(
+                'body',
+                'Required parameter "body" was null or undefined when calling dmTransferUpload().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/octet-stream';
+
+        if (requestParameters['xDKPTenant'] != null) {
+            headerParameters['X-DKP-Tenant'] = String(requestParameters['xDKPTenant']);
+        }
+
+        if (requestParameters['idempotencyKey'] != null) {
+            headerParameters['Idempotency-Key'] = String(requestParameters['idempotencyKey']);
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/documents/uploads/{uploadId}/content`;
+        urlPath = urlPath.replace('{uploadId}', encodeURIComponent(String(requestParameters['uploadId'])));
+
+        return {
+            path: urlPath,
+            method: 'PUT',
+            headers: headerParameters,
+            query: queryParameters,
+            body: requestParameters['body'] as any,
+        };
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+     * dmTransferUpload
+     */
+    async dmTransferUploadRaw(requestParameters: DmTransferUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<DmTransferUpload200Response>> {
+        const requestOptions = await this.dmTransferUploadRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => DmTransferUpload200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.
+     * dmTransferUpload
+     */
+    async dmTransferUpload(requestParameters: DmTransferUploadRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DmTransferUpload200Response> {
+        const response = await this.dmTransferUploadRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

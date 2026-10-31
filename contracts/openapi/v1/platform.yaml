@@ -72,6 +72,42 @@
     },
     "/api/v1/dm/documents/{documentId}/versions": {
       "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1%7BdocumentId%7D~1versions"
+    },
+    "/api/v1/documents/uploads": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1uploads"
+    },
+    "/api/v1/documents/uploads/{uploadId}/content": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1uploads~1%7BuploadId%7D~1content"
+    },
+    "/api/v1/documents/uploads/{uploadId}/complete": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1uploads~1%7BuploadId%7D~1complete"
+    },
+    "/api/v1/documents/{documentId}/versions/{versionId}/content": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1%7BdocumentId%7D~1versions~1%7BversionId%7D~1content"
+    },
+    "/api/v1/dm/documents/uploads": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1uploads"
+    },
+    "/api/v1/dm/documents/uploads/{uploadId}/content": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1uploads~1%7BuploadId%7D~1content"
+    },
+    "/api/v1/dm/documents/uploads/{uploadId}/complete": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1uploads~1%7BuploadId%7D~1complete"
+    },
+    "/api/v1/dm/documents/{documentId}/versions/{versionId}/content": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1%7BdocumentId%7D~1versions~1%7BversionId%7D~1content"
+    },
+    "/api/v1/documents/uploads/{uploadId}/status": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1uploads~1%7BuploadId%7D~1status"
+    },
+    "/api/v1/dm/documents/uploads/{uploadId}/status": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1uploads~1%7BuploadId%7D~1status"
+    },
+    "/api/v1/documents/{documentId}/upload-receipts/{receiptId}/version": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1%7BdocumentId%7D~1upload-receipts~1%7BreceiptId%7D~1version"
+    },
+    "/api/v1/dm/documents/{documentId}/upload-receipts/{receiptId}/version": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1%7BdocumentId%7D~1upload-receipts~1%7BreceiptId%7D~1version"
     }
   },
   "components": {

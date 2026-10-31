@@ -17,7 +17,7 @@ import tools.jackson.databind.DeserializationFeature;
 public final class GrantCatalog implements ResourceAuthorizationPort {
     public static final Set<String> ACTIONS = Set.of("document.create", "document.inspect-draft", "document.read",
         "document.update-metadata", "document.acl.restrict", "document.acl.delegate", "document.version.append",
-        "document.legal-hold.place", "document.legal-hold.inspect");
+        "document.legal-hold.place", "document.legal-hold.inspect", "document.content.review");
     private final Path path;
     private final TrustedAuthorityFiles files;
     private final JsonMapper json = JsonMapper.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();

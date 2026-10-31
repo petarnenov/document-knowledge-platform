@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "DKP-003 DM draft contract \u2014 proposed freeze",
-    "version": "0.1.0-draft",
-    "description": "Task52; draft specification only, not approval. Candidate actions pending CID-07; no production classification/retention acceptance. Uppercase errors/no-store; bodies<=16KiB. No upload/content/publish/purge/hold-release. Receipt authority unavailable until BP-03 RustFS."
+    "title": "DKP document management and verified uploads",
+    "version": "0.2.0",
+    "description": "Approved BP02 metadata and BP03 private RustFS upload boundary. Metadata bodies are limited to16KiB; binary transfers to100000000bytes. Verified upload completion creates no version. Explicit append consumes an immutable receipt and preserves the active pointer. No publication, processing handoff or production policy approval."
   },
   "paths": {
     "/api/v1/documents": {
@@ -913,7 +913,7 @@
       "get": {
         "operationId": "dmInspectDraftAcl",
         "summary": "InspectDraftAcl",
-        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.",
+        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.",
         "security": [
           {
             "BearerAuth": []
@@ -1127,7 +1127,7 @@
       "patch": {
         "operationId": "dmChangeAcl",
         "summary": "ChangeAcl",
-        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.",
+        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.",
         "security": [
           {
             "BearerAuth": []
@@ -1578,7 +1578,7 @@
       "post": {
         "operationId": "dmPlaceHold",
         "summary": "PlaceHold",
-        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.",
+        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.",
         "security": [
           {
             "BearerAuth": []
@@ -1814,23 +1814,14 @@
     "/api/v1/documents/{documentId}/versions": {
       "post": {
         "operationId": "dmAppendVersion",
-        "summary": "AppendVersion",
-        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.",
+        "summary": "dmAppendVerifiedVersion",
+        "description": "Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.",
         "security": [
           {
             "BearerAuth": []
           }
         ],
         "parameters": [
-          {
-            "name": "documentId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
           {
             "name": "X-DKP-Tenant",
             "in": "header",
@@ -1840,7 +1831,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "Untrusted selector independently checked against verified membership."
+            "description": "Selector independently checked against verified actor membership; BFF constructs it server-side."
           },
           {
             "name": "Idempotency-Key",
@@ -1852,171 +1843,18 @@
               "maxLength": 128,
               "pattern": "^[!-~]+$"
             }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
-          "503": {
-            "description": "Authority/dependency unavailable; catalog missing/malformed and BP-02 verified artifact port produce UNAVAILABLE, never stale allow.",
-            "headers": {
-              "Cache-Control": {
-                "schema": {
-                  "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "400 contract response; no provider diagnostics, content payload or unauthorized facts.",
-            "headers": {
-              "Cache-Control": {
-                "schema": {
-                  "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "401 contract response; no provider diagnostics, content payload or unauthorized facts.",
-            "headers": {
-              "Cache-Control": {
-                "schema": {
-                  "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Missing list/create/mutation operation grant before lookup, or DELEGATION_CEILING; never resource existence disclosure.",
-            "headers": {
-              "Cache-Control": {
-                "schema": {
-                  "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Inspection route action absent before lookup, or document absent/ACL denied; indistinguishable resource-hidden response.",
-            "headers": {
-              "Cache-Control": {
-                "schema": {
-                  "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "409 contract response; no provider diagnostics, content payload or unauthorized facts.",
-            "headers": {
-              "Cache-Control": {
-                "schema": {
-                  "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "413 contract response; no provider diagnostics, content payload or unauthorized facts.",
-            "headers": {
-              "Cache-Control": {
-                "schema": {
-                  "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "415 contract response; no provider diagnostics, content payload or unauthorized facts.",
-            "headers": {
-              "Cache-Control": {
-                "schema": {
-                  "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Semantic rejection including DUPLICATE_ACL_CHANGE, RESTRICT_SCOPE, TARGET_NOT_GRANTABLE or ACL_RULE_LIMIT; no partial write.",
-            "headers": {
-              "Cache-Control": {
-                "schema": {
-                  "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "201": {
             "description": "FUTURE BP-03 only; BP-02 runtime MUST return503 UNAVAILABLE after authorization, never201 until verified RustFS receipt authority exists.",
             "headers": {
@@ -2030,6 +1868,186 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CommandReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
                 }
               }
             }
@@ -2948,7 +2966,7 @@
       "get": {
         "operationId": "bffInspectDraftAcl",
         "summary": "InspectDraftAcl",
-        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft.",
+        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Route action: document.inspect-draft. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.",
         "security": [
           {
             "SessionCookie": []
@@ -3151,7 +3169,7 @@
       "patch": {
         "operationId": "bffChangeAcl",
         "summary": "ChangeAcl",
-        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE.",
+        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.acl.restrict for RESTRICT or document.acl.delegate for DELEGATE. BP03 additive Action enum includes document.content.review, with unchanged explicit RESTRICT/DELEGATE target+ceiling semantics and no implicit grant.",
         "security": [
           {
             "SessionCookie": []
@@ -3599,7 +3617,7 @@
       "post": {
         "operationId": "bffPlaceHold",
         "summary": "PlaceHold",
-        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place.",
+        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires current explicit operation authority and existing-resource DM ACL; no implicit ownership. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.legal-hold.place. BP03 decision100 proposal: existing current authorization/replay applies first; new hold in same documentUoW with unresolved durable deletion fence returns existing503 UNAVAILABLE without mutation. Authorized existing samecommand201replay unchanged; holdfirst blocks deletion dispatch.",
         "security": [
           {
             "SessionCookie": []
@@ -3843,14 +3861,25 @@
     "/api/v1/dm/documents/{documentId}/versions": {
       "post": {
         "operationId": "bffAppendVersion",
-        "summary": "AppendVersion",
-        "description": "Authorization order: BP-01 membership; load catalog (unavailable/malformed503); missing route action gives403 for list/create/mutation or404 for detail/ACL/hold GET before lookup; missing document/no ACL ALLOW/explicit DENY404; stale revision409 only after authorization. Requires version.append authority+ACL. Runtime verified-artifact authority unavailable until BP-03 RustFS;503 and no version persisted. Browser cannot supply trusted hash/MIME/storage pointers. Successful command body exactly {documentId,revision}; no inspection-only facts. Replay rechecks current original-operation authority+ACL (create catalog only), never inspection. Self-revoked ACL replay404. Route action: document.version.append.",
+        "summary": "dmAppendVerifiedVersion",
+        "description": "Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser. Existing BP02 path/method/operationId/AppendVersion request DTO and201 CommandReceipt are unchanged. BP03 explicitly adds typed UploadError failures/429 admission semantics; these are upload-specific failure contract additions, not a claim the whole operation is identical.",
         "security": [
           {
             "SessionCookie": []
           }
         ],
         "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[!-~]+$"
+            }
+          },
           {
             "name": "documentId",
             "in": "path",
@@ -3860,6 +3889,1414 @@
               "format": "uuid"
             }
           },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 2048
+            },
+            "description": "Must exactly match configured portal origin; absent/null/multiple/foreign rejected."
+          },
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "FUTURE BP-03 only; BP-02 runtime MUST return503 UNAVAILABLE after authorization, never201 until verified RustFS receipt authority exists.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendVersion"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/uploads": {
+      "post": {
+        "operationId": "dmInitializeUpload",
+        "summary": "dmInitializeUpload",
+        "description": "Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-DKP-Tenant",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "description": "Selector independently checked against verified actor membership; BFF constructs it server-side."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[!-~]+$"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "One admitted slot only; no version or processing acceptance.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSlotReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadInit"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/uploads/{uploadId}/content": {
+      "put": {
+        "operationId": "dmTransferUpload",
+        "summary": "dmTransferUpload",
+        "description": "Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-DKP-Tenant",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "description": "Selector independently checked against verified actor membership; BFF constructs it server-side."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[!-~]+$"
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bytes durably quarantined only; no scan/receipt/version claim.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSlotReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "Raw bytes1..100000000; streamed count must equal admitted size. SHA256 server-computed. No multipart, caller key, URL or MIME authority. Content-Length when present must equal admitted size; absent length is bounded while streaming.",
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "minLength": 1,
+                "maxLength": 100000000
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/uploads/{uploadId}/complete": {
+      "post": {
+        "operationId": "dmCompleteUpload",
+        "summary": "dmCompleteUpload",
+        "description": "Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-DKP-Tenant",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "description": "Selector independently checked against verified actor membership; BFF constructs it server-side."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[!-~]+$"
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Real inspection and standard malware scan passed; durable opaque receipt only. No version or202 processing state.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadCompleteReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{documentId}/versions/{versionId}/content": {
+      "get": {
+        "operationId": "dmDownloadVersionOriginal",
+        "summary": "dmDownloadVersionOriginal",
+        "description": "Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-DKP-Tenant",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "description": "Selector independently checked against verified actor membership; BFF constructs it server-side."
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Optional one bytes=start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized original attachment;200 entire object or206 exactly one validated byte interval. Never active inline content.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Content-Disposition": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<server-version-uuid>.<canonical-extension>\" only; no caller filename."
+              },
+              "X-Content-Type-Options": {
+                "required": true,
+                "schema": {
+                  "const": "nosniff",
+                  "type": "string"
+                }
+              },
+              "Accept-Ranges": {
+                "schema": {
+                  "const": "bytes",
+                  "type": "string"
+                }
+              },
+              "Content-Length": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000000
+                }
+              }
+            },
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Authorized original attachment;200 entire object or206 exactly one validated byte interval. Never active inline content.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Content-Disposition": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<server-version-uuid>.<canonical-extension>\" only; no caller filename."
+              },
+              "X-Content-Type-Options": {
+                "required": true,
+                "schema": {
+                  "const": "nosniff",
+                  "type": "string"
+                }
+              },
+              "Accept-Ranges": {
+                "schema": {
+                  "const": "bytes",
+                  "type": "string"
+                }
+              },
+              "Content-Length": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000000
+                }
+              },
+              "Content-Range": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^bytes [0-9]+-[0-9]+/[0-9]+$"
+                }
+              }
+            },
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              }
+            }
+          },
+          "416": {
+            "description": "Invalid, multiple or unsatisfiable range; only after current authorization. Content-Range bytes */size allowed only after authorization.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Content-Range": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^bytes \\*/[0-9]+$"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dm/documents/uploads": {
+      "post": {
+        "operationId": "bffInitializeUpload",
+        "summary": "dmInitializeUpload",
+        "description": "Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
           {
             "name": "Idempotency-Key",
             "in": "header",
@@ -3877,8 +5314,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "format": "uri"
-            }
+              "format": "uri",
+              "maxLength": 2048
+            },
+            "description": "Must exactly match configured portal origin; absent/null/multiple/foreign rejected."
           },
           {
             "name": "X-CSRF-TOKEN",
@@ -3887,178 +5326,179 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 512
+              "maxLength": 256
             }
           }
         ],
         "responses": {
-          "503": {
-            "description": "Authority/dependency unavailable; catalog missing/malformed and BP-02 verified artifact port produce UNAVAILABLE, never stale allow.",
+          "201": {
+            "description": "One admitted slot only; no version or processing acceptance.",
             "headers": {
               "Cache-Control": {
                 "schema": {
+                  "type": "string",
                   "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
+                }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UploadSlotReceipt"
                 }
               }
             }
           },
           "400": {
-            "description": "400 contract response; no provider diagnostics, content payload or unauthorized facts.",
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
             "headers": {
               "Cache-Control": {
                 "schema": {
+                  "type": "string",
                   "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
+                }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UploadError"
                 }
               }
             }
           },
           "401": {
-            "description": "401 contract response; no provider diagnostics, content payload or unauthorized facts.",
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
             "headers": {
               "Cache-Control": {
                 "schema": {
+                  "type": "string",
                   "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
+                }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UploadError"
                 }
               }
             }
           },
           "403": {
-            "description": "Missing list/create/mutation operation grant before lookup, or DELEGATION_CEILING; never resource existence disclosure.",
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
             "headers": {
               "Cache-Control": {
                 "schema": {
+                  "type": "string",
                   "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
+                }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UploadError"
                 }
               }
             }
           },
           "404": {
-            "description": "Inspection route action absent before lookup, or document absent/ACL denied; indistinguishable resource-hidden response.",
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
             "headers": {
               "Cache-Control": {
                 "schema": {
+                  "type": "string",
                   "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
+                }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UploadError"
                 }
               }
             }
           },
           "409": {
-            "description": "409 contract response; no provider diagnostics, content payload or unauthorized facts.",
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
             "headers": {
               "Cache-Control": {
                 "schema": {
+                  "type": "string",
                   "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
+                }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UploadError"
                 }
               }
             }
           },
           "413": {
-            "description": "413 contract response; no provider diagnostics, content payload or unauthorized facts.",
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
             "headers": {
               "Cache-Control": {
                 "schema": {
+                  "type": "string",
                   "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
+                }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UploadError"
                 }
               }
             }
           },
           "415": {
-            "description": "415 contract response; no provider diagnostics, content payload or unauthorized facts.",
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
             "headers": {
               "Cache-Control": {
                 "schema": {
+                  "type": "string",
                   "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
+                }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UploadError"
                 }
               }
             }
           },
           "422": {
-            "description": "Semantic rejection including DUPLICATE_ACL_CHANGE, RESTRICT_SCOPE, TARGET_NOT_GRANTABLE or ACL_RULE_LIMIT; no partial write.",
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
             "headers": {
               "Cache-Control": {
                 "schema": {
+                  "type": "string",
                   "const": "no-store"
-                },
-                "description": "All identity/document responses are noncacheable."
+                }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UploadError"
                 }
               }
             }
           },
-          "201": {
-            "description": "FUTURE BP-03 only; BP-02 runtime MUST return503 UNAVAILABLE after authorization, never201 until verified RustFS receipt authority exists.",
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
             "headers": {
               "Cache-Control": {
                 "schema": {
+                  "type": "string",
                   "const": "no-store"
                 }
               }
@@ -4066,7 +5506,25 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CommandReceipt"
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
                 }
               }
             }
@@ -4077,7 +5535,1866 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AppendVersion"
+                "$ref": "#/components/schemas/UploadInit"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dm/documents/uploads/{uploadId}/content": {
+      "put": {
+        "operationId": "bffTransferUpload",
+        "summary": "dmTransferUpload",
+        "description": "Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[!-~]+$"
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 2048
+            },
+            "description": "Must exactly match configured portal origin; absent/null/multiple/foreign rejected."
+          },
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bytes durably quarantined only; no scan/receipt/version claim.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSlotReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "Raw bytes1..100000000; streamed count must equal admitted size. SHA256 server-computed. No multipart, caller key, URL or MIME authority. Content-Length when present must equal admitted size; absent length is bounded while streaming.",
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "minLength": 1,
+                "maxLength": 100000000
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dm/documents/uploads/{uploadId}/complete": {
+      "post": {
+        "operationId": "bffCompleteUpload",
+        "summary": "dmCompleteUpload",
+        "description": "Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[!-~]+$"
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 2048
+            },
+            "description": "Must exactly match configured portal origin; absent/null/multiple/foreign rejected."
+          },
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Real inspection and standard malware scan passed; durable opaque receipt only. No version or202 processing state.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadCompleteReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dm/documents/{documentId}/versions/{versionId}/content": {
+      "get": {
+        "operationId": "bffDownloadVersionOriginal",
+        "summary": "dmDownloadVersionOriginal",
+        "description": "Requires distinct document.content.review current catalog AND ACL, actor/membership and exact same-document version; missing action/resource/ACL404. Never document.read or inspect-draft. Published ordinary access not enabled. Full/range request rechecked immediately before first byte. No redirect/permanent/S3/signed URL; no quarantine or unverified original. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Optional one bytes=start-end/start-/ -suffix range; multiple ranges rejected416. Resolved response capped100000000bytes."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized original attachment;200 entire object or206 exactly one validated byte interval. Never active inline content.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Content-Disposition": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<server-version-uuid>.<canonical-extension>\" only; no caller filename."
+              },
+              "X-Content-Type-Options": {
+                "required": true,
+                "schema": {
+                  "const": "nosniff",
+                  "type": "string"
+                }
+              },
+              "Accept-Ranges": {
+                "schema": {
+                  "const": "bytes",
+                  "type": "string"
+                }
+              },
+              "Content-Length": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000000
+                }
+              }
+            },
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Authorized original attachment;200 entire object or206 exactly one validated byte interval. Never active inline content.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Content-Disposition": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<server-version-uuid>.<canonical-extension>\" only; no caller filename."
+              },
+              "X-Content-Type-Options": {
+                "required": true,
+                "schema": {
+                  "const": "nosniff",
+                  "type": "string"
+                }
+              },
+              "Accept-Ranges": {
+                "schema": {
+                  "const": "bytes",
+                  "type": "string"
+                }
+              },
+              "Content-Length": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000000
+                }
+              },
+              "Content-Range": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^bytes [0-9]+-[0-9]+/[0-9]+$"
+                }
+              }
+            },
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "maxLength": 100000000
+                }
+              }
+            }
+          },
+          "416": {
+            "description": "Invalid, multiple or unsatisfiable range; only after current authorization. Content-Range bytes */size allowed only after authorization.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Content-Range": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^bytes \\*/[0-9]+$"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/uploads/{uploadId}/status": {
+      "get": {
+        "operationId": "dmInspectUpload",
+        "summary": "dmInspectUpload",
+        "description": "Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-DKP-Tenant",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "description": "Selector independently checked against verified actor membership; BFF constructs it server-side."
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Actor-owned bounded upload state; no file metadata, inspection evidence or storage locator.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dm/documents/uploads/{uploadId}/status": {
+      "get": {
+        "operationId": "bffInspectUpload",
+        "summary": "dmInspectUpload",
+        "description": "Current verified membership then catalog (unavailable503). Upload/mutation missing action403 before resource lookup; status/content missing action404 before lookup. Missing document/ACL/slot ownership/version yields indistinguishable404. Reauthorize at final boundary and on replay. No tenant/object/key authority from browser. BFF fixed configured DM destination only, independently validated same actor/tenant, no redirects; guards every unsafe binary/JSON request before body forwarding. Server-held token never reaches browser.",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Actor-owned bounded upload state; no file metadata, inspection evidence or storage locator.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{documentId}/upload-receipts/{receiptId}/version": {
+      "get": {
+        "operationId": "dmResolveConsumedUploadVersion",
+        "summary": "Resolve the consumed version of an actor-owned upload receipt",
+        "description": "Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-DKP-Tenant",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "description": "Selector independently checked against verified actor membership; BFF constructs it server-side."
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exactly one actor-owned consumed-version mapping; no protected metadata/count/content facts beyond reviewed identifiers. Body<=1024bytes.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsumedVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dm/documents/{documentId}/upload-receipts/{receiptId}/version": {
+      "get": {
+        "operationId": "bffResolveConsumedUploadVersion",
+        "summary": "Resolve the consumed version of an actor-owned upload receipt",
+        "description": "Requires current document.content.review catalog AND same-action DM ACL, verified issuer/subject/tenant and exact actor-owned receipt/document/consumption binding. Missing route action404 BEFORE lookup; catalog unavailable503. Unknown, unconsumed, wrong actor/tenant/document receipt or ACL deny identical404. Recheck current authority and bound immutable consumption immediately before JSON response. No expiry gate after successful consumption; no list/count/hash/metadata/storage locator. No inspect-draft or ordinary read substitution. BFF fixed DM destination only; verified server session/current selected tenant, no redirects or arbitrary target; token remains server-side.",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exactly one actor-owned consumed-version mapping; no protected metadata/count/content facts beyond reviewed identifiers. Body<=1024bytes.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsumedVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "413 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "415 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "422 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 bounded safe error; no document/tenant/storage/provider diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadError"
+                }
               }
             }
           }
@@ -4130,7 +7447,8 @@
           "document.acl.delegate",
           "document.version.append",
           "document.legal-hold.place",
-          "document.legal-hold.inspect"
+          "document.legal-hold.inspect",
+          "document.content.review"
         ]
       },
       "Error": {
@@ -4515,8 +7833,7 @@
             "minimum": 0,
             "maximum": 9007199254740991
           }
-        },
-        "description": "Sole success body for every BP-02 mutation; no inspection-only facts. Replay requires current original-operation authority+ACL, create catalog only."
+        }
       },
       "AclChangeEntry": {
         "type": "object",
@@ -4541,6 +7858,179 @@
           },
           "action": {
             "$ref": "#/components/schemas/Action"
+          }
+        }
+      },
+      "UploadInit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "documentId",
+          "expectedRevision",
+          "format",
+          "sizeBytes"
+        ],
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "PDF",
+              "DOCX",
+              "PPTX",
+              "XLSX"
+            ]
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000
+          }
+        }
+      },
+      "UploadSlotReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "uploadId"
+        ],
+        "properties": {
+          "uploadId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "EmptyCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {}
+      },
+      "UploadCompleteReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "uploadId",
+          "receiptId"
+        ],
+        "properties": {
+          "uploadId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receiptId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "UploadStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "uploadId",
+          "state",
+          "expiresAt",
+          "failureCode"
+        ],
+        "properties": {
+          "uploadId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "INITIALIZED",
+              "RECEIVING",
+              "QUARANTINED",
+              "VERIFYING",
+              "VERIFIED",
+              "CONSUMED",
+              "REJECTED",
+              "EXPIRED"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "failureCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              null,
+              "INVALID_FILE",
+              "MALWARE_DETECTED",
+              "STRUCTURE_LIMIT",
+              "UNSUPPORTED_CONTENT",
+              "DEPENDENCY_UNAVAILABLE",
+              "UPLOAD_EXPIRED",
+              "TRANSFER_INCOMPLETE"
+            ]
+          }
+        }
+      },
+      "ConsumedVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "documentId",
+          "versionId"
+        ],
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "UploadError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "INVALID_REQUEST",
+              "UNAUTHENTICATED",
+              "TENANT_DENIED",
+              "OPERATION_DENIED",
+              "NOT_FOUND",
+              "REVISION_CONFLICT",
+              "IDEMPOTENCY_CONFLICT",
+              "UPLOAD_STATE_CONFLICT",
+              "RECEIPT_CONSUMED",
+              "UPLOAD_EXPIRED",
+              "PAYLOAD_TOO_LARGE",
+              "UNSUPPORTED_MEDIA_TYPE",
+              "SIZE_MISMATCH",
+              "INVALID_FILE",
+              "MALWARE_DETECTED",
+              "STRUCTURE_LIMIT",
+              "UNSUPPORTED_CONTENT",
+              "RANGE_NOT_SATISFIABLE",
+              "QUOTA_EXCEEDED",
+              "UNAVAILABLE"
+            ]
           }
         }
       }

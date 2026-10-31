@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, chmodSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { findAddress, main, readCredentials, redact, requirePrivateFile, runtimeArguments } from './identity-e2e.mjs';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import { findAddress, main, readCredentials, redact, requirePrivateFile, runtimeArguments, uploadProject } from './identity-e2e.mjs';
 
 test('reads only synthetic browser credentials without evaluating environment text', () => {
   assert.deepEqual(readCredentials('OIDC_CLIENT_SECRET=not-read\nDKP_TEST_USERNAME=tester\nDKP_TEST_PASSWORD=$(never-executed)\n'), { username: 'tester', password: '$(never-executed)' });
@@ -81,4 +83,80 @@ test('orchestrates fixed runtime inspection and passes credentials only to the b
     assert.throws(() => main({ securityDirectory: directory, execute: () => '', log: () => {} }), /Start the identity/);
     assert.throws(() => main({ securityDirectory: directory, execute: (args) => args[0] === 'compose' ? portalId : '[{}]', log: () => {} }), /one explicit/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+
+test('isolated upload runtime keeps strict origins and avoids the BP02 stack', () => {
+  assert.equal(uploadProject('DKP_TEST_USERNAME=tester\n'), 'dkp-bp03');
+  assert.equal(uploadProject('DKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\n'), 'dkp-bp03-012345abcdef');
+  for (const value of ['foreign', 'dkp-bp03-XYZ', 'dkp-bp03-012345abcdef;command']) assert.throws(() => uploadProject('DKP_UPLOAD_COMPOSE_PROJECT=' + value), /Invalid/);
+  assert.throws(() => uploadProject('DKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\nDKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef'), /Duplicate/);
+  const input = { portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca' };
+  assert.equal(runtimeArguments(input).some((v) => v.startsWith('DKP_UPLOAD_E2E_ENABLED=')), false);
+  assert.equal(runtimeArguments({ ...input, uploadRuntime: false }).some((v) => v.startsWith('DKP_UPLOAD_E2E_ENABLED=')), false);
+  assert.throws(() => runtimeArguments({ ...input, uploadRuntime: 'true' }), /boolean/);
+  const args = runtimeArguments({ ...input, portalPort: 19443, idpPort: 19444, uploadRuntime: true });
+  assert.ok(args.includes('DKP_UPLOAD_E2E_ENABLED=true'));
+  assert.ok(args.includes('DKP_IDENTITY_BASE_URL=https://localhost:19443'));
+  assert.ok(args.includes('DKP_IDENTITY_IDP_BASE_URL=https://idp.localhost:19444'));
+  for (const port of [0, 443, 65536, NaN, 1.2, '19443;command']) assert.throws(() => runtimeArguments({ portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca', portalPort: port }), /port/);
+  assert.throws(() => runtimeArguments({ portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca', portalPort: 19444, idpPort: 19444 }), /Distinct/);
+  const directory = mkdtempSync(join(tmpdir(), 'dkp-upload-e2e-'));
+  const calls = [];
+  try {
+    writeFileSync(join(directory, 'runtime.env'), 'DKP_TEST_USERNAME=tester\nDKP_TEST_PASSWORD=synthetic-password\nDKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\n', { mode: 0o600 });
+    writeFileSync(join(directory, 'ca.crt'), 'synthetic public certificate', { mode: 0o600 });
+    const combined = join(directory, 'combined.env');
+    writeFileSync(combined, 'DKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\nDKP_UPLOAD_STORAGE_ENDPOINT=https://rustfs:9000\n', { mode: 0o600 });
+    const execute = (arguments_, options) => {
+      calls.push({ args: arguments_, options });
+      if (arguments_[0] === 'compose') return arguments_.at(-1) === 'admin-portal' ? 'a'.repeat(64) : 'b'.repeat(64);
+      if (arguments_[0] === 'inspect') return JSON.stringify([{ NetworkSettings: { Networks: { dkp: { IPAddress: '172.20.0.4' } } } }]);
+      return '';
+    };
+    main({ uploadRuntime: true, securityDirectory: directory, runtimeEnvironmentFile: combined, execute, log: () => {} });
+    assert.ok(calls[0].args.includes(combined));
+    assert.ok(calls[0].args.includes('dkp-bp03-012345abcdef'));
+    assert.ok(calls[0].args.includes('infra/docker-compose/compose-upload.yaml'));
+    assert.ok(calls.at(-1).args.includes('DKP_IDENTITY_BASE_URL=https://localhost:19443'));
+    assert.ok(calls.at(-1).args.includes('DKP_UPLOAD_E2E_ENABLED=true'));
+    assert.equal(calls.at(-1).args.some((arg) => arg.includes('synthetic-password')), false);
+    writeFileSync(combined, 'DKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-fedcba543210\n');
+    assert.throws(() => main({ uploadRuntime: true, securityDirectory: directory, runtimeEnvironmentFile: combined, execute, log: () => {} }), /does not match/);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+
+test('built runner trust probe uses string URLs on the configured isolated ports', async () => {
+  const dockerfile = readFileSync(new URL('../../infra/docker-compose/identity-e2e.Dockerfile', import.meta.url), 'utf8');
+  const source = dockerfile.split("<<'TRUST'\n")[1].split('\nTRUST')[0]
+    .replace("import { chromium } from '@playwright/test';", 'const chromium = fakeChromium;');
+  const visited = [];
+  const page = { goto: async (url) => {
+    assert.equal(typeof url, 'string', 'Playwright requires a URL string');
+    visited.push(url);
+    if (url.startsWith('https://wrong-name.localhost:19443/')) throw new Error('ERR_CERT_COMMON_NAME_INVALID');
+    return { status: () => 200 };
+  } };
+  let closed = false;
+  const browser = { newContext: async (options) => {
+    assert.equal(options.ignoreHTTPSErrors, false);
+    return { newPage: async () => page };
+  }, close: async () => { closed = true; } };
+  const process = { env: { DKP_IDENTITY_BASE_URL: 'https://localhost:19443',
+    DKP_IDENTITY_IDP_BASE_URL: 'https://idp.localhost:19444', DKP_IDENTITY_IDP_ADDRESS: '172.20.0.4' } };
+  await vm.runInNewContext(`(async () => { ${source} })()`, {
+    URL, process, fakeChromium: { launch: async () => browser }, console: { log() {}, error() {} },
+  });
+  assert.equal(process.exitCode, undefined);
+  assert.deepEqual(visited, ['https://localhost:19443/',
+    'https://idp.localhost:19444/realms/dkp/.well-known/openid-configuration', 'https://wrong-name.localhost:19443/']);
+  assert.equal(closed, true);
+  const nodeProbe = dockerfile.match(/node --input-type=module -e '([^']+)'/)[1];
+  let fetched;
+  await vm.runInNewContext(`(async () => { ${nodeProbe} })()`, {
+    process: { ...process, exit: () => { throw new Error('unexpected failure'); } },
+    fetch: async (url) => { fetched = url; return { ok: true }; }, console,
+  });
+  assert.equal(fetched, 'https://localhost:19443');
 });
