@@ -1,0 +1,9 @@
+asyncapi: 3.0.0
+info:
+  title: Invalid validator fixture
+  version: 1.0.0
+operations:
+  broken:
+    action: not-an-action
+    channel:
+      $ref: '#/channels/missing'

@@ -1,0 +1,10 @@
+[versions]
+micronaut = "5.2.4"
+jacoco = "0.8.16"
+archunit = "1.5.1"
+jackson-sdk = "2.22.4"
+jakarta-annotation = "3.0.0"
+
+[libraries]
+micronaut-platform = { module = "io.micronaut.platform:micronaut-platform", version.ref = "micronaut" }
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }

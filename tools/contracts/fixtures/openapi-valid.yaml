@@ -1,0 +1,61 @@
+openapi: 3.1.0
+info:
+  title: DKP Operational Probes
+  version: 1.0.0
+  description: Minimal anonymous probes shared by all three independently deployed foundation services.
+servers:
+  - url: http://localhost:8080
+    description: Local service instance; clients override the base URL for each service.
+security: []
+tags:
+  - name: Operations
+    description: Non-sensitive process lifecycle probes.
+paths:
+  /health/liveness:
+    get:
+      operationId: getLiveness
+      tags: [Operations]
+      summary: Check process liveness
+      responses:
+        '200':
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthyStatus'
+  /health/readiness:
+    get:
+      operationId: getReadiness
+      tags: [Operations]
+      summary: Check whether this process accepts work
+      responses:
+        '200':
+          description: Process accepts work.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthyStatus'
+        '503':
+          description: Process does not accept work.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnavailableStatus'
+components:
+  schemas:
+    HealthyStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [UP]
+    UnavailableStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [DOWN]

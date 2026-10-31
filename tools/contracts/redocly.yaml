@@ -1,0 +1,6 @@
+extends:
+  - minimal
+rules:
+  no-unused-components: error
+  operation-operationId: error
+  operation-operationId-unique: error
