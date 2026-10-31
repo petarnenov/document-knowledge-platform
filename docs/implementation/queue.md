@@ -21,9 +21,9 @@ Package names and acceptance come from System Design §14; DKP identifiers below
 | Delivery | Blueprint | Outcome | Depends on | Status / authoritative evidence |
 |---|---|---|---|---|
 | [DKP-001 #33](https://github.com/petarnenov/document-knowledge-platform/issues/33) | BP-00 | Monorepo, independent builds, CI, OpenSpec, architecture/coverage/contract gates and SDK generation | None | Complete: PRs #2/#3 merged; canonical foundation specs and delivery record |
-| [DKP-002 #6](https://github.com/petarnenov/document-knowledge-platform/issues/6) | BP-01 | Standalone/external OIDC, trusted BFF, tenant context, default-deny identity/authorization ports and workload abstractions | BP-00 | In progress: approved specification; implementation, independent review and real HTTPS integration |
-| [DKP-003 #34](https://github.com/petarnenov/document-knowledge-platform/issues/34) | BP-02 | DM aggregates, immutable versions, ACL/retention and owned PostgreSQL migrations | BP-01 | Queued |
-| [DKP-004 #35](https://github.com/petarnenov/document-knowledge-platform/issues/35) | BP-03 | S3 quarantine/upload/scan and secured content access | BP-02 | Queued |
+| [DKP-002 #6](https://github.com/petarnenov/document-knowledge-platform/issues/6) | BP-01 | Standalone/external OIDC, trusted BFF, tenant context, default-deny identity/authorization ports and workload abstractions | BP-00 | Implementation integrated: PR #4 / 3f32dc5; all final-head checks passed; canonical archive/evidence integration #32 in progress |
+| [DKP-003 #34](https://github.com/petarnenov/document-knowledge-platform/issues/34) | BP-02 | DM aggregates, immutable versions, ACL/retention and owned PostgreSQL migrations | BP-01 | Specification preparation #50; runtime implementation awaits reviewed approval |
+| [DKP-004 #35](https://github.com/petarnenov/document-knowledge-platform/issues/35) | BP-03 | RustFS S3-compatible quarantine/upload/scan and secured content access | BP-02 | Queued; owner selected RustFS as first object store (#53) |
 | [DKP-005 #36](https://github.com/petarnenov/document-knowledge-platform/issues/36) | BP-04 | KB collections, audiences, memberships and policy revisions | BP-01/BP-02 | Queued |
 | [DKP-006 #37](https://github.com/petarnenov/document-knowledge-platform/issues/37) | BP-05 | Durable processing intent, Temporal dispatch and transactional Kafka outbox | BP-02/BP-03 | Queued |
 | [DKP-007 #38](https://github.com/petarnenov/document-knowledge-platform/issues/38) | BP-06 | Isolated Docling parsing and versioned source artifacts | BP-03/BP-05 | Queued |
