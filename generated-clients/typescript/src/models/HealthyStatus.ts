@@ -1,8 +1,8 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
- * DKP Operational Probes
- * Minimal anonymous probes shared by all three independently deployed foundation services.
+ * DKP Versioned API Clients
+ * Aggregate for deterministic client generation; per-runtime published contracts remain separate.
  *
  * The version of the OpenAPI document: 1.0.0
  *

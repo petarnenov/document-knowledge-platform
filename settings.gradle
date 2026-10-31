@@ -1,6 +1,6 @@
 rootProject.name = 'document-knowledge-platform'
 
-def services = ['document-management', 'knowledge-base', 'knowledge-search']
+def services = ['document-management', 'knowledge-base', 'knowledge-search', 'browser-bff']
 services.each { service ->
     ['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap'].each { layer ->
         include ":services:${service}:${layer}"
@@ -8,3 +8,6 @@ services.each { service ->
 }
 include 'architecture-tests'
 include 'generated-clients:java'
+
+include 'modules:identity-contracts'
+include 'modules:security-micronaut'

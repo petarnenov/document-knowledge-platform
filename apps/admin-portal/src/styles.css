@@ -377,3 +377,58 @@ footer {
     line-height: 1.8;
   }
 }
+
+.identity-details {
+  display: grid;
+  grid-template-columns: minmax(110px, 150px) minmax(0, 1fr);
+  gap: 12px 18px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.identity-details dt {
+  color: var(--muted);
+}
+.identity-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.tenant-form,
+.context-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 22px;
+}
+.tenant-form label {
+  font-size: 13px;
+}
+.tenant-form select,
+.identity-button {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 11px 14px;
+  max-width: 100%;
+}
+.identity-button {
+  cursor: pointer;
+}
+.identity-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.identity-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.identity-error {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.8;
+}

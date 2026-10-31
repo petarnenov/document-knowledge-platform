@@ -8,35 +8,35 @@
 
 ## 2. Identity contracts and domain API enforcement
 
-- [ ] 2.1 Security owner: add immutable technical identity/authority contracts and deny/unavailable resource/workload ports with tests.
-- [ ] 2.2 Security owner: implement framework-backed strict JWT/JWK policies, bounded JWKS behavior and issuer-bound membership; test all claim, rotation and outage cases.
-- [ ] 2.3 Security owner: integrate all three APIs with independent tenant selection and safe security-context DTO; HTTP-test direct bypass and tenant negatives.
-- [ ] 2.4 Security owner: extend Gradle/architecture coverage for four services and narrow technical-module exceptions, including negative boundary fixtures and ≥75% changed-source coverage.
+- [x] 2.1 Security owner: add immutable technical identity/authority contracts and deny/unavailable resource/workload ports with tests.
+- [x] 2.2 Security owner: implement framework-backed strict JWT/JWK policies, bounded JWKS behavior and issuer-bound membership; test all claim, rotation and outage cases.
+- [x] 2.3 Security owner: integrate all three APIs with independent tenant selection and safe security-context DTO; HTTP-test direct bypass and tenant negatives.
+- [x] 2.4 Security owner: extend Gradle/architecture coverage for four services and narrow technical-module exceptions, including negative boundary fixtures and ≥75% changed-source coverage.
 
 ## 3. Browser BFF
 
-- [ ] 3.1 BFF owner: create five independent layers, framework confidential OIDC S256 login and server token custody; test protocol tampering and no authenticated session on failure.
-- [ ] 3.2 BFF owner: implement constrained cookie/session lifetime, rotation, safe session DTO and local-only logout with lifecycle tests.
-- [ ] 3.3 BFF owner: enforce CSRF and exact Origin on every accepted unsafe request type, deny alternate mutation routes and test state preservation.
-- [ ] 3.4 BFF owner: implement fixed context delegation, stripping/validation/timeout/response limits; test SSRF, redirect and forged authority cases with ≥75% coverage.
+- [x] 3.1 BFF owner: create five independent layers, framework confidential OIDC S256 login and server token custody; test protocol tampering and no authenticated session on failure.
+- [x] 3.2 BFF owner: implement constrained cookie/session lifetime, rotation, safe session DTO and local-only logout with lifecycle tests.
+- [x] 3.3 BFF owner: enforce CSRF and exact Origin on every accepted unsafe request type, deny alternate mutation routes and test state preservation.
+- [x] 3.4 BFF owner: implement fixed context delegation, stripping/validation/timeout/response limits; test SSRF, redirect and forged authority cases with ≥75% coverage.
 
 ## 4. Portal and versioned contracts
 
-- [ ] 4.1 Root: publish OpenAPI identity contracts and regenerate checked Java/TypeScript SDKs; validate compatibility and deterministic generation.
-- [ ] 4.2 Portal owner: implement same-origin login/session/tenant/context/logout UI, accessible failures and real identity states; use contract types without browser token storage.
-- [ ] 4.3 Portal owner: add component and browser tests for identity lifecycle, expiry/denial/unavailability and existing navigation/theme regression; meet ≥75% coverage.
+- [x] 4.1 Root: publish OpenAPI identity contracts and regenerate checked Java/TypeScript SDKs; validate compatibility and deterministic generation.
+- [x] 4.2 Portal owner: implement same-origin login/session/tenant/context/logout UI, accessible failures and real identity states; use contract types without browser token storage.
+- [x] 4.3 Portal owner: add component and browser tests for identity lifecycle, expiry/denial/unavailability and existing navigation/theme regression; meet ≥75% coverage.
 
 ## 5. Real local identity runtime
 
-- [ ] 5.1 Root: pin Keycloak image digest and add secret-free realm template with exact issuer/client/audiences, admin-only tenant mapping, fixed token lifespan and callback/origin restrictions.
-- [ ] 5.2 Root: implement/test ignored local security bootstrap, restrictive permissions, dedicated CA trust and idempotency without secret output or global trust changes.
-- [ ] 5.3 Root: wire HTTPS portal/BFF/IdP and three APIs into hardened Compose; document ephemeral single-BFF session and production/workload gates.
-- [ ] 5.4 Root: run real Keycloak HTTPS Playwright login → tenant select → all contexts → logout E2E plus runtime security/probe checks; preserve failure evidence and fix defects.
+- [x] 5.1 Root: pin Keycloak image digest and add secret-free realm template with exact issuer/client/audiences, admin-only tenant mapping, fixed token lifespan and callback/origin restrictions.
+- [x] 5.2 Root: implement/test ignored local security bootstrap, restrictive permissions, dedicated CA trust and idempotency without secret output or global trust changes.
+- [x] 5.3 Root: wire HTTPS portal/BFF/IdP and three APIs into hardened Compose; document ephemeral single-BFF session and production/workload gates.
+- [x] 5.4 Root: run real Keycloak HTTPS Playwright login → tenant select → all contexts → logout E2E plus runtime security/probe checks; preserve failure evidence and fix defects.
 
 ## 6. Verification and delivery
 
-- [ ] 6.1 Root: update pinned CI for four services, contracts, architecture, portal, real identity E2E, coverage, supply-chain/secret scans and runtime checks.
-- [ ] 6.2 Root: execute affected gates and record exact commands/results/coverage with no skipped acceptance evidence; audit every requirement/scenario against tests.
-- [ ] 6.3 Independent implementation reviewer: review final diff, security boundaries, tests and acceptance evidence; root resolves and retests findings.
+- [x] 6.1 Root: update pinned CI for four services, contracts, architecture, portal, real identity E2E, coverage, supply-chain/secret scans and runtime checks.
+- [x] 6.2 Root: execute affected gates and record exact commands/results/coverage with no skipped acceptance evidence; audit every requirement/scenario against tests.
+- [x] 6.3 Independent implementation reviewer: review final diff, security boundaries, tests and acceptance evidence; root resolves and retests findings.
 - [ ] 6.4 Root: open PR targeting dev with evidence and rollback plan, run required CI; automatically merge into dev only after independent review and all required checks pass.
 - [ ] 6.5 Root: publish completion/gate status, archive after reviewed integration, and continue independent ready full-project work with 15-minute status reports.

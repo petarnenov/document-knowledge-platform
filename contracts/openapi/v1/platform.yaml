@@ -1,0 +1,87 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DKP Versioned API Clients",
+    "version": "1.0.0",
+    "description": "Aggregate for deterministic client generation; per-runtime published contracts remain separate."
+  },
+  "servers": [
+    {
+      "url": "https://localhost:18443",
+      "description": "Override the client base URL for each runtime."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Identity",
+      "description": "Verified identity and session lifecycle."
+    },
+    {
+      "name": "Operations",
+      "description": "Minimal process lifecycle probes."
+    }
+  ],
+  "paths": {
+    "/api/v1/session": {
+      "$ref": "./identity.yaml#/paths/~1api~1v1~1session"
+    },
+    "/api/v1/session/tenant": {
+      "$ref": "./identity.yaml#/paths/~1api~1v1~1session~1tenant"
+    },
+    "/api/v1/session/logout": {
+      "$ref": "./identity.yaml#/paths/~1api~1v1~1session~1logout"
+    },
+    "/api/v1/security/context/{service}": {
+      "$ref": "./identity.yaml#/paths/~1api~1v1~1security~1context~1%7Bservice%7D"
+    },
+    "/api/v1/security/context": {
+      "$ref": "./identity.yaml#/paths/~1api~1v1~1security~1context"
+    },
+    "/health/liveness": {
+      "$ref": "./operational.yaml#/paths/~1health~1liveness"
+    },
+    "/health/readiness": {
+      "$ref": "./operational.yaml#/paths/~1health~1readiness"
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-DKP-SESSION",
+        "description": "Opaque Secure HttpOnly host-only server session; never a bearer token."
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Strict per-service issuer, audience, authorized party and signature validation."
+      }
+    },
+    "schemas": {
+      "BrowserSession": {
+        "$ref": "./identity.yaml#/components/schemas/BrowserSession"
+      },
+      "TenantSelection": {
+        "$ref": "./identity.yaml#/components/schemas/TenantSelection"
+      },
+      "LogoutRequest": {
+        "$ref": "./identity.yaml#/components/schemas/LogoutRequest"
+      },
+      "SecurityContext": {
+        "$ref": "./identity.yaml#/components/schemas/SecurityContext"
+      },
+      "SecurityError": {
+        "$ref": "./identity.yaml#/components/schemas/SecurityError"
+      },
+      "HealthyStatus": {
+        "$ref": "./operational.yaml#/components/schemas/HealthyStatus"
+      },
+      "UnavailableStatus": {
+        "$ref": "./operational.yaml#/components/schemas/UnavailableStatus"
+      }
+    }
+  },
+  "security": []
+}

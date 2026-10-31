@@ -24,3 +24,13 @@ Frontend, validation and test-tool exact versions and any compatibility-driven s
 The initial pinned dependency scan found [basic-ftp GHSA-c475-qrg2-pj4r](https://github.com/advisories/GHSA-c475-qrg2-pj4r), [glob GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) and [minimatch GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249). The latest npm OpenAPI generator wrapper still brought affected FTP/proxy and glob dependencies; replacing this wrapper with the checksum-verified, pinned Java generator removes those unused paths entirely.
 
 There is no patched minimatch 3.x or 10.x release for the reported advisory. Four exact parent-specific overrides select minimatch 11.0.1 for ESLint, its config-array dependency, TypeScript ESTree and Spectral core. ESLint/ESTree already consume the named API; actual lint is a compatibility gate. Spectral 1.24.0 used the older callable default API, so its one matching helper has a versioned pnpm patch adapting that import and invocation to the named API. `pnpm dependencies:test` verifies positive and negative basename/recursive source matching; contract valid/invalid fixtures remain a separate integration gate. This is not a blanket cross-major override. Reassess/remove overrides and the patch when maintained parent releases adopt fixed dependencies.
+
+## BP-01 identity selections (2026-10-31)
+
+| Selection | Pin | Authority / compatibility |
+|---|---|---|
+| Micronaut Security / Session | 5.4.1 / 5.2.0 | Exact versions managed by [platform 5.2.4](https://repo.maven.apache.org/maven2/io/micronaut/platform/micronaut-platform/5.2.4/micronaut-platform-5.2.4.pom); inspected exact published sources and tested extension hooks |
+| Standalone Keycloak | 26.8.1, OCI index `sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332` | [Official release](https://www.keycloak.org/2026/10/keycloak-2681-released); registry-resolved multi-architecture digest in keycloak.Dockerfile |
+| Python source coverage | 7.17.0 | [Official PyPI metadata](https://pypi.org/project/coverage/7.17.0/), isolated runtime verification tooling |
+
+Identity versions are standalone/local implementation selections, not acceptance of production trust configuration. Version locks, negative HTTP tests, real-provider HTTPS browser tests and supply-chain scans remain required acceptance evidence.

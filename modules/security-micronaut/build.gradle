@@ -1,0 +1,23 @@
+dependencies {
+    testImplementation platform(rootProject.libs.micronaut.platform)
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+tasks.named('test') { finalizedBy 'jacocoTestReport' }
+tasks.named('jacocoTestReport') { reports { xml.required = true; html.required = true } }
+tasks.named('jacocoTestCoverageVerification') {
+    dependsOn 'test'
+    violationRules { rule { limit { counter = 'LINE'; minimum = 0.75 }; limit { counter = 'BRANCH'; minimum = 0.75 } } }
+}
+tasks.named('check') { dependsOn 'jacocoTestCoverageVerification' }
+
+dependencies {
+    annotationProcessor platform(rootProject.libs.micronaut.platform)
+    annotationProcessor 'io.micronaut:micronaut-inject-java'
+    api platform(rootProject.libs.micronaut.platform)
+    api project(':modules:identity-contracts')
+    api 'io.micronaut.security:micronaut-security-jwt'
+    implementation 'io.micronaut:micronaut-http-client'
+    implementation 'io.micronaut:micronaut-http-server'
+    implementation 'io.projectreactor:reactor-core'
+}

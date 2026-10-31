@@ -17,7 +17,7 @@ Package names and acceptance come from System Design §14; DKP identifiers below
 | Delivery | Blueprint | Outcome | Depends on | Status / authoritative evidence |
 |---|---|---|---|---|
 | DKP-001 | BP-00 | Monorepo, independent builds, CI, OpenSpec, architecture/coverage/contract gates and SDK generation | None | Complete: PRs #2/#3 merged; canonical foundation specs and delivery record |
-| DKP-002 | BP-01 | Standalone/external OIDC, trusted BFF, tenant context, default-deny identity/authorization ports and workload abstractions | BP-00 | In progress: specification preparation |
+| DKP-002 | BP-01 | Standalone/external OIDC, trusted BFF, tenant context, default-deny identity/authorization ports and workload abstractions | BP-00 | In progress: approved specification; implementation, independent review and real HTTPS integration |
 | DKP-003 | BP-02 | DM aggregates, immutable versions, ACL/retention and owned PostgreSQL migrations | BP-01 | Queued |
 | DKP-004 | BP-03 | S3 quarantine/upload/scan and secured content access | BP-02 | Queued |
 | DKP-005 | BP-04 | KB collections, audiences, memberships and policy revisions | BP-01/BP-02 | Queued |

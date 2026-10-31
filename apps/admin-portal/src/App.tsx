@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, NavLink, Route, Routes } from 'react-router-dom';
+import { Identity } from './Identity';
 
 export function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -42,6 +43,7 @@ export function App() {
               Overview
             </NavLink>
             <NavLink to="/foundation">Foundation</NavLink>
+            <NavLink to="/identity">Workspace access</NavLink>
           </nav>
           <p className="sidebar-note">
             Built around clear boundaries.
@@ -53,6 +55,7 @@ export function App() {
           <Routes>
             <Route path="/" element={<Overview />} />
             <Route path="/foundation" element={<Foundation />} />
+            <Route path="/identity" element={<Identity />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
@@ -149,15 +152,18 @@ function Foundation() {
           <li>Independent domain ownership and releases.</li>
           <li>Inward dependencies with clear ports and adapters.</li>
           <li>Versioned contracts and repeatable quality checks.</li>
-          <li>Tenant-scoped access enforced by future backend capabilities.</li>
+          <li>
+            Identity and tenant context independently verified by backend
+            services.
+          </li>
         </ul>
       </section>
       <section className="info-card" aria-labelledby="scope-title">
         <h2 id="scope-title">What you can do here</h2>
         <p>
-          Navigate the shell and choose a display theme. Uploading, searching,
-          publishing and administering permissions are not available in this
-          foundation.
+          Navigate the shell, choose a display theme and verify your workspace
+          access. Uploading, searching, publishing and administering permissions
+          are not available in this foundation.
         </p>
       </section>
     </>

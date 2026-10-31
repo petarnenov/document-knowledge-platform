@@ -5,14 +5,16 @@ plugins { id 'base' }
 group = 'org.documentknowledge'
 version = '0.1.0-SNAPSHOT'
 
-def serviceNames = ['document-management', 'knowledge-base', 'knowledge-search']
+def serviceNames = ['document-management', 'knowledge-base', 'knowledge-search', 'browser-bff']
 def layerNames = ['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap']
 
 subprojects {
-    if (name in layerNames || name == 'architecture-tests') {
+    if (name in layerNames || name in ['architecture-tests', 'identity-contracts', 'security-micronaut']) {
         apply plugin: 'java-library'
         apply plugin: 'jacoco'
-        group = rootProject.group
+        // Gradle resolves components by group/name/version, so repeated layer names
+        // need service-specific coordinates to preserve every independent service.
+        group = name in layerNames ? "${rootProject.group}.${parent.name.replace('-', '')}" : rootProject.group
         version = rootProject.version
         repositories { mavenCentral() }
         java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
@@ -62,7 +64,32 @@ serviceNames.each { service ->
             annotationProcessor 'io.micronaut:micronaut-inject-java'
             implementation platform(rootProject.libs.micronaut.platform)
             implementation 'io.micronaut:micronaut-http'
+            implementation 'io.micronaut.security:micronaut-security'
+            implementation project(':modules:identity-contracts')
+            if (service != 'browser-bff') implementation project(':modules:security-micronaut')
             implementation 'jakarta.inject:jakarta.inject-api'
+        }
+    }
+    if (service == 'browser-bff') {
+        ['adapters-in', 'adapters-out'].each { layer ->
+            project("${base}:${layer}") {
+                dependencies {
+                    annotationProcessor platform(rootProject.libs.micronaut.platform)
+                    annotationProcessor 'io.micronaut:micronaut-inject-java'
+                    implementation platform(rootProject.libs.micronaut.platform)
+                    implementation 'jakarta.inject:jakarta.inject-api'
+                    implementation 'io.micronaut:micronaut-jackson-databind'
+                }
+            }
+        }
+        project("${base}:adapters-in") {
+            dependencies {
+                implementation 'io.micronaut.security:micronaut-security-oauth2'
+                implementation 'io.micronaut.security:micronaut-security-session'
+                implementation 'io.micronaut.security:micronaut-security-csrf'
+                implementation 'io.micronaut.session:micronaut-session'
+                implementation 'io.projectreactor:reactor-core'
+            }
         }
     }
     project("${base}:bootstrap") {
@@ -77,9 +104,26 @@ serviceNames.each { service ->
             implementation 'io.micronaut:micronaut-runtime'
             implementation 'io.micronaut:micronaut-http-server-netty'
             implementation 'io.micronaut:micronaut-jackson-databind'
+            implementation 'io.micronaut:micronaut-http-client'
+            implementation 'io.micronaut.security:micronaut-security-jwt'
+            implementation project(':modules:identity-contracts')
+            if (service != 'browser-bff') implementation project(':modules:security-micronaut')
+            if (service == 'browser-bff') {
+                implementation 'io.micronaut.security:micronaut-security-oauth2'
+                implementation 'io.micronaut.security:micronaut-security-session'
+                implementation 'io.micronaut.security:micronaut-security-csrf'
+                implementation 'io.micronaut.session:micronaut-session'
+                testImplementation 'io.micronaut.security:micronaut-security-oauth2'
+                testImplementation 'io.micronaut.security:micronaut-security-session'
+                testImplementation 'io.micronaut.security:micronaut-security-csrf'
+                testImplementation 'io.micronaut.session:micronaut-session'
+            }
             runtimeOnly 'ch.qos.logback:logback-classic'
+            testAnnotationProcessor platform(rootProject.libs.micronaut.platform)
+            testAnnotationProcessor 'io.micronaut:micronaut-inject-java'
             testImplementation platform(rootProject.libs.micronaut.platform)
             testImplementation 'org.junit.jupiter:junit-jupiter'
+            testImplementation 'io.projectreactor:reactor-core'
             testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
         }
         application {
@@ -114,6 +158,8 @@ serviceNames.each { service ->
 // Validate project declarations as well as compiled class dependencies.
 def allowedLayerDependency = { String from, String target ->
     def f = from.tokenize(':'); def t = target.tokenize(':')
+    if (target == ':modules:identity-contracts') return from.startsWith(':services:') || from == ':modules:security-micronaut'
+    if (target == ':modules:security-micronaut') return f.size() == 3 && f[0] == 'services' && f[2] in ['adapters-in', 'adapters-out', 'bootstrap']
     if (f.size() != 3 || t.size() != 3 || f[0] != 'services' || t[0] != 'services') return false
     if (f[1] != t[1]) return false
     def allowed = [domain: [], application: ['domain'], 'adapters-in': ['application', 'domain'],
@@ -132,7 +178,10 @@ tasks.register('architectureDependencyTest') {
         assert !allowedLayerDependency(':services:document-management:domain', ':services:document-management:bootstrap')
         assert !allowedLayerDependency(':services:document-management:application', ':services:document-management:adapters-in')
         assert !allowedLayerDependency(':services:document-management:bootstrap', ':services:knowledge-base:domain')
-        serviceProjects.each { p ->
+        assert allowedLayerDependency(':services:browser-bff:application', ':modules:identity-contracts')
+        assert !allowedLayerDependency(':services:browser-bff:domain', ':modules:security-micronaut')
+        assert !allowedLayerDependency(':modules:identity-contracts', ':modules:security-micronaut')
+        (serviceProjects + [project(':modules:identity-contracts'), project(':modules:security-micronaut')]).each { p ->
                 def layer = p.name
                 p.configurations.matching { it.name in ['api', 'implementation', 'compileOnly', 'runtimeOnly'] }.each { config ->
                     config.dependencies.each { dependency ->
@@ -140,7 +189,7 @@ tasks.register('architectureDependencyTest') {
                             if (!allowedLayerDependency(p.path, dependency.path)) {
                                 throw new GradleException("Forbidden project dependency: ${p.path} -> ${dependency.path}")
                             }
-                        } else if (layer in ['domain', 'application']) {
+                        } else if (layer in ['domain', 'application', 'identity-contracts']) {
                             throw new GradleException("External production dependency forbidden in ${p.path}: ${dependency}")
                         }
                     }

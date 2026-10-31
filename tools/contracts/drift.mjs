@@ -13,6 +13,7 @@ try {
     const expected = join(scratch, language, 'src');
     await compareGeneratedTrees(actual, expected);
   }
+  await compareGeneratedTrees(resolve(root, 'generated-clients/typescript/types'), join(scratch, 'typescript/types'));
   console.log('Generated SDK drift check passed.');
 } finally {
   await rm(scratch, { recursive: true, force: true });

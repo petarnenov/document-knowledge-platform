@@ -32,8 +32,13 @@ __pycache__/
 *.safetensors
 *.bin
 local-data/
+# Generated development CA, private keys, realm credentials and runtime environment.
+local-data/security/
 artifacts/
 
 # Local browser verification artifacts
 **/playwright-report/
 **/test-results/
+
+# Local automated coverage data
+.coverage*

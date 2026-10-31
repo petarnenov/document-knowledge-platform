@@ -15,7 +15,7 @@ test('unknown validator kinds cannot silently skip validation', async () => {
   await assert.rejects(validateContract(resolve(root, 'tools/contracts/fixtures/openapi-valid.yaml'), 'unsupported'), /Unsupported contract kind/);
 });
 
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { compareGeneratedTrees } from './sdk-tree.mjs';
@@ -67,4 +67,28 @@ test('generator rejects substituted downloads without installing an artifact', a
   } finally {
     await rm(cacheDirectory, { recursive: true, force: true });
   }
+});
+
+import { parse } from 'yaml';
+test('published identity contract preserves independent trust and mutation guards', async () => {
+  const contract = parse(await readFile(resolve(root, 'contracts/openapi/v1/identity.yaml'), 'utf8'));
+  const api = contract.paths['/api/v1/security/context'].get;
+  assert.deepEqual(api.security, [{ BearerAuth: [] }]);
+  assert.ok(api.parameters.some(({ name, required }) => name === 'X-DKP-Tenant' && required));
+  for (const path of ['/api/v1/session/tenant', '/api/v1/session/logout']) {
+    assert.deepEqual(Object.keys(contract.paths[path]), ['post']);
+    const operation = contract.paths[path].post;
+    assert.deepEqual(operation.security, [{ SessionCookie: [] }]);
+    for (const name of ['Origin', 'X-CSRF-TOKEN']) {
+      assert.ok(operation.parameters.some((parameter) => parameter.name === name && parameter.required));
+    }
+  }
+  assert.deepEqual(contract.paths['/api/v1/security/context/{service}'].get.parameters[0].schema.enum, ['dm', 'kb', 'search']);
+  const session = contract.components.schemas.BrowserSession;
+  assert.equal(session.additionalProperties, false);
+  assert.deepEqual(session.required.toSorted(), ['issuer', 'subject', 'displayName', 'tenants', 'selectedTenant', 'csrfToken'].toSorted());
+  for (const name of ['accessToken', 'idToken', 'refreshToken', 'sessionId']) {
+    assert.equal(session.properties[name], undefined);
+  }
+  assert.equal(contract.components.securitySchemes.SessionCookie.name, '__Host-DKP-SESSION');
 });

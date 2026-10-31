@@ -8,6 +8,7 @@ import io.micronaut.http.annotation.Get;
 import org.documentknowledge.knowledgebase.application.Readiness;
 
 /** Intentionally minimal anonymous operational surface. */
+@io.micronaut.security.annotation.Secured(io.micronaut.security.rules.SecurityRule.IS_ANONYMOUS)
 @Controller(value = "/health", produces = MediaType.APPLICATION_JSON)
 public final class ProbeController {
     private final Readiness readiness;
