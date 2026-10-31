@@ -10,3 +10,5 @@ pnpm exec openspec validate <change-id> --strict
 ```
 
 The owner authorized automatic approval of specifications and merging for this and future work on 2026-10-31 until revoked. Record an independent review, strict validation, the reviewed revision and the approval decision before writing implementation code. Keep implementation checkboxes unchecked until their outcomes are verified. Artifact completeness alone is not an approval or a production-readiness assertion.
+
+DKP-001 is complete and archived under `changes/archive/2026-10-31-dkp-001-monorepo-foundation`; its four canonical capabilities are in `specs/`. `pnpm openspec:check` validates all current changes and canonical specifications, so archived change IDs are not hardcoded into the gate.
