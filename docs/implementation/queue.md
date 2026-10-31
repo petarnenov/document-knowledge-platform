@@ -39,6 +39,10 @@ Package names and acceptance come from System Design §14; DKP identifiers below
 | [DKP-017 #48](https://github.com/petarnenov/document-knowledge-platform/issues/48) | BP-16 | Full selective Compose, Kubernetes/GitOps, immutable artifacts, secrets, workload mTLS and network controls | Implemented components | Queued; local dependencies arrive with their owner packages |
 | [DKP-018 #49](https://github.com/petarnenov/document-knowledge-platform/issues/49) | BP-17 | Load/security/DR evaluation, restore drills and operational runbooks | BP-01–BP-16 | Queued; never infer production acceptance from implementation |
 
+## Owner-selected portal foundation — #102 / specification #105
+
+[Owner102](https://github.com/petarnenov/document-knowledge-platform/issues/102) requires Mantine across existing and future portal screens, with accessible persistent light/dark themes. [Specification105](https://github.com/petarnenov/document-knowledge-platform/issues/105) prepares the immediate common foundation; it is not deferred to BP-14 and does not renumber packages or claim implementation. See [specification status and delivery gates](mantine-portal-theme-status.md). Backend identity, tenant, document/content trust and production gates remain intact; independent review and recorded spec approval precede runtime work.
+
 ## Full-project completion audit
 
 Do not mark the goal complete until all of the following have current, direct evidence:

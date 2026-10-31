@@ -1,0 +1,9 @@
+{
+  "algorithm": "SHA-256",
+  "files": {
+    "openspec/changes/mantine-portal-theme/proposal.md": "20d8286d98755ba53daf44bf7c41645cde9010dfd495e5adc58c476128b0aecf",
+    "openspec/changes/mantine-portal-theme/design.md": "5898c6b8064cadf98ce1b8ce5de8599e0a051b65a2bcd7ffa9ecf78a40f74a98",
+    "openspec/changes/mantine-portal-theme/verification.md": "cf972abeca5186439a499d89abf0883dd2f21c14910695f6360065cbfd99ba20",
+    "openspec/changes/mantine-portal-theme/specs/portal-shell/spec.md": "8f708b76a0fc11d52f20642385836ca07579e1444311016b1a4812f00d3728e5"
+  }
+}
