@@ -8,6 +8,10 @@ The owner confirmed this scope and uninterrupted autonomous execution on 2026-10
 
 Follow requirements and architecture analysis → OpenSpec/contract/design/test plan → independent specification review and recorded automatic approval → implementation with tests → verification/coverage/security/contract/E2E evidence → independent implementation review and fixes → PR/CI → authorized automatic integration into dev → completion audit/archive. Preserve scope and evidence at every transition.
 
+Before starting each task in this queue, create its prioritized GitHub issue with acceptance and verification criteria, then link it in the task checklist and PR. Track independently executable/delegated items separately beneath a package issue. Close issues only after their verified completion/integration evidence is recorded. This covers specifications, code, tests, fixes, reviews and protocol/delivery work; preexisting work is backfilled explicitly. See the mandatory issue lifecycle in `docs/development/worktree-workflow.md`.
+
+After every verified task closure, save the resumable handoff and run `/compact` in the current session where supported before the next task. Preserve the full goal and unresolved work; record a pending compaction checkpoint honestly when the environment provides no invocation mechanism.
+
 While work is active, publish a structured status at least every 15 minutes with completed, in-progress and blocked tasks, executed verification/results and next actions. Brief findings between these reports do not replace the periodic task/execution status. Resume the full queue after interruptions; package completion is a milestone, not the end of the project goal.
 
 ## Queue and dependencies
@@ -16,24 +20,24 @@ Package names and acceptance come from System Design §14; DKP identifiers below
 
 | Delivery | Blueprint | Outcome | Depends on | Status / authoritative evidence |
 |---|---|---|---|---|
-| DKP-001 | BP-00 | Monorepo, independent builds, CI, OpenSpec, architecture/coverage/contract gates and SDK generation | None | Complete: PRs #2/#3 merged; canonical foundation specs and delivery record |
-| DKP-002 | BP-01 | Standalone/external OIDC, trusted BFF, tenant context, default-deny identity/authorization ports and workload abstractions | BP-00 | In progress: approved specification; implementation, independent review and real HTTPS integration |
-| DKP-003 | BP-02 | DM aggregates, immutable versions, ACL/retention and owned PostgreSQL migrations | BP-01 | Queued |
-| DKP-004 | BP-03 | S3 quarantine/upload/scan and secured content access | BP-02 | Queued |
-| DKP-005 | BP-04 | KB collections, audiences, memberships and policy revisions | BP-01/BP-02 | Queued |
-| DKP-006 | BP-05 | Durable processing intent, Temporal dispatch and transactional Kafka outbox | BP-02/BP-03 | Queued |
-| DKP-007 | BP-06 | Isolated Docling parsing and versioned source artifacts | BP-03/BP-05 | Queued |
-| DKP-008 | BP-07 | Structure-aware HybridChunker and accurate source maps | BP-06 | Queued |
-| DKP-009 | BP-08 | Pinned self-hosted Qwen embedding adapter, tokenizer and vector artifacts | BP-07 | Queued |
-| DKP-010 | BP-09 | Ollama extraction, controlled ontology, scoped entity resolution and evidence validation | BP-07 | Queued |
-| DKP-011 | BP-10 | Neo4j lexical/vector/graph indexes, staging/manifests and rebuild | BP-08/BP-09 | Queued |
-| DKP-012 | BP-11 | Hybrid search/fusion/reranking, graph exploration, citations and final authoritative ACL checks | BP-04/BP-10 | Queued |
-| DKP-013 | BP-12 | Isolated Office/PDF/XLSX preview workers and source mappings | BP-03/BP-06 | Queued |
-| DKP-014 | BP-13 | Review/approval/publication, audience revision checks and atomic active pointer | BP-04/BP-05/BP-10/BP-12 | Queued |
-| DKP-015 | BP-14 | Complete accessible portal journeys, secured preview and honest rejected/error states | Relevant domain contracts | Queued; deliver UI slices with preceding domain packages where useful |
-| DKP-016 | BP-15 | Governed retention/legal hold/purge, append-only audit and observability | Domain/processing workflows | Queued |
-| DKP-017 | BP-16 | Full selective Compose, Kubernetes/GitOps, immutable artifacts, secrets, workload mTLS and network controls | Implemented components | Queued; local dependencies arrive with their owner packages |
-| DKP-018 | BP-17 | Load/security/DR evaluation, restore drills and operational runbooks | BP-01–BP-16 | Queued; never infer production acceptance from implementation |
+| [DKP-001 #33](https://github.com/petarnenov/document-knowledge-platform/issues/33) | BP-00 | Monorepo, independent builds, CI, OpenSpec, architecture/coverage/contract gates and SDK generation | None | Complete: PRs #2/#3 merged; canonical foundation specs and delivery record |
+| [DKP-002 #6](https://github.com/petarnenov/document-knowledge-platform/issues/6) | BP-01 | Standalone/external OIDC, trusted BFF, tenant context, default-deny identity/authorization ports and workload abstractions | BP-00 | In progress: approved specification; implementation, independent review and real HTTPS integration |
+| [DKP-003 #34](https://github.com/petarnenov/document-knowledge-platform/issues/34) | BP-02 | DM aggregates, immutable versions, ACL/retention and owned PostgreSQL migrations | BP-01 | Queued |
+| [DKP-004 #35](https://github.com/petarnenov/document-knowledge-platform/issues/35) | BP-03 | S3 quarantine/upload/scan and secured content access | BP-02 | Queued |
+| [DKP-005 #36](https://github.com/petarnenov/document-knowledge-platform/issues/36) | BP-04 | KB collections, audiences, memberships and policy revisions | BP-01/BP-02 | Queued |
+| [DKP-006 #37](https://github.com/petarnenov/document-knowledge-platform/issues/37) | BP-05 | Durable processing intent, Temporal dispatch and transactional Kafka outbox | BP-02/BP-03 | Queued |
+| [DKP-007 #38](https://github.com/petarnenov/document-knowledge-platform/issues/38) | BP-06 | Isolated Docling parsing and versioned source artifacts | BP-03/BP-05 | Queued |
+| [DKP-008 #39](https://github.com/petarnenov/document-knowledge-platform/issues/39) | BP-07 | Structure-aware HybridChunker and accurate source maps | BP-06 | Queued |
+| [DKP-009 #40](https://github.com/petarnenov/document-knowledge-platform/issues/40) | BP-08 | Pinned self-hosted Qwen embedding adapter, tokenizer and vector artifacts | BP-07 | Queued |
+| [DKP-010 #41](https://github.com/petarnenov/document-knowledge-platform/issues/41) | BP-09 | Ollama extraction, controlled ontology, scoped entity resolution and evidence validation | BP-07 | Queued |
+| [DKP-011 #42](https://github.com/petarnenov/document-knowledge-platform/issues/42) | BP-10 | Neo4j lexical/vector/graph indexes, staging/manifests and rebuild | BP-08/BP-09 | Queued |
+| [DKP-012 #43](https://github.com/petarnenov/document-knowledge-platform/issues/43) | BP-11 | Hybrid search/fusion/reranking, graph exploration, citations and final authoritative ACL checks | BP-04/BP-10 | Queued |
+| [DKP-013 #44](https://github.com/petarnenov/document-knowledge-platform/issues/44) | BP-12 | Isolated Office/PDF/XLSX preview workers and source mappings | BP-03/BP-06 | Queued |
+| [DKP-014 #45](https://github.com/petarnenov/document-knowledge-platform/issues/45) | BP-13 | Review/approval/publication, audience revision checks and atomic active pointer | BP-04/BP-05/BP-10/BP-12 | Queued |
+| [DKP-015 #46](https://github.com/petarnenov/document-knowledge-platform/issues/46) | BP-14 | Complete accessible portal journeys, secured preview and honest rejected/error states | Relevant domain contracts | Queued; deliver UI slices with preceding domain packages where useful |
+| [DKP-016 #47](https://github.com/petarnenov/document-knowledge-platform/issues/47) | BP-15 | Governed retention/legal hold/purge, append-only audit and observability | Domain/processing workflows | Queued |
+| [DKP-017 #48](https://github.com/petarnenov/document-knowledge-platform/issues/48) | BP-16 | Full selective Compose, Kubernetes/GitOps, immutable artifacts, secrets, workload mTLS and network controls | Implemented components | Queued; local dependencies arrive with their owner packages |
+| [DKP-018 #49](https://github.com/petarnenov/document-knowledge-platform/issues/49) | BP-17 | Load/security/DR evaluation, restore drills and operational runbooks | BP-01–BP-16 | Queued; never infer production acceptance from implementation |
 
 ## Full-project completion audit
 

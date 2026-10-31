@@ -11,6 +11,28 @@ This repository uses the same **dev-first, isolated-worktree** delivery approach
 
 Every change must include an approved OpenSpec change when it affects runtime behavior, contracts or architecture. Documentation-only updates may use `docs/` branches and a review checklist.
 
+## Mandatory GitHub issue lifecycle
+
+Owner requirement adopted on 2026-10-31: **create a GitHub issue with an explicit priority before starting every task, and close it after verified completion**. This applies to specifications, implementation, bug fixes, tests, reviews, infrastructure, delivery and protocol changes. A task checklist in a spec or chat does not replace its GitHub issue.
+
+1. Before task execution or delegation, create its issue. Include the concrete problem/outcome, scope, acceptance criteria, verification plan, dependencies, delivery package and an explicit `priority:P0`, `priority:P1`, `priority:P2` or `priority:P3` label. Record the priority reason; do not leave it implicit in the title.
+2. Use P0 for an active critical incident or immediate security/data-loss emergency; P1 for security, data integrity or a required delivery gate; P2 for normal planned feature work; P3 for optional improvements. Priority does not waive dependencies or review gates.
+3. Give each independently executable or delegated work item its own issue. A package/tracking issue may group child issues, but does not replace them. Do not create an issue per individual assertion, shell command or other non-independent mechanical step.
+4. Link issue numbers in the OpenSpec task checklist, delivery queue/status and PR. Keep the issue open while any acceptance criterion, required review, test or integration gate remains unfinished. Report the issue, execution state and verification results in the 15-minute status.
+5. Update acceptance/evidence as work proceeds. The final evidence records implementation/specification/PR links, relevant tests and coverage, independent review and integration commit. A work item whose acceptance requires integration closes only after the reviewed PR is merged and applicable checks pass; a pure review/research item may close when its documented deliverable is accepted.
+6. Close the issue as completed only after all of its criteria pass. Blocked or deferred work stays open with the blocker and next action visible. Superseded/duplicate/cancelled issues must say so explicitly and must not be reported as implemented.
+7. Work already started before this requirement must be backfilled with its true execution state and evidence, explicitly marked retrospective. Never invent an earlier issue/approval timestamp. All new work follows issue-first ordering immediately.
+
+## Mandatory compaction after task closure
+
+Owner requirement adopted on 2026-10-31: after **every completed and closed task**, run `/compact` using the environment's actual current-session context-compaction mechanism before beginning the next task. This is part of the issue lifecycle, including specification, implementation, review, research and delivery tasks.
+
+Before compaction, save a resumable handoff: full-project goal, current worktree/branch/commit, closed issue and completion evidence, PR/CI/integration state, decisions and approval boundaries, open blockers, next prioritized issue and exact next action, plus the next 15-minute status deadline. Keep the repository task/queue records and local delivery state current. Compaction must not reset the full-project goal, lose unresolved acceptance criteria or imply that unfinished issues are complete.
+
+Invoke only a real mechanism that compacts the **current session**. If the environment exposes no such tool or command, record `compaction pending: /compact` with the saved handoff, disclose the limitation and preserve the pending checkpoint for the next supported session boundary. Never report compaction as executed without evidence, start a separate assistant process as a substitute, or delete session history. Automatic platform compaction may satisfy the step when observed; do not force it through destructive or unrelated actions.
+
+Standing automatic specification approval and PR merging do not remove this lifecycle. No additional owner confirmation is needed for routine issue creation, evidence updates or verified closure within the authorized project work.
+
 ## Local worktree commands
 
 Run from an existing clone:
@@ -43,7 +65,7 @@ Promotion from `dev` to `main` uses a separate reviewed PR with a compatibility 
 
 ## PR gates
 
-1. OpenSpec proposal/design/tasks approved before implementation.
+1. Prioritized GitHub issues exist before task execution; OpenSpec proposal/design/tasks are approved before implementation.
 2. Contracts, compatibility checks, and security scope reviewed.
 3. Java/TypeScript tests, dependency/secret scans, architecture boundaries and coverage pass.
 4. Integration/E2E and negative authorization tests pass for affected behavior.

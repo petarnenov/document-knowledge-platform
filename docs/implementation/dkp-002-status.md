@@ -2,6 +2,8 @@
 
 Scope: System Design BP-01, within the full-project queue. Implementation and production security acceptance are separate milestones.
 
+Tracking: parent [#6](https://github.com/petarnenov/document-knowledge-platform/issues/6); task issues are linked in the OpenSpec checklist and docs/implementation/issues.json. Records for work begun before issue-first adoption are explicitly retrospective. Protocol requirement [#5](https://github.com/petarnenov/document-knowledge-platform/issues/5), independently reviewed under [#7](https://github.com/petarnenov/document-knowledge-platform/issues/7).
+
 ## Current SDLC gate
 
 Independent architecture/security specification reviews passed after resolving the BFF membership-source ambiguity. Approval and artifact fingerprint are recorded in the change `approval.md`, committed as `e53cd68` before runtime implementation. [PR #4](https://github.com/petarnenov/document-knowledge-platform/pull/4) is draft while final-head CI remains pending. The owner authorizes automatic merging into dev only after independent review and passing required checks.
@@ -37,3 +39,9 @@ Publish task/execution status at least every15minutes during active work, with c
 The real HTTPS Keycloak → browser BFF → selected tenant → all three independent contexts → logout journey passed. Require green CI on the final PR head before automatic merging/archive. No skipped acceptance evidence counts as success.
 
 Durable multi-instance sessions and actual workload certificate enforcement remain BP-16. External entitlement integration stays unavailable until configured; resource actions remain denied. Production trust/security/release acceptance is not granted by specification approval or local tests.
+
+## Owner-authored architecture verification
+
+The owner confirmed authorship of MicrokernelBoundaryTest and fixtures before agent integration review. They provide test-only static enforcement of System Design §§5.1–5.4 under the existing engineering-gates architecture-verification requirement; they implement no plugin runtime, policy or approval semantics. Independent read-only review on 2026-10-31: PASS, no blockers. Fresh architectureTest at implementation head0dc33e8: BoundaryTest2 + MicrokernelBoundaryTest5 =7passed,0failed/errors/skipped, XML timestamps16:01:33–35UTC. No owner edits were removed or moved.
+
+Away scope decision20261031T160344Z-claude-30904 retained these owner-authored tests under existing gates. Earlier20261031T160150Z-claude-28354 was superseded, not applied, after owner authorship became known. No production approval was inferred.
