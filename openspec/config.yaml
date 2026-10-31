@@ -11,7 +11,7 @@ context: |
   React/Vite/strict TypeScript; independent domain builds and deployments.
   Selected design directions do not imply security or production acceptance.
   Work in isolated feature worktrees from origin/dev; PRs target dev.
-  The user authorized automatic merge on 2026-10-31 after checks and review.
+  Latest owner instruction authorizes automatic PR merge into dev after review and checks.
   The user authorized automatic specification approval on 2026-10-31;
   require independent specification review and validation before implementation.
   Preserve tenant isolation and fail-closed authorization in every environment.
