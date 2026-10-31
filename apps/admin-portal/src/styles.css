@@ -417,6 +417,22 @@ footer {
   overflow-wrap: anywhere;
   margin-block: 0.5rem;
 }
+/* Document actions remain readable when zoom or fallback fonts narrow the card. */
+.documents .mantine-Button-root {
+  max-width: 100%;
+  height: auto;
+  min-height: var(--button-height);
+  padding-block: calc(var(--mantine-spacing-xs) / 2);
+}
+.documents .mantine-Button-inner,
+.documents .mantine-Button-label {
+  height: auto;
+}
+.documents .mantine-Button-label {
+  white-space: normal;
+  line-height: 1.5;
+  text-box-trim: none;
+}
 .documents [role='alert'] {
   color: var(--text, inherit);
   border-left: 3px solid var(--dkp-danger);

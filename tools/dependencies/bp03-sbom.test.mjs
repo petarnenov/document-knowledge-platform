@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, symlinkSync } from 'node:fs';
+import { statSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { canonical, expectedPackages, generate, inputs, normalize, scanner } from './bp03-sbom.mjs';
@@ -55,6 +55,27 @@ test('isolated Docker bind contains only approved public locks, aliases settings
   const before = readFileSync(join(output, 'bp03-source.cdx.json'), 'utf8');
   generate(root, output, () => ({ status: 0, stdout: JSON.stringify({ ...raw(), components: raw().components.reverse() }) }));
   assert.equal(readFileSync(join(output, 'bp03-source.cdx.json'), 'utf8'), before);
+});
+
+test('public staging is traversable by capability-free foreign UID even under umask077', t => {
+  const root = fixture(t), output = join(root, 'build/sbom');
+  const previous = process.umask(0o077);
+  try {
+    generate(root, output, (_, args) => {
+      assert.ok(args.includes('--cap-drop=ALL'));
+      assert.ok(args.includes('--security-opt=no-new-privileges'));
+      const mount = args[args.indexOf('--mount') + 1];
+      assert.match(mount, /,readonly$/);
+      const stage = mount.match(/src=(.*),dst=/)[1];
+      for (const path of ['', 'settings', 'services', 'services/test', 'tools', 'tools/runtime'])
+        assert.equal(statSync(join(stage, path)).mode & 0o777, 0o755);
+      for (const path of ['settings/gradle.lockfile', 'pnpm-lock.yaml', 'services/test/gradle.lockfile', 'tools/runtime/requirements.txt'])
+        assert.equal(statSync(join(stage, path)).mode & 0o777, 0o644);
+      // Private input ancestry retains its original mode; normalize only the new public copy.
+      assert.equal(statSync(root).mode & 0o777, 0o700);
+      return { status: 0, stdout: JSON.stringify(raw()) };
+    });
+  } finally { process.umask(previous); }
 });
 
 test('missing required lock or all project Gradle locks fails closed', t => {

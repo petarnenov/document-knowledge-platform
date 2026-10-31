@@ -156,6 +156,34 @@ for (const scheme of ['dark', 'light'] as const) {
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(390);
+    const refresh = page.getByRole('button', {
+      name: 'Refresh drafts',
+      exact: true,
+    });
+    await refresh.scrollIntoViewIfNeeded();
+    await expect(refresh).toBeInViewport();
+    const geometry = await refresh.evaluate((element) => {
+      const card = element.closest('section')!;
+      const button = element.getBoundingClientRect(),
+        container = card.getBoundingClientRect();
+      const label = element.querySelector('.mantine-Button-label')!;
+      return {
+        left: button.left,
+        right: button.right,
+        cardLeft: container.left,
+        cardRight: container.right,
+        labelWidth: label.clientWidth,
+        labelScrollWidth: label.scrollWidth,
+        labelHeight: label.clientHeight,
+        labelScrollHeight: label.scrollHeight,
+      };
+    });
+    expect(geometry.left).toBeGreaterThanOrEqual(geometry.cardLeft);
+    expect(geometry.right).toBeLessThanOrEqual(geometry.cardRight);
+    expect(geometry.labelScrollWidth).toBeLessThanOrEqual(geometry.labelWidth);
+    expect(geometry.labelScrollHeight).toBeLessThanOrEqual(
+      geometry.labelHeight,
+    );
     await page.evaluate(() => {
       document.documentElement.style.zoom = '';
     });

@@ -1,5 +1,17 @@
 ## Current task status — 2026-10-31 20:14 UTC / 22:14 Sofia
 
+## 2026-10-31 22:04 UTC deployed durability checkpoint
+
+A second genuinely fresh current runtime completed start/verify. The separate real HTTPS quiescent fixture (#156) passed in 5.5 seconds. Actual scoped stop/start faults for PostgreSQL, RustFS, ClamAV, the isolated inspector and DM all passed (#143/#154): the full eighteen-table digest remained identical, accounting/durable settings held, finite outage readiness and liveness were truthful, and each exact owned service recovered. This does not replace the still-pending authenticated fault-request, combined COPY/FENCE, quota or sixty-minute expiry acceptance.
+
+#151/#157/#158 source re-review passed after binding actual image-contained Java/Gradle bytes and proving private authority ownership in an actual isolated Linux helper. #155 now exercises physical Testcontainers PostgreSQL restart and cancellation with an independently executable late DELETE; its source re-review passed, but all eight real combined cases still require execution. #159 preserves the five-minute identity boundary by normal OIDC reauthentication during the genuine sixty-minute wait; source checks pass, elapsed-time execution is pending. Current full two-theme HTTPS rerun is in progress on the clean fixture runtime. No issue closure or integration is claimed.
+
+## 2026-10-31 21:45 UTC fresh runtime checkpoint
+
+A genuinely new recorded BP03 runtime completed both `start` and `verify` with all eleven services running. #148 exact capability-spelling fix passed independent review and 24 tests. Prior failed attempts remain failed, with preserved evidence/data. Current-source strict-HTTPS both-theme four-format acceptance is running using #147 readable-source generated fixtures.
+
+Draft PR [#146](https://github.com/petarnenov/document-knowledge-platform/pull/146) is open at `7c8f16344c5463b76d66e139ba4c5ffd19c5721a`. Actual CI passed Java/architecture/supply-chain gates but exposed #147 forbidden tracked binaries, #149 native Linux public staging permissions, and #150 a 393px overflow at a 390px viewport under 200% zoom. The first two fixes are independently reviewed; responsive diagnosis and final CI remain pending. No issue or package is complete.
+
 ## 2026-10-31 21:36 UTC startup diagnosis
 
 #137: a third fresh attempt classified the actual application-start failure as `applications-network-pool-exhausted`. This is observed Docker failure evidence, replacing the prior hypothesis. Fixed-literal classification was applied under Codex decision `20261031T213156Z-codex-14017`, independently reviewed, and passed 24 tests (95.03% lines / 87.88% branches). No security/time budget changed. A scoped retirement of the obsolete stopped manual BP03 project is under independent review; retained volumes/data/authority and the separate BP02 runtime must be preserved. A new-directory successful bootstrap and verify remain required.

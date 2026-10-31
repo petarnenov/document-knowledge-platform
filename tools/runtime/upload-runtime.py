@@ -314,7 +314,7 @@ def attest_worker(state, item):
             or item['Mounts'][0].get('Destination') != '/run/dkp/inspector' or item['Mounts'][0].get('RW') is not False
             or network['Image'] != state['networkImage'] or network['Config']['User'] != '0:0'
             or not owner['ReadonlyRootfs'] or owner.get('Privileged') or owner.get('CapDrop') != ['ALL']
-            or owner.get('CapAdd') != ['NET_ADMIN'] or network['Mounts']):
+            or owner.get('CapAdd') not in (['NET_ADMIN'], ['CAP_NET_ADMIN']) or network['Mounts']):
         raise ValueError('Actual inspector isolation profile differs from reviewed runtime')
     volume = docker('volume', 'inspect', state['workerVolume'])[0];owned(volume, state)
     if volume['Driver'] != 'local' or volume.get('Options') not in (None, {}):

@@ -66,6 +66,7 @@ class DurabilityTests(unittest.TestCase):
             self.assertEqual(2,command.call_count)
 
     def arrange(self,stack):
+        stack.enter_context(patch.object(m.time,'sleep'))
         for name in ('local_daemon','verify_generation','wait_container','wait_inspector','private'):
             stack.enter_context(patch.object(m.runtime,name))
         stack.enter_context(patch.object(m.runtime,'load',return_value=self.state))
@@ -93,23 +94,78 @@ class DurabilityTests(unittest.TestCase):
                 if where=='stop':action.side_effect=[ValueError('private'),None]
                 else:probe.side_effect=[None,ValueError('private')]
                 with self.assertRaises(ValueError):m.run('/private/owned','pg')
-                self.assertEqual('start',action.call_args.args[2]);m.runtime.private.assert_not_called()
+                self.assertEqual('start',action.call_args.args[2]);self.assertEqual('FAIL',json.loads(m.runtime.private.call_args.args[1])['verdict'])
 
     def test_hash_change_never_passes_and_snapshot_only_never_mutates(self):
         from contextlib import ExitStack
         with ExitStack() as stack:
             action,probe=self.arrange(stack)
             result=m.run('/private/owned');action.assert_not_called();self.assertEqual('snapshot',result['exercise'])
-            with patch.object(m,'snapshot',side_effect=['a'*64,'b'*64]),self.assertRaisesRegex(ValueError,'state changed'):
+            with patch.object(m,'snapshot',side_effect=['a'*64,'a'*64,'b'*64]),self.assertRaisesRegex(ValueError,'full-state-changed'):
                 m.run('/private/owned','pg')
 
     def test_existing_evidence_blocks_mutation_before_generation_or_probe(self):
         from contextlib import ExitStack
         with ExitStack() as stack:
             action,probe=self.arrange(stack)
-            with patch.object(m.Path,'exists',return_value=True),self.assertRaisesRegex(ValueError,'Existing acceptance'):
+            with patch.object(m.Path,'exists',return_value=True),self.assertRaises(m.AcceptanceFailure):
                 m.run('/private/owned','pg')
             action.assert_not_called();probe.assert_not_called()
+
+    def test_nonquiescent_state_fails_before_mutation_and_records_only_hashes(self):
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            action,probe=self.arrange(stack)
+            with patch.object(m,'snapshot',side_effect=['a'*64,'b'*64]),self.assertRaisesRegex(m.AcceptanceFailure,'quiescence-state-changed'):
+                m.run('/private/owned','pg')
+            action.assert_not_called()
+            proof=json.loads(m.runtime.private.call_args.args[1])
+            self.assertEqual('FAIL',proof['verdict']);self.assertEqual('a'*64,proof['beforeSha256']);self.assertEqual('b'*64,proof['afterSha256'])
+            self.assertIsNone(proof['restoreCommandSucceeded'])
+
+    def test_failed_restore_records_fixed_phase_without_private_exception(self):
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            action,probe=self.arrange(stack)
+            action.side_effect=[None,RuntimeError('secret-provider-payload')]
+            with self.assertRaisesRegex(m.AcceptanceFailure,'provider-restore') as caught:m.run('/private/owned','pg')
+            self.assertNotIn('secret',str(caught.exception))
+            proof=json.loads(m.runtime.private.call_args.args[1]);self.assertFalse(proof['restoreCommandSucceeded']);self.assertEqual('provider-restore',proof['phase'])
+            self.assertNotIn('secret',json.dumps(proof))
+
+    def test_failed_private_evidence_write_never_turns_failure_into_pass(self):
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            self.arrange(stack)
+            m.runtime.private.side_effect=OSError('private-path')
+            with self.assertRaisesRegex(m.AcceptanceFailure,'checkpoint-save'):m.run('/private/owned','pg')
+
+    def test_optional_cleanup_wait_is_bounded_truthful_read_only_predicate(self):
+        with patch.object(m.time,'monotonic',side_effect=[0,0,1]),patch.object(m.time,'sleep') as sleep,patch.object(m,'sql',side_effect=['f','t']) as sql:
+            m.await_cleanup(self.state)
+            sleep.assert_called_once_with(1)
+            for call in sql.call_args_list:
+                self.assertEqual('SELECT NOT EXISTS(SELECT 1 FROM dm.upload_cleanup_work WHERE completed_at IS NULL);',call.args[1])
+        with patch.object(m.time,'monotonic',side_effect=[0,121]),self.assertRaisesRegex(ValueError,'within120s'):
+            m.await_cleanup(self.state)
+        with patch.object(m.time,'monotonic',side_effect=[0,0]),patch.object(m,'sql',return_value='invalid-private'),self.assertRaisesRegex(ValueError,'Invalid cleanup'):
+            m.await_cleanup(self.state)
+
+    def test_cleanup_preparation_precedes_baseline_and_never_retries_fault(self):
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            action,probe=self.arrange(stack)
+            with patch.object(m,'await_cleanup') as prepare:
+                m.run('/private/owned','pg',wait_cleanup=True)
+                prepare.assert_called_once_with(self.state)
+                self.assertEqual(2,action.call_count)
+                prepare.reset_mock()
+                m.run('/private/owned','pg')
+                prepare.assert_not_called()
+            with patch.object(m,'await_cleanup',side_effect=ValueError('held pending cleanup')),self.assertRaisesRegex(m.AcceptanceFailure,'cleanup-settlement'):
+                action.reset_mock();m.run('/private/owned','pg',wait_cleanup=True)
+            action.assert_not_called()
+            self.assertEqual('cleanup-settlement',json.loads(m.runtime.private.call_args.args[1])['phase'])
 
     def test_probe_exact_status_shape_bounded_body_no_proxy(self):
         class Response(io.BytesIO):
@@ -136,8 +192,12 @@ class DurabilityTests(unittest.TestCase):
         with patch.object(m,'run',side_effect=RuntimeError('private-password')),patch('sys.stdout',new_callable=io.StringIO) as output:
             self.assertEqual(1,m.main(['--directory','owned']))
             self.assertNotIn('private-password',output.getvalue())
+        with patch.object(m,'run',side_effect=m.AcceptanceFailure('outage-readiness')),patch('sys.stdout',new_callable=io.StringIO) as output:
+            self.assertEqual(1,m.main(['--directory','owned']))
+            self.assertIn('outage-readiness',output.getvalue())
         with patch.object(m,'run'),patch('sys.stdout',new_callable=io.StringIO):
-            self.assertEqual(0,m.main(['--directory','owned','--exercise','scanner']))
+            self.assertEqual(0,m.main(['--directory','owned','--exercise','scanner','--wait-cleanup']))
+            m.run.assert_called_once_with('owned','scanner',wait_cleanup=True)
 
 
 if __name__=='__main__':unittest.main()

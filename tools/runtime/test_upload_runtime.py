@@ -268,8 +268,13 @@ class RuntimeTests(unittest.TestCase):
                 with self.subTest(field=field),self.assertRaises(ValueError):m.attest_worker(state,changed)
             changed=copy.deepcopy(worker);changed['Mounts'][0]['RW']=True
             with self.assertRaises(ValueError):m.attest_worker(state,changed)
-            network['HostConfig']['CapAdd']=['SYS_ADMIN']
-            with self.assertRaises(ValueError):m.attest_worker(state,worker)
+            for capabilities in (['NET_ADMIN'], ['CAP_NET_ADMIN']):
+                network['HostConfig']['CapAdd']=capabilities
+                m.attest_worker(state,worker)
+            for capabilities in (['SYS_ADMIN'], ['CAP_NET_ADMIN','CAP_SYS_ADMIN'],
+                                 ['NET_ADMIN','NET_ADMIN'], ['CAP_NET_ADMIN','NET_ADMIN'], [], None, 'CAP_NET_ADMIN'):
+                network['HostConfig']['CapAdd']=capabilities
+                with self.subTest(capabilities=capabilities),self.assertRaises(ValueError):m.attest_worker(state,worker)
             network['HostConfig']['CapAdd']=['NET_ADMIN'];volume['Driver']='nfs'
             with self.assertRaises(ValueError):m.attest_worker(state,worker)
 

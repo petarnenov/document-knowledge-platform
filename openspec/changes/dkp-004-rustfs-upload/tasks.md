@@ -79,3 +79,28 @@ Runtime issues91–99 were created before execution. Development specification a
 
 - [ ] [#144](https://github.com/petarnenov/document-knowledge-platform/issues/144) P1: combined real PostgreSQL/RustFS COPY-01–03 and FENCE-01–05 barriers/restart acceptance; created before implementation.
 - [ ] [#145](https://github.com/petarnenov/document-knowledge-platform/issues/145) P1: real HTTPS quota, unchanged sixty-minute expiry and current authority/session/Origin/CSRF journeys; created before implementation.
+
+- [ ] [#147](https://github.com/petarnenov/document-knowledge-platform/issues/147) P1: generate public synthetic documents from readable source without tracking forbidden binary files; actual PR hygiene failure, fix in progress.
+- [ ] [#148](https://github.com/petarnenov/document-knowledge-platform/issues/148) P1: exact canonical Docker capability attestation; 24 tests and independent review PASS, genuine fresh start and integration pending.
+
+- [ ] [#149](https://github.com/petarnenov/document-knowledge-platform/issues/149) P1: Linux public-lock staging permissions: native cause reproduced, source/tests and independent review PASS; final CI pending.
+
+- [ ] [#150](https://github.com/petarnenov/document-knowledge-platform/issues/150) P1: Linux 200% zoom button wrapping: exact overflow reproduced, seven browser tests and independent review PASS; final CI pending.
+
+- [ ] [#151](https://github.com/petarnenov/document-knowledge-platform/issues/151) P1: Owned scoped read-only acceptance principal and genuine combined-provider runner: implementation in progress.
+
+- [ ] [#152](https://github.com/petarnenov/document-knowledge-platform/issues/152) P1: Deterministic real completion/append receipt observation: reviewed source, all eight format/theme downloads passed; whole suite needs fresh quota state.
+
+- [ ] [#153](https://github.com/petarnenov/document-knowledge-platform/issues/153) P1: Actual resource-balance SQL regression: eight real PG read-only cases and independent review PASS, integration pending.
+
+- [ ] [#154](https://github.com/petarnenov/document-knowledge-platform/issues/154) P1: Deployed durability failure diagnosis: actual first PG fault failed; source diagnosis in progress.
+
+- [ ] [#155](https://github.com/petarnenov/document-knowledge-platform/issues/155) P1: Complete physical restart, cancellation and prior-hold replay acceptance gaps from independent #144 review.
+
+- [ ] [#156](https://github.com/petarnenov/document-knowledge-platform/issues/156) P1: Separate genuine HTTPS quiescent upload fixture and finite runner flag; source reviews PASS, actual execution pending.
+
+- [ ] [#157](https://github.com/petarnenov/document-knowledge-platform/issues/157) P1: Bind actual immutable acceptance image Java/Gradle bytes to recorded source hashes; source fix in progress.
+
+- [ ] [#158](https://github.com/petarnenov/document-knowledge-platform/issues/158) P1: Private acceptance authority volume minimal-capability initialization order; source fix in progress.
+
+- [ ] [#159](https://github.com/petarnenov/document-knowledge-platform/issues/159) P1: genuine OIDC reauthentication across unchanged five-minute sessions in the sixty-minute expiry acceptance; test source frozen, actual run pending.

@@ -115,3 +115,16 @@ tasks.register('realInspectorAcceptance', JavaExec) {
         }
     }
 }
+
+// Required explicit acceptance profile: never skip missing real provider authority.
+tasks.register('realUploadPersistenceStorageAcceptance', JavaExec) {
+    group = 'verification'
+    description = 'Runs all COPY/FENCE cases against actual PostgreSQL, private RustFS, ClamAV and isolated TLS inspection.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.documentknowledge.documentmanagement.adapters.outbound.upload.RealUploadPersistenceStorageAcceptance'
+    jvmArgs '-XX:ActiveProcessorCount=2'
+    def authorityTmp = layout.buildDirectory.dir('authority-test-tmp')
+    systemProperty 'java.io.tmpdir', authorityTmp.get().asFile.absolutePath
+    doFirst { authorityTmp.get().asFile.mkdirs() }
+}

@@ -112,3 +112,7 @@ Staged public-source gitleaks scans1.91MB with zero leaks; owner MicrokernelBoun
 #142: current-worktree generation exited successfully and reproduced the prior 770-component / 29-input BOM and provenance byte-for-byte. Independent generator/CI review passed, with 9 tests and 97.62% line / 99.09% branch coverage. Actual GitHub CI is pending.
 
 #137: initial fresh run failed its unchanged inspector startup deadline. It was stopped through recorded owned-resource cleanup; retained data and immutable definitions remain. Diagnostic-only changes independently passed 21 tests. A separate new fresh run is in progress; no causal conclusion or readiness success is inferred from the first run.
+
+### Actual deployed fault checkpoint (2026-10-31 22:04 UTC)
+
+A new runtime completed genuine bootstrap/verify, then the dedicated OIDC/HTTPS generated-PDF receipt/append/discovery/exact-byte fixture passed (one test, 5.5s). With normal cleanup settled and the full state stable, all five exact owned provider stop/start gates passed: PG, RustFS, scanner, inspector, DM. Each retained the same eighteen-table digest and accounting; dependency outages produced bounded readinessDOWN with livenessUP and recovered health. Evidence: `/tmp/dkp-143-real-{pg,rustfs,scanner,inspector,dm}-fault-2158.log` and private per-exercise hash-only records. The earlier nonquiescent run remains a failed attempt. Authenticated fault requests, combined ambiguous-copy/deletion fences, quota and actual60-minute expiry remain separate open requirements.

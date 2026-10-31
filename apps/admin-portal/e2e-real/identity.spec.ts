@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Route } from '@playwright/test';
 
 const uploadProfile = process.env.DKP_UPLOAD_E2E_ENABLED;
 if (
@@ -271,28 +271,121 @@ for (const scheme of ['dark', 'light'] as const) {
         ),
       );
       await page.locator('input[type=file]').setInputFiles(fixture);
+      // CDP may evict a response body once the immediate append/navigation runs.
+      // Observe immutable outgoing request data instead. Hold only this real
+      // append until a real same-key completion replay proves its closed body.
       const completed = page
         .waitForResponse(
           (response) =>
             response.request().method() === 'POST' &&
+            new URL(response.url()).origin === origin &&
             new URL(response.url()).pathname.endsWith('/complete'),
         )
-        .then(async (response) => ({
-          status: response.status(),
-          body: (await response.json()) as {
-            uploadId: string;
+        .then(
+          (response) => ({ response }),
+          (error: unknown) => ({ error }),
+        );
+      const appended = page
+        .waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            new URL(response.url()).origin === origin &&
+            new URL(response.url()).pathname === `${root}/versions`,
+        )
+        .then(
+          (response) => ({ status: response.status() }),
+          (error: unknown) => ({ error }),
+        );
+      type Verified = { uploadId: string; receiptId: string };
+      type Observation =
+        { body: Verified; expectedRevision: number } | { error: unknown };
+      let report!: (observation: Observation) => void;
+      const observed = new Promise<Observation>((resolve) => {
+        report = resolve;
+      });
+      const appendUrl = `${origin}${root}/versions`;
+      const barrier = async (route: Route) => {
+        if (route.request().method() !== 'POST') {
+          await route.continue();
+          return;
+        }
+        let observation: Observation;
+        try {
+          // Synchronous request data survives CDP response-cache eviction.
+          const command = route.request().postDataJSON() as {
+            expectedRevision: number;
             receiptId: string;
-          },
-        }));
-      await page
-        .getByRole('button', { name: 'Upload and append', exact: true })
-        .click();
-      await expect(
-        page.getByRole('button', {
-          name: 'Download verified content',
-          exact: true,
-        }),
-      ).toBeVisible({ timeout: 300_000 });
+          };
+          expect(Object.keys(command).sort()).toEqual([
+            'expectedRevision',
+            'receiptId',
+          ]);
+          expect(command.receiptId).toMatch(/^[0-9a-f-]{36}$/);
+          expect(Number.isSafeInteger(command.expectedRevision)).toBe(true);
+          expect(command.expectedRevision).toBeGreaterThanOrEqual(0);
+          const completion = await completed;
+          if ('error' in completion) throw completion.error;
+          const original = completion.response;
+          expect(original.status()).toBe(200);
+          const request = original.request();
+          const headers = request.headers();
+          const key = headers['idempotency-key'];
+          const csrf = headers['x-csrf-token'];
+          if (!key || !csrf) throw new Error('Missing actual command guards');
+          expect(headers.origin).toBe(origin);
+          expect(request.postDataJSON()).toEqual({});
+          const replay = await page.request.post(request.url(), {
+            data: {},
+            headers: {
+              Origin: origin,
+              'X-CSRF-TOKEN': csrf,
+              'Idempotency-Key': key,
+            },
+          });
+          expect(replay.status()).toBe(200);
+          const body = (await replay.json()) as Verified;
+          expect(Object.keys(body).sort()).toEqual(['receiptId', 'uploadId']);
+          expect(body.receiptId).toBe(command.receiptId);
+          expect(body.uploadId).toMatch(/^[0-9a-f-]{36}$/);
+          expect(new URL(request.url()).pathname).toBe(
+            `/api/v1/dm/documents/uploads/${body.uploadId}/complete`,
+          );
+          observation = { body, expectedRevision: command.expectedRevision };
+        } catch (error) {
+          // Resolve failures as data: the test explicitly awaits/rethrows them,
+          // so route callbacks never leak an unhandled rejected promise.
+          observation = { error };
+        } finally {
+          try {
+            // The browser's original authenticated request is unchanged.
+            await route.continue();
+          } catch (error) {
+            observation = { error };
+          }
+          report(observation!);
+        }
+      };
+      await page.route(appendUrl, barrier);
+      let verification: { body: Verified; expectedRevision: number };
+      try {
+        await page
+          .getByRole('button', { name: 'Upload and append', exact: true })
+          .click();
+        const observation = await observed;
+        if ('error' in observation) throw observation.error;
+        verification = observation;
+        const appendResult = await appended;
+        if ('error' in appendResult) throw appendResult.error;
+        expect(appendResult.status).toBe(201);
+        await expect(
+          page.getByRole('button', {
+            name: 'Download verified content',
+            exact: true,
+          }),
+        ).toBeVisible({ timeout: 300_000 });
+      } finally {
+        await page.unroute(appendUrl, barrier);
+      }
       const pendingContent = page.waitForResponse(
         (response) =>
           response.request().method() === 'GET' &&
@@ -346,12 +439,14 @@ for (const scheme of ['dark', 'light'] as const) {
       expect(downloaded.suggestedFilename()).toMatch(
         new RegExp(`^[0-9a-f-]{36}\\.${format.toLowerCase()}$`),
       );
-      const verification = await completed;
-      expect(verification.status).toBe(200);
-      expect(Object.keys(verification.body).sort()).toEqual([
-        'receiptId',
-        'uploadId',
-      ]);
+      const discovery = await page.request.get(
+        `${root}/upload-receipts/${verification.body.receiptId}/version`,
+      );
+      expect(discovery.status()).toBe(200);
+      expect(await discovery.json()).toEqual({
+        documentId: receipt.documentId,
+        versionId: downloaded.suggestedFilename().split('.')[0],
+      });
       const contentPath = `${root}/versions/${downloaded.suggestedFilename().split('.')[0]}/content`;
       const expectedMime = {
         PDF: 'application/pdf',
@@ -397,7 +492,11 @@ for (const scheme of ['dark', 'light'] as const) {
       }
       const currentDocument = await page.request.get(root);
       expect(currentDocument.status()).toBe(200);
-      expect((await currentDocument.json()).activeVersionId).toBeNull();
+      const documentAfterAppend = await currentDocument.json();
+      expect(documentAfterAppend.activeVersionId).toBeNull();
+      expect(documentAfterAppend.revision).toBe(
+        verification.expectedRevision + 1,
+      );
       console.log(`Real upload ${scheme} ${format}: exact download passed`);
       await page
         .getByRole('button', { name: 'Cancel and clear', exact: true })

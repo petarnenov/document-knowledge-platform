@@ -48,6 +48,66 @@ test('shares only portal network namespace and mounts only the public CA', () =>
   assert.throws(() => runtimeArguments({ portalId: 'a'.repeat(64), address: 'evil', certificate: '/ca' }), /address/);
 });
 
+test('limits acceptance uses only an explicit finite profile and exact test file', () => {
+  const input = { portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca', uploadRuntime: true };
+  for (const profile of ['quota', 'expiry']) {
+    const args = runtimeArguments({ ...input, uploadLimitsProfile: profile });
+    assert.ok(args.includes(`DKP_UPLOAD_LIMITS_PROFILE=${profile}`));
+    assert.equal(args.at(-1), 'upload-limits.spec.ts');
+    assert.equal(args.at(-2), 'dkp-identity-e2e:local');
+  }
+  assert.equal(runtimeArguments(input).includes('upload-limits.spec.ts'), false);
+  for (const profile of ['', 'all', 'expiry;command', true, null]) {
+    assert.throws(() => runtimeArguments({ ...input, uploadLimitsProfile: profile }), /limits profile/);
+    assert.throws(() => main({ uploadLimitsProfile: profile }), /Invalid upload limits/);
+  }
+  assert.throws(() => runtimeArguments({ ...input, uploadRuntime: false, uploadLimitsProfile: 'quota' }), /requires upload runtime/);
+});
+
+test('durability fixture is explicit, mutually exclusive and selects only its real fixture', () => {
+  const input = { portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca', uploadRuntime: true };
+  const args = runtimeArguments({ ...input, uploadDurabilityFixture: true });
+  assert.ok(args.includes('DKP_UPLOAD_DURABILITY_FIXTURE=true'));
+  assert.equal(args.at(-1), 'upload-durability.spec.ts');
+  assert.equal(runtimeArguments(input).includes('DKP_UPLOAD_DURABILITY_FIXTURE=true'), false);
+  for (const invalid of ['true', 1, null]) {
+    assert.throws(() => runtimeArguments({ ...input, uploadDurabilityFixture: invalid }), /durability fixture/);
+    assert.throws(() => main({ uploadDurabilityFixture: invalid }), /durability fixture/);
+  }
+  assert.throws(() => runtimeArguments({ ...input, uploadRuntime: false, uploadDurabilityFixture: true }), /durability fixture/);
+  assert.throws(() => runtimeArguments({ ...input, uploadDurabilityFixture: true, uploadLimitsProfile: 'quota' }), /durability fixture/);
+  assert.throws(() => main({ uploadDurabilityFixture: true, uploadLimitsProfile: 'expiry' }), /durability fixture/);
+});
+
+test('explicit limits profile selects upload stack even without separate upload flag', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'dkp-limits-run-'));
+  const calls = [];
+  try {
+    writeFileSync(join(directory, 'runtime.env'), 'DKP_TEST_USERNAME=tester\nDKP_TEST_PASSWORD=synthetic-password\nDKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\n', { mode: 0o600 });
+    writeFileSync(join(directory, 'ca.crt'), 'synthetic-public-ca', { mode: 0o600 });
+    const execute = (args) => {
+      calls.push(args);
+      if (args[0] === 'compose') return 'a'.repeat(64);
+      if (args[0] === 'inspect') return JSON.stringify([{ NetworkSettings: { Networks: { isolated: { IPAddress: '172.20.0.4' } } } }]);
+      return '';
+    };
+    main({ uploadLimitsProfile: 'expiry', securityDirectory: directory, execute, log: () => {} });
+    assert.ok(calls[0].includes('dkp-bp03-012345abcdef'));
+    assert.ok(calls[0].includes('infra/docker-compose/compose-upload.yaml'));
+    assert.ok(calls.at(-1).includes('DKP_IDENTITY_BASE_URL=https://localhost:19443'));
+    assert.ok(calls.at(-1).includes('DKP_UPLOAD_LIMITS_PROFILE=expiry'));
+    assert.equal(calls.at(-1).at(-1), 'upload-limits.spec.ts');
+    calls.length = 0;
+    main({ uploadDurabilityFixture: true, securityDirectory: directory, execute, log: () => {} });
+    assert.ok(calls[0].includes('dkp-bp03-012345abcdef'));
+    assert.ok(calls.at(-1).includes('DKP_UPLOAD_E2E_ENABLED=true'));
+    assert.ok(calls.at(-1).includes('DKP_UPLOAD_DURABILITY_FIXTURE=true'));
+    assert.equal(calls.at(-1).at(-1), 'upload-durability.spec.ts');
+    const dockerfile = readFileSync(new URL('../../infra/docker-compose/identity-e2e.Dockerfile', import.meta.url), 'utf8');
+    assert.ok(dockerfile.includes('test --config playwright.identity.runtime.config.ts "$@"'));
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('redacts every test password occurrence from captured runner output', () => {
   assert.equal(redact('before synthetic-password after synthetic-password', 'synthetic-password'), 'before [REDACTED] after [REDACTED]');
   assert.equal(redact('unchanged', ''), 'unchanged');

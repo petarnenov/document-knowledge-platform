@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -106,6 +106,11 @@ export function generate(root, output, run = spawnSync) {
       // OSV discovers settings locks only under the conventional Gradle basename.
       const path = join(stage, input.path === 'settings-gradle.lockfile' ? 'settings/gradle.lockfile' : input.path);
       mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, input.bytes, { mode: 0o644 });
+      // Native Linux preserves host UID/modes. The capability-free scanner cannot
+      // traverse mkdtemp's 0700 directory owned by the host runner. These files
+      // contain public locks only; normalize below-stage modes even with umask077.
+      chmodSync(path, 0o644);
+      for (let directory = dirname(path); directory !== dirname(stage); directory = dirname(directory)) chmodSync(directory, 0o755);
     }
     const result = run('docker', ['run', '--rm', '--memory=2g', '--cpus=2', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--mount', `type=bind,src=${stage},dst=/public,readonly`, scanner, 'scan', 'source', '--no-resolve', '--all-packages', '--format', 'cyclonedx-1-6', '--recursive', '/public'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 300_000 });
     if (result.error || result.status !== 0) fail('Pinned OSV SBOM generation failed; no artifact published');

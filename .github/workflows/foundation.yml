@@ -155,6 +155,11 @@ jobs:
           node --experimental-test-coverage --test-coverage-lines=75
           --test-coverage-branches=75 --test-coverage-functions=75 --test
           tools/runtime/identity-e2e.test.mjs tools/runtime/compose-upload.test.mjs
+      - name: Deterministic public synthetic document generator coverage
+        run: >-
+          node --experimental-test-coverage --test-coverage-lines=75
+          --test-coverage-branches=75 --test-coverage-functions=75 --test
+          tools/runtime/synthetic-documents.test.mjs
       - name: Strict per-helper source and branch coverage
         run: |
           set -euo pipefail
@@ -165,7 +170,7 @@ jobs:
           python3 - <<'PY'
           import json
           report = json.load(open('/tmp/dkp-upload-helper-coverage.json'))
-          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py'):
+          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py', 'upload-durability.py', 'upload-accounting-acceptance.py', 'upload-acceptance.py'):
               matches = [v['summary'] for p, v in report['files'].items() if p.endswith('/' + name)]
               if len(matches) != 1:
                   raise SystemExit('Missing source coverage for ' + name)
@@ -181,6 +186,7 @@ jobs:
       - name: Build pinned Linux real-provider test runtime
         run: |
           set -euo pipefail
+          node tools/runtime/synthetic-documents.mjs
           cat > /tmp/dkp-upload-tests.Dockerfile <<'DOCKERFILE'
           FROM eclipse-temurin:25.0.5_8-jdk@sha256:83f4a7fc27df94dcc7b8de04d14cbbba8da14406f921e966969c3b09000aa507
           WORKDIR /workspace
@@ -218,11 +224,37 @@ jobs:
         run: python3 tools/runtime/upload-runtime.py start --directory local-data/security/bp03-upload/ci
       - name: Verify private providers, bounded health and runtime attestation
         run: python3 tools/runtime/upload-runtime.py verify --directory local-data/security/bp03-upload/ci
+      - name: Real PostgreSQL synthetic accounting regression without business writes
+        run: python3 tools/runtime/upload-accounting-acceptance.py --directory local-data/security/bp03-upload/ci
+      - name: Seed a separate real HTTPS upload for quiescent durability checks
+        run: >-
+          node tools/runtime/identity-e2e.mjs --upload-durability-fixture
+          --security-directory local-data/security/bp03-upload/ci/identity
+          --runtime-env-file local-data/security/bp03-upload/ci/runtime.env
+      - name: Actual owned provider faults and full upload-table durability
+        run: |
+          set -euo pipefail
+          for service in pg rustfs scanner inspector dm; do
+            python3 tools/runtime/upload-durability.py --directory local-data/security/bp03-upload/ci --exercise "$service" --wait-cleanup
+          done
       - name: Real strict HTTPS four-format uploads and downloads in both themes
         run: >-
           node tools/runtime/identity-e2e.mjs --upload-runtime
           --security-directory local-data/security/bp03-upload/ci/identity
           --runtime-env-file local-data/security/bp03-upload/ci/runtime.env
+      - name: Real combined PostgreSQL RustFS copy and deletion fence acceptance
+        run: |
+          set -euo pipefail
+          python3 tools/runtime/rustfs-compat-harness.py prepare --directory local-data/security/bp03-ci-combined
+          python3 tools/runtime/upload-acceptance.py prepare --directory local-data/security/upload-acceptance-ci --fixture-directory local-data/security/bp03-ci-combined --runtime-directory local-data/security/bp03-upload/ci
+          dkp_acceptance_image=$(docker image inspect --format '{{.Id}}' dkp-upload-ci-tests:local)
+          python3 tools/runtime/upload-acceptance.py run --directory local-data/security/upload-acceptance-ci --image "$dkp_acceptance_image"
+      - name: Remove only the owned combined compatibility fixture
+        if: always()
+        run: |
+          if test -f local-data/security/bp03-ci-combined/state.json; then
+            python3 tools/runtime/rustfs-compat-harness.py cleanup --directory local-data/security/bp03-ci-combined
+          fi
       - name: Stop only recorded BP03 project resources
         if: always()
         run: |

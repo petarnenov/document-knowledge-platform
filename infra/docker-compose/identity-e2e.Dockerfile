@@ -15,6 +15,8 @@ COPY apps/admin-portal/package.json apps/admin-portal/package.json
 RUN pnpm install --frozen-lockfile
 COPY generated-clients/typescript generated-clients/typescript
 COPY apps/admin-portal apps/admin-portal
+COPY tools/runtime/synthetic-documents.mjs tools/runtime/synthetic-documents.mjs
+RUN node tools/runtime/synthetic-documents.mjs
 RUN <<'BUILD'
 set -eu
 cat > /workspace/apps/admin-portal/playwright.identity.runtime.config.ts <<'CONFIG'
@@ -78,7 +80,7 @@ runuser -u pwuser -- certutil -A -d "sql:$DKP_BROWSER_HOME/.local/share/pki/nssd
 runuser -u pwuser -- node --input-type=module -e 'try { const response = await fetch(process.env.DKP_IDENTITY_BASE_URL); if (!response.ok) process.exit(1); } catch { console.error("Portal HTTPS trust verification failed."); process.exit(1); }'
 runuser -u pwuser -- node /workspace/apps/admin-portal/browser-trust-smoke.mjs
 cd /workspace/apps/admin-portal
-exec runuser -u pwuser -- node /workspace/apps/admin-portal/node_modules/@playwright/test/cli.js test --config playwright.identity.runtime.config.ts
+exec runuser -u pwuser -- node /workspace/apps/admin-portal/node_modules/@playwright/test/cli.js test --config playwright.identity.runtime.config.ts "$@"
 RUNNER
 chmod 0555 /usr/local/bin/dkp-identity-e2e
 chown -R pwuser:pwuser /workspace/apps/admin-portal

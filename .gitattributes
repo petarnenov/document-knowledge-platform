@@ -1,6 +1,1 @@
 gradlew.bat text eol=crlf
-# Synthetic binary acceptance fixtures must retain their exact bytes (including PDF xref padding).
-apps/admin-portal/e2e-real/fixtures/*.pdf binary
-apps/admin-portal/e2e-real/fixtures/*.docx binary
-apps/admin-portal/e2e-real/fixtures/*.pptx binary
-apps/admin-portal/e2e-real/fixtures/*.xlsx binary
