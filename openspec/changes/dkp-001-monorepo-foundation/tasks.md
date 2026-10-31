@@ -3,10 +3,10 @@
 Automatic approval is authorized by the owner; begin implementation only after independent specification review and strict validation. Checkboxes record executed evidence, not intent.
 
 ## 1. Specification and baseline
-- [ ] 1.1 Inspect required project documents, Git status/remotes/worktrees; isolate feat/dkp-001-foundation from current origin/dev.
-- [ ] 1.2 Initialize official OpenSpec and write proposal, capability deltas, design, acceptance matrix and tasks.
-- [ ] 1.3 Obtain independent specification review, fix findings, run strict validation, record automatic approval and reviewed revision.
-- [ ] 1.4 Record standing owner authorization for automatic specification approval/merge and retained review/check gates in project guidance.
+- [x] 1.1 Inspect required project documents, Git status/remotes/worktrees; isolate feat/dkp-001-foundation from current origin/dev.
+- [x] 1.2 Initialize official OpenSpec and write proposal, capability deltas, design, acceptance matrix and tasks.
+- [x] 1.3 Obtain independent specification review, fix findings, run strict validation, record automatic approval and reviewed revision.
+- [x] 1.4 Record standing owner authorization for automatic specification approval/merge and retained review/check gates in project guidance.
 
 ## 2. Version and build foundation
 - [ ] 2.1 Resolve official maintained tool/library versions and CID-01 PostgreSQL/Neo4j selections; record exact sources, pinning and compatibility evidence.
