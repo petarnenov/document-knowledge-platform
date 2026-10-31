@@ -1,0 +1,35 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets/
+# Java / Gradle
+.gradle/
+**/build/
+*.class
+# Node
+node_modules/
+dist/
+coverage/
+# Python / local tools
+__pycache__/
+.venv/
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+# Data and models
+*.pdf
+*.docx
+*.pptx
+*.xlsx
+*.gguf
+*.safetensors
+*.bin
+local-data/
+artifacts/
