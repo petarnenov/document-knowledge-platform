@@ -95,7 +95,7 @@ test('published identity contract preserves independent trust and mutation guard
 
 test('published DM contract preserves approved minimal receipts and independent browser guards', async () => {
   const contract = parse(await readFile(resolve(root, 'contracts/openapi/v1/document-management.yaml'), 'utf8'));
-  const approved = JSON.parse(await readFile(resolve(root, 'openspec/changes/dkp-003-document-management/contracts/document-management.openapi.json'), 'utf8'));
+  const approved = JSON.parse(await readFile(resolve(root, 'openspec/changes/archive/2026-10-31-dkp-003-document-management/contracts/document-management.openapi.json'), 'utf8'));
   assert.deepEqual(contract, approved);
   const schemas = contract.components.schemas;
   assert.equal(schemas.CommandReceipt.additionalProperties, false);
