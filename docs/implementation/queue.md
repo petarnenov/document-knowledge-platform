@@ -6,7 +6,7 @@ The owner confirmed this scope and uninterrupted autonomous execution on 2026-10
 
 ## SDLC and reporting
 
-Follow requirements and architecture analysis → OpenSpec/contract/design/test plan → independent specification review and recorded automatic approval → implementation with tests → verification/coverage/security/contract/E2E evidence → independent implementation review and fixes → PR/CI → authorized automatic integration into dev → completion audit/archive. Preserve scope and evidence at every transition.
+Follow requirements and architecture analysis → OpenSpec/contract/design/test plan → independent specification review and recorded automatic approval → implementation with tests → verification/coverage/security/contract/E2E evidence → independent implementation review and fixes → PR/CI → reviewed integration into dev under the latest owner instructions, without automatic merging → completion audit/archive. Preserve scope and evidence at every transition.
 
 Before starting each task in this queue, create its prioritized GitHub issue with acceptance and verification criteria, then link it in the task checklist and PR. Track independently executable/delegated items separately beneath a package issue. Close issues only after their verified completion/integration evidence is recorded. This covers specifications, code, tests, fixes, reviews and protocol/delivery work; preexisting work is backfilled explicitly. See the mandatory issue lifecycle in `docs/development/worktree-workflow.md`.
 

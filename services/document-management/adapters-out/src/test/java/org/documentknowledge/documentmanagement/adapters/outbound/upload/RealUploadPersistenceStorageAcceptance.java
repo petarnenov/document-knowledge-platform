@@ -364,12 +364,47 @@ public final class RealUploadPersistenceStorageAcceptance {
             DocumentAggregate documentBefore=doc();Accounts accountsBefore=accounts();Optional<DeletionFence> fenceBefore=fence();
             Instant previous=postmaster();String id=postgres.getContainerId();var docker=DockerClientFactory.instance().client();
             var before=docker.inspectContainerCmd(id).exec();assertEquals("true",before.getConfig().getLabels().get("org.testcontainers"));
+            assertEquals(id,before.getId());String dataMountHash=mountHash(before);int previousPort=mappedPostgresPort(before);
+            assertTrue(Arrays.equals(new int[]{previousPort},admin.getPortNumbers()),"Admin source must bind the observed owned port");assertTrue(Arrays.equals(new int[]{previousPort},runtime.getPortNumbers()),"Runtime source must bind the observed owned port");
             docker.restartContainerCmd(id).withTimeout(5).exec();
-            long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(30);Instant current=null;
-            while(System.nanoTime()<until){try{current=postmaster();if(current.isAfter(previous))break;}catch(AssertionError unavailable){/* Restart recovery is bounded, never settlement evidence. */}
+            long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(30);Instant current=null;String sqlStateCategory="NONE";
+            var after=docker.inspectContainerCmd(id).exec();
+            boolean sameContainer=id.equals(after.getId())&&id.equals(postgres.getContainerId());
+            boolean sameDataMountHash=dataMountHash.equals(mountHash(after));
+            assertTrue(sameContainer,"Restart must preserve the exact owned container");assertTrue(sameDataMountHash,"Restart must preserve every data mount");
+            assertEquals("true",after.getConfig().getLabels().get("org.testcontainers"));assertEquals(before.getImageId(),after.getImageId());
+            int actualPort=mappedPostgresPort(after);boolean mappedPortChanged=actualPort!=previousPort;
+            // Docker Desktop can reassign an ephemeral published port on physical
+            // restart. Refresh only that observed binding on the existing sources;
+            // host/database/roles/secrets and the owned container/data stay fixed.
+            if(mappedPortChanged){admin.setPortNumbers(new int[]{actualPort});runtime.setPortNumbers(new int[]{actualPort});}
+            while(System.nanoTime()<until){try{current=postmaster();if(current.isAfter(previous))break;}catch(AssertionError unavailable){sqlStateCategory=sqlStateCategory(unavailable);}
                 try{Thread.sleep(100);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw new AssertionError(interrupted);}}
-            assertNotNull(current);assertTrue(current.isAfter(previous),"Postmaster must genuinely restart");assertEquals(id,postgres.getContainerId());
+            System.out.println("{\"diagnostic\":\"owned-postgres-restart\",\"issue\":165,\"sameContainer\":"+sameContainer+",\"sameDataMountHash\":"+sameDataMountHash+",\"mappedPortChanged\":"+mappedPortChanged+",\"sqlStateCategory\":\""+sqlStateCategory+"\"}");
+            assertNotNull(current,"Owned SQL readiness must recover within 30 seconds");assertTrue(current.isAfter(previous),"Postmaster must genuinely restart");assertEquals(id,postgres.getContainerId());
             reopen();assertEquals(documentBefore,doc());assertEquals(accountsBefore,accounts());assertEquals(fenceBefore,fence());
+        }
+        int mappedPostgresPort(com.github.dockerjava.api.command.InspectContainerResponse metadata){
+            var bindings=metadata.getNetworkSettings().getPorts().getBindings().get(com.github.dockerjava.api.model.ExposedPort.tcp(5432));
+            assertNotNull(bindings,"Owned PostgreSQL must retain its published port");assertTrue(bindings.length>0&&bindings.length<=4,"Owned PostgreSQL bindings must be bounded");
+            Set<Integer> ports=new HashSet<>();
+            for(var binding:bindings){
+                assertNotNull(binding);assertTrue(Set.of("0.0.0.0","::","127.0.0.1","::1").contains(binding.getHostIp()),"Only explicit wildcard or loopback published bindings are permitted");
+                String specification=binding.getHostPortSpec();assertNotNull(specification);assertTrue(specification.matches("[0-9]{1,5}"),"Published PostgreSQL port must be finite");
+                int port=Integer.parseInt(specification);assertTrue(port>0&&port<=65535);ports.add(port);
+            }
+            assertEquals(1,ports.size(),"IPv4/IPv6 bindings must resolve to one unambiguous owned PostgreSQL port");return ports.iterator().next();
+        }
+        String mountHash(com.github.dockerjava.api.command.InspectContainerResponse metadata){
+            var entries=metadata.getMounts().stream().map(m->String.join("\u0000",String.valueOf(m.getDriver()),String.valueOf(m.getMode()),String.valueOf(m.getName()),
+                String.valueOf(m.getSource()),String.valueOf(m.getDestination()),String.valueOf(m.getRW()))).sorted().toList();
+            assertFalse(entries.isEmpty(),"Owned PostgreSQL data mount must exist");
+            try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(String.join("\n",entries).getBytes(java.nio.charset.StandardCharsets.UTF_8)));}
+            catch(NoSuchAlgorithmException impossible){throw new AssertionError(impossible);}
+        }
+        String sqlStateCategory(Throwable failure){
+            for(Throwable cause=failure;cause!=null;cause=cause.getCause())if(cause instanceof SQLException sql){String state=sql.getSQLState();return state!=null&&state.matches("[A-Z0-9]{5}")?state.substring(0,2):"UNKNOWN";}
+            return "OTHER";
         }
         Instant postmaster(){try(var connection=admin.getConnection();var statement=connection.createStatement();var rows=statement.executeQuery("SELECT pg_postmaster_start_time()")){assertTrue(rows.next());return rows.getTimestamp(1).toInstant();}catch(SQLException unavailable){throw new AssertionError("Owned database is not yet ready",unavailable);}}
         UploadService upload(UploadStoragePort storage){return new UploadService(store,grants,storage,scanner,inspector,clock,temporary);}

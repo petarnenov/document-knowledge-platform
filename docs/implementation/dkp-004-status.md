@@ -1,5 +1,11 @@
 ## Current task status — 2026-10-31 20:14 UTC / 22:14 Sofia
 
+## 2026-10-31 22:19 UTC physical restart checkpoint
+
+#165 isolated real pinned PostgreSQL probe confirmed that Docker Desktop reassigns the ephemeral published port on physical restart while preserving exact container and complete mount fingerprint; postmaster time advanced and password authentication stayed configured. The fixture now refreshes only the observed mapped port on its existing admin/runtime data sources after checking the same container/image/Testcontainers label/all mounts. Host, database, roles and secrets stay fixed. The thirty-second recovery deadline, genuine postmaster advance and exact document/account/fence equality remain mandatory. Root independent review requested and verified corrections for bounded IPv4/IPv6 port binding validation and diagnostic exclusion from the closed eight-case result parser. Host test compilation and parser regression pass. A new source-bound prepared directory and exact-image-attested real eight-case execution are running; no full combined success is claimed.
+
+#166 begins the separately tracked remaining deployed authenticated outage/retry and verified-unconsumed receipt restart acceptance. Source work may proceed, but provider faults cannot run while #165 holds the runtime. Exact-head CI on b76b5a5 has passing hygiene, portal/contracts/SBOM/architecture/supply-chain and several Java jobs; BP03 real-provider CI has passed its formerly failing helper coverage stage and is running genuine RustFS tests. Real quota and sixty-minute expiry are still pending. No issue is closed and no PR is merged.
+
 ## 2026-10-31 22:13 UTC acceptance checkpoint
 
 RustFS remains the recorded owner-selected first object store in AGENTS.md and the approved BP03 OpenSpec. The latest user-provided AGENTS.md requires PR review and prohibits automatic merging; earlier standing auto-merge permission is superseded. PR146 remains draft and unmerged.

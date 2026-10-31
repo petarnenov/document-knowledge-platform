@@ -111,3 +111,7 @@ Runtime issues91–99 were created before execution. Development specification a
 - [ ] [#163](https://github.com/petarnenov/document-knowledge-platform/issues/163) P1: configure both real combined-test S3 adapters with the service isolated spool directory; production direct-parent guard preserved, actual rerun pending.
 
 - [ ] [#164](https://github.com/petarnenov/document-knowledge-platform/issues/164) P1: persist latest owner-provided prohibition on automatic merging across governing delivery docs; PR146 stays unmerged.
+
+- [ ] [#165](https://github.com/petarnenov/document-knowledge-platform/issues/165) P1: actual physical PostgreSQL restart recovery diagnosis; first combined case reaches restart but finite verification fails, mapping hypothesis under investigation.
+
+- [ ] [#166](https://github.com/petarnenov/document-knowledge-platform/issues/166) P1: complete genuine authenticated outage/retry and verified-unconsumed/consumed receipt restart acceptance; source work in progress, no concurrent provider faults while combined acceptance owns the runtime.
