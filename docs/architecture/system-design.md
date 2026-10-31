@@ -348,6 +348,12 @@ Threats include malicious PDFs, Office ZIP bombs, macros/active content, parser 
 9. Validate membership revisions and activate publication pointer; emit outbox Kafka events. Queries enforce current version, ACL and KB membership.
 10. Reconciliation detects missing artifacts, failed index stage, stale Neo4j state and stalled processing intents.
 
+### 8.1.1 Package sequencing clarification — DKP-004 development specification
+
+Accepted by independent specification reviews #89/#90 and recorded DKP-004 development approval: BP-03 upload completion issues a durable verified-artifact receipt but creates no DocumentVersion. The existing explicit append command consumes that receipt atomically with version creation and command recording, returning only `{documentId,revision}` with `201`. Neither outcome claims processing acceptance or changes the active publication pointer.
+
+The final step3 requirement above remains mandatory. BP-05 owns atomic DocumentVersion/ProcessingRun/ProcessingIntent/outbox acceptance and `202 ACCEPTED_PENDING_DISPATCH`. Its specification must explicitly reconcile existing append API compatibility and versions created before processing exists. Returning202 without all four records, silently skipping existing versions or dropping the final atomic-ingest requirement is forbidden. This development sequencing grants no architecture/security-control waiver or production acceptance.
+
 ### 8.2 Temporal workflow responsibilities
 
 Workflow executes deterministic orchestration only; non-deterministic I/O belongs to activities. Version activity contracts; pin or version long-running workflow code to support rolling upgrades. Configure bounded retries with backoff/jitter, per-activity heartbeat, deadlines and cancellation. Define concrete terminal statuses and user-visible error classes. Use separate task queues for parsing/OCR, chunking, embedding, graph extraction, indexing, preview; configure tenant fairness and concurrency separately. Document-level timeout initial **30 minutes**; special exceptions require approved configuration. Maximum active processing workflows: **50** globally baseline, not 50 simultaneous heavy OCR calls.

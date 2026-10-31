@@ -24,7 +24,7 @@ Runtime issues were created before execution. Approved specification6e53b810/PR6
 
 - [x] 3.1 [issues #68/#71, fixes #69/#70/#72; verified/closed] Independent implementation/security reviews and fixes; applicable strict/contract/unit/PG/E2E/coverage/CI gates pass.
 - [x] 3.2 [issue #75; verified/closed] Open reviewed PR into dev, evidence and rollback; merge requires review and the current owner instruction; automatic merging is disabled by the latest supplied AGENTS.md. Close issues only after their actual verified criteria; save handoff and compaction pending if current-session /compact unavailable.
-- [ ] 3.3 [issue #81; in progress] Archive accepted change after integration; update full-project queue to BP-03/#35 RustFS, keep CID-07/CID-15 and production gates open.
+- [x] 3.3 [issue #81; verified/closed] Archive accepted change after integration; update full-project queue to BP-03/#35 RustFS, keep CID-07/CID-15 and production gates open.
 
 ## 4. Amendment regression matrix — existing issues #59/#60/#61/#62/#63, review #56/#57
 
@@ -62,3 +62,7 @@ Spec tasks #50/#52 are closed after reviewed PR64 and integrated-dev41221800467 
 ## Verified integration checkpoint — 2026-10-31 18:19 UTC
 
 All historical provisional/pending checkpoints above are superseded by PR80 head699411a5b9f7d3bcf1a2cb4ae48c2046b4b23980 all11checksPASS, merge5b35b8eb4fb3930678e5601cfb8b0f05fa8966fe and integrated-dev Foundation41228406275 all9jobsPASS. Runtime/fix issues58–63,65–67,69/70,72–74,76–79 and review71/delivery75 closed after verified integration; review68 already closed. Source36bootstrap18HTTP0skip96.43%lines93.99%branches; realHTTPS actualACLjourney4.1s and seven-table actualDBoutage/recovery PASS. Full requirement audit in verification.md. Completion81 and independent completion review82 remain open; parent34 closes after final archive PR/CI integration. Goal continues to BP03/#35 RustFS and the complete queue.
+
+## Final publication checkpoint — 2026-10-31 18:32 UTC
+
+CompletionPR85 headb4bf61b3935da5099b72ccc6746caa24d8936413 all11checksPASS merged3de7840728c126eb3f9efdb90f568013437af8e2. Final integrated-dev Foundation41229510527 all9jobsPASS. Independentcompletion82PASS; corrections83/84, completion81 and parent34 closed after verified acceptance. Finaltask3.3 nowcomplete;30/31archive-commandoutput above honestly described an in-progress publication checkpoint. FullgoalcontinuesBP03RustFS with86/87/88/89/90; no production/CID07/CID15approval.
