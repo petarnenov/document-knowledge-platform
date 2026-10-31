@@ -1,3 +1,7 @@
+## 2026-10-31 23:13 UTC latest authorization185
+
+Owner renewed automatic dev merges after green tests and CI, superseding the prior prohibition. PR184 is open at4437a96; governance-only185 update will receive independent review and final-head CI before authorized integration. All normative development/runtime and production gates remain intact; earlier no-merge notes below are historical.
+
 # Current BP04 specification status — 2026-10-31 23:08 UTC
 
 Independent171 architecture and172 security re-reviews PASS for the bounded development specification after174 corrections, including separate full-set eligibility discovery and strict mutation assessment. Root strict OpenSpec12/12, both Redocly files, schema/compatibility/parity/positive-negative examples pass. Development implementation approval and final artifact fingerprint are recorded in approval.md under standing automatic specification authorization. No runtime or production approval is inferred.

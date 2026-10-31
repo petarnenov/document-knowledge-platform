@@ -9,7 +9,7 @@ All tasks remain governed by issue-first ordering. Unnumbered future implementat
 - [x] 1.3 Run strict OpenSpec, frozen OpenAPI/catalog/compatibility checks; record actual results and limitations.
 - [x] 1.4 Independent architecture [#171](https://github.com/petarnenov/document-knowledge-platform/issues/171) and security [#172](https://github.com/petarnenov/document-knowledge-platform/issues/172) were created before review; resolve their four findings under preexisting [#174](https://github.com/petarnenov/document-knowledge-platform/issues/174) and obtain re-review, including bounded batch budgets and the separately typed authorized-subset member-list eligibility correction.
 - [x] 1.5 Record development approval/fingerprint after independent171/172 PASS and root strict/contract checks; see approval.md.
-- [ ] 1.6 Open reviewed specification PR and verify required CI; no automatic merge.
+- [ ] 1.6 Reviewed specification PR184 is open; verify final-head CI then integrate under renewed185 owner authorization. Independent review and all applicable gates remain mandatory.
 
 ## 2. Future implementation issues, created before execution
 
@@ -24,6 +24,8 @@ All tasks remain governed by issue-first ordering. Unnumbered future implementat
 ## 3. Review and completion
 
 - [ ] 3.1 Create independent implementation review issues, resolve findings, rerun affected checks and open reviewed implementation PRs.
-- [ ] 3.2 Retain direct verification evidence; integrate only after required review/CI and authorized merge instruction. No automatic merge currently.
+- [ ] 3.2 Retain direct verification evidence; integrate only after required review/CI and authorized merge instruction. Owner-authorized automatic dev merging requires green tests/CI, independent review and all applicable gates.
 - [ ] 3.3 Audit full BP04 acceptance without dropping unresolved sharing/classification decisions or claiming later readiness; archive approved change only after completion integration.
 - [ ] 3.4 Close only verified issues, persist resumable checkpoint and invoke actual current-session /compact if available; otherwise record pending. Continue full-project queue.
+
+- [ ] [#185](https://github.com/petarnenov/document-knowledge-platform/issues/185) P1: latest owner standing automatic dev merge permission after green tests/CI; retain independent review and acceptance gates.

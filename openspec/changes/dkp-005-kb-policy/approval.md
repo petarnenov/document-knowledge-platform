@@ -1,6 +1,6 @@
 # DKP-005 development specification approval
 
-Approved on2026-10-31 under the owner's standing automatic specification authorization, after independent architecture171 and security172 final PASS and root strict/contract checks. Parent36; specification167; correction174. This approves development implementation of the reviewed BP04 contract only. It grants no production deployment, CID07/CID15, workload-trust, legal-policy or formal architecture/security-control sign-off. Specification PR/CI/integration remain required; do not automatically merge.
+Approved on2026-10-31 under the owner's standing automatic specification authorization, after independent architecture171 and security172 final PASS and root strict/contract checks. Parent36; specification167; correction174. This approves development implementation of the reviewed BP04 contract only. It grants no production deployment, CID07/CID15, workload-trust, legal-policy or formal architecture/security-control sign-off. Specification PR/CI/integration remain required. The latest2026-11-01 owner instruction permits automatic dev merging after green tests and CI; independent review and all applicable acceptance gates remain mandatory (185).
 
 ## Accepted reviewed scope
 
@@ -14,17 +14,19 @@ The reviewed DEVELOPMENT baseline is KB8s/BFF9s/edge10s/browser12s, initial DM p
 
 ## Actual specification verification and mandatory runtime gates
 
-Independent171/172 accepted the amended22-file source freeze ada15bb6818a31890197297a1afca347a90d192032fe8c681d45313574866d66. Root strict OpenSpec12/12, both pinned Redocly descriptions zero warnings,37KB/25DM strict schemas,32 operations/15KB-BFF parity, compatibility and positive/negative/declarative examples pass; see verification.md. Administrative approval-state wording changed after review without changing the accepted behavior, limits or wires.
+Independent171/172 accepted the amended22-file source freeze ada15bb6818a31890197297a1afca347a90d192032fe8c681d45313574866d66. Root strict OpenSpec12/12, both pinned Redocly descriptions zero warnings,37KB/25DM strict schemas,32 operations/15KB-BFF parity, compatibility and positive/negative/declarative examples pass; see verification.md. Administrative approval-state wording changed after review without changing accepted behavior, limits or wires. Later185 records renewed owner merge permission; governance-only metadata does not waive any runtime or production gate.
 
 No runtime was implemented or executed by this approval. Separate prioritized issues, actual100-member timing/concurrency/realPG/catalog/identity/E2E, current ACL/revision/cursor races, compatible published contracts/SDKs and separate75% changed-source line/branch floors remain required. Processing, publication, search readiness and later BP13 acceptance are not claimed. BP03 real expiry and PR146 integration remain separately tracked. The full-project goal remains active.
 
 ## Reviewed artifact fingerprint
 
-SHA256 of the sorted manifest below: `62263f9c3fe792b28b35ab27a72b53322e6e82b34028512ee72bb4380db9e978`.
+SHA256 of the sorted manifest below: `e9feda73d5806470f865e04230b2efd85e3c8a51646ae224e7252b0f61c097eb`.
 
 ```text
-9a1b7fbe13cccce897f93249b44a62cb790e6206bb96928abcc4be72736fc8b0  docs/implementation/dkp-005-status.md
-abfdc59539bb51a1636ad3f0939fdbcc1c09797b6724599275f36512120b9c51  docs/implementation/queue.md
+63e7f9133bb3603d935294964dfdbe6d7595cfbfd92652c5035d85adff961415  AGENTS.md
+5fadb138adebef364adb32f1020fb4f7ed756070ac295c0734ebb5f1ada44b2d  docs/development/worktree-workflow.md
+6c58d69104012e5c4c30929d036eeaa1867c68682928fa39fdb6bd0d596dcdd9  docs/implementation/dkp-005-status.md
+e496f609eebed3b66c05553419cfa72ad4696e845f42324217811c5cc3972ed2  docs/implementation/queue.md
 1caeb76c80565f701704ab18822e70ee61663cb62d6c5bef303601642b67d6e7  openspec/changes/dkp-005-kb-policy/acceptance.md
 8800920c40d571b6cc178b4385b357795bd66f91f6968e81498f008d9052b0d4  openspec/changes/dkp-005-kb-policy/contracts/compatibility.md
 dd45dcf25d93512d3541dd7d8a2ec96c973d630534ce37d30965efd4c1564bf1  openspec/changes/dkp-005-kb-policy/contracts/dm-grant-catalog.schema.json
@@ -44,8 +46,8 @@ bd5081558aa34ae1da73e3f637b3c3a9db7b0697f273aa1f3fa463acd66de11d  openspec/chang
 f75a572f71858643276c02490bf5e1314528f0b7577a1768b3b06b2991447fed  openspec/changes/dkp-005-kb-policy/specs/knowledge-policy/spec.md
 dc58b5feea1cd73104d8d8c04dce81832cb0e3fb80385a2f18acd21acb8ff7eb  openspec/changes/dkp-005-kb-policy/specs/portal-shell/spec.md
 d1aa18643c02813540bc70d40611691c58b64b592f9af069323459c00491d6f7  openspec/changes/dkp-005-kb-policy/specs/service-foundation/spec.md
-01eeab99164999fdacf912aa35555f70f006a9598111fc6cbd346250a0d01b21  openspec/changes/dkp-005-kb-policy/tasks.md
-cb6277d2a5d2755fc7dd74e760c85cbd2ad94ea19fb9bed121ace59be2a2e6f5  openspec/changes/dkp-005-kb-policy/verification.md
+1848c4382e9f52bbb3ba42273e35cce3e280d6bc4749751bb5e7bd9cb59a451f  openspec/changes/dkp-005-kb-policy/tasks.md
+6c4b36a1d42d5d16403829819f2e7d27b329eb0763ff12cecc863995db3ee64e  openspec/changes/dkp-005-kb-policy/verification.md
 ```
 
 This records the approval checkpoint; task/evidence/status updates may evolve. Normative behavior changes require proportionate independent re-review. Approval.md is excluded to avoid a self-referential digest.
