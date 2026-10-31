@@ -4,13 +4,13 @@
 
 The original `document-knowledge-platform` worktree was clean on `main` at `1285f6c`. After fetch, `origin/dev` was `c9b0266` and contained the required public System Design and development workflow missing from main. No DKP-001 branch/worktree or prior change existed. Existing CI was repository hygiene only; no application build or tests existed. No credentials or private material were copied.
 
-The isolated sibling worktree is `document-knowledge-platform-dkp-001`, branch `feat/dkp-001-foundation`, initially based on `origin/dev` at `c9b02668375a141ec7223f35a48005dd747c6fa9`. The original main worktree is preserved.
+Foundation implementation used the isolated sibling worktree `document-knowledge-platform-dkp-001` on branch `feat/dkp-001-foundation`, initially based on `origin/dev` at `c9b02668375a141ec7223f35a48005dd747c6fa9`. The original main worktree is preserved.
 
 ## Specification
 
-See [proposal](../../openspec/changes/dkp-001-monorepo-foundation/proposal.md), [design and acceptance matrix](../../openspec/changes/dkp-001-monorepo-foundation/design.md), [requirements](../../openspec/changes/dkp-001-monorepo-foundation/specs) and [implementation queue](../../openspec/changes/dkp-001-monorepo-foundation/tasks.md).
+See [proposal](../../openspec/changes/archive/2026-10-31-dkp-001-monorepo-foundation/proposal.md), [design and acceptance matrix](../../openspec/changes/archive/2026-10-31-dkp-001-monorepo-foundation/design.md), [requirements](../../openspec/changes/archive/2026-10-31-dkp-001-monorepo-foundation/specs) and [implementation queue](../../openspec/changes/archive/2026-10-31-dkp-001-monorepo-foundation/tasks.md).
 
-Official OpenSpec 1.16.0 initialized the project with `--tools none --language English`; no tool-generated integration files were fabricated. Use `npm exec --yes --package=@fission-ai/openspec@1.16.0 -- openspec validate dkp-001-monorepo-foundation --strict`.
+Official OpenSpec 1.16.0 initialized the project with `--tools none --language English`; no tool-generated integration files were fabricated. The completed change was archived with the official CLI after integration. Its four capability specifications now live under `openspec/specs`; `pnpm openspec:check` validates all active changes and canonical specifications strictly.
 
 ## Authorization
 
@@ -27,11 +27,11 @@ The owner explicitly authorized automatic merging, automatic approval of specifi
 - Final operational OpenAPI validation passed; AsyncAPI explicitly reports zero published contracts. All nine validator/drift/integrity tests pass, including corrupt-cache and substituted-download rejection. SDK regeneration is deterministic and both Java 25 and TypeScript clients compile using the SHA-256-verified OpenAPI Generator 7.26.0 jar. The npm generator wrapper was removed.
 - Four independently built non-root containers passed local startup and smoke verification (probes, forbidden surface, portal deep links, loopback/read-only/capability restrictions). Three smoke-tool regression tests passed.
 - Dependency remediation removed vulnerable generator-wrapper dependencies and adapted scoped minimatch consumers with a regression test. OSV 2.7.0 scanned 18 lockfiles (479 npm packages plus Java graphs): **No issues found**. Gitleaks 8.30.1 found no leaks in the working tree. No vulnerability ignore was added.
-- PR [#2](https://github.com/petarnenov/document-knowledge-platform/pull/2) targets dev. Remote CI and final merge remain pending.
+- PR [#2](https://github.com/petarnenov/document-knowledge-platform/pull/2) merged into dev on 2026-10-31 at `0b8ab4c94fadfcd8a1fb3e69f89d6f5126cfea38`. All eight [Foundation jobs](https://github.com/petarnenov/document-knowledge-platform/actions/runs/41207852827) passed at final reviewed revision `981bdd99a15147db623234577e4df25a65963730`; repository hygiene and GitGuardian checks also passed. No check was bypassed.
 
-## Next action
+## Delivery result
 
-Publish settled implementation evidence, verify green remote CI and merge PR #2 into dev under standing authorization.
+DKP-001 implementation and review are complete and integrated into dev. All implementation tasks have verified evidence. The official OpenSpec archive promoted 14 requirements across four canonical capability specifications; strict validation passed for all four. Future business functionality requires its own reviewed OpenSpec change under the standing approval/merge authorization. No production deployment occurred.
 
 ## Independent implementation review
 

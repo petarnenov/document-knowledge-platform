@@ -10,7 +10,7 @@
     "contracts:check": "node tools/contracts/check.mjs",
     "contracts:generate": "node tools/contracts/generate.mjs",
     "contracts:drift": "node tools/contracts/drift.mjs",
-    "openspec:check": "openspec validate dkp-001-monorepo-foundation --strict",
+    "openspec:check": "openspec validate --all --strict",
     "format:check": "prettier --check apps/admin-portal package.json pnpm-workspace.yaml .prettierrc.json",
     "format": "prettier --write apps/admin-portal package.json pnpm-workspace.yaml .prettierrc.json",
     "dependencies:test": "node --test tools/dependencies/compatibility.test.mjs"
