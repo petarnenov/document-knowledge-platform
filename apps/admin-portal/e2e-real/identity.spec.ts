@@ -101,10 +101,17 @@ for (const scheme of ['dark', 'light'] as const) {
     await page.getByRole('link', { name: 'Documents', exact: true }).click();
     const initialPage = await initialDrafts;
     expect(initialPage.status()).toBe(200);
-    await initialPage.finished();
+    // React renders this list only after the real query succeeds. CDP's
+    // transport-finished observer may hang even after HTTP200; it is not UI state.
+    await expect(
+      page
+        .getByRole('region', { name: 'Accessible drafts', exact: true })
+        .getByRole('list'),
+    ).toHaveCount(1);
     await expect(
       page.getByText('Loading drafts…', { exact: true }),
     ).toHaveCount(0);
+    await expect(page.getByRole('alert')).toHaveCount(0);
     const title = `Synthetic draft ${Date.now()}`;
     await page.getByLabel('Title', { exact: true }).fill(title);
     await page
@@ -153,10 +160,17 @@ for (const scheme of ['dark', 'light'] as const) {
           response.url().includes('/api/v1/dm/documents?'),
       );
       await next.click();
-      await loaded;
+      const listed = await loaded;
+      expect(listed.status()).toBe(200);
+      await expect(
+        page
+          .getByRole('region', { name: 'Accessible drafts', exact: true })
+          .getByRole('list'),
+      ).toHaveCount(1);
       await expect(
         page.getByText('Loading drafts…', { exact: true }),
       ).toHaveCount(0);
+      await expect(page.getByRole('alert')).toHaveCount(0);
     }
     await page.getByRole('button', { name: title, exact: true }).click();
     await expect(

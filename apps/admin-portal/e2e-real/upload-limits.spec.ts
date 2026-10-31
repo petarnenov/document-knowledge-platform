@@ -321,10 +321,17 @@ if (profile === 'quota') {
     await page.goto('/documents');
     const initial = await initialList;
     expect(initial.status()).toBe(200);
-    await initial.finished();
+    // Success-only rendered list proves the query settled without depending
+    // on CDP transport completion (which may hang after HTTP200).
+    await expect(
+      page
+        .getByRole('region', { name: 'Accessible drafts', exact: true })
+        .getByRole('list'),
+    ).toHaveCount(1);
     await expect(
       page.getByText('Loading drafts…', { exact: true }),
     ).toHaveCount(0);
+    await expect(page.getByRole('alert')).toHaveCount(0);
     const visibleTitle = `Synthetic visible capacity ${randomUUID()}`;
     await page.getByLabel('Title', { exact: true }).fill(visibleTitle);
     const createdResponse = page.waitForResponse(
@@ -376,10 +383,15 @@ if (profile === 'quota') {
       await next.click();
       const listed = await loaded;
       expect(listed.status()).toBe(200);
-      await listed.finished();
+      await expect(
+        page
+          .getByRole('region', { name: 'Accessible drafts', exact: true })
+          .getByRole('list'),
+      ).toHaveCount(1);
       await expect(
         page.getByText('Loading drafts…', { exact: true }),
       ).toHaveCount(0);
+      await expect(page.getByRole('alert')).toHaveCount(0);
     }
     await page.getByRole('button', { name: visibleTitle, exact: true }).click();
     await confirmSingleCreate(

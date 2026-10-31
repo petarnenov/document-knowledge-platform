@@ -141,3 +141,6 @@ Runtime issues91–99 were created before execution. Development specification a
 - [ ] [#181](https://github.com/petarnenov/document-knowledge-platform/issues/181) P1: final independent production/architecture source review PASS148c037; actual final-source CI/expiry/integration readiness pending.
 - [ ] [#182](https://github.com/petarnenov/document-knowledge-platform/issues/182) P1: final consolidated independent security source review PASS148c037; excludes own176/180, retains actual runtime and production gates.
 - [x] [#186](https://github.com/petarnenov/document-knowledge-platform/issues/186) P1: independent latest185 authorization/metadata review PASS; pure review closed with resumable handoff and honest pending current-session compaction.
+
+- [ ] [#194](https://github.com/petarnenov/document-knowledge-platform/issues/194) P1: actual light-mode initialGET200/CDP-finished timeout; test-only success-UI barrier correction reviewed195, actual final-source CI pending.
+- [ ] [#195](https://github.com/petarnenov/document-knowledge-platform/issues/195) P1: independent194 source review PASS; expirybranch/current production source unchanged, actual runtime gates remain mandatory.
