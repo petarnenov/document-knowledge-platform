@@ -321,11 +321,15 @@ public final class RealUploadPersistenceStorageAcceptance {
         Fixture()throws Exception {
             assertEquals(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(tenant.getBytes(java.nio.charset.StandardCharsets.UTF_8)))+"/"+document+"/",required("DKP_RUSTFS_COMPAT_PREFIX"));
             assertTrue(bytes.length>32);assertTrue(new String(bytes,0,5,java.nio.charset.StandardCharsets.US_ASCII).startsWith("%PDF-"));
-            temporary=Files.createTempDirectory(authority,"fault-acceptance-");
-            actual=S3UploadStorageAdapter.connect(new S3UploadStorageAdapter.Configuration(URI.create(required("DKP_RUSTFS_COMPAT_ENDPOINT")),"us-east-1",authority.resolve("access-key"),authority.resolve("secret-key"),authority.resolve("ca.pem"),authority));
+            temporary=Files.createTempDirectory(authority,"fault-acceptance-",
+                java.nio.file.attribute.PosixFilePermissions.asFileAttribute(java.nio.file.attribute.PosixFilePermissions.fromString("rwx------")));
+            Path marker=Files.createFile(temporary.resolve(".spool-authority"),
+                java.nio.file.attribute.PosixFilePermissions.asFileAttribute(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")));
+            Files.writeString(marker,"dkp-private-spool-v1\n",java.nio.charset.StandardCharsets.US_ASCII);
+            actual=S3UploadStorageAdapter.connect(new S3UploadStorageAdapter.Configuration(URI.create(required("DKP_RUSTFS_COMPAT_ENDPOINT")),"us-east-1",authority.resolve("access-key"),authority.resolve("secret-key"),authority.resolve("ca.pem"),temporary));
             assertTrue(actual.ready(),"Real private TLS/scoped RustFS is mandatory");storage=new Observed(actual);
             Path deniedAuthority=Path.of(required("DKP_144_DENIED_STORAGE_AUTHORITY"));
-            deniedStorage=S3UploadStorageAdapter.connect(new S3UploadStorageAdapter.Configuration(URI.create(required("DKP_RUSTFS_COMPAT_ENDPOINT")),"us-east-1",deniedAuthority.resolve("access-key"),deniedAuthority.resolve("secret-key"),authority.resolve("ca.pem"),authority));
+            deniedStorage=S3UploadStorageAdapter.connect(new S3UploadStorageAdapter.Configuration(URI.create(required("DKP_RUSTFS_COMPAT_ENDPOINT")),"us-east-1",deniedAuthority.resolve("access-key"),deniedAuthority.resolve("secret-key"),authority.resolve("ca.pem"),temporary));
             assertTrue(deniedStorage.ready(),"Real scoped read-only credential must retain versioning readiness but deny exact-version DELETE");
             scanner=new ClamAvScanAdapter(new InetSocketAddress(required("DKP_144_SCANNER_HOST"),Integer.parseInt(required("DKP_144_SCANNER_PORT"))),new StandardDefinitions(Path.of(required("DKP_144_SCANNER_DEFINITIONS")),clock),clock);
             assertTrue(scanner.ready(),"Real fresh standard-definition ClamAV is mandatory");

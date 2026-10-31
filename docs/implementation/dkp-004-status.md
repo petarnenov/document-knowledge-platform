@@ -1,5 +1,16 @@
 ## Current task status — 2026-10-31 20:14 UTC / 22:14 Sofia
 
+## 2026-10-31 22:13 UTC acceptance checkpoint
+
+RustFS remains the recorded owner-selected first object store in AGENTS.md and the approved BP03 OpenSpec. The latest user-provided AGENTS.md requires PR review and prohibits automatic merging; earlier standing auto-merge permission is superseded. PR146 remains draft and unmerged.
+
+The genuinely fresh runtime passed the complete strict HTTPS suite in both themes: eight four-format uploads/downloads plus range, malware, malformed/encoded input, consumed-receipt, tenant/ACL and logout assertions (two tests,24.3 seconds). All five actual provider faults and eighteen-table durability checks passed separately on its quiescent fixture. Authenticated requests across faults, quota and real sixty-minute expiry remain pending.
+
+Exact pushed head d5d1013 passed repository hygiene and Java, architecture, supply-chain, portal, contracts and SBOM checks. BP03 CI failed the per-helper branch gate under Python3.14's default sysmon tracer despite119 passing tests. #160 reproduced the core difference on identical source/tests (72.5% versus95.83% helper branches), selects the documented maintained C tracer, preserves every75% floor and prints counts before the decision. Updated121 tests pass on Python3.14 with all six helper floors met.
+
+Actual #151 preparation correctly rejected an old fixture whose recorded port drifted; a new owned fixture was prepared. #161 corrects curl's invalid boolean HEAD syntax, with an actual credential-free/no-network curl parsing regression. A fresh private preparation passed real native403 denied deletion, unchanged exact proof bytes and app-only authority validation. The first combined execution exposed #163 fixture spool-root mismatch; the production guard correctly refused the file. Both test adapters now use the same isolated spool as the services, with an explicit private0700 directory and0600 exact authority marker. Independent #162 source review passed for the coverage/HEAD fixes and #163 spool fix. A new source-bound/image-attested eight-case execution is in progress. Failed directories, ledgers and logs remain retained. No issue closure or completed package is claimed.
+
+
 ## 2026-10-31 22:04 UTC deployed durability checkpoint
 
 A second genuinely fresh current runtime completed start/verify. The separate real HTTPS quiescent fixture (#156) passed in 5.5 seconds. Actual scoped stop/start faults for PostgreSQL, RustFS, ClamAV, the isolated inspector and DM all passed (#143/#154): the full eighteen-table digest remained identical, accounting/durable settings held, finite outage readiness and liveness were truthful, and each exact owned service recovered. This does not replace the still-pending authenticated fault-request, combined COPY/FENCE, quota or sixty-minute expiry acceptance.

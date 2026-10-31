@@ -104,3 +104,10 @@ Runtime issues91–99 were created before execution. Development specification a
 - [ ] [#158](https://github.com/petarnenov/document-knowledge-platform/issues/158) P1: Private acceptance authority volume minimal-capability initialization order; source fix in progress.
 
 - [ ] [#159](https://github.com/petarnenov/document-knowledge-platform/issues/159) P1: genuine OIDC reauthentication across unchanged five-minute sessions in the sixty-minute expiry acceptance; test source frozen, actual run pending.
+
+- [ ] [#160](https://github.com/petarnenov/document-knowledge-platform/issues/160) P1: consistent Python3.14 coverage core and transparent per-helper metrics; all121 tests and six unchanged floors pass locally, CI pending.
+- [ ] [#161](https://github.com/petarnenov/document-knowledge-platform/issues/161) P1: actual curl HEAD config parser correction; real native403/nonmutating preparation passes, combined cases pending.
+- [ ] [#162](https://github.com/petarnenov/document-knowledge-platform/issues/162) P1: independent review of HEAD, coverage and isolated spool fixture fixes.
+- [ ] [#163](https://github.com/petarnenov/document-knowledge-platform/issues/163) P1: configure both real combined-test S3 adapters with the service isolated spool directory; production direct-parent guard preserved, actual rerun pending.
+
+- [ ] [#164](https://github.com/petarnenov/document-knowledge-platform/issues/164) P1: persist latest owner-provided prohibition on automatic merging across governing delivery docs; PR146 stays unmerged.

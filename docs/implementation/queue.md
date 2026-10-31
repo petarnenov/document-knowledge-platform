@@ -2,7 +2,7 @@
 
 Goal: **the fully implemented Document Knowledge Platform described by the public System Design**, including the complete administration portal and the security, processing, retrieval, reliability and operational test evidence. Completing one package does not complete this goal.
 
-The owner confirmed this scope and uninterrupted autonomous execution on 2026-10-31. Continue immediately to the next ready package after its predecessor is independently reviewed, verified and integrated. The latest owner instruction explicitly authorizes automatic specification approval and PR merging into dev for all developed tasks, including specifications and implementation, after independent review and passing checks. Use isolated worktrees from current origin/dev, official OpenSpec changes, versioned contracts, independent reviews and passing checks. Do not use GeoWealth-specific delivery workflows. Production deployment/release remains separately gated.
+The owner confirmed this scope and uninterrupted autonomous execution on 2026-10-31. Continue immediately to the next ready package after its predecessor is independently reviewed, verified and integrated. Automatic specification approval remains authorized after independent review and passing checks. The latest owner-provided AGENTS.md requires PR review and prohibits automatic merging, superseding earlier standing merge permission. Use isolated worktrees from current origin/dev, official OpenSpec changes, versioned contracts, independent reviews and passing checks. Do not use GeoWealth-specific delivery workflows. Production deployment/release remains separately gated.
 
 ## SDLC and reporting
 

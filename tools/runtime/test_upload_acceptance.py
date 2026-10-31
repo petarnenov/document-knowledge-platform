@@ -130,6 +130,34 @@ class AcceptanceTests(unittest.TestCase):
         m.request(self.directory,self.fixture,self.state,'denied','HEAD','/private-selector')
         self.assertEqual(4,len(calls));self.assertFalse(list(self.directory.glob('.request-*')))
 
+    def test_head_configuration_is_standalone_and_accepted_by_real_credential_free_curl_parser(self):
+        self.arrange_prepared();head_options=[]
+        def configured(args,**kwargs):
+            config=Path(args[args.index('--config')+1]).read_text().splitlines()
+            options=[line for line in config if line.startswith('head')]
+            self.assertEqual(['head'],options);head_options.extend(options)
+            Path(args[args.index('--output')+1]).write_bytes(b'')
+            Path(args[args.index('--dump-header')+1]).write_text('HTTP/1.1 200 OK\r\nx-amz-version-id: exact\r\n')
+            return b'200'
+        with patch.object(m,'command',side_effect=configured):
+            self.assertEqual(200,m.request(self.directory,self.fixture,self.state,'denied','HEAD','/synthetic')[0])
+        # --version parses stdin config and exits without a URL, credentials or network.
+        for config,valid in [('\n'.join(head_options)+'\n',True),('head = true\n',False)]:
+            result=subprocess.run(['curl','--disable','--config','-','--version'],input=config.encode(),capture_output=True,timeout=10)
+            self.assertEqual(valid,result.returncode==0)
+
+    def test_actual_helper_loading_and_large_private_diagnostics_are_bounded(self):
+        with patch.object(m,'ROOT',self.original):
+            loaded=m.helper('rustfs-compat-harness')
+            self.assertTrue(callable(loaded.socket_group))
+        self.directory.mkdir(mode=0o700)
+        def oversized(args,**kwargs):
+            kwargs['stdout'].truncate(16*1024*1024+1)
+            return SimpleNamespace(returncode=0)
+        with patch.object(subprocess,'run',side_effect=oversized):
+            with self.assertRaisesRegex(ValueError,'byte limit'):m.capture(['synthetic'],self.directory/'oversized.private.log')
+        self.assertEqual(0o600,(self.directory/'oversized.private.log').stat().st_mode&0o777)
+
     def test_response_bounds_duplicate_version_and_transport_failures(self):
         self.arrange_prepared()
         for headers,body,status in [('x-amz-version-id: a\nx-amz-version-id: b\n',b'',b'200'),('x: '+'a'*16384,b'',b'200'),('',b'a'*65537,b'200'),('',b'',b'notstatus')]:

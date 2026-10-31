@@ -31,7 +31,7 @@ Before compaction, save a resumable handoff: full-project goal, current worktree
 
 Invoke only a real mechanism that compacts the **current session**. If the environment exposes no such tool or command, record `compaction pending: /compact` with the saved handoff, disclose the limitation and preserve the pending checkpoint for the next supported session boundary. Never report compaction as executed without evidence, start a separate assistant process as a substitute, or delete session history. Automatic platform compaction may satisfy the step when observed; do not force it through destructive or unrelated actions.
 
-Standing automatic specification approval and PR merging do not remove this lifecycle. No additional owner confirmation is needed for routine issue creation, evidence updates or verified closure within the authorized project work.
+Standing automatic specification approval does not remove this lifecycle. The latest owner-provided AGENTS.md prohibits automatic PR merging. No additional owner confirmation is needed for routine issue creation, evidence updates or verified closure within the authorized project work.
 
 ## Owner-selected object store
 
@@ -74,6 +74,6 @@ Promotion from `dev` to `main` uses a separate reviewed PR with a compatibility 
 3. Java/TypeScript tests, dependency/secret scans, architecture boundaries and coverage pass.
 4. Integration/E2E and negative authorization tests pass for affected behavior.
 5. Evidence and rollback plan are attached for deployment-related changes.
-6. Independent review before merge; no unrelated cleanup or confidential files. Automatic specification approval remains authorized after independent review and passing checks. The latest owner instruction explicitly authorizes automatic PR merging into dev for all developed tasks, including specifications and implementation, after these gates. Production release remains a separate gate.
+6. Independent review before merge; no unrelated cleanup or confidential files. Automatic specification approval remains authorized after independent review and passing checks. The latest owner-provided AGENTS.md requires PRs for review and prohibits automatic merging, superseding earlier standing merge permission. Production release remains a separate gate.
 
 This workflow documents commands; **it does not create a worktree on a developer's machine**.

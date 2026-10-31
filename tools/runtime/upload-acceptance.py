@@ -140,7 +140,7 @@ def request(work, fixture, state, authority, method, path, body=None):
             app = fixture / 'app' if authority == 'app' else work / 'app/denied'
             credentials = 'user = ' + json.dumps(':'.join(bounded(app / name,128).decode().strip() for name in ('access-key','secret-key')))
         lines = ['url = ' + json.dumps(state['endpoint'] + path),'request = ' + json.dumps(method),credentials]
-        if method == 'HEAD':lines.append('head = true')
+        if method == 'HEAD':lines.append('head')
         if body is not None:
             private(folder / 'body',body);lines.append('data-binary = ' + json.dumps('@' + str(folder / 'body')))
         private(config,'\n'.join(lines) + '\n')

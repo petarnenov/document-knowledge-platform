@@ -161,6 +161,10 @@ jobs:
           --test-coverage-branches=75 --test-coverage-functions=75 --test
           tools/runtime/synthetic-documents.test.mjs
       - name: Strict per-helper source and branch coverage
+        env:
+          # Keep branch measurement consistent across Python versions. Python
+          # 3.14 defaults to sysmon, which misses tested exception exits here.
+          COVERAGE_CORE: ctrace
         run: |
           set -euo pipefail
           python3 -m venv /tmp/dkp-upload-checks
@@ -175,6 +179,8 @@ jobs:
               if len(matches) != 1:
                   raise SystemExit('Missing source coverage for ' + name)
               summary = matches[0]
+              print(name + ': source ' + str(summary['covered_lines']) + '/' + str(summary['num_statements'])
+                    + ', branches ' + str(summary['covered_branches']) + '/' + str(summary['num_branches']))
               if (summary['covered_lines'] / summary['num_statements'] < .75
                       or summary['num_branches'] == 0
                       or summary['covered_branches'] / summary['num_branches'] < .75):
