@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://documentknowledge.example/contracts/generic-upload-temp-v1.schema.json",
+  "title": "Proposed private TRANSFER/PREAPPEND ownership v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "role",
+    "lane",
+    "operationId",
+    "reservationId",
+    "ownerEpoch",
+    "tenantDigest",
+    "actorDigest",
+    "documentId",
+    "uploadId",
+    "receiptId",
+    "declaredSize",
+    "state"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "role": {
+      "enum": [
+        "TRANSFER",
+        "PREAPPEND"
+      ]
+    },
+    "lane": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9
+    },
+    "operationId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "reservationId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "ownerEpoch": {
+      "$ref": "#/$defs/uuid"
+    },
+    "tenantDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "actorDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "documentId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "uploadId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "receiptId": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "declaredSize": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000000
+    },
+    "state": {
+      "enum": [
+        "RESERVED",
+        "MAY_EXIST",
+        "DELETE_PENDING",
+        "ABSENT"
+      ]
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "role": {
+            "const": "TRANSFER"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "receiptId": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "lane": {
+            "maximum": 1,
+            "type": "integer"
+          },
+          "receiptId": {
+            "$ref": "#/$defs/uuid"
+          }
+        }
+      }
+    }
+  ]
+}

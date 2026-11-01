@@ -1,0 +1,732 @@
+{
+  "valid": [
+    {
+      "name": "transfer-reserved",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "transfer-may_exist",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 9,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "MAY_EXIST"
+      }
+    },
+    {
+      "name": "transfer-delete_pending",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 9,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "DELETE_PENDING"
+      }
+    },
+    {
+      "name": "transfer-absent",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "ABSENT"
+      }
+    },
+    {
+      "name": "preappend-reserved",
+      "record": {
+        "version": 1,
+        "role": "PREAPPEND",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "preappend-may_exist",
+      "record": {
+        "version": 1,
+        "role": "PREAPPEND",
+        "lane": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "declaredSize": 100000000,
+        "state": "MAY_EXIST"
+      }
+    },
+    {
+      "name": "preappend-delete_pending",
+      "record": {
+        "version": 1,
+        "role": "PREAPPEND",
+        "lane": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "declaredSize": 100000000,
+        "state": "DELETE_PENDING"
+      }
+    },
+    {
+      "name": "preappend-absent",
+      "record": {
+        "version": 1,
+        "role": "PREAPPEND",
+        "lane": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "declaredSize": 100000000,
+        "state": "ABSENT"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "invalid-extra-0",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED",
+        "extra": "arbitrary"
+      }
+    },
+    {
+      "name": "invalid-version-1",
+      "record": {
+        "version": 2,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-role-2",
+      "record": {
+        "version": 1,
+        "role": "COPY",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-lane-3",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 10,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-lane-4",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": -1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-lane-5",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0.5,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-operationId-6",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "../foreign",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-reservationId-7",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": null,
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-ownerEpoch-8",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-tenantDigest-9",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "*",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-actorDigest-10",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-documentId-11",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "not-uuid",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-uploadId-12",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": null,
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-receiptId-13",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-declaredSize-14",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 0,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-declaredSize-15",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000001,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-declaredSize-16",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 1.5,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "invalid-state-17",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "CLEAN"
+      }
+    },
+    {
+      "name": "preappend-lane",
+      "record": {
+        "version": 1,
+        "role": "PREAPPEND",
+        "lane": 2,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "preappend-receiptId",
+      "record": {
+        "version": 1,
+        "role": "PREAPPEND",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-version",
+      "record": {
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-role",
+      "record": {
+        "version": 1,
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-lane",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-operationId",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-reservationId",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-ownerEpoch",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-tenantDigest",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-actorDigest",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-documentId",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-uploadId",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "receiptId": null,
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-receiptId",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "declaredSize": 100000000,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-declaredSize",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "state": "RESERVED"
+      }
+    },
+    {
+      "name": "missing-state",
+      "record": {
+        "version": 1,
+        "role": "TRANSFER",
+        "lane": 0,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "reservationId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "ownerEpoch": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "uploadId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "receiptId": null,
+        "declaredSize": 100000000
+      }
+    }
+  ]
+}
