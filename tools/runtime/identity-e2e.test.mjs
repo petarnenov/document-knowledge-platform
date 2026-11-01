@@ -376,3 +376,22 @@ test('job-control unit execution leaves checkout default security absent', () =>
     rmSync(checkout, { recursive: true, force: true });
   }
 });
+
+
+test('actual browser job diagnostic helpers preserve assertions and exclude private errors', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'dkp433-diagnostic-unit-'));
+  try {
+    const source = readFileSync(new URL('../../apps/admin-portal/e2e-real/upload-job-boundary.spec.ts', import.meta.url), 'utf8');
+    const helpers = source.slice(source.indexOf('const phases ='), source.indexOf('async function emit('));
+    let script = "import { writeFile, rename, readFile } from 'node:fs/promises';\nimport assert from 'node:assert/strict';\n";
+    script += 'const control = ' + JSON.stringify(directory + '/') + ';\n';
+    script += "const expect = (actual: number) => ({ toBe(expected: number) { if (actual !== expected) throw Object.assign(new Error('private-csrf-cookie-body'), { matcherResult: { private: 'secret' } }); } });\n";
+    script += helpers;
+    script += "\nawait assert.rejects(phase('invalid' as Phase));\nawait phase('FIRST_TRANSFER');\nawait status(200, 200);\nlet caught;\ntry { await status(503, 200); } catch (error) { caught = error; }\nassert.ok(caught, 'HTTP mismatch must still throw');\nawait failure(caught);\nlet value = JSON.parse(await readFile(control + 'diagnostic.json', 'utf8'));\nassert.deepEqual(value, {schemaVersion: 1, phase: 'FIRST_TRANSFER', errorClass: 'ASSERTION', expectedStatus: 200, actualStatus: 503});\nassert.equal(JSON.stringify(value).includes('private'), false);\nawait phase('SIGN_IN');\nawait failure(Object.assign(new Error('credential-bearing-url'), {name: 'TimeoutError'}));\nvalue = JSON.parse(await readFile(control + 'diagnostic.json', 'utf8'));\nassert.deepEqual(value, {schemaVersion: 1, phase: 'SIGN_IN', errorClass: 'TIMEOUT', expectedStatus: null, actualStatus: null});\nawait failure(new Error('secret-header-body'));\nvalue = JSON.parse(await readFile(control + 'diagnostic.json', 'utf8'));\nassert.equal(value.errorClass, 'ERROR');\nassert.equal(JSON.stringify(value).includes('secret'), false);\n";
+    const result = spawnSync(process.execPath, ['--input-type=module-typescript', '-'], {input: script, encoding: 'utf8', timeout:10000});
+    assert.equal(result.status, 0, 'Browser diagnostic helper unit failed');
+    assert.equal(result.stdout, '');
+  } finally {
+    rmSync(directory, {recursive:true, force:true});
+  }
+});

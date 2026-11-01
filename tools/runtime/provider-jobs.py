@@ -137,7 +137,7 @@ CONTROL_SCRIPT = r"""
 const fs=require('node:fs');
 const directory='/tmp/dkp-job-boundary';
 const operation=process.argv[1],name=process.argv[2];
-const names=operation==='read'?['prepared','submitted','aborted','completed']:operation==='write'?['begin','abort-now','restored','finish']:[];
+const names=operation==='read'?['prepared','submitted','aborted','completed','diagnostic']:operation==='write'?['begin','abort-now','restored','finish']:[];
 if(process.getuid()!==1001||!names.includes(name))throw Error('closed bridge');
 let info;try{info=fs.lstatSync(directory);}catch(error){if(operation==='read'&&error.code==='ENOENT'){process.stdout.write('null');process.exit(0);}throw error;}
 if(!info.isDirectory()||info.isSymbolicLink()||info.uid!==1001||(info.mode&511)!==448)throw Error('private directory');
@@ -155,7 +155,7 @@ if(operation==='write'){
 
 
 def exchange(work, operation, name):
-    choices = ('begin','abort-now','restored','finish') if operation=='write' else ('prepared','submitted','aborted','completed') if operation=='read' else ()
+    choices = ('begin','abort-now','restored','finish') if operation=='write' else ('prepared','submitted','aborted','completed','diagnostic') if operation=='read' else ()
     if name not in choices:raise ValueError('Closed private bridge required')
     current=browser_instance(work)
     if current is None:
@@ -183,7 +183,39 @@ def wait(operation, seconds=10):
     raise ValueError('Observed checkpoint deadline exceeded')
 
 
+DIAGNOSTIC_PHASES = ('SETUP', 'SIGN_IN', 'SESSION', 'SELECT_TENANT', 'ACTIVE_SESSION',
+                     'SOURCE', 'FIRST_CREATE', 'FIRST_ADMIT', 'FIRST_TRANSFER',
+                     'SECOND_CREATE', 'SECOND_ADMIT', 'SECOND_TRANSFER', 'PREPARED',
+                     'BEGIN', 'SUBMIT', 'ABORT', 'RESTORED', 'COMPLETE', 'STATUS', 'FINISH')
+DIAGNOSTIC_ERRORS = ('NONE', 'ASSERTION', 'TIMEOUT', 'ERROR')
+
+
+def browser_diagnostic(value):
+    closed(value, ('schemaVersion', 'phase', 'errorClass', 'expectedStatus', 'actualStatus'))
+    if (type(value['schemaVersion']) is not int or value['schemaVersion'] != 1
+            or value['phase'] not in DIAGNOSTIC_PHASES or value['errorClass'] not in DIAGNOSTIC_ERRORS):
+        raise ValueError('Closed browser diagnostic required')
+    for key in ('expectedStatus', 'actualStatus'):
+        if value[key] is not None and (type(value[key]) is not int or not 100 <= value[key] <= 599):
+            raise ValueError('Bounded numeric HTTP status required')
+    return value
+
+
+def retain_browser_diagnostic(work):
+    # Best effort only; diagnostic failures never replace acceptance or ownership checks.
+    # Polling retains the latest closed phase even if --rm removes a crashed browser.
+    try:
+        value = exchange(work, 'read', 'diagnostic')
+        if value is not None:
+            temporary = work / 'browser-diagnostic.pending'
+            runtime.private(temporary, json.dumps(browser_diagnostic(value)))
+            temporary.replace(work / 'browser-diagnostic.json')
+    except Exception:
+        pass
+
+
 def marker(work, name):
+    retain_browser_diagnostic(work)
     return exchange(work,'read',name)
 
 
@@ -296,13 +328,19 @@ def spool_count(state):
     return int(result.strip())
 
 
+def accounting_query(tenant):
+    if tenant not in ('tenant-a', 'tenant-b'):raise ValueError('Closed synthetic tenant required')
+    # Promised original bytes become retained only on atomic append/consumption, not verification.
+    return "SELECT (SELECT count(*) FROM dm.upload_slots)=2 AND (SELECT count(*) FROM dm.upload_resource_accounts)=1 AND EXISTS(SELECT 1 FROM dm.upload_resource_accounts a CROSS JOIN (SELECT count(*) FILTER(WHERE quota_held) AS admitted,coalesce(sum(transient_reservation),0) AS transient,coalesce(sum(CASE WHEN NOT EXISTS(SELECT 1 FROM dm.upload_receipts r JOIN dm.upload_receipt_consumptions c ON c.tenant_id=r.tenant_id AND c.receipt_id=r.receipt_id WHERE r.tenant_id=s.tenant_id AND r.upload_id=s.upload_id) THEN declared_size ELSE 0 END),0) AS promised,coalesce(sum(CASE WHEN EXISTS(SELECT 1 FROM dm.upload_receipts r JOIN dm.upload_receipt_consumptions c ON c.tenant_id=r.tenant_id AND c.receipt_id=r.receipt_id WHERE r.tenant_id=s.tenant_id AND r.upload_id=s.upload_id) THEN declared_size ELSE 0 END),0) AS retained FROM dm.upload_slots s WHERE tenant_id='" + tenant + "') t WHERE a.tenant_id='" + tenant + "' AND a.admitted_count=t.admitted AND a.reserved_transient_bytes=t.transient AND a.promised_original_bytes=t.promised AND a.retained_original_bytes=t.retained);"
+
+
 def no_forbidden_facts(state, value):
     # All literals have passed the closed canonical fixture validator. Never print rows.
     fixture(value);a = value['first'];tenant = value['tenant']
     where = "tenant_id='" + tenant + "' AND upload_id='" + a['uploadId'] + "'"
     query = "SELECT (SELECT count(*) FROM dm.upload_slots WHERE " + where + " AND document_id='" + a['documentId'] + "' AND state IN ('VERIFYING','QUARANTINED') AND quota_held AND NOT quarantine_cleanup_confirmed AND transient_reservation=2*declared_size AND declared_size=" + str(value['sizeBytes']) + " AND actual_size=declared_size AND body_sha256='" + value['sha256'] + "' AND quarantine_version_id IS NOT NULL AND possible_original_key IS NULL AND possible_original_version_id IS NULL)=1 AND NOT EXISTS(SELECT 1 FROM dm.upload_receipts WHERE " + where + ") AND NOT EXISTS(SELECT 1 FROM dm.upload_verification_facts WHERE " + where + ") AND NOT EXISTS(SELECT 1 FROM dm.versions WHERE tenant_id='" + tenant + "' AND document_id='" + a['documentId'] + "') AND NOT EXISTS(SELECT 1 FROM dm.upload_receipt_consumptions WHERE tenant_id='" + tenant + "' AND document_id='" + a['documentId'] + "') AND NOT EXISTS(SELECT 1 FROM dm.upload_deletion_fences WHERE " + where + ");"
     if d.sql(state, query) != 't' or d.sql(state, d.BALANCES) != 't':raise ValueError('Canceled/restarted work created forbidden facts or lost full charge')
-    accounting = "SELECT (SELECT count(*) FROM dm.upload_slots)=2 AND (SELECT count(*) FROM dm.upload_resource_accounts)=1 AND EXISTS(SELECT 1 FROM dm.upload_resource_accounts a CROSS JOIN (SELECT count(*) FILTER(WHERE quota_held) AS admitted,coalesce(sum(transient_reservation),0) AS transient,coalesce(sum(CASE WHEN NOT EXISTS(SELECT 1 FROM dm.upload_receipts r WHERE r.tenant_id=s.tenant_id AND r.upload_id=s.upload_id) THEN declared_size ELSE 0 END),0) AS promised,coalesce(sum(CASE WHEN EXISTS(SELECT 1 FROM dm.upload_receipts r WHERE r.tenant_id=s.tenant_id AND r.upload_id=s.upload_id) THEN declared_size ELSE 0 END),0) AS retained FROM dm.upload_slots s WHERE tenant_id='" + tenant + "') t WHERE a.tenant_id='" + tenant + "' AND a.admitted_count=t.admitted AND a.reserved_transient_bytes=t.transient AND a.promised_original_bytes=t.promised AND a.retained_original_bytes=t.retained);"
+    accounting = accounting_query(tenant)
     if d.sql(state, accounting) != 't':raise ValueError('Exact per-slot tenant charge accounting required')
     query = "SELECT encode(sha256(convert_to(jsonb_build_array(tenant_id,upload_id,document_id,actor_issuer,actor_subject,created_at,expires_at,expected_document_revision,declared_format,declared_size,body_idempotency_key,body_sha256,actual_size,quarantine_bucket,quarantine_key,quarantine_version_id)::text,'UTF8')),'hex') FROM dm.upload_slots WHERE " + where + ";"
     digest = d.sql(state, query)
@@ -340,6 +378,23 @@ def stop_process(process):
         except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)
 
 
+DM_DIAGNOSTIC_PHASES = ('PREPARED', 'OLD_BASELINE', 'BEGIN', 'VERIFYING', 'ABORT',
+                        'CRASH', 'RECOVERY', 'OLD_FACTS_AFTER_RECOVERY', 'SECOND_COMPLETE',
+                        'OLD_FACTS_AFTER_COMPLETE', 'FINAL_SNAPSHOT', 'FINISH', 'BROWSER_EXIT')
+
+
+def retain_dm_diagnostic(work, phase, error):
+    try:
+        if phase not in DM_DIAGNOSTIC_PHASES:return
+        category = ('TIMEOUT' if isinstance(error, subprocess.TimeoutExpired) else
+                    'VALIDATION' if isinstance(error, ValueError) else
+                    'IO' if isinstance(error, OSError) else 'ERROR')
+        runtime.private(work / 'dm-boundary-diagnostic.json', json.dumps({
+            'schemaVersion': 1, 'phase': phase, 'errorClass': category}))
+    except Exception:
+        pass  # Diagnostics never replace the original failure or cleanup.
+
+
 def dm_boundary(state, work):
     bound(state)
     runtime.private(work / 'input.json', '{"schemaVersion":1}\n')
@@ -348,35 +403,51 @@ def dm_boundary(state, work):
     with log.open('wb') as output:
         browser = subprocess.Popen(args, cwd=ROOT, stdout=output, stderr=subprocess.STDOUT, env={k:v for k,v in os.environ.items() if k in ('PATH', 'HOME', 'JAVA_HOME')})
         target = None;stopped = False;browser_identity = None
+        phase = 'PREPARED'
         try:
             value = fixture(wait(lambda: marker(work, 'prepared'), 180))
             browser_identity = browser_instance(work)
             if browser_identity is None:raise ValueError('Actual owned browser required')
+            phase = 'OLD_BASELINE'
             baseline = d.sql(state, d.SNAPSHOT)
             original_evidence = no_forbidden_facts(state, value)
+            phase = 'BEGIN'
             write_marker(work, 'begin');wait(lambda: browser_marker(work, 'submitted'), 10)
             def verifying():
                 status = d.sql(state, "SELECT state FROM dm.upload_slots WHERE tenant_id='" + value['tenant'] + "' AND upload_id='" + value['first']['uploadId'] + "';")
                 if status == 'VERIFYING':return True
                 if status != 'QUARANTINED':raise ValueError('Old verifying boundary not exercised')
+            phase = 'VERIFYING'
             wait(verifying, 10)
+            phase = 'ABORT'
             write_marker(work, 'abort-now');wait(lambda: browser_marker(work, 'aborted'), 10)
+            phase = 'CRASH'
             target = provider(state, 'document-management')
             # Explicit crash, not a graceful drain mistaken for an in-flight restart.
             bound(state);runtime.command(['docker', 'kill', '--signal', 'KILL', target]);stopped = True
             bound(state);runtime.owned(runtime.docker('inspect', target)[0], state)
+            phase = 'RECOVERY'
             runtime.command(['docker', 'start', target]);stopped = False
             runtime.health(state)
             if provider(state, 'document-management') != target:raise ValueError('DM restart changed exact instance')
+            phase = 'OLD_FACTS_AFTER_RECOVERY'
             if no_forbidden_facts(state, value) != original_evidence:raise ValueError('Restart changed original evidence')
+            phase = 'SECOND_COMPLETE'
             write_marker(work, 'restored');wait(lambda: browser_marker(work, 'completed'), 180)
+            phase = 'OLD_FACTS_AFTER_COMPLETE'
             if no_forbidden_facts(state, value) != original_evidence:raise ValueError('New work changed old evidence')
+            phase = 'FINAL_SNAPSHOT'
             after = d.sql(state, d.SNAPSHOT)
             if not re.fullmatch('[a-f0-9]{64}', baseline) or not re.fullmatch('[a-f0-9]{64}', after):raise ValueError('Full18table digest required')
             runtime.private(work / 'dm-facts.json', json.dumps({'before18TableSha256': baseline, 'after18TableSha256': after, 'noForbiddenFacts': True, 'accountingBalances': True}))
+            phase = 'FINISH'
             write_marker(work, 'finish')
+            phase = 'BROWSER_EXIT'
             if browser.wait(timeout=30):raise ValueError('Genuine guarded browser boundary failed')
             return {'phase': 'dm', 'result': 'PASS', 'boundary': 'OBSERVED_VERIFYING_THEN_ABORT_AND_EXACT_PROCESS_CRASH', 'remoteCancellationAcknowledged': False}
+        except Exception as error:
+            retain_dm_diagnostic(work, phase, error)
+            raise
         finally:
             try:
                 if target is not None and stopped:
@@ -385,6 +456,7 @@ def dm_boundary(state, work):
                 try:
                     current = browser_instance(work, browser_identity)
                     if current is not None:
+                        retain_browser_diagnostic(work)
                         bound(state);runtime.command(['docker', 'rm', '--force', current[0]])
                 finally:stop_process(browser)
 

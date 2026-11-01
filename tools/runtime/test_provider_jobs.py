@@ -310,6 +310,7 @@ class JobsTests(unittest.TestCase):
             stack.enter_context(patch.object(m,'bound'));stack.enter_context(patch.object(m,'provider',return_value=self.target));stack.enter_context(patch.object(m.runtime,'docker',return_value=[{}]));command=stack.enter_context(patch.object(m.runtime,'command'))
             stack.enter_context(patch.object(m,'marker',return_value=self.value));stack.enter_context(patch.object(m,'browser_marker',return_value=True));stack.enter_context(patch.object(m,'no_forbidden_facts',return_value='e'*64));stack.enter_context(patch.object(m.d,'sql',side_effect=['a'*64,'VERIFYING','b'*64]));markers=stack.enter_context(patch.object(m,'write_marker'))
             stack.enter_context(patch.object(m,'browser_instance',return_value=(self.target,'image')))
+            stack.enter_context(patch.object(m,'retain_browser_diagnostic'))
             browser=Mock();browser.poll.return_value=None;browser.wait.return_value=0
             stack.enter_context(patch.object(m.subprocess,'Popen',return_value=browser))
             self.assertEqual('PASS',m.dm_boundary(self.state,work)['result']);self.assertEqual(['begin','abort-now','restored','finish'],[c.args[1] for c in markers.call_args_list])
@@ -318,6 +319,123 @@ class JobsTests(unittest.TestCase):
             m.d.sql.side_effect=['a'*64,'VERIFYING']
             with self.assertRaises(ValueError):m.dm_boundary(self.state,work)
             self.assertIn(['docker','start',self.target],[c.args[0] for c in command.call_args_list])
+
+    def test_parent_diagnostic_contains_only_allowlisted_phase_and_error_category(self):
+        import subprocess
+        for phase in m.DM_DIAGNOSTIC_PHASES:
+            for error, category in [(ValueError('private-sql-row'), 'VALIDATION'), (OSError('private-path'), 'IO'), (RuntimeError('secret-token'), 'ERROR'), (subprocess.TimeoutExpired('credential-command', 30), 'TIMEOUT')]:
+                with patch.object(m.runtime, 'private') as private:
+                    m.retain_dm_diagnostic(Path('/private/jobs'), phase, error)
+                    self.assertEqual({'schemaVersion': 1, 'phase': phase, 'errorClass': category}, json.loads(private.call_args.args[1]))
+        with patch.object(m.runtime, 'private') as private:
+            m.retain_dm_diagnostic(Path('/private/jobs'), 'private-user-data', ValueError('secret'))
+            private.assert_not_called()
+        with patch.object(m.runtime, 'private', side_effect=OSError('private-disk-error')):
+            m.retain_dm_diagnostic(Path('/private/jobs'), 'PREPARED', ValueError('original'))
+
+
+    def test_browser_diagnostic_is_closed_bounded_and_excludes_all_caller_details(self):
+        good = {'schemaVersion': 1, 'phase': 'FIRST_TRANSFER', 'errorClass': 'ASSERTION', 'expectedStatus': 200, 'actualStatus': 503}
+        for phase in m.DIAGNOSTIC_PHASES:
+            for error in m.DIAGNOSTIC_ERRORS:
+                self.assertEqual({**good, 'phase': phase, 'errorClass': error}, m.browser_diagnostic({**good, 'phase': phase, 'errorClass': error}))
+        self.assertEqual({**good, 'expectedStatus': None, 'actualStatus': None}, m.browser_diagnostic({**good, 'expectedStatus': None, 'actualStatus': None}))
+        for bad in [{}, [], {**good, 'extra': 'private-token'}, {**good, 'schemaVersion': True}, {**good, 'phase': 'private-url'}, {**good, 'errorClass': 'secret-error'}, *[{**good, field: value} for field in ('expectedStatus', 'actualStatus') for value in (True, False, 99, 600, '503', {}, 200.0)]]:
+            with self.subTest(valueType=type(bad).__name__), self.assertRaises(ValueError):m.browser_diagnostic(bad)
+
+    def test_diagnostic_snapshots_replace_privately_and_untrusted_records_never_persist(self):
+        good = {'schemaVersion': 1, 'phase': 'SIGN_IN', 'errorClass': 'NONE', 'expectedStatus': None, 'actualStatus': None}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(m, 'exchange') as exchange:
+            work = Path(tmp)
+            exchange.return_value = good
+            m.retain_browser_diagnostic(work)
+            saved = work / 'browser-diagnostic.json'
+            self.assertEqual(good, json.loads(saved.read_text()))
+            self.assertEqual(0o600, saved.stat().st_mode & 0o777)
+            updated = {**good, 'phase': 'FIRST_TRANSFER', 'errorClass': 'ASSERTION', 'expectedStatus': 200, 'actualStatus': 503}
+            exchange.return_value = updated
+            m.retain_browser_diagnostic(work)
+            self.assertEqual(updated, json.loads(saved.read_text()))
+            for invalid in [None, {**good, 'secret': 'private-csrf-value'}, {'phase': 'private-detail'}]:
+                exchange.return_value = invalid
+                m.retain_browser_diagnostic(work)
+                self.assertEqual(updated, json.loads(saved.read_text()))
+                self.assertNotIn('private', saved.read_text())
+            exchange.side_effect = ValueError('private inspect/error detail')
+            m.retain_browser_diagnostic(work)
+            self.assertEqual(updated, json.loads(saved.read_text()))
+            self.assertFalse((work / 'browser-diagnostic.pending').exists())
+
+    def test_polling_retains_diagnostic_before_reading_acceptance_marker(self):
+        work = Path('/private/jobs')
+        with patch.object(m, 'retain_browser_diagnostic') as retain, patch.object(m, 'exchange', return_value=self.value) as exchange:
+            order = Mock();order.attach_mock(retain, 'retain');order.attach_mock(exchange, 'exchange')
+            self.assertEqual(self.value, m.marker(work, 'prepared'))
+            self.assertEqual(['retain', 'exchange'], [call[0] for call in order.mock_calls])
+            exchange.assert_called_once_with(work, 'read', 'prepared')
+
+    def test_cleanup_captures_diagnostic_before_removing_owned_browser_on_failure(self):
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            work = Path(tmp)
+            stack.enter_context(patch.object(m, 'bound'))
+            stack.enter_context(patch.object(m.runtime, 'private'))
+            stack.enter_context(patch.object(m, 'wait', side_effect=ValueError('private failure')))
+            stack.enter_context(patch.object(m, 'browser_instance', return_value=(self.target, 'image')))
+            browser = Mock();browser.poll.return_value = None
+            stack.enter_context(patch.object(m.subprocess, 'Popen', return_value=browser))
+            retain = stack.enter_context(patch.object(m, 'retain_browser_diagnostic'))
+            command = stack.enter_context(patch.object(m.runtime, 'command'))
+            order = Mock();order.attach_mock(retain, 'retain');order.attach_mock(command, 'command')
+            with patch.object(m, 'retain_dm_diagnostic') as parent_diagnostic:
+                with self.assertRaisesRegex(ValueError, 'private failure'):m.dm_boundary(self.state, work)
+            self.assertEqual('PREPARED', parent_diagnostic.call_args.args[1])
+            self.assertIsInstance(parent_diagnostic.call_args.args[2], ValueError)
+            self.assertEqual(['retain', 'command'], [call[0] for call in order.mock_calls])
+            command.assert_called_once_with(['docker', 'rm', '--force', self.target])
+            browser.terminate.assert_called_once()
+
+
+
+
+
+
+class AccountingLifecycleRegression(unittest.TestCase):
+    def database(self, consumed=False):
+        import sqlite3
+        db=sqlite3.connect(':memory:')
+        db.execute("ATTACH DATABASE ':memory:' AS dm")
+        db.executescript("""
+        CREATE TABLE dm.upload_slots(tenant_id TEXT,upload_id TEXT,quota_held BOOLEAN,transient_reservation INTEGER,declared_size INTEGER);
+        CREATE TABLE dm.upload_resource_accounts(tenant_id TEXT,admitted_count INTEGER,reserved_transient_bytes INTEGER,promised_original_bytes INTEGER,retained_original_bytes INTEGER);
+        CREATE TABLE dm.upload_receipts(tenant_id TEXT,upload_id TEXT,receipt_id TEXT);
+        CREATE TABLE dm.upload_receipt_consumptions(tenant_id TEXT,receipt_id TEXT);
+        INSERT INTO dm.upload_slots VALUES('tenant-a','first',1,200,100),('tenant-a','second',1,200,100);
+        INSERT INTO dm.upload_resource_accounts VALUES('tenant-a',2,400,200,0);
+        INSERT INTO dm.upload_receipts VALUES('tenant-a','second','verified-receipt');
+        """)
+        if consumed:
+            db.execute("INSERT INTO dm.upload_receipt_consumptions VALUES('tenant-a','verified-receipt')")
+            db.execute('UPDATE dm.upload_resource_accounts SET promised_original_bytes=100,retained_original_bytes=100')
+        self.addCleanup(db.close)
+        return db
+
+    def test_verified_unconsumed_receipt_keeps_original_promise(self):
+        db=self.database()
+        self.assertEqual(1,db.execute(m.accounting_query('tenant-a')).fetchone()[0])
+        db.execute('UPDATE dm.upload_resource_accounts SET promised_original_bytes=100,retained_original_bytes=100')
+        self.assertEqual(0,db.execute(m.accounting_query('tenant-a')).fetchone()[0])
+
+    def test_consumption_reclassifies_and_wrong_tenant_cannot_consume(self):
+        db=self.database(consumed=True)
+        self.assertEqual(1,db.execute(m.accounting_query('tenant-a')).fetchone()[0])
+        db.execute("UPDATE dm.upload_receipt_consumptions SET tenant_id='tenant-b'")
+        self.assertEqual(0,db.execute(m.accounting_query('tenant-a')).fetchone()[0])
+
+    def test_mismatched_full_charge_is_rejected(self):
+        db=self.database()
+        db.execute('UPDATE dm.upload_resource_accounts SET reserved_transient_bytes=399')
+        self.assertEqual(0,db.execute(m.accounting_query('tenant-a')).fetchone()[0])
+        with self.assertRaises(ValueError):m.accounting_query('untrusted')
 
 
 if __name__=='__main__':unittest.main()
