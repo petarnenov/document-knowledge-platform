@@ -78,6 +78,133 @@ class BackendUnsettled(ValueError):
     """Local process exit is not evidence of owning PostgreSQL settlement."""
 
 
+class CatalogObserverUnsettled(ValueError):
+    """The Docker exec completion was not observed; never claim remote settlement."""
+
+
+class CatalogObserver:
+    """One read-only guest read, prepared before any request/SQL barrier.
+
+    Normal docker exec completion acknowledges the remote exit status. On an
+    observation timeout we neither kill the client nor infer remote settlement.
+    The guest itself has a fixed lifetime, including its stdin wait.
+    """
+    PATHS = {'dm': '/run/dkp/authority/grants.json',
+             'kb': '/run/dkp/kb-authority/grants.json'}
+
+    def __init__(self, container, owner, popen=subprocess.Popen, receipt=None):
+        if not re.fullmatch('[a-f0-9]{64}', container) or owner not in self.PATHS:
+            raise ValueError('Invalid owned catalog observer selector')
+        self.receipt = receipt or (lambda value: None)
+        self.closed = False
+        self.settled = False
+        # No dynamic shell selector, background process, file write or privilege
+        # change. Only the expected digest crosses stdin; no catalog bytes leave.
+        script = ('printf "READY\\n"; IFS= read -r expected || exit 21; '
+                  'case "$expected" in *[!a-f0-9]*|"") exit 22;; esac; '
+                  '[ ${#expected} -eq 64 ] || exit 22; '
+                  'actual=$(sha256sum ' + self.PATHS[owner] + ' 2>/dev/null) || exit 23; '
+                  '[ "${actual%% *}" = "$expected" ] || exit 24; printf "ACK\\n"')
+        self.process = popen(['docker', 'exec', '-i', container, 'timeout', '-s', 'TERM',
+                              '-k', '1', '15', 'sh', '-ec', script],
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL, text=True, bufsize=1)
+        self.lines = queue.Queue(maxsize=4)
+        self.reader = threading.Thread(target=self._read, daemon=True)
+        self.reader.start()
+        self.report('RUNNING')
+        try:
+            self.expect('READY', time.monotonic() + 10)
+        except Exception:
+            self.close()
+            raise
+
+    def report(self, phase):
+        self.receipt({'version': 1, 'phase': phase, 'guestLifetimeSeconds': 15,
+                      'guestKillGraceSeconds': 1})
+
+    def _read(self):
+        try:
+            while True:
+                line = self.process.stdout.readline(257)
+                if not line:
+                    break
+                self.lines.put_nowait(line.rstrip('\r\n') if len(line) <= 256 else None)
+                if len(line) > 256:
+                    break
+        except (OSError, queue.Full):
+            pass
+        finally:
+            with contextlib.suppress(queue.Full):
+                self.lines.put_nowait(None)
+
+    def expect(self, expected, deadline):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ValueError('Original catalog observer budget exhausted')
+        try:
+            value = self.lines.get(timeout=remaining)
+        except queue.Empty:
+            raise ValueError('Bounded catalog acknowledgement not observed') from None
+        if value != expected:
+            raise ValueError('Invalid catalog observer acknowledgement')
+
+    def acknowledge(self, digest, deadline):
+        if self.closed or not re.fullmatch('[a-f0-9]{64}', digest):
+            raise ValueError('Invalid catalog acknowledgement request')
+        if not 0 < deadline - time.monotonic() <= LOCK_MS / 1000:
+            raise ValueError('Catalog acknowledgement exceeds original lock budget')
+        self.process.stdin.write(digest + '\n')
+        self.process.stdin.flush()
+        self.expect('ACK', deadline)
+        # The exit status comes from Docker's remote exec, not a locally killed
+        # client. Both exact bytes AND normal remote completion precede release.
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ValueError('Original catalog observer budget exhausted')
+        try:
+            code = self.process.wait(timeout=remaining)
+        except subprocess.TimeoutExpired:
+            raise ValueError('Catalog exec completion exceeded original lock budget') from None
+        if code != 0:
+            raise ValueError('Catalog observer failed')
+        self.settled = True
+        self.report('ACKNOWLEDGED_SETTLED')
+
+    def close(self):
+        if self.closed:
+            if not self.settled:
+                raise CatalogObserverUnsettled('Catalog observer settlement UNKNOWN')
+            return
+        self.closed = True
+        with contextlib.suppress(OSError):
+            self.process.stdin.close()
+        try:
+            # Outside the SQL barrier: allow the fixed guest lifetime to expire.
+            # Do not terminate/retry/adopt any process on missing observation.
+            code = self.process.wait(timeout=17)
+        except (subprocess.TimeoutExpired, OSError):
+            self.settled = False
+            self.report('UNKNOWN_SETTLEMENT')
+            raise CatalogObserverUnsettled('Catalog observer settlement UNKNOWN') from None
+        self.reader.join(timeout=1)
+        self.process.stdout.close()
+        if code != 0:
+            # CLI transport/daemon errors overlap remote command exit codes.
+            # Even a known local exit cannot establish guest termination.
+            self.settled = False
+            self.report('UNKNOWN_SETTLEMENT')
+            raise CatalogObserverUnsettled('Catalog observer settlement UNKNOWN')
+        self.settled = True
+        self.report('SETTLED')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
 class PgSession:
     """Persistent bounded psql process, scoped to one already-attested container."""
     def __init__(self, container, owner, popen=subprocess.Popen, observer_run=None, receipt=None):
@@ -518,6 +645,17 @@ class RuntimeFixture:
         return PgSession(self.services['kb-postgres' if owner == 'kb' else 'dm-postgres'], owner,
                          receipt=self.backend_receipt)
 
+    def catalog_observer(self, owner, case, stage='revocation'):
+        if owner not in ACTIONS or case not in CASES or stage not in ('revocation', 'restoration'):
+            raise ValueError('Invalid catalog observer evidence selector')
+        service = 'document-management' if owner == 'dm' else 'knowledge-base'
+        def receipt(value):
+            self.runtime.write(self.evidence / (case + '-catalog-' + stage + '.json'),
+                               {**value, 'owner': owner, 'stage': stage, 'container': self.services[service],
+                                'runtimeSource': self.state['source'], 'runtimeCommit': self.state['commit'],
+                                'helperSha256': self.helper_hash})
+        return CatalogObserver(self.services[service], owner, receipt=receipt)
+
     def snapshot(self, session, owner):
         value = session.scalar(snapshot_sql(owner), timeout=10)
         if not re.fullmatch('[a-f0-9]{64}', value):
@@ -583,13 +721,14 @@ def _one_case(fixture, case):
     path, key = '/api/v1/kb/collections/' + collection + '/status', str(uuid.uuid4())
     owner = 'dm' if case == 'dm-deny-during-assessment' else 'kb'
     revoke = 'kb' if case == 'kb-deny-before-commit' else 'dm'
+    original_catalog_digest = hashlib.sha256(private_bytes(fixture.catalog(revoke))[0]).hexdigest()
     result = queue.Queue(maxsize=1)
     def request():
         try:
             result.put(fixture.identity.json('PATCH', path, body, key=key))
         except Exception:
             result.put(None)
-    with fixture.pg('kb') as kb, fixture.pg('dm') as dm, fixture.pg(owner) as blocker, fixture.pg(owner) as observer:
+    with fixture.catalog_observer(revoke, case) as catalog_observer, fixture.pg('kb') as kb, fixture.pg('dm') as dm, fixture.pg(owner) as blocker, fixture.pg(owner) as observer:
         before, dm_before = fixture.snapshot(kb, 'kb'), fixture.snapshot(dm, 'dm')
         pid = finite_pid(blocker.scalar('BEGIN; SELECT pg_backend_pid();'))
         if pid != blocker.pid:
@@ -606,7 +745,8 @@ def _one_case(fixture, case):
         thread.start()
         try:
             observed, already_waiting_ms = wait_blocked(observer, pid)
-            with revoked_catalog(fixture.catalog(revoke), revoke, ISSUER, fixture.subject):
+            with revoked_catalog(fixture.catalog(revoke), revoke, ISSUER, fixture.subject) as digest:
+                catalog_observer.acknowledge(digest, observed + (LOCK_MS - already_waiting_ms) / 1000)
                 if (time.monotonic() - observed) * 1000 + already_waiting_ms >= LOCK_MS:
                     raise ValueError('Original owning lock budget exhausted before release')
                 if blocker.scalar('COMMIT; SELECT 1;', timeout=.25) != '1':
@@ -635,6 +775,10 @@ def _one_case(fixture, case):
                         raise ValueError('Original-key current-authority replay not denied atomically')
                 elif status != 404 or payload != {'code': 'NOT_FOUND'} or after != before:
                     raise ValueError('Current authority denial did not withhold all KB facts')
+            # The SQL barrier is already released. Confirm delivery of restored
+            # bytes before replay or the next case; never reuse a stale ACK.
+            with fixture.catalog_observer(revoke, case, 'restoration') as restored:
+                restored.acknowledge(original_catalog_digest, time.monotonic() + LOCK_MS / 1000)
             if case == 'dm-post-check-race':
                 replay = fixture.identity.json('PATCH', path, body, key=key, expected=200)
                 if replay != payload or fixture.snapshot(kb, 'kb') != after:
@@ -664,6 +808,9 @@ def one_case(fixture, case):
         return _one_case(fixture, case)
     except BackendUnsettled:
         fixture.failed(case, 'UNKNOWN_BACKEND_SETTLEMENT')
+        raise
+    except CatalogObserverUnsettled:
+        fixture.failed(case, 'UNKNOWN_CATALOG_OBSERVER_SETTLEMENT')
         raise
 
 

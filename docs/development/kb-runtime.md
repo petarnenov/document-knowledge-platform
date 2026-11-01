@@ -192,3 +192,31 @@ the new addressing runner does not adopt them. Do not edit a failed record or
 address plan into a successful run, and do not prune unrelated networks to make
 space. Unit tests and read-only candidate selection do not constitute a real
 fresh runtime or HTTPS acceptance pass.
+
+## Guest catalog acknowledgement (issue415)
+
+The authority A/B/C fixture prepares a read-only observer in the attested
+`document-management` or `knowledge-base` container before taking its SQL lock.
+The `dm-sharing` service is a TLS proxy and cannot observe the DM catalog.
+After the host atomically replaces its private catalog, the observer must read
+exactly the expected SHA-256 in the owning application container and complete
+its Docker exec normally before the fixture releases the lock. This confirms
+fixture delivery of revoked bytes; it does not replace the application's own
+current-authority check or establish the underlying filesystem failure cause.
+
+The acknowledgement shares the original remaining250ms lock budget. No retry,
+production timeout change, catalog permission change or production hook is
+introduced. The guest observer has a fixed15s lifetime and1s termination grace,
+including its initial stdin wait. A missing acknowledgement, mismatch, nonzero
+exit or exhausted lock budget fails the case. Missing exec completion is recorded
+as UNKNOWN settlement and prevents PASS. A nonzero Docker-client exit also
+retains UNKNOWN because transport failures overlap guest exit codes; the fixture never kills its local
+Docker client and treats that as remote settlement. Existing independent owning
+PostgreSQL settlement and original-key reconciliation remain required. After
+restoration, a fresh observer confirms original bytes before replay or the next
+case; it cannot reuse the revocation acknowledgement.
+
+This source change is pending independent review and fresh exact-source runtime
+A/B/C execution. A standalone5.913ms guest-read probe is diagnostic evidence,
+not acceptance. All full100-member, protected-response withholding and true
+unknown-commit scenarios remain separate gates.

@@ -294,7 +294,7 @@ class BarrierCoordinatorTest(unittest.TestCase):
         M.require_receipt({'collectionId': ACTOR, 'revision': 0}, ACTOR)
 
     def fixture(self, root, case, *, failure=False):
-        from unittest.mock import Mock
+        from unittest.mock import Mock, MagicMock
         path, _ = AuthorityPrimitivesTest().fixture(root)
         class Session:
             pid = 123
@@ -309,6 +309,7 @@ class BarrierCoordinatorTest(unittest.TestCase):
             def __exit__(self, *_):
                 self.close()
         fixture = Mock()
+        fixture.catalog_observer.return_value = MagicMock()
         fixture.setup.return_value = (ACTOR, ACTOR, 1)
         fixture.pg.side_effect = lambda *_: Session()
         fixture.catalog.return_value = path
@@ -398,6 +399,17 @@ class RuntimeBindingTest(unittest.TestCase):
                     fixture.pg('dm')
                     self.assertEqual(fixture.services['dm-postgres'], pg.call_args.args[0])
                     self.assertEqual('dm', pg.call_args.args[1])
+                with patch.object(M, 'CatalogObserver') as observer:
+                    for owner, service in [('dm', 'document-management'), ('kb', 'knowledge-base')]:
+                        fixture.catalog_observer(owner, M.CASES[0])
+                        self.assertEqual((fixture.services[service], owner), observer.call_args.args)
+                        observer.call_args.kwargs['receipt']({'phase': 'SETTLED'})
+                        record = runtime.write.call_args.args[1]
+                        self.assertEqual(fixture.services[service], record['container'])
+                        self.assertEqual(fixture.helper_hash, record['helperSha256'])
+                    for owner, case, stage in [('proxy', M.CASES[0], 'revocation'), ('dm', '../foreign', 'revocation'), ('dm', M.CASES[0], 'foreign')]:
+                        with self.assertRaises(ValueError):
+                            fixture.catalog_observer(owner, case, stage)
             self.assertTrue(fixture.evidence.is_dir())
             self.assertEqual(0o700, fixture.evidence.stat().st_mode & 0o777)
 
@@ -568,3 +580,180 @@ class BackendFailureMatrixTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class CatalogObserverTest(unittest.TestCase):
+    def child(self, response='ACK', exit_code=0, ready='READY'):
+        def launch(arguments, **options):
+            self.assertEqual(['docker', 'exec', '-i', 'a' * 64, 'timeout', '-s', 'TERM', '-k', '1', '15', 'sh', '-ec'], arguments[:-1])
+            self.assertIn('sha256sum /run/dkp/authority/grants.json', arguments[-1])
+            self.assertNotIn('chmod', arguments[-1])
+            code = ('import sys\nprint(' + repr(ready) + ',flush=True)\n'
+                    's=sys.stdin.readline()\n'
+                    'if s: print(' + repr(response) + ',flush=True)\n'
+                    'sys.exit(' + str(exit_code) + ')')
+            return subprocess.Popen([sys.executable, '-u', '-c', code], **options)
+        return launch
+
+    def test_ack_requires_matching_protocol_and_remote_normal_exit(self):
+        records = []
+        with M.CatalogObserver('a' * 64, 'dm', self.child(), records.append) as observer:
+            observer.acknowledge('b' * 64, M.time.monotonic() + .2)
+            self.assertTrue(observer.settled)
+        self.assertEqual(['RUNNING', 'ACKNOWLEDGED_SETTLED', 'SETTLED'], [r['phase'] for r in records])
+        self.assertFalse(observer.reader.is_alive())
+        observer.close()
+        with self.assertRaises(ValueError):
+            observer.acknowledge('b' * 64, M.time.monotonic() + .2)
+
+    def test_nonzero_mismatch_eof_and_oversized_output_cannot_release_barrier(self):
+        for response, code in [('ACK', 24), ('MISMATCH', 0), ('', 23), ('x' * 257, 0)]:
+            with self.subTest(response=response[:12], code=code):
+                observer = M.CatalogObserver('a' * 64, 'dm', self.child(response, code))
+                try:
+                    with self.assertRaises(ValueError):
+                        observer.acknowledge('b' * 64, M.time.monotonic() + .2)
+                finally:
+                    if code:
+                        with self.assertRaises(M.CatalogObserverUnsettled):
+                            observer.close()
+                    else:
+                        observer.close()
+
+    def test_invalid_selector_protocol_digest_and_budget_fail_closed(self):
+        for container, owner in [('foreign', 'dm'), ('a' * 64, 'proxy')]:
+            with self.assertRaises(ValueError):
+                M.CatalogObserver(container, owner, self.child())
+        with self.assertRaises(ValueError):
+            M.CatalogObserver('a' * 64, 'dm', self.child(ready='PRIVATE VALUE'))
+        with M.CatalogObserver('a' * 64, 'dm', self.child()) as observer:
+            for digest, deadline in [('not-a-digest', M.time.monotonic() + .2),
+                                     ('b' * 64, M.time.monotonic() - 1),
+                                     ('b' * 64, M.time.monotonic() + 1)]:
+                with self.assertRaises(ValueError):
+                    observer.acknowledge(digest, deadline)
+            with self.assertRaises(ValueError):
+                observer.expect('ACK', M.time.monotonic() - 1)
+            with self.assertRaises(ValueError):
+                observer.expect('ACK', M.time.monotonic() + .001)
+
+    def test_unknown_exec_settlement_is_sticky_without_client_kill_or_retry(self):
+        from unittest.mock import Mock
+        with M.CatalogObserver('a' * 64, 'dm', self.child()) as observer:
+            # Preserve the actual child and restore its wait only for test cleanup;
+            # production never repairs UNKNOWN by calling close again.
+            original = observer.process.wait
+            observer.process.wait = Mock(side_effect=subprocess.TimeoutExpired('synthetic', 17))
+            try:
+                with self.assertRaises(M.CatalogObserverUnsettled):
+                    observer.close()
+                self.assertFalse(observer.settled)
+                with self.assertRaises(M.CatalogObserverUnsettled):
+                    observer.close()
+                self.assertEqual(1, observer.process.wait.call_count)
+            finally:
+                observer.process.wait = original
+                original(timeout=2)
+                observer.reader.join(timeout=1)
+                observer.process.stdout.close()
+                # The context exit must also retain UNKNOWN; use explicit catch.
+                observer.settled = True
+
+    def test_ack_timeout_does_not_reset_lock_budget(self):
+        with M.CatalogObserver('a' * 64, 'dm', self.child()) as observer:
+            with patch.object(observer, 'expect', side_effect=ValueError('bounded')):
+                with self.assertRaises(ValueError):
+                    observer.acknowledge('b' * 64, M.time.monotonic() + .001)
+        with M.CatalogObserver('a' * 64, 'dm', self.child()) as observer:
+            original = observer.process.wait
+            with patch.object(observer.process, 'wait', side_effect=subprocess.TimeoutExpired('synthetic', .1)):
+                with self.assertRaises(ValueError):
+                    observer.acknowledge('b' * 64, M.time.monotonic() + .2)
+            original(timeout=2)
+
+    def test_original_barrier_order_and_remaining_budget(self):
+        for case in M.CASES:
+            with tempfile.TemporaryDirectory() as name:
+                fixture = BarrierCoordinatorTest().fixture(Path(name), case)
+                observer = fixture.catalog_observer.return_value.__enter__.return_value
+                observed = M.time.monotonic()
+                def ack(digest, deadline):
+                    self.assertEqual(hashlib.sha256(fixture.catalog.return_value.read_bytes()).hexdigest(), digest)
+                    if len(observer.acknowledge.call_args_list) == 1:
+                        self.assertAlmostEqual(observed + .240, deadline)
+                observer.acknowledge.side_effect = ack
+                with patch.object(M, 'wait_blocked', return_value=(observed, 10)):
+                    M.one_case(fixture, case)
+                owner = 'kb' if case == 'kb-deny-before-commit' else 'dm'
+                self.assertEqual([(owner, case), (owner, case, 'restoration')], [call.args for call in fixture.catalog_observer.call_args_list])
+                self.assertEqual(2, observer.acknowledge.call_count)
+
+    def test_unknown_observer_overrides_successful_case(self):
+        with tempfile.TemporaryDirectory() as name:
+            fixture = BarrierCoordinatorTest().fixture(Path(name), M.CASES[0])
+            fixture.catalog_observer.return_value.__exit__.side_effect = M.CatalogObserverUnsettled('unit unknown')
+            with patch.object(M, 'wait_blocked', return_value=(M.time.monotonic(), 0)):
+                with self.assertRaises(M.CatalogObserverUnsettled):
+                    M.one_case(fixture, M.CASES[0])
+            fixture.failed.assert_called_once_with(M.CASES[0], 'UNKNOWN_CATALOG_OBSERVER_SETTLEMENT')
+
+    def test_real_posix_digest_protocol_rejects_wrong_bytes_and_missing_file(self):
+        # Actual local sh/sha256sum, explicit synthetic file; not Docker evidence.
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / 'grants.json'
+            path.write_bytes(b'public synthetic catalog')
+            def launch(arguments, **options):
+                script = arguments[-1].replace('/run/dkp/authority/grants.json', str(path))
+                return subprocess.Popen(['sh', '-ec', script], **options)
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            with M.CatalogObserver('a' * 64, 'dm', launch) as observer:
+                observer.acknowledge(digest, M.time.monotonic() + .2)
+            for missing in (False, True):
+                observer = M.CatalogObserver('a' * 64, 'dm', launch)
+                try:
+                    if missing:
+                        path.unlink()
+                    with self.assertRaises(ValueError):
+                        observer.acknowledge('b' * 64, M.time.monotonic() + .2)
+                    observer.process.wait(timeout=1)
+                    self.assertEqual(23 if missing else 24, observer.process.returncode)
+                finally:
+                    with self.assertRaises(M.CatalogObserverUnsettled):
+                        observer.close()
+
+    def test_ack_failure_never_commits_and_preserves_original_reconciliation(self):
+        for case in M.CASES:
+            with tempfile.TemporaryDirectory() as name:
+                fixture = BarrierCoordinatorTest().fixture(Path(name), case)
+                original = fixture.catalog.return_value.read_bytes()
+                sessions = []
+                factory = fixture.pg.side_effect
+                def pg(owner):
+                    from unittest.mock import Mock
+                    session = factory(owner)
+                    session.scalar = Mock(wraps=session.scalar)
+                    sessions.append(session)
+                    return session
+                fixture.pg.side_effect = pg
+                fixture.catalog_observer.return_value.__enter__.return_value.acknowledge.side_effect = ValueError('unit no ACK')
+                with patch.object(M, 'wait_blocked', return_value=(M.time.monotonic(), 0)):
+                    with self.assertRaises(ValueError):
+                        M.one_case(fixture, case)
+                self.assertFalse(any('COMMIT' in call.args[0] for session in sessions for call in session.scalar.call_args_list))
+                self.assertEqual(original, fixture.catalog.return_value.read_bytes())
+                self.assertEqual('FAILED_RECONCILIATION_REQUIRED', fixture.record.call_args.args[1]['phase'])
+                self.assertIn('idempotencyKey', fixture.record.call_args.args[1])
+
+    def test_nonzero_docker_client_exit_is_unknown_and_cannot_be_repaired_by_close(self):
+        for code in (1, 125):
+            records = []
+            observer = M.CatalogObserver('a' * 64, 'dm', self.child(exit_code=code), records.append)
+            with self.assertRaises(M.CatalogObserverUnsettled):
+                observer.close()
+            self.assertFalse(observer.settled)
+            self.assertEqual(code, observer.process.returncode)
+            self.assertEqual('UNKNOWN_SETTLEMENT', records[-1]['phase'])
+            for close in (observer.close, lambda: observer.__exit__(None, None, None)):
+                with self.assertRaises(M.CatalogObserverUnsettled):
+                    close()
+            self.assertNotIn('SETTLED', [r['phase'] for r in records])
+            self.assertFalse(observer.reader.is_alive())
