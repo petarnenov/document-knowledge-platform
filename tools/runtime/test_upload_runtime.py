@@ -33,7 +33,14 @@ class RuntimeTests(unittest.TestCase):
         self.clam=SimpleNamespace(IMAGE='pinned-clam',launch_updater=self.launch_update,
                                   read_record=lambda p:{'containerId':self.container},
                                   publish_completed=self.publish_update,scanner_root=lambda:self.root/'scanner')
-        self.helpers={'identity':self.identity,'storage':self.storage,'clam':self.clam}
+        self.applications=SimpleNamespace(capture=self.capture_applications,seal=self.seal_applications,attest=lambda *args:self.events.append('application-attest'),build_labels=lambda state,digest,service:{'dkp.application.run':state['runId'],'dkp.application.source':digest,'dkp.application.service':service})
+        self.helpers={'identity':self.identity,'storage':self.storage,'clam':self.clam,'applications':self.applications}
+
+    def capture_applications(self,runtime,state):
+        self.events.append('application-capture');runtime.private(Path(state['directory'])/'application-build-inputs.json','{}')
+        return {'sourceDigest':'f'*64}
+    def seal_applications(self,runtime,state):
+        self.events.append('application-seal');runtime.private(Path(state['directory'])/'application-images.json','{}')
 
     def p(self,name,*args,**kwargs):
         patcher=patch.object(m,name,*args,**kwargs);result=patcher.start();self.addCleanup(patcher.stop);return result
@@ -69,11 +76,25 @@ class RuntimeTests(unittest.TestCase):
         self.p('health',side_effect=lambda *a:self.events.append('health'))
         self.p('uuid',SimpleNamespace(uuid4=lambda:SimpleNamespace(hex=self.run_id)))
 
+    def test_old_records_remain_owned_stop_loadable_without_attestation_backfill(self):
+        self.arrange_start();state=m.start(self.directory)
+        for name in ('application-build-inputs.json','application-images.json'):
+            del state['files'][name];(self.directory/name).unlink()
+        del state['sources']['tools/runtime/application-provenance.py'];m.save(state)
+        self.assertEqual(state,m.load(self.directory,material=False))
+        self.assertFalse((self.directory/'application-images.json').exists())
+        with self.assertRaises(ValueError):m.load(self.directory)
+
     def test_full_fresh_sequence_records_unique_owner_and_private_authority_without_secrets_argv(self):
         self.arrange_start();state=m.start(self.directory)
         self.assertEqual('ready',state['phase']);self.assertEqual('dkp-bp03-'+'a'*12,state['project'])
         self.assertLess(self.events.index('real-launch'),self.events.index('publish'))
         providers=('compose','up','-d','--no-build','rustfs','clamav','inspector-network','structure-inspector')
+        self.assertLess(self.events.index('application-capture'),self.events.index(('compose','build')))
+        self.assertLess(self.events.index(('compose','build')),self.events.index('application-seal'))
+        self.assertLess(self.events.index('application-seal'),self.events.index(providers))
+        overrides=json.loads((self.directory/'owned-compose.json').read_text())
+        for service in m.BUILD_SERVICES:self.assertEqual({'dkp.application.run':state['runId'],'dkp.application.source':'f'*64,'dkp.application.service':service},overrides['services'][service]['build']['labels'])
         self.assertLess(self.events.index(providers),self.events.index('iam'))
         self.assertLess(self.events.index('iam'),self.events.index(('compose','up','-d','--no-build')))
         self.assertEqual(state,m.load(self.directory))
@@ -246,6 +267,29 @@ class RuntimeTests(unittest.TestCase):
             item['State']['Status']='exited'
             with self.assertRaises(ValueError):m.health(state)
         with patch.object(m,'compose',return_value=b''),self.assertRaises(ValueError):m.health(state)
+
+    def test_scanner_config_is_source_bound_and_mutation_rejected_before_provider_access(self):
+        relative = 'infra/docker-compose/clamd.conf'
+        self.assertIn(relative, m.SOURCES)
+        self.arrange_start()
+        state = m.start(self.directory)
+        self.assertEqual(m.digest(self.root / relative), state['sources'][relative])
+        self.events.clear()
+        config = self.root / relative
+        config.write_text(config.read_text().replace('MaxThreads 1', 'MaxThreads 2'))
+        with self.assertRaisesRegex(ValueError, 'source changed'):
+            m.verify(self.directory)
+        self.assertEqual([], self.events, 'Changed execution profile cannot touch providers')
+
+    def test_multiple_scan_or_inspection_provider_instances_are_never_accepted(self):
+        state = {'runId': self.run_id, 'project': 'dkp-bp03-'+'a'*12, 'workerImage': self.sha}
+        item = {'Config': {'Labels': m.labels(state)}, 'Image': self.sha, 'State': {'Status': 'running'}}
+        for service in ('clamav', 'structure-inspector'):
+            def response(*args):
+                return (self.container + '\n' + 'c'*64).encode() if args[-1] == service else self.container.encode()
+            with self.subTest(service=service), patch.object(m, 'compose', side_effect=response), patch.object(m, 'docker', return_value=[item]), patch.object(m, 'wait_container'), patch.object(m, 'attest_worker'), patch.object(m, 'inspector_ready'):
+                with self.assertRaisesRegex(ValueError, 'One owned service instance'):
+                    m.health(state)
 
     def test_live_worker_profile_rejects_capabilities_writable_authority_and_resource_widening(self):
         import copy

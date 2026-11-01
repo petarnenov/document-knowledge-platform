@@ -1,1 +1,6 @@
 // Shared build conventions are defined in the root build.gradle.
+
+// Explicit unit ownership fixtures; production dependency direction remains inward.
+dependencies {
+    testImplementation files(rootProject.project(':services:document-management:application').sourceSets.test.output)
+}

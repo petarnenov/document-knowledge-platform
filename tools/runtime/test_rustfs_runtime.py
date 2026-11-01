@@ -41,7 +41,7 @@ class AuthorityTests(unittest.TestCase):
         self.assertEqual(before, {n: (self.directory / n).read_bytes() for n in module.FILES})
         self.assertEqual(0o700, self.directory.stat().st_mode & 0o777)
         self.assertTrue(all((self.directory / n).stat().st_mode & 0o777 == 0o600 for n in module.FILES))
-        self.assertEqual({'ca.crt', 'access.key', 'secret.key'}, {p.name for p in (self.directory / 'app').iterdir()})
+        self.assertEqual({'ca.crt', 'access.key', 'secret.key', 'access.key.role'}, {p.name for p in (self.directory / 'app').iterdir()})
         self.assertEqual(['tenant-a', 'tenant-b'], json.loads((self.directory / 'bootstrap/authority.json').read_text())['tenants'])
 
     def test_partial_permissive_symlink_and_tampered_material_refused_without_rotation(self):
@@ -105,11 +105,33 @@ class AuthorityTests(unittest.TestCase):
     def test_policy_has_only_required_bucket_actions_and_two_hashed_prefixes(self):
         policy = module.policy();statements = policy['Statement']
         actions = {a for s in statements for a in s['Action']}
-        self.assertEqual({'s3:GetBucketVersioning', 's3:ListBucketVersions', 's3:GetObject', 's3:GetObjectVersion', 's3:PutObject', 's3:DeleteObjectVersion'}, actions)
+        self.assertEqual({'s3:GetBucketVersioning', 's3:ListBucketVersions', 's3:GetObject', 's3:GetObjectVersion', 's3:PutObject'}, actions)
         prefixes = [hashlib.sha256(t.encode()).hexdigest() + '/*' for t in ('tenant-a', 'tenant-b')]
         self.assertEqual(prefixes, statements[1]['Condition']['StringLike']['s3:prefix'])
         self.assertEqual({f'arn:aws:s3:::{b}/{p}' for b in module.BUCKETS for p in prefixes}, set(statements[2]['Resource']))
         self.assertTrue(all(s['Effect'] == 'Allow' for s in statements))
+
+    def test_normal_and_cleanup_policies_are_distinct_and_least_privilege(self):
+        normal = {a for s in module.policy()['Statement'] for a in s['Action']}
+        cleanup = {a for s in module.policy(cleanup=True)['Statement'] for a in s['Action']}
+        self.assertNotIn('s3:DeleteObjectVersion', normal)
+        self.assertEqual({'s3:GetBucketVersioning', 's3:ListBucketVersions', 's3:GetObjectVersion', 's3:DeleteObjectVersion'}, cleanup)
+        for denied in ('s3:PutObject', 's3:DeleteObject', 's3:CreateBucket', 's3:*', 'admin:*'):
+            self.assertNotIn(denied, cleanup)
+        self.assertNotEqual((self.directory / 'app/access.key').read_bytes(), (self.directory / 'cleanup/access.key').read_bytes())
+        self.assertNotEqual((self.directory / 'app/secret.key').read_bytes(), (self.directory / 'cleanup/secret.key').read_bytes())
+        self.assertTrue((self.directory / 'app/access.key.role').read_text().startswith('dkp-storage-normal-v1\n'))
+        self.assertTrue((self.directory / 'cleanup/access.key.role').read_text().startswith('dkp-storage-cleanup-v1\n'))
+
+    def test_swapped_aliased_and_missing_cleanup_credentials_refuse_even_with_updated_manifest(self):
+        manifest = self.directory / 'bootstrap/authority.json'
+        for name, value in [('cleanup/access.key', (self.directory / 'app/access.key').read_bytes()), ('cleanup/secret.key', (self.directory / 'app/secret.key').read_bytes()), ('cleanup/access.key.role', (self.directory / 'app/access.key.role').read_bytes())]:
+            path = self.directory / name; original = path.read_bytes(); data = json.loads(manifest.read_text())
+            path.write_bytes(value);data['files'][name] = hashlib.sha256(value).hexdigest();manifest.write_text(json.dumps(data))
+            with self.assertRaises(ValueError):module.validate(self.directory)
+            path.write_bytes(original);data['files'][name] = hashlib.sha256(original).hexdigest();manifest.write_text(json.dumps(data))
+        (self.directory / 'cleanup/access.key').unlink()
+        with self.assertRaises(ValueError):module.validate(self.directory)
 
     def test_https_origin_validation(self):
         self.assertEqual('https://localhost:19900', module.endpoint('https://localhost:19900/'))
@@ -144,11 +166,16 @@ class AuthorityTests(unittest.TestCase):
             calls.append((method, path, body, authority))
             if bad == path:
                 return 200, b'<Invalid/>'
-            if authority == 'anonymous' or (authority == 'app' and (
+            if authority == 'anonymous' or (authority == 'cleanup' and (method == 'PUT' or '/admin/' in path or method == 'DELETE' and '?versionId=' not in path or hashlib.sha256(b'outside-tenant').hexdigest() in path)) or (authority == 'app' and (
                     'outside' in path or hashlib.sha256(b'outside-tenant').hexdigest() in path
                     or '/admin/' in path or path == '/dkp-bootstrap-denied'
-                    or method == 'DELETE' and '?versionId=' not in path)):
+                    or method == 'DELETE')):
                 return 403, b'<Error><Code>AccessDenied</Code></Error>'
+            if method == 'DELETE' and '?versionId=' in path:
+                objects.pop(path.split('?')[0], None)
+                return 204, b''
+            if method == 'GET' and '?versionId=' in path and path.split('?')[0] not in objects:
+                return 404, b'<Error><Code>NoSuchVersion</Code></Error>'
             if path.endswith('?policy'):
                 return 404, b'<Error><Code>NoSuchBucketPolicy</Code></Error>'
             if path.endswith('?versioning') and method == 'GET':
@@ -175,7 +202,7 @@ class AuthorityTests(unittest.TestCase):
             with patch.object(module, 'request', side_effect=respond):
                 module.apply(self.directory, 'https://localhost:19900')
             admin = [c for c in calls if c[3] == 'root' and '/admin/' in c[1]]
-            self.assertEqual(3, len(admin))
+            self.assertEqual(6, len(admin))
             self.assertEqual(module.policy(), json.loads(admin[0][2]))
             first_admin = calls.index(admin[0])
             before = calls[:first_admin]
@@ -185,8 +212,10 @@ class AuthorityTests(unittest.TestCase):
                 self.assertTrue(any(c[1].startswith('/' + bucket + '/') and '?versionId=' in c[1]
                                     and c[0] == 'GET' and c[3] == 'anonymous' for c in before))
             deletions = [c for c in calls if c[0] == 'DELETE' and '?versionId=fixture-version' in c[1]]
-            self.assertEqual(6, len(deletions))
-            self.assertEqual(['root', 'root', 'app', 'app', 'app', 'app'], [c[3] for c in deletions])
+            self.assertEqual(14, len(deletions))
+            self.assertEqual(4, len([c for c in deletions if c[3] == 'app']))
+            self.assertEqual(4, len([c for c in deletions if c[3] == 'cleanup']))
+            self.assertEqual(6, len([c for c in deletions if c[3] == 'root']))
 
     def test_public_policy_disabled_versioning_or_ownership_refuses_iam(self):
         for path in ('/dkp-quarantine?policy', '/dkp-quarantine?versioning'):

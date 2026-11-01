@@ -29,11 +29,12 @@ BUILD_SERVICES = SERVICES[:7]
 STATE_FIELDS = {'schemaVersion', 'runId', 'project', 'directory', 'phase', 'workerVolume',
                 'workerImage', 'networkImage', 'updaterRecord', 'definitions', 'sources', 'files'}
 PROFILE_SOURCE = 'workers/structure-inspector/src/main/java/org/documentknowledge/inspector/StructureInspector.java'
-SOURCES = ('infra/docker-compose/compose.yaml', 'infra/docker-compose/compose-upload.yaml',
+SOURCES = ('infra/docker-compose/clamd.conf', 'infra/docker-compose/compose.yaml', 'infra/docker-compose/compose-upload.yaml',
            'infra/docker-compose/inspector.Dockerfile', 'infra/docker-compose/inspector-network.Dockerfile',
            'infra/docker-compose/inspector-network.sh', 'infra/docker-compose/nginx-upload.conf',
            'infra/docker-compose/bootstrap-security.py', 'infra/docker-compose/realm-template.json',
            'tools/runtime/rustfs-runtime.py', 'tools/runtime/clam-definitions.py', 'tools/runtime/upload-runtime.py',
+           'tools/runtime/application-provenance.py',
            PROFILE_SOURCE, '.dockerignore', 'gradle/libs.versions.toml')
 SOURCES += tuple(sorted(str(p.relative_to(ROOT)) for p in (ROOT / 'workers/structure-inspector/src').rglob('*.java')
                         if str(p.relative_to(ROOT)) not in SOURCES))
@@ -67,10 +68,15 @@ def stage(name, operation):
 
 def helper(name):
     path = ROOT / ('infra/docker-compose/bootstrap-security.py' if name == 'identity' else
-                   'tools/runtime/' + {'storage': 'rustfs-runtime.py', 'clam': 'clam-definitions.py'}[name])
+                   'tools/runtime/' + {'storage': 'rustfs-runtime.py', 'clam': 'clam-definitions.py', 'applications': 'application-provenance.py'}[name])
     spec = importlib.util.spec_from_file_location('upload_runtime_' + name, path)
     module = importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     return module
+
+
+def application_runtime():
+    from types import SimpleNamespace
+    return SimpleNamespace(ROOT=ROOT, docker=docker, compose=compose, owned=owned, private=private)
 
 
 def application_failure_category(stderr):
@@ -402,6 +408,10 @@ def start(directory):
               'DKP_UPLOAD_STORAGE_ENDPOINT': 'https://rustfs:9000', 'DKP_UPLOAD_STORAGE_REGION': 'us-east-1',
               'DKP_UPLOAD_STORAGE_ACCESS_KEY_FILE': str(directory / 'rustfs/app/access.key'),
               'DKP_UPLOAD_STORAGE_SECRET_KEY_FILE': str(directory / 'rustfs/app/secret.key'),
+              'DKP_UPLOAD_STORAGE_ROLE_FILE': str(directory / 'rustfs/app/access.key.role'),
+              'DKP_UPLOAD_CLEANUP_ACCESS_KEY_FILE': str(directory / 'rustfs/cleanup/access.key'),
+              'DKP_UPLOAD_CLEANUP_SECRET_KEY_FILE': str(directory / 'rustfs/cleanup/secret.key'),
+              'DKP_UPLOAD_CLEANUP_ROLE_FILE': str(directory / 'rustfs/cleanup/access.key.role'),
               'DKP_UPLOAD_STORAGE_CA_FILE': str(directory / 'rustfs/app/ca.crt'),
               'DKP_UPLOAD_SPOOL_DIRECTORY': str(directory / 'rustfs/spool'),
               'DKP_UPLOAD_DEFINITIONS_DIRECTORY': str(generation),
@@ -412,15 +422,20 @@ def start(directory):
               'DKP_UPLOAD_INSPECTOR_KEY_FILE': str(app / 'service.key'), 'DKP_UPLOAD_INSPECTOR_CA_FILE': str(app / 'ca.crt'),
               'DKP_UPLOAD_INSPECTOR_AUTHORITY_VOLUME': state['workerVolume']}
     private(directory / 'runtime.env', env_path.read_text() + ''.join(k + '=' + v + '\n' for k,v in values.items()))
+    app_proof = helper('applications').capture(application_runtime(), state)
     overrides = {'services': {s: {'labels': labels(state)} for s in SERVICES},
                  'networks': {n: {'labels': labels(state)} for n in ('default', 'dm-data', 'upload-data')},
                  'volumes': {'dm-postgres-data': {'labels': labels(state)}}}
     overrides['services']['inspector-network']['image'] = state['networkImage']
-    for service in BUILD_SERVICES:overrides['services'][service]['image'] = 'dkp137-' + run_id + '-' + service + ':local'
+    for service in BUILD_SERVICES:
+        overrides['services'][service]['image'] = 'dkp137-' + run_id + '-' + service + ':local'
+        overrides['services'][service]['build'] = {'labels': helper('applications').build_labels(state, app_proof['sourceDigest'], service)}
+        overrides['services'][service]['labels'].update(helper('applications').build_labels(state, app_proof['sourceDigest'], service))
     private(directory / 'owned-compose.json', json.dumps(overrides))
     state['phase'] = 'prepared';save(state)
     compose(state, 'config', '--quiet')
     compose(state, 'build', timeout=1800)
+    helper('applications').seal(application_runtime(), state)
     stage('providers-start', lambda: compose(state, 'up', '-d', '--no-build', 'rustfs', 'clamav', 'inspector-network', 'structure-inspector'))
     for service in ('rustfs', 'clamav', 'inspector-network'):
         stage('provider-readiness-' + service, lambda: wait_container(compose(state, 'ps', '-q', service).decode().strip(), state))
@@ -428,12 +443,13 @@ def start(directory):
     stage('native-iam', lambda: storage.apply(directory / 'rustfs', 'https://rustfs:9000', docker_network=state['project'] + '_upload-data'))
     stage('applications-start', lambda: compose(state, 'up', '-d', '--no-build'))
     stage('full-readiness', lambda: health(state))
+    stage('application-provenance', lambda: helper('applications').attest(application_runtime(), state))
     # Data/spool are mutable state, not private source authority. Hash only generated
     # static authority/config; definitions retain the publisher's immutable manifest.
-    for part in ('identity', 'inspector', 'rustfs/app', 'rustfs/server', 'rustfs/bootstrap'):
+    for part in ('identity', 'inspector', 'rustfs/app', 'rustfs/cleanup', 'rustfs/server', 'rustfs/bootstrap'):
         for path in (directory / part).rglob('*'):
             if path.is_file():state['files'][str(path.relative_to(directory))] = digest(path)
-    for name in ('runtime.env', 'owned-compose.json'):state['files'][name] = digest(directory / name)
+    for name in ('runtime.env', 'owned-compose.json', 'application-build-inputs.json', 'application-images.json'):state['files'][name] = digest(directory / name)
     state['phase'] = 'ready';save(state)
     return state
 
@@ -471,6 +487,7 @@ def verify_generation(state):
 
 def verify(directory):
     state = load(directory)
+    helper('applications').attest(application_runtime(), state)
     identity, storage = helper('identity'), helper('storage')
     identity.generate(Path(state['directory']) / 'identity', portal_port=19443, idp_port=19444)
     storage.validate(Path(state['directory']) / 'rustfs')

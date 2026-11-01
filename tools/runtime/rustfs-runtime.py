@@ -23,7 +23,8 @@ TENANTS = ('tenant-a', 'tenant-b')
 BUCKETS = ('dkp-quarantine', 'dkp-originals')
 POLICY_NAME = 'dkp-bp03-upload'
 FILES = ('server/rustfs_cert.pem', 'server/rustfs_key.pem', 'server/root-access',
-         'server/root-secret', 'app/ca.crt', 'app/access.key', 'app/secret.key',
+         'server/root-secret', 'app/ca.crt', 'app/access.key', 'app/secret.key', 'app/access.key.role',
+         'cleanup/access.key', 'cleanup/secret.key', 'cleanup/access.key.role',
          'spool/.spool-authority', 'bootstrap/ca.key', 'bootstrap/root-curl.conf')
 
 
@@ -53,9 +54,10 @@ def private(path, text):
 
 def validate(directory):
     directory = confined(directory)
-    if {p.name for p in (directory / 'app').iterdir()} != {'ca.crt', 'access.key', 'secret.key'}:
-        raise ValueError('App authority must exclude bootstrap and server material')
-    for path in [directory, *(directory / p for p in ('server', 'app', 'bootstrap', 'spool'))]:
+    for role, expected in [('app', {'ca.crt', 'access.key', 'secret.key', 'access.key.role'}), ('cleanup', {'access.key', 'secret.key', 'access.key.role'})]:
+        if {p.name for p in (directory / role).iterdir()} != expected:
+            raise ValueError('Separated authority must exclude unrelated material')
+    for path in [directory, *(directory / p for p in ('server', 'app', 'cleanup', 'bootstrap', 'spool'))]:
         if not path.is_dir() or path.is_symlink() or path.stat().st_uid != os.getuid() or path.stat().st_mode & 0o077:
             raise ValueError('Private operator-owned authority directories required')
     manifest = directory / 'bootstrap/authority.json'
@@ -72,9 +74,15 @@ def validate(directory):
         raise ValueError('RustFS authority identity changed; refusing rotation')
     if (directory / 'spool/.spool-authority').read_text() != 'dkp-private-spool-v1\n':
         raise ValueError('Invalid private spool authority')
-    for name, size in [('server/root-access', 32), ('server/root-secret', 64), ('app/access.key', 32), ('app/secret.key', 64)]:
+    for name, size in [('server/root-access', 32), ('server/root-secret', 64), ('app/access.key', 32), ('app/secret.key', 64), ('cleanup/access.key', 32), ('cleanup/secret.key', 64)]:
         if not re.fullmatch('[0-9a-f]{' + str(size) + '}\n', (directory / name).read_text()):
             raise ValueError('Invalid private credentials')
+    credentials = [directory / (role + '/' + name) for role in ('server', 'app', 'cleanup') for name in (('root-access', 'root-secret') if role == 'server' else ('access.key', 'secret.key'))]
+    if len({p.read_bytes().strip() for p in credentials}) != len(credentials) or len({(p.stat().st_dev, p.stat().st_ino) for p in credentials}) != len(credentials):
+        raise ValueError('Distinct independent authority required')
+    for role, kind in [('app', 'normal'), ('cleanup', 'cleanup')]:
+        if (directory / role / 'access.key.role').read_text() != role_binding(directory / role, kind):
+            raise ValueError('Credential role binding mismatch')
     expected = 'user = "' + (directory / 'server/root-access').read_text().strip() + ':' + (directory / 'server/root-secret').read_text().strip() + '"\n'
     if (directory / 'bootstrap/root-curl.conf').read_text() != expected:
         raise ValueError('Bootstrap credential identity mismatch')
@@ -94,10 +102,12 @@ def prepare(directory):
     directory.parent.mkdir(parents=True, exist_ok=True)
     scratch = Path(tempfile.mkdtemp(prefix='.rustfs-authority-', dir=directory.parent))
     try:
-        for part in ('server', 'app', 'bootstrap', 'spool'):
+        for part in ('server', 'app', 'cleanup', 'bootstrap', 'spool'):
             (scratch / part).mkdir(mode=0o700)
-        for name, size in [('server/root-access', 16), ('server/root-secret', 32), ('app/access.key', 16), ('app/secret.key', 32)]:
+        for name, size in [('server/root-access', 16), ('server/root-secret', 32), ('app/access.key', 16), ('app/secret.key', 32), ('cleanup/access.key', 16), ('cleanup/secret.key', 32)]:
             private(scratch / name, secrets.token_hex(size) + '\n')
+        for role, kind in [('app', 'normal'), ('cleanup', 'cleanup')]:
+            private(scratch / role / 'access.key.role', role_binding(scratch / role, kind))
         private(scratch / 'spool/.spool-authority', 'dkp-private-spool-v1\n')
         private(scratch / 'bootstrap/root-curl.conf', 'user = "' + (scratch / 'server/root-access').read_text().strip() + ':' + (scratch / 'server/root-secret').read_text().strip() + '"\n')
         run('openssl', 'req', '-x509', '-newkey', 'rsa:3072', '-nodes', '-days', '3', '-subj', '/CN=DKP-BP03-local-CA', '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign,cRLSign', '-keyout', str(scratch / 'bootstrap/ca.key'), '-out', str(scratch / 'app/ca.crt'))
@@ -118,12 +128,16 @@ def prepare(directory):
             shutil.rmtree(scratch)
 
 
-def policy():
+def role_binding(directory, role):
+    return 'dkp-storage-' + role + '-v1\n' + ''.join(hashlib.sha256((directory / (name + '.key')).read_bytes().strip()).hexdigest() + '\n' for name in ('access', 'secret'))
+
+
+def policy(*, cleanup=False):
     prefixes = [hashlib.sha256(t.encode()).hexdigest() + '/*' for t in TENANTS]
     return {'Version': '2012-10-17', 'Statement': [
         {'Effect': 'Allow', 'Action': ['s3:GetBucketVersioning'], 'Resource': ['arn:aws:s3:::' + b for b in BUCKETS]},
         {'Effect': 'Allow', 'Action': ['s3:ListBucketVersions'], 'Resource': ['arn:aws:s3:::' + b for b in BUCKETS], 'Condition': {'StringLike': {'s3:prefix': prefixes}}},
-        {'Effect': 'Allow', 'Action': ['s3:GetObject', 's3:GetObjectVersion', 's3:PutObject', 's3:DeleteObjectVersion'], 'Resource': ['arn:aws:s3:::' + b + '/' + p for b in BUCKETS for p in prefixes]}]}
+        {'Effect': 'Allow', 'Action': (['s3:GetObjectVersion', 's3:DeleteObjectVersion'] if cleanup else ['s3:GetObject', 's3:GetObjectVersion', 's3:PutObject']), 'Resource': ['arn:aws:s3:::' + b + '/' + p for b in BUCKETS for p in prefixes]}]}
 
 
 def endpoint(value):
@@ -190,7 +204,7 @@ def private_network_request(arguments, root, ca, network_id):
 
 def request(directory, origin, method, path, body=None, allowed=(200, 204), *, docker_network=None,
             authority='root', response_headers=None):
-    if authority not in ('root', 'app', 'anonymous'):
+    if authority not in ('root', 'app', 'cleanup', 'anonymous'):
         raise ValueError('Unknown bootstrap request authority')
     # Validate ownership before writing any credential into the request mount.
     network_id = owned_network(docker_network, origin) if docker_network is not None else None
@@ -204,10 +218,12 @@ def request(directory, origin, method, path, body=None, allowed=(200, 204), *, d
         lines = ['url = ' + json.dumps(origin + path), 'request = ' + json.dumps(method)]
         if authority == 'root':
             lines.append((directory / 'bootstrap/root-curl.conf').read_text().rstrip())
-        elif authority == 'app':
-            credentials = ':'.join((directory / ('app/' + n + '.key')).read_text().strip()
+        elif authority in ('app', 'cleanup'):
+            credentials = ':'.join((directory / (authority + '/' + n + '.key')).read_text().strip()
                                    for n in ('access', 'secret'))
             lines.append('user = ' + json.dumps(credentials))
+        if method == 'HEAD':
+            lines.append('head')
         if body is not None:
             private(root / 'body', body)
             lines.append('data-binary = ' + json.dumps('@' + str(root / 'body')))
@@ -258,11 +274,13 @@ def apply(directory, origin, *, docker_network=None):
     try:
         for bucket in BUCKETS:
             verify_fixture(directory, origin, send, bucket, 'root', fixtures)
-        access = (directory / 'app/access.key').read_text().strip()
-        secret = (directory / 'app/secret.key').read_text().strip()
-        send(directory, origin, 'PUT', '/rustfs/admin/v3/add-canned-policy?name=' + POLICY_NAME, json.dumps(policy()))
-        send(directory, origin, 'PUT', '/rustfs/admin/v3/add-user?accessKey=' + quote(access, safe=''), json.dumps({'secretKey': secret, 'status': 'enabled'}))
-        send(directory, origin, 'PUT', '/rustfs/admin/v3/set-user-or-group-policy?policyName=' + POLICY_NAME + '&userOrGroup=' + quote(access, safe='') + '&isGroup=false')
+        for role in ('app', 'cleanup'):
+            access = (directory / role / 'access.key').read_text().strip()
+            secret = (directory / role / 'secret.key').read_text().strip()
+            policy_name = POLICY_NAME + ('-cleanup' if role == 'cleanup' else '')
+            send(directory, origin, 'PUT', '/rustfs/admin/v3/add-canned-policy?name=' + policy_name, json.dumps(policy(cleanup=role == 'cleanup')))
+            send(directory, origin, 'PUT', '/rustfs/admin/v3/add-user?accessKey=' + quote(access, safe=''), json.dumps({'secretKey': secret, 'status': 'enabled'}))
+            send(directory, origin, 'PUT', '/rustfs/admin/v3/set-user-or-group-policy?policyName=' + policy_name + '&userOrGroup=' + quote(access, safe='') + '&isGroup=false')
         for bucket in BUCKETS:
             verify_fixture(directory, origin, send, bucket, 'app', fixtures)
             _, body = send(directory, origin, 'GET', '/' + bucket + '?versioning', authority='app')
@@ -281,7 +299,7 @@ def apply(directory, origin, *, docker_network=None):
         # Unknown outcomes never lead to unversioned deletion or prefix sweeps.
         for path, version, authority in fixtures:
             send(directory, origin, 'DELETE', path + '?versionId=' + quote(version, safe=''),
-                 authority=authority)
+                 authority='root')
 
 
 def require_denied(send, directory, origin, method, path, body=None, *, authority):
@@ -321,6 +339,18 @@ def verify_fixture(directory, origin, send, bucket, authority, fixtures):
                        e.findtext('{*}VersionId') == version for e in entries):
                 raise ValueError('Scoped application version listing failed')
             require_denied(send, directory, origin, 'DELETE', path, authority='app')
+            require_denied(send, directory, origin, 'DELETE', version_path, authority='app')
+            _, unchanged = send(directory, origin, 'GET', version_path, authority='app')
+            if unchanged != payload.encode():
+                raise ValueError('Normal delete denial changed immutable object')
+            for method, denied_path, body in [('PUT', path, payload), ('DELETE', path, None), ('GET', '/rustfs/admin/v3/info', None), ('PUT', '/dkp-bootstrap-denied', None), ('DELETE', '/' + bucket + '/' + hashlib.sha256(b'outside-tenant').hexdigest() + '/denied?versionId=synthetic', None)]:
+                require_denied(send, directory, origin, method, denied_path, body, authority='cleanup')
+            send(directory, origin, 'HEAD', version_path, authority='cleanup')
+            send(directory, origin, 'DELETE', version_path, authority='cleanup')
+            status, absent = send(directory, origin, 'GET', version_path, allowed=(404,), authority='root')
+            if status != 404 or XML.fromstring(absent).findtext('{*}Code') not in ('NoSuchKey', 'NoSuchVersion'):
+                raise ValueError('Cleanup exact version absence unproven')
+
 
 
 def main():

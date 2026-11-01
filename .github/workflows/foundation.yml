@@ -10,13 +10,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  linux-python-parity:
+    name: Pinned Linux Python runtime checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Shared local and CI Python runtime command
+        run: >-
+          python3 tools/ci/verify.py python-runtime --source "$PWD"
+          --evidence "$RUNNER_TEMP/dkp-python-runtime"
+      - name: Revalidate exact source, index and pinned environment evidence
+        run: >-
+          python3 tools/ci/verify.py validate-evidence --source "$PWD"
+          --evidence "$RUNNER_TEMP/dkp-python-runtime"
+
+      - name: Retain finite pinned Linux parity receipt
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: linux-python-parity-receipt
+          path: ${{ runner.temp }}/dkp-python-runtime/receipt.json
+          if-no-files-found: warn
+
   java:
     name: Java / ${{ matrix.service }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: [document-management, knowledge-base, knowledge-search, browser-bff]
+        service:
+          [document-management, knowledge-base, knowledge-search, browser-bff]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
@@ -24,15 +48,21 @@ jobs:
           distribution: temurin
           java-version: '25.0.5+8'
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
-      - run: ./gradlew --no-daemon :services:${{ matrix.service }}:bootstrap:build
-      - name: Real PostgreSQL role, CAS and restart coverage
+      - if: matrix.service != 'document-management'
+        run: ./gradlew --no-daemon :services:${{ matrix.service }}:bootstrap:build
+      - name: Pinned Linux DM build and real PostgreSQL coverage
         if: matrix.service == 'document-management'
-        run: ./gradlew --no-daemon :services:document-management:adapters-out:persistenceCoverageVerification
+        run: |
+          python3 tools/ci/java-dm-linux.py run --source "$GITHUB_WORKSPACE" --evidence "$RUNNER_TEMP/java-dm-evidence"
+          python3 tools/ci/java-dm-linux.py validate --source "$GITHUB_WORKSPACE" --evidence "$RUNNER_TEMP/java-dm-evidence"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: java-${{ matrix.service }}
-          path: services/${{ matrix.service }}/bootstrap/build/reports
+          path: |
+            services/${{ matrix.service }}/bootstrap/build/reports
+            ${{ runner.temp }}/java-dm-evidence/reports
+            ${{ runner.temp }}/java-dm-evidence/receipt.json
 
   architecture:
     runs-on: ubuntu-latest
@@ -64,14 +94,25 @@ jobs:
         run: >-
           pnpm --filter admin-portal exec vitest run
           src/upload-fault-contract.test.tsx src/ui-create-receipt.test.tsx
+          src/native-boundary-browser.test.tsx src/upload-job-fixture.test.tsx
           --coverage
           --coverage.include=e2e-real/upload-fault-contract.ts
           --coverage.include=e2e-real/ui-create-receipt.ts
+          --coverage.include=e2e-real/native-boundary-browser.ts
+          --coverage.include=e2e-real/upload-job-fixture.ts
           --coverage.reportsDirectory=coverage/acceptance-helpers
           --coverage.thresholds.lines=75 --coverage.thresholds.branches=75
           --coverage.thresholds.functions=75 --coverage.thresholds.statements=75
       - run: pnpm --filter admin-portal exec playwright install --with-deps chromium
       - run: pnpm --filter admin-portal test:e2e
+      - name: Bounded browser event diagnostics coverage
+        run: >-
+          pnpm --filter admin-portal exec vitest run
+          src/boundary-event-observer.test.tsx --coverage
+          --coverage.include=e2e-real/boundary-event-observer.ts
+          --coverage.reportsDirectory=coverage/boundary-observer
+          --coverage.thresholds.lines=75 --coverage.thresholds.branches=75
+          --coverage.thresholds.functions=75 --coverage.thresholds.statements=75
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -140,6 +181,34 @@ jobs:
           /tmp/dkp-runtime-checks/bin/coverage run --branch -m unittest discover -s tools/runtime -p 'test_*.py'
           /tmp/dkp-runtime-checks/bin/coverage run --branch --append -m unittest discover -s infra/docker-compose -p 'test_*.py'
           /tmp/dkp-runtime-checks/bin/coverage report --include='*/smoke.py,*/bootstrap-security.py,*/identity-provider-check.py,*/document-database-check.py' --fail-under=75
+      - name: Public SYSTEM Linux verification workspace
+        run: |
+          /tmp/dkp-runtime-checks/bin/coverage json --include='*/verification-workspace-system.py' -o /tmp/dkp-system-workspace-coverage.json
+          python3 -c "import json; t=json.load(open('/tmp/dkp-system-workspace-coverage.json'))['totals']; assert t['num_statements'] > 0 and t['num_branches'] > 0; assert t['covered_lines']/t['num_statements'] >= 0.75 and t['covered_branches']/t['num_branches'] >= 0.75"
+          docker pull eclipse-temurin:25.0.5_8-jdk@sha256:83f4a7fc27df94dcc7b8de04d14cbbba8da14406f921e966969c3b09000aa507
+          python3 tools/runtime/verification-workspace-system.py
+      - name: Public generic temporary-file Linux duration proof
+        timeout-minutes: 12
+        run: |
+          JAVA_HOME="$(python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          try:
+              home = Path(os.environ['JAVA_HOME'])
+              if not home.is_absolute():
+                  raise ValueError()
+              home = home.resolve(strict=True)
+              if not home.is_dir():
+                  raise ValueError()
+          except (KeyError, OSError, RuntimeError, ValueError):
+              raise SystemExit('Trusted CI compiler home unavailable') from None
+          print(home)
+          PYTHON
+          )"
+          export JAVA_HOME
+          /tmp/dkp-runtime-checks/bin/coverage json --include='*/generic-temp-system.py' -o /tmp/dkp-generic-system-coverage.json
+          python3 -c "import json; t=json.load(open('/tmp/dkp-generic-system-coverage.json'))['totals']; assert t['num_statements'] > 0 and t['num_branches'] > 0; assert t['covered_lines']/t['num_statements'] >= 0.75 and t['covered_branches']/t['num_branches'] >= 0.75"
+          python3 tools/runtime/generic-temp-system.py
       - run: python3 infra/docker-compose/bootstrap-security.py
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml config --quiet
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml up --build --wait --wait-timeout 240
@@ -171,6 +240,7 @@ jobs:
           node --experimental-test-coverage --test-coverage-lines=75
           --test-coverage-branches=75 --test-coverage-functions=75 --test
           tools/runtime/identity-e2e.test.mjs tools/runtime/compose-upload.test.mjs
+          tools/runtime/provider-job-probe.test.mjs
       - name: Deterministic public synthetic document generator coverage
         run: >-
           node --experimental-test-coverage --test-coverage-lines=75
@@ -190,7 +260,7 @@ jobs:
           python3 - <<'PY'
           import json
           report = json.load(open('/tmp/dkp-upload-helper-coverage.json'))
-          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py', 'upload-durability.py', 'upload-accounting-acceptance.py', 'upload-acceptance.py', 'upload-faults.py'):
+          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py', 'upload-durability.py', 'upload-accounting-acceptance.py', 'upload-acceptance.py', 'upload-faults.py', 'provider-jobs.py', 'application-provenance.py', 'provider-job-control-acceptance.py'):
               matches = [v['summary'] for p, v in report['files'].items() if p.endswith('/' + name)]
               if len(matches) != 1:
                   raise SystemExit('Missing source coverage for ' + name)
@@ -276,6 +346,7 @@ jobs:
           python3 tools/runtime/upload-acceptance.py prepare --directory local-data/security/upload-acceptance-ci --fixture-directory local-data/security/bp03-ci-combined --runtime-directory local-data/security/bp03-upload/ci
           dkp_acceptance_image=$(docker image inspect --format '{{.Id}}' dkp-upload-ci-tests:local)
           python3 tools/runtime/upload-acceptance.py run --directory local-data/security/upload-acceptance-ci --image "$dkp_acceptance_image"
+          python3 tools/runtime/upload-acceptance.py run-storage-budget --directory local-data/security/upload-acceptance-ci --image "$dkp_acceptance_image"
       - name: Remove only the owned combined compatibility fixture
         if: always()
         run: |
@@ -293,12 +364,25 @@ jobs:
           node tools/runtime/identity-e2e.mjs --upload-limits-profile quota
           --security-directory local-data/security/bp03-upload/ci-quota/identity
           --runtime-env-file local-data/security/bp03-upload/ci-quota/runtime.env
+      - name: Release quota runtime before dedicated provider job acceptance
+        run: python3 tools/runtime/upload-runtime.py stop --directory local-data/security/bp03-upload/ci-quota
+      - name: Prepare exact private-control engine images
+        run: python3 tools/runtime/provider-job-control-acceptance.py --prepare-images
+      - name: Start dedicated fresh provider job runtime
+        run: python3 tools/runtime/upload-runtime.py start --directory local-data/security/bp03-upload/ci-jobs
+      - name: Verify dedicated fresh provider job runtime
+        run: python3 tools/runtime/upload-runtime.py verify --directory local-data/security/bp03-upload/ci-jobs
+      - name: Real owned scanner and inspector concurrency, guarded cancellation and DM crash
+        run: >-
+          python3 tools/runtime/provider-jobs.py
+          --directory local-data/security/bp03-upload/provider-jobs-ci
+          --runtime-directory local-data/security/bp03-upload/ci-jobs
       - name: Stop only recorded BP03 project resources
         if: always()
         run: |
           set -euo pipefail
           dkp_stop_status=0
-          for directory in local-data/security/bp03-upload/ci local-data/security/bp03-upload/ci-quota; do
+          for directory in local-data/security/bp03-upload/ci local-data/security/bp03-upload/ci-quota local-data/security/bp03-upload/ci-jobs; do
             if test -f "$directory/state.json"; then
               if ! python3 tools/runtime/upload-runtime.py stop --directory "$directory"; then
                 dkp_stop_status=1

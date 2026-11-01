@@ -1,3 +1,11 @@
+## Current execution checkpoint — #312 — 2026-11-01 05:11 UTC
+
+- [ ] #344: repair actual Linux OS-lock exclusion after failed same-JVM contention; retain causal baseline failure and independently verify corrected public SYSTEM constructors. Earlier14-case #335/#337 proof is narrower.
+- [ ] #328: complete approved generic temporary-file roles, physical ownership/fault evidence, coverage and independent review before integration.
+- [ ] #340/#343: resolve versioned Linux launcher source/bundle/canonical-ancestry review findings and rerun isolated proof.
+- [ ] #341 / PR345 / independent #346: review bounded BFF ingress technical selection; proposed source `dd7f47f` remains unapproved. #338 production correction follows only after specification gates.
+- [ ] Final current-source provider/resource/CI/genuine60-minute expiry and reviewed integration remain required. Local `d6902be` four-format browser4 PASS36.8s is scoped evidence; remote PR267 CI failure is retained. No new real-hour test is running; #222 aggregate resource audit remains open.
+
 ## 1. Specification — issue #88, parent #35
 
 - [x] 1.1 Read canonical BP01/BP02, System Design §§7.4/7.5/8.1/14 and existing runtime-unavailable receipt port; review public research #86.
@@ -125,7 +133,7 @@ Runtime issues91–99 were created before execution. Development specification a
 
 ## Side-conversation owner request — fast expiry execution (#178)
 
-- [ ] [#178](https://github.com/petarnenov/document-knowledge-platform/issues/178): explicit `node tools/runtime/upload-expiry.mjs fast` application regression versus `acceptance` real sixty-minute profile. Scoped selector/tests and [execution guide](../../../docs/development/upload-expiry-testing.md) added; review and PR integration remain pending. No runtime TTL or final acceptance gate is changed; the final real-time result remains mandatory.
+- [x] [#178](https://github.com/petarnenov/document-knowledge-platform/issues/178): fast/real-hour execution split integrated via PR146/dev62a73f0 with green final and post-dev CI. Current fast79application+5selector tests PASS; separate historical genuine-hour9e07cb2 PASS, deadline unchanged. Closed test-strategy scope; newer affected-source finalhour remains mandatory under261.
 
 - [ ] [#175](https://github.com/petarnenov/document-knowledge-platform/issues/175) P1: integrate real authenticated faults, seven helper coverage floors and a separate fresh genuine quota runtime into CI; independent177 review passes, actual CI pending.
 - [ ] [#176](https://github.com/petarnenov/document-knowledge-platform/issues/176) P1: observe genuine metadata create through exact authorized idempotent replay and UI/discovery binding;23 helper tests100% coverage and independent177 review pass, actual final-source two-theme/quota CI pending.
@@ -148,9 +156,93 @@ Runtime issues91–99 were created before execution. Development specification a
 - [ ] [#198](https://github.com/petarnenov/document-knowledge-platform/issues/198) P1: first genuine sixty-minute run FAILED on asynchronous persisted-state observation; automatic expiry+6.59seconds and immediate409 verified read-only. Minimal bounded status observation reviewed; NEWfresh real sixty-minute acceptance and integration pending.
 - [x] [#199](https://github.com/petarnenov/document-knowledge-platform/issues/199) P1: independent expiry observation review PASS; unchanged real-hour wait, immediate409 and all remaining assertions, invariant deadline every observation, latched invalid response and finite30second observation. This is source review, not elapsed-time acceptance.
 
+## 2026-11-01 final acceptance corrections
+
+PR146 merged62a73f0 after the genuine sixty-minute acceptance passed on9e07cb2 and final-head CI; all ten post-dev checks subsequently passed. Those historical results remain valid for their recorded source. The full239audit identified additional required corrections below, so BP03 is not closed or archived.
+
+- [ ] [#242](https://github.com/petarnenov/document-knowledge-platform/issues/242) normal and cleanup clients, ports, keys and private role markers separated; normal IAM excludes DeleteObjectVersion. Independent250 accepts24-filec2a6e887 packet. Cleanup GetObjectVersion permits versioned GET as well as the required versioned HEAD; no HEAD-only IAM isolation is claimed. Native separate IAM and final-source acceptance remain required.
+- [x] [#250](https://github.com/petarnenov/document-knowledge-platform/issues/250) independent242 source review PASS after both exact authority-tree guards derive seven entries from one closed inventory; actual archive/shell regression passes. Review closed with handoff; current-session compaction remains pending where no invocation is exposed.
+- [ ] [#248](https://github.com/petarnenov/document-knowledge-platform/issues/248) actual100MB capacity regressions; pre-fix unprivileged Linux proves300MB retained versus200MB budget.
+- [ ] [#249](https://github.com/petarnenov/document-knowledge-platform/issues/249) durable two-slot content-only ownership/accounting and bounded recovery. Native79tests and unprivileged Linux100tests pass with zero skips; changed source97.44%lines/80.97%branches. Independent258 accepts final7c14947c packet; consolidated runtime/final acceptance remain required.
+- [x] [#258](https://github.com/petarnenov/document-knowledge-platform/issues/258) independent249 source review PASS, including stale old-owner close after replacement owner reacquires the same actor/slot. Closure evidence pending.
+- [ ] [#261](https://github.com/petarnenov/document-knowledge-platform/issues/261) exact reviewed242+249 consolidation from currentdev; clean three-way UploadLifecycleTest merge preserves all44 scenarios. Includes independently reviewed237 safe fault diagnostics and263 test-only deadline scheduling correction. Consolidated Linux/native IAM/COPY-FENCE/fault/quota/browser/new genuine60-minute/finalCI gates remain pending; no TTL change.
+- [x] [#262](https://github.com/petarnenov/document-knowledge-platform/issues/262) production ContentService factory preDestroy hook independently reviewed. Actual Micronaut shutdown test1PASS, merged lifecycle44PASS; isolated removal of only the hook genuinely fails on the still-open content channel. Root accepts authored testbcdd5696; consolidated Linux remains required.
+- [ ] [#263](https://github.com/petarnenov/document-knowledge-platform/issues/263) blocked-reader test starts the same40ms test timer on the admitted reader, preserving production300s/30s deadlines. Controlled admission delay reproduces original failure; independent264 source PASS and full BFF bootstrap build PASS. FinalCI remains pending.
+
+- [ ] [#269](https://github.com/petarnenov/document-knowledge-platform/issues/269) named real-browser tenant-switch-during-upload case; exact CDP throttled PUT, actual second-tab tenant selection/current-session refresh, old transport abort and no verify/append are required. Independent273 accepts test-only8b786303. Actual fresh-profile execution/integration pending.
+- [ ] [#270](https://github.com/petarnenov/document-knowledge-platform/issues/270) named real-browser keyboard theme change during the throttled command, preserving focus/form/route/authority/no duplicate or protected refetch, then real append/hash-verified download. Independent273 accepts source; actual configured execution/integration pending. Existing two journeys remain unchanged; explicit upload profile adds two cases and legacy profile remains two.
+- [ ] [#273](https://github.com/petarnenov/document-knowledge-platform/issues/273) independent269/270 bounded source review PASS; browser/runtime evidence remains separate.
+- [x] [#271](https://github.com/petarnenov/document-knowledge-platform/issues/271) named deployed R16.S02 inspection accepted274:36/36 checks on59a3e76/projectdkp-bp03-c828105aeef9. Actual single ephemeral BFF, persistent data mounts, separate scoped read-only authority, restrictive ignored grants and isolation metadata observed. Inspection does not prove restart/nativeIAM/session-loss behavior or full image provenance. Handoff saved; compaction pending where no invocation exists.
+- [x] [#274](https://github.com/petarnenov/document-knowledge-platform/issues/274) root independent inspection artifact/procedure review PASS; package acceptance remains open.
+
+- [ ] [#275](https://github.com/petarnenov/document-knowledge-platform/issues/275) combined acceptance fixture uses separately bound cleanup authority after IAM split. Actual original normal DELETE returns native403 and preserves bytes; corrected both-bucket cleanup204 then exactHEAD404. Independent #279 accepts two-file0e920df3 packet,27testsPASS, helper98.76%lines/93.48%branches. Full eightCOPY/FENCE/currentCI/integration remain required. Prior267CI passed authenticatedfaults/mainHTTPS then failed this fixture; failure retained.
+- [ ] [#277](https://github.com/petarnenov/document-knowledge-platform/issues/277) prove cumulative240s completion and shared60s storage/evidence budget; current indirect evidence is not acceptance. No deadline relaxation is approved.
+- [x] [#279](https://github.com/petarnenov/document-knowledge-platform/issues/279) independent275 source review PASS, actual native safe evidence inspected; reviewer reran27tests, did not rerun provider or claim combined8PASS.
+
+- [ ] [#269](https://github.com/petarnenov/document-knowledge-platform/issues/269) / [#270](https://github.com/petarnenov/document-knowledge-platform/issues/270) actual first fresh4profile: original2PASS, theme observer failed because filteredheaders omittedOrigin, then tenant scenario had no binary admission. Corrected5951a336 uses awaited realallHeaders and same CDPrequestID exactOrigin/currentCSRF/idempotency guards. Independent273 delta inspection accepts source; actual fresh4run remains mandatory. No acceptance assertions or production controls weakened.
+
+- [ ] [#269](https://github.com/petarnenov/document-knowledge-platform/issues/269) / [#270](https://github.com/petarnenov/document-knowledge-platform/issues/270) second actual fresh4run: original2PASS; pending allHeaders observer timed out180s, then held-admission cascade. Correctedc19960d4 uses exactsame-request CDP wire guards while pending and only completedtheme allHeaders, preserves status/session/form/abort/hash assertions and cleans pre-return observer errors. Independent273 rootdeltaPASS; fresh4run required.
+- [ ] [#282](https://github.com/petarnenov/document-knowledge-platform/issues/282) exact8d7e460 DMCI failed malformedJSON afterearlyheaderrejection; retainedartifact proves MicronautDroppingInboundHandler ClassCastException→10sHTTPtimeout. ControlledLinuxsame-connection diagnosis in progress, no timeoutincrease/retrywaiver.
+- [ ] [#283](https://github.com/petarnenov/document-knowledge-platform/issues/283) verify actual one scan/inspect job across cancellation/DMrestart; localSDK cancellation is not remote settlement, existing per-slot possiblecopyfence remains unchanged.
+
+- [ ] [#285](https://github.com/petarnenov/document-knowledge-platform/issues/285) strictnativeRustFSreadiness andwritehealth mustbothreturn200withinonefixed60smonotonicbudget before firstsinglebootstrapPUT. Native503ceCI exactcause remainsUNKNOWN; pinnedsource proveslivenessgateinsufficient. SemanticRED→158PythonPASS withhelper100%L/B, finalsource actualnativefixtureprepare+ownedcleanupPASS. Independent290 accepts9f73ab57 packet; fullcurrentnative/CI/integration required, noPUTretry orauthorityweakening.
+- [x] [#290](https://github.com/petarnenov/document-knowledge-platform/issues/290) independent285 boundedsource/nativeartifactreviewPASS,9focusedtests rerun; no rootcauseinference orfullnativeCIwaiver.
+- [ ] [#286](https://github.com/petarnenov/document-knowledge-platform/issues/286) sourceprivatecleanup muststaywithinsharedstorage60before receipt, includingfailedcleanupfallback;284re-review of277 required beforefinalsourceacceptance.
+- [ ] [#287](https://github.com/petarnenov/document-knowledge-platform/issues/287) realnativebrowserdefaultcontextwithoutPlaywrightfocusemulation provesactualvisibilitychange onisolatedpinnedChromium;291independentreview andfreshrealTLS/OIDCtenantabort stillrequired.
+
+## Current delivery evidence — 2026-11-01 03:21 UTC
+
+The historical PR146 genuine hour remains PASS for its recorded source; no fresh current-source hour is running. DraftPR267 bf47d48 includes the reviewed timing, native-browser and real60 harness packets; actual provider/HTTPS/CI and final-hour gates remain open. The macOS full DM attempt returned authority UNAVAILABLE; it is retained as failed evidence, not native/Linux acceptance.
+
+- [x] [#284](https://github.com/petarnenov/document-knowledge-platform/issues/284) independent277/286 timing review accepts18-file189fde56;96application+22focusedadapter tests zero skip, changed96.43%lines/88.60%branches. Does not prove full resource readiness.
+- [x] [#291](https://github.com/petarnenov/document-knowledge-platform/issues/291) independent287/293 lifecycle/parser and root CI helper coverage review PASS;21 helper tests100%floors, actual isolated native visibility/cleanup inspected.
+- [ ] [#293](https://github.com/petarnenov/document-knowledge-platform/issues/293) complete-line native CDP parser correction integrated in draft267; actual fresh4HTTPS/OIDC/tenant cases and CI/dev integration required.
+- [ ] [#294](https://github.com/petarnenov/document-knowledge-platform/issues/294) explicit real60 provider task/harness required after eightCOPY/FENCE cases; real execution remains unperformed. Root independently reran32 harness tests; actual240s TCP component remains narrower than full service proof.
+- [x] [#297](https://github.com/petarnenov/document-knowledge-platform/issues/297) independent294 source/action/image/profile/result/CI review PASS; no timing override, skip, full-service240 or resource acceptance inferred.
+- [ ] [#296](https://github.com/petarnenov/document-knowledge-platform/issues/296) retained verification-temp files lack durable ownership through remote cleanup/re-admission/restart; content249 proof and S3 quota do not cover this namespace.
+- [ ] [#299](https://github.com/petarnenov/document-knowledge-platform/issues/299) explicit bounded verification-temp ownership/recovery technical OpenSpec amendment; development proposal/review before new lifecycle code, no invented architecture/security/production approval.
+- [ ] [#300](https://github.com/petarnenov/document-knowledge-platform/issues/300) independent delivery bookkeeping/protocol review; latest owner AGENTS prohibits automatic merge. Implementation and integration tasks stay open.
+
+## Evidence refresh — 2026-11-01 03:52 UTC
+
+- [ ] [#312](https://github.com/petarnenov/document-knowledge-platform/issues/312) refresh actual delivery evidence; independent metadata review and final publication pending. No live CI restart for metadata.
+- [x] [#301](https://github.com/petarnenov/document-knowledge-platform/issues/301) independent283 config/source-binding review PASS; actual provider cancellation/restart remains305.
+- [x] [#303](https://github.com/petarnenov/document-knowledge-platform/issues/303) independent302 isolated wrong-host TLS probe review PASS; actual current87296 local4browser cases PASS31s.
+- [x] [#304](https://github.com/petarnenov/document-knowledge-platform/issues/304) independent299 specification source review PASS; PR306 checks/development approval remain pending.
+- [x] [#307](https://github.com/petarnenov/document-knowledge-platform/issues/307) scoped TRANSFER/preappend audit complete after independent309:4 diagnostics PASS; proven defects remain unresolved in308. Real files/concurrency with synthetic SQL/S3/expiry, no process/Linux/provider acceptance inferred.
+- [x] [#309](https://github.com/petarnenov/document-knowledge-platform/issues/309) independent307 source/contract review and fresh4test execution PASS.
+- [ ] [#308](https://github.com/petarnenov/document-knowledge-platform/issues/308) separate proposed durable TRANSFER/preappend technical profile; independent review/development approval and implementation remain pending.
+- [ ] [#305](https://github.com/petarnenov/document-knowledge-platform/issues/305) real bounded provider job cancellation/restart harness authoring; no runtime execution claimed.
+
+Current41269335770 combined COPY/fence step, including required real60-second storage acceptance, is PASS; freshquota stage and exact terminal-log retention are pending.294 stays open for final-source acceptance/reviewed integration. Historical statements above about unperformed real60 execution precede this checkpoint. No fresh60-minute expiry is running;296/308 unresolved local ownership and remaining resource gates prevent package closure.
+
+## Scoped acceptance checkpoint — #312 — 2026-11-01 06:04 UTC
+
+- [x] #363: independently accept exact final #360 launcher source, units and historical executed-source provenance; final exact-helper CI remains required.
+- [x] #370: independently accept #361/#364 COMPLETE phase/current ACL correction and positive #362 recovery regression;125application/19workspace plus8targeted tests pass, changed19/19lines and12/16branches.
+- [ ] #360/#361/#362/#364: reviewed local source5e2ce26, root integrated125application/66outbound/three separate75% floors/architecture PASS; applicable exact-source CI and reviewed dev integration pending.
+- [ ] #338/#365: selected bounded-ingress and typed chunked max+1 normalization; #366 proposed attestation mechanism amendment remains unapproved pending independent #375 and checks.
+- [ ] Final provider/resource #222, final-source genuine60-minute expiry, consolidated review and dev integration; no real-hour test running, no automatic merge, no production approval.
+
+## Scoped acceptance checkpoint — #312 — 2026-11-01 06:46 UTC
+
+- [ ] [#381](https://github.com/petarnenov/document-knowledge-platform/issues/381): reviewed public duration-launch diagnostics (#383), exact Linux300014/60003/30854ms proof; current CI now observes COMPILER_HOME/VALIDATION. Exact final CI/integration remain required.
+- [ ] [#384](https://github.com/petarnenov/document-knowledge-platform/issues/384): independently reviewed stage-only provider diagnostics (#385),221 combined tooling tests PASS; actual provider failure cause remains unknown until exact native CI.
+- [ ] [#388](https://github.com/petarnenov/document-knowledge-platform/issues/388): independently reviewed canonical trusted compiler-home launch correction (#390),223 tooling tests and strict OpenSpec15 PASS; helper guards/pinned compiler/durations unchanged. Exact CI/integration pending.
+- [ ] #338/#365/#378: public-profile source review380 PASS does not complete effective hidden-state attestation; proposed366 remains unapproved until applicable CI and recorded development approval.
+- [ ] Final audit #222, final-source genuine60-minute expiry, remaining provider/resource gates and reviewed dev integration; no current real-hour test or automatic merge.
+
+- [ ] [#413](https://github.com/petarnenov/document-knowledge-platform/issues/413) P1: diagnose actual CI PRIVATE_CONTROL failure using closed helper stage/boundary/category/cleanup diagnostics while preserving exact pinned Docker commands, file privacy and owned cleanup. Independent [#414](https://github.com/petarnenov/document-knowledge-platform/issues/414) corrected source review passes; fresh exact-head CI and dev integration remain required. Local original/candidate fixture PASS does not establish the original CI cause; full provider-job and genuine final60-minute acceptance remain open.
+
+- [ ] [#421](https://github.com/petarnenov/document-knowledge-platform/issues/421) P1: independently review isolated classifier diagnostic test capture with hostile-error and forced-warning regressions; exact-head CI/dev integration remain pending. The original CI classifier capture bytes and PRIVATE_CONTROL cause remain unknown; a controlled warning regression does not establish either CI cause.
+
+- [ ] [#426](https://github.com/petarnenov/document-knowledge-platform/issues/426) P1: prepare only exact pinned private-control Node/Playwright engine images before dedicated provider acceptance; preserve all existing no-pull fixture guards. Actual CI IMAGE/COMMAND_FAILED is observed; missing engine cache is not proven original cause. Independent review, exact-head CI/provider/genuine final-hour and dev integration remain pending.
+
 ## Post-integration CI diagnosis — 2026-11-01
 
 - [ ] [#237](https://github.com/petarnenov/document-knowledge-platform/issues/237) retain safe finite authenticated-fault CI diagnostics. PR223/run41257973173 failed the authenticated provider gate with only generic private-evidence output; the original cause remains unknown. The three-file reporting correction passes144 runtime tests and retains all actual provider/accounting/ownership assertions, private evidence and nonzero failure status. A reviewed diagnostic CI run must establish the next action; no failure is waived.
 - [x] [#238](https://github.com/petarnenov/document-knowledge-platform/issues/238) independent diagnostic source review PASS at75b38dd8; root reran23focused tests, zero failures/skips. Changed helper99.70% source/90.52% branches. Source review does not certify actual provider success.
 
 PR146 integrated as62a73f0 after final-head CI and the distinct genuine60-minute expiry PASS. Full requirement audit222/239, integrated-dev checks and verified archive remain open. Production/CID gates remain separate.
+
+- [ ] [#454](https://github.com/petarnenov/document-knowledge-platform/issues/454) P1: serialize concurrent service-build writers to the shared Gradle cache with BuildKit `sharing=locked`. Preserve the original CI daemon-timeout evidence; two original local four-service builds passed, so the hosted failure cause remains unproven. Verify real cold and warm-cache builds, independent review, exact-source CI and dev integration before closure; preserve all provider and real-hour acceptance gates.

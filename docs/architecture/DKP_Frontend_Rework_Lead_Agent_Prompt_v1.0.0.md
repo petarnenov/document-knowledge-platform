@@ -1,9 +1,9 @@
 # DKP — Controlled Frontend Rework & UI/UX Modernization
 
-**Document ID:** DKP-UX-003  
-**Version:** 1.0.0  
-**Status:** Implementation agent instruction / proposed execution prompt  
-**Related blueprint:** [DKP-UX-002 — UI/UX Implementation Blueprint v0.7.0](./DKP_UIUX_Implementation_Blueprint_v0.7.0.md)  
+**Document ID:** DKP-UX-003\
+**Version:** 1.0.0\
+**Status:** Implementation agent instruction / proposed execution prompt\
+**Related blueprint:** [DKP-UX-002 — UI/UX Implementation Blueprint v0.7.0](./DKP_UIUX_Implementation_Blueprint_v0.7.0.md)\
 **Target integration branch:** `dev`
 
 ## Role and Mission

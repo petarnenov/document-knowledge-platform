@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { readFileSync, lstatSync } from 'node:fs';
+import { readFileSync, lstatSync, realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -71,7 +72,44 @@ export function faultInput(value) {
   return value;
 }
 
-export function runtimeArguments({ portalId, address, certificate, portalPort = 18443, idpPort = 18444, uploadRuntime = false, uploadLimitsProfile, uploadDurabilityFixture = false, uploadFaultInput }) {
+export function jobInput(value) {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    Object.keys(value).join(',') !== 'schemaVersion' ||
+    value.schemaVersion !== 1
+  )
+    throw new Error('Closed provider job input required');
+  return value;
+}
+export function jobControl(file) {
+  requirePrivateFile(file);
+  const control = resolve(dirname(file), 'control');
+  const info = lstatSync(control);
+  if (
+    file !== realpathSync(file) ||
+    control !== realpathSync(control) ||
+    !control.startsWith(
+      resolve(root, 'local-data/security/bp03-upload') + '/',
+    ) ||
+    !info.isDirectory() ||
+    (info.mode & 0o077) !== 0 ||
+    info.uid !== process.getuid() ||
+    control.includes(',')
+  )
+    throw new Error('Confined private provider job control required');
+  const allowed = resolve(root, 'local-data/security/bp03-upload');
+  for (let ancestor = dirname(control);; ancestor = dirname(ancestor)) {
+    const info = lstatSync(ancestor);
+    if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== process.getuid() || (info.mode & 0o022) !== 0) throw new Error('Trusted private control ancestry required');
+    if (ancestor === allowed) break;
+  }
+  return control;
+}
+
+export function runtimeArguments({ portalId, address, certificate, portalPort = 18443, idpPort = 18444, uploadRuntime = false, uploadLimitsProfile, uploadDurabilityFixture = false, uploadFaultInput, uploadJobInput, uploadJobControl }) {
+  if (uploadJobInput !== undefined) { jobInput(uploadJobInput); if (!uploadRuntime || uploadFaultInput !== undefined || uploadDurabilityFixture || uploadLimitsProfile !== undefined || !isAbsolute(uploadJobControl ?? '') || uploadJobControl.includes(',')) throw new Error('Separate confined provider job profile required'); }
   if (uploadFaultInput !== undefined) { faultInput(uploadFaultInput); if (!uploadRuntime || uploadDurabilityFixture || uploadLimitsProfile !== undefined) throw new Error('Separate upload fault profile required'); }
   if (typeof uploadRuntime !== 'boolean') throw new Error('Explicit boolean upload profile required');
   if (typeof uploadDurabilityFixture !== 'boolean' || (uploadDurabilityFixture && (!uploadRuntime || uploadLimitsProfile !== undefined))) throw new Error('Explicit durability fixture requires its own upload runtime profile');
@@ -93,11 +131,13 @@ export function runtimeArguments({ portalId, address, certificate, portalPort = 
     ...(uploadRuntime ? ['--env', 'DKP_UPLOAD_E2E_ENABLED=true'] : []),
     ...(uploadLimitsProfile ? ['--env', `DKP_UPLOAD_LIMITS_PROFILE=${uploadLimitsProfile}`] : []),
     ...(uploadDurabilityFixture ? ['--env', 'DKP_UPLOAD_DURABILITY_FIXTURE=true'] : []),
+    ...(uploadJobInput !== undefined ? ['--name', 'dkp-jobs-browser-' + createHash('sha256').update(uploadJobControl).digest('hex').slice(0, 16), '--label', 'dkp.issue=305', '--label', 'dkp.jobs.control=' + createHash('sha256').update(uploadJobControl).digest('hex'), '--env', `DKP_UPLOAD_JOB_INPUT=${JSON.stringify(uploadJobInput)}`] : []),
     ...(uploadFaultInput !== undefined ? ['--env', `DKP_UPLOAD_FAULT_INPUT=${JSON.stringify(uploadFaultInput)}`] : []),
     image,
     ...(uploadLimitsProfile ? ['upload-limits.spec.ts'] : []),
     ...(uploadDurabilityFixture ? ['upload-durability.spec.ts'] : []),
     ...(uploadFaultInput !== undefined ? ['upload-faults.spec.ts'] : []),
+    ...(uploadJobInput !== undefined ? ['upload-job-boundary.spec.ts'] : []),
   ];
 }
 
@@ -119,12 +159,20 @@ function docker(args, { environment = process.env, password, quiet = false } = {
   return result.stdout.trim();
 }
 
-export function main({ uploadRuntime = false, uploadLimitsProfile, uploadDurabilityFixture = false, uploadFaultInputFile, securityDirectory, runtimeEnvironmentFile, execute = docker, log = console.log } = {}) {
+export function main({ uploadRuntime = false, uploadLimitsProfile, uploadDurabilityFixture = false, uploadFaultInputFile, uploadJobInputFile, securityDirectory, runtimeEnvironmentFile, execute = docker, log = console.log } = {}) {
   if (typeof uploadDurabilityFixture !== 'boolean' || (uploadDurabilityFixture && uploadLimitsProfile !== undefined)) throw new Error('Explicit durability fixture requires a separate profile');
   if (uploadDurabilityFixture) uploadRuntime = true;
   if (uploadLimitsProfile !== undefined) {
     if (!['quota', 'expiry'].includes(uploadLimitsProfile)) throw new Error('Invalid upload limits profile');
     uploadRuntime = true;
+  }
+  let uploadJobInput, uploadJobControl;
+  if (uploadJobInputFile !== undefined) {
+    if (uploadFaultInputFile !== undefined || uploadDurabilityFixture || uploadLimitsProfile !== undefined) throw new Error('Separate provider job profile required');
+    requirePrivateFile(uploadJobInputFile);
+    if (lstatSync(uploadJobInputFile).size > 1024) throw new Error('Bounded provider job input required');
+    uploadJobInput = jobInput(JSON.parse(readFileSync(uploadJobInputFile, 'utf8')));
+    uploadJobControl = jobControl(uploadJobInputFile);uploadRuntime = true;
   }
   let uploadFaultInput;
   if (uploadFaultInputFile !== undefined) {
@@ -156,7 +204,7 @@ export function main({ uploadRuntime = false, uploadLimitsProfile, uploadDurabil
   log('Building isolated Chromium identity verification runtime.');
   execute(['build', '-f', 'infra/docker-compose/identity-e2e.Dockerfile', '-t', image, '.']);
   log('Running strict-HTTPS real-provider browser verification.');
-  execute(runtimeArguments({ portalId, address, certificate, portalPort: uploadRuntime ? 19443 : 18443, idpPort: uploadRuntime ? 19444 : 18444, uploadRuntime, uploadLimitsProfile, uploadDurabilityFixture, uploadFaultInput }), {
+  execute(runtimeArguments({ portalId, address, certificate, portalPort: uploadRuntime ? 19443 : 18443, idpPort: uploadRuntime ? 19444 : 18444, uploadRuntime, uploadLimitsProfile, uploadDurabilityFixture, uploadFaultInput, uploadJobInput, uploadJobControl }), {
     environment: { ...process.env, DKP_IDENTITY_USERNAME: credentials.username, DKP_IDENTITY_PASSWORD: credentials.password },
     password: credentials.password,
   });
@@ -170,9 +218,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     if (environmentIndex >= 0 && (!process.argv[environmentIndex + 1] || process.argv[environmentIndex + 1].startsWith('--'))) throw new Error('Runtime environment file is required');
     const limitsIndex = process.argv.indexOf('--upload-limits-profile');
     if (limitsIndex >= 0 && (!process.argv[limitsIndex + 1] || process.argv[limitsIndex + 1].startsWith('--'))) throw new Error('Upload limits profile is required');
+    const jobIndex = process.argv.indexOf('--upload-job-input-file');
+    if (jobIndex >= 0 && (!process.argv[jobIndex + 1] || process.argv[jobIndex + 1].startsWith('--'))) throw new Error('Provider job input file required');
     const faultIndex = process.argv.indexOf('--upload-fault-input-file');
     if (faultIndex >= 0 && (!process.argv[faultIndex + 1] || process.argv[faultIndex + 1].startsWith('--'))) throw new Error('Private fault input required');
-    main({ ...(faultIndex >= 0 ? { uploadFaultInputFile: resolve(process.argv[faultIndex + 1]) } : {}), uploadRuntime: process.argv.includes('--upload-runtime'), uploadDurabilityFixture: process.argv.includes('--upload-durability-fixture'), ...(limitsIndex >= 0 ? { uploadLimitsProfile: process.argv[limitsIndex + 1] } : {}), ...(index >= 0 ? { securityDirectory: resolve(process.argv[index + 1]) } : {}), ...(environmentIndex >= 0 ? { runtimeEnvironmentFile: resolve(process.argv[environmentIndex + 1]) } : {}) });
+    main({ ...(jobIndex >= 0 ? { uploadJobInputFile: resolve(process.argv[jobIndex + 1]) } : {}), ...(faultIndex >= 0 ? { uploadFaultInputFile: resolve(process.argv[faultIndex + 1]) } : {}), uploadRuntime: process.argv.includes('--upload-runtime'), uploadDurabilityFixture: process.argv.includes('--upload-durability-fixture'), ...(limitsIndex >= 0 ? { uploadLimitsProfile: process.argv[limitsIndex + 1] } : {}), ...(index >= 0 ? { securityDirectory: resolve(process.argv[index + 1]) } : {}), ...(environmentIndex >= 0 ? { runtimeEnvironmentFile: resolve(process.argv[environmentIndex + 1]) } : {}) });
   } catch {
     // Never dump captured Docker inspect/env data or credential-bearing errors.
     console.error('Real identity E2E failed; inspect sanitized output and verify the running Compose runtime and owner-only local security material.');

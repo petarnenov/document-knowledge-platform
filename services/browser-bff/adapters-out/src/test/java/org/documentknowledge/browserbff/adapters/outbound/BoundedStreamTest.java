@@ -21,8 +21,13 @@ class BoundedStreamTest {
  }
  @Test void idleAndTotalDeadlinesCloseBlockedReaders()throws Exception{
   for(boolean idle:java.util.List.of(true,false)){
-   var entered=new CountDownLatch(1);InputStream source=new InputStream(){boolean closed;public synchronized int read()throws IOException{entered.countDown();while(!closed)try{wait();}catch(InterruptedException failure){Thread.currentThread().interrupt();throw new IOException(failure);}return -1;}public synchronized int read(byte[] b,int o,int l)throws IOException{return read();}public synchronized void close(){closed=true;notifyAll();}};
-   try(var stream=new BoundedStream(source,1,()->{},idle?1000:40,idle?40:1000);var executor=Executors.newVirtualThreadPerTaskExecutor()){var read=executor.submit(()->assertThrows(IOException.class,stream::read));assertTrue(entered.await(1,TimeUnit.SECONDS));read.get(2,TimeUnit.SECONDS);assertThrows(IOException.class,stream::read);}
+   var entered=new CountDownLatch(1);var begin=new CountDownLatch(1);InputStream source=new InputStream(){boolean closed;public synchronized int read()throws IOException{entered.countDown();while(!closed)try{wait();}catch(InterruptedException failure){Thread.currentThread().interrupt();throw new IOException(failure);}return -1;}public synchronized int read(byte[] b,int o,int l)throws IOException{return read();}public synchronized void close(){closed=true;notifyAll();}};
+   // Start the short protocol timer on the running reader, after test setup.
+   // Deliberately delay task admission past40ms to cover the CI scheduling race.
+   try(var executor=Executors.newVirtualThreadPerTaskExecutor()){
+    var read=executor.submit(()->{assertTrue(begin.await(2,TimeUnit.SECONDS));try(var stream=new BoundedStream(source,1,()->{},idle?1000:40,idle?40:1000)){assertThrows(IOException.class,stream::read);assertThrows(IOException.class,stream::read);}return null;});
+    assertFalse(entered.await(100,TimeUnit.MILLISECONDS));begin.countDown();assertTrue(entered.await(1,TimeUnit.SECONDS));read.get(2,TimeUnit.SECONDS);
+   }
   }
  }
 }

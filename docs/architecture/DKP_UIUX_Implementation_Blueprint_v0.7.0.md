@@ -1,12 +1,12 @@
 # Document Knowledge Platform — UI/UX Implementation Blueprint
 
-**Document ID:** DKP-UX-002  
-**Version:** 0.7.0-draft  
-**Date:** 2026-11-01  
-**Language:** English  
-**Status:** Proposed frontend implementation blueprint — requires contract and product acceptance  
-**Scope:** Knowledge Administration Portal UI/UX, frontend architecture, accessibility, mocked prototype, integration, and frontend tests. **Not** a replacement for the overall system blueprint.  
-**Authority:** `DKPS-SDD-001 v1.0.0-rc1` for system invariants; `DKP-UX-001 v0.6.0-draft` for existing UX proposals; approved UX direction (Balanced Workspace, Comfortable Density, dark default).  
+**Document ID:** DKP-UX-002\
+**Version:** 0.7.0-draft\
+**Date:** 2026-11-01\
+**Language:** English\
+**Status:** Proposed frontend implementation blueprint — requires contract and product acceptance\
+**Scope:** Knowledge Administration Portal UI/UX, frontend architecture, accessibility, mocked prototype, integration, and frontend tests. **Not** a replacement for the overall system blueprint.\
+**Authority:** `DKPS-SDD-001 v1.0.0-rc1` for system invariants; `DKP-UX-001 v0.6.0-draft` for existing UX proposals; approved UX direction (Balanced Workspace, Comfortable Density, dark default).\
 **Change policy:** Do not infer business permission rules or change DM-001–DM-072, upstream ADRs, service ownership, security model, or approved contracts by implementing this document.
 
 ---

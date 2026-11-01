@@ -39,6 +39,7 @@ class S3DispatchTransportTest {
         keytool("-importcert","-alias","ca","-keystore","peer.p12","-storepass",password,"-file","ca.pem","-noprompt");
         keytool("-importcert","-alias","peer","-keystore","peer.p12","-storepass",password,"-file","peer.pem","-noprompt");
         Files.writeString(authority.resolve("access-key"),"synthetic-dispatch-key-118\n");Files.writeString(authority.resolve("secret-key"),"synthetic-dispatch-secret-"+"1".repeat(40)+"\n");
+        Files.writeString(authority.resolve("access-key.role"),"dkp-storage-cleanup-v1\n"+HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readString(authority.resolve("access-key")).strip().getBytes(StandardCharsets.US_ASCII)))+"\n"+HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readString(authority.resolve("secret-key")).strip().getBytes(StandardCharsets.US_ASCII)))+"\n");
         Files.writeString(authority.resolve(".spool-authority"),"dkp-private-spool-v1\n");
         try(var files=Files.list(authority)){for(Path file:files.toList())Files.setPosixFilePermissions(file,PosixFilePermissions.fromString("rw-------"));}
         KeyStore keys=KeyStore.getInstance("PKCS12");try(var input=Files.newInputStream(authority.resolve("peer.p12"))){keys.load(input,password.toCharArray());}
@@ -49,11 +50,11 @@ class S3DispatchTransportTest {
         var process=new ProcessBuilder(command).directory(authority.toFile()).redirectError(ProcessBuilder.Redirect.DISCARD).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
         if(!process.waitFor(15,TimeUnit.SECONDS)){process.destroyForcibly();fail("TLS fixture keytool deadline");}assertEquals(0,process.exitValue(),"TLS fixture keytool failed");
     }
-    private S3UploadStorageAdapter connect(Peer peer){return S3UploadStorageAdapter.connect(new S3UploadStorageAdapter.Configuration(peer.endpoint(),"us-east-1",authority.resolve("access-key"),authority.resolve("secret-key"),authority.resolve("ca.pem"),authority));}
+    private S3CleanupStorageAdapter connect(Peer peer){return S3CleanupStorageAdapter.connect(new S3UploadStorageAdapter.Configuration(peer.endpoint(),"us-east-1",authority.resolve("access-key"),authority.resolve("secret-key"),authority.resolve("ca.pem"),authority));}
     private DeletionFence fence(){return new DeletionFence(UUID.randomUUID(),"synthetic-tenant",UUID.randomUUID(),UUID.randomUUID(),OBJECT,UUID.randomUUID(),Instant.now(),FencePhase.DISPATCHED);}
     private static void unknown(org.documentknowledge.documentmanagement.application.upload.UploadStoragePort.DeletionResult result){assertFalse(result.terminal());assertFalse(result.noFurtherExecution());assertFalse(result.successful());assertFalse(result.absent());}
 
-    @Test void normalExactVersionDeleteDispatchesOnceAndHeadConfirmsAbsence()throws Exception {
+    @Test void cleanupExactVersionDeleteDispatchesOnceAndHeadConfirmsAbsence()throws Exception {
         try(var peer=new Peer(Mode.SUCCESS);var storage=connect(peer)) {
             var attempt=fence();var result=storage.deleteOnce(attempt);
             assertEquals(1,peer.deletes.get(),"A zero-dispatch protocol failure is not one-shot success");assertEquals(1,peer.heads.get());

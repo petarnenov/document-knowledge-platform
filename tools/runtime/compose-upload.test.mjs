@@ -51,7 +51,13 @@ test('object store and scanner remain private and DM receives application author
   assert.equal(dm.environment.DKP_DM_STORAGE_ENDPOINT, 'https://rustfs:9000');
   assert.deepEqual(dm.volumes.filter((v) => v.target.startsWith('/run/dkp/storage/'))
     .map((v) => [v.target, v.read_only]), [
-    ['/run/dkp/storage/access.key', true], ['/run/dkp/storage/secret.key', true], ['/run/dkp/storage/ca.crt', true] ]);
+    ['/run/dkp/storage/access.key', true], ['/run/dkp/storage/secret.key', true], ['/run/dkp/storage/access.key.role', true], ['/run/dkp/storage/ca.crt', true] ]);
+  assert.deepEqual(dm.volumes.filter((v) => v.target.startsWith('/run/dkp/cleanup/')).map((v) => [v.target, v.read_only]), [
+    ['/run/dkp/cleanup/access.key', true], ['/run/dkp/cleanup/secret.key', true], ['/run/dkp/cleanup/access.key.role', true] ]);
+  assert.equal(dm.environment.DKP_DM_CLEANUP_ACCESS_KEY_PATH, '/run/dkp/cleanup/access.key');
+  for (const service of ['browser-bff', 'admin-portal', 'structure-inspector', 'knowledge-base', 'knowledge-search']) {
+    assert.equal(config.services[service].volumes.some((v) => v.target.startsWith('/run/dkp/cleanup/') || v.target.startsWith('/run/dkp/storage/')), false);
+  }
   assert.equal(dm.volumes.some((v) => /root-access|root-secret|ca\.key|server\.p12|keystore\.password/.test(v.source)), false);
   assert.deepEqual(config.services.clamav.healthcheck.test,
     ['CMD', 'clamdscan', '--config-file=/run/dkp/clamd.conf', '--ping=1']);
@@ -85,4 +91,40 @@ test('new upload routes emit one canonical pair of security headers without alte
     assert.equal((block.match(/add_header X-Content-Type-Options nosniff always;/g) ?? []).length, 1);
   }
   assert.equal(proxyBlocks[3].includes('proxy_hide_header'), false);
+});
+
+// MaxQueue includes the executing item. Pinned ClamAV normalizes values below
+// twice MaxThreads upward; two is a finite pending bound, not zero queued work.
+test('scanner executes one job with closed finite queue, immutable definitions and pinned isolation', () => {
+  const directives = readFileSync('infra/docker-compose/clamd.conf', 'utf8')
+    .split('\n').filter((line) => line.trim() && !line.trim().startsWith('#'))
+    .map((line) => line.trim().split(/\s+/));
+  assert.equal(new Set(directives.map(([key]) => key)).size, directives.length, 'No duplicate overrides');
+  assert.deepEqual(Object.fromEntries(directives), {
+    Foreground: 'yes', User: 'clamav', DatabaseDirectory: '/var/lib/clamav',
+    TemporaryDirectory: '/tmp', PidFile: '/tmp/clamd.pid', TCPSocket: '3310', TCPAddr: '0.0.0.0',
+    MaxThreads: '1', MaxQueue: '2', MaxConnectionQueueLength: '8',
+    StreamMaxLength: '100000000', MaxFileSize: '100000000', MaxScanSize: '1000000000',
+    MaxScanTime: '120000', MaxRecursion: '16', MaxFiles: '10000', ReadTimeout: '30',
+    CommandReadTimeout: '5', AlertExceedsMax: 'yes', AlertEncrypted: 'yes', ScanArchive: 'yes',
+    ScanPDF: 'yes', ScanOLE2: 'yes', Bytecode: 'yes', ConcurrentDatabaseReload: 'no', SelfCheck: '0',
+    LogTime: 'yes', LogClean: 'no', LogVerbose: 'no',
+  });
+  const scanner = config.services.clamav;
+  assert.equal(scanner.image, 'clamav/clamav:1.5.4@sha256:bda39705e291105049c3936e2803ac90b955172af8030f94f05dce1252df6c6d');
+  assert.deepEqual(scanner.entrypoint, ['clamd']);
+  assert.deepEqual(scanner.command, ['--config-file=/run/dkp/clamd.conf']);
+  assert.equal(scanner.user, '100:101');
+  assert.equal(scanner.read_only, true);
+  assert.deepEqual(scanner.cap_drop, ['ALL']);
+  assert.equal(scanner.cap_add, undefined);
+  assert.equal(scanner.privileged, undefined);
+  assert.deepEqual(scanner.security_opt, ['no-new-privileges:true']);
+  assert.equal(scanner.mem_limit, '4294967296');
+  assert.equal(scanner.cpus, 2);
+  assert.equal(scanner.pids_limit, 64);
+  assert.equal(scanner.volumes.length, 2);
+  assert.deepEqual(scanner.volumes.map((volume) => [volume.target, volume.read_only]),
+    [['/var/lib/clamav', true], ['/run/dkp/clamd.conf', true]]);
+  assert.equal(scanner.volumes[1].source.endsWith('/infra/docker-compose/clamd.conf'), true);
 });

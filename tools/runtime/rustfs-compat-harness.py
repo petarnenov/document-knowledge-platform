@@ -19,8 +19,8 @@ IMAGE = 'rustfs/rustfs:1.0.4@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368b
 LABEL = 'dkp.issue=104'
 
 
-def run(*args, input=None, check=True):
-    result = subprocess.run(args, input=input, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def run(*args, input=None, check=True, timeout=None):
+    result = subprocess.run(args, input=input, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
     if check and result.returncode:
         raise RuntimeError('fixture command failed: ' + args[0] + ' (private diagnostics suppressed)')
     return result
@@ -54,6 +54,40 @@ def owned(name, kind):
         raise RuntimeError('refusing unrelated Docker resource')
 
 
+def wait_ready(directory, endpoint):
+    # Pinned RustFS /health is liveness only. Probe readiness AND write quorum
+    # before the first mutation; never retry an ambiguous bucket/IAM write.
+    deadline = time.monotonic() + 60
+    statuses = ['unobserved', 'unobserved']
+    while time.monotonic() < deadline:
+        ready = True
+        for index, path in enumerate(('/health/ready', '/minio/health/cluster')):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                ready = False
+                break
+            timeout = min(2, remaining)
+            try:
+                result = run('curl', '--disable', '--silent', '--max-time', str(timeout),
+                             '--max-filesize', '1024', '--proto', '=https', '--noproxy', '*',
+                             '--cacert', str(directory / 'ca.pem'), '--output', os.devnull,
+                             '--write-out', '%{http_code}', endpoint + path,
+                             check=False, timeout=timeout)
+                statuses[index] = (result.stdout.decode('ascii')
+                                   if result.returncode == 0 and re.fullmatch(b'[0-9]{3}', result.stdout)
+                                   else 'unavailable')
+            except (OSError, subprocess.TimeoutExpired):
+                statuses[index] = 'unavailable'
+            if statuses[index] != '200':
+                ready = False
+                break
+        if ready and time.monotonic() < deadline:
+            return
+        time.sleep(min(1, max(0, deadline - time.monotonic())))
+    raise RuntimeError('RustFS native readiness unavailable (ready=' + statuses[0]
+                       + ', write=' + statuses[1] + '); no bootstrap write dispatched')
+
+
 def prepare(directory):
     directory.mkdir(parents=True, exist_ok=False, mode=0o700)
     directory.chmod(0o700)
@@ -61,10 +95,15 @@ def prepare(directory):
         (directory / part).mkdir(mode=0o700)
     root_access, root_secret = secrets.token_hex(16), secrets.token_hex(32)
     app_access, app_secret = secrets.token_hex(16), secrets.token_hex(32)
+    cleanup_access, cleanup_secret = secrets.token_hex(16), secrets.token_hex(32)
     write(directory / 'server/root-access', root_access + '\n')
     write(directory / 'server/root-secret', root_secret + '\n')
     write(directory / 'app/access-key', app_access + '\n')
     write(directory / 'app/secret-key', app_secret + '\n')
+    write(directory / 'app/cleanup-access-key', cleanup_access + '\n')
+    write(directory / 'app/cleanup-secret-key', cleanup_secret + '\n')
+    for role, access, secret, name in [('normal', app_access, app_secret, 'access-key'), ('cleanup', cleanup_access, cleanup_secret, 'cleanup-access-key')]:
+        write(directory / ('app/' + name + '.role'), 'dkp-storage-' + role + '-v1\n' + hashlib.sha256(access.encode()).hexdigest() + '\n' + hashlib.sha256(secret.encode()).hexdigest() + '\n')
     write(directory / 'app/.spool-authority', 'dkp-private-spool-v1\n')
     write(directory / 'root-curl.private', 'user = "' + root_access + ':' + root_secret + '"\n')
     run('openssl', 'req', '-x509', '-newkey', 'rsa:3072', '-nodes', '-days', '3', '-subj', '/CN=DKP104-isolated-CA',
@@ -110,12 +149,7 @@ def prepare(directory):
     info = json.loads(run('docker', 'inspect', prefix).stdout)[0]
     state['endpoint'] = 'https://localhost:' + info['NetworkSettings']['Ports']['9000/tcp'][0]['HostPort']
     write(directory / 'state.json', json.dumps(state, indent=2) + '\n')
-    for _ in range(60):
-        ready = run('curl', '--silent', '--max-time', '2', '--cacert', str(directory / 'ca.pem'),
-                    '--output', os.devnull, '--write-out', '%{http_code}', state['endpoint'] + '/health', check=False)
-        if ready.returncode == 0 and ready.stdout in (b'200', b'403', b'404'): break
-        time.sleep(1)
-    else: raise RuntimeError('RustFS TLS listener did not become available')
+    wait_ready(directory, state['endpoint'])
     for bucket in ('dkp-quarantine', 'dkp-originals', 'dkp-outside'):
         curl(directory, state['endpoint'], 'PUT', '/' + bucket)
         curl(directory, state['endpoint'], 'PUT', '/' + bucket + '?versioning', '<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Status>Enabled</Status></VersioningConfiguration>')
@@ -123,12 +157,16 @@ def prepare(directory):
         {'Effect': 'Allow', 'Action': ['s3:GetBucketVersioning'], 'Resource': ['arn:aws:s3:::' + b for b in ('dkp-quarantine', 'dkp-originals')]},
         {'Effect': 'Allow', 'Action': ['s3:ListBucketVersions'], 'Resource': ['arn:aws:s3:::' + b for b in ('dkp-quarantine', 'dkp-originals')],
          'Condition': {'StringLike': {'s3:prefix': [state['prefix'] + '*']}}},
-        {'Effect': 'Allow', 'Action': ['s3:GetObject', 's3:GetObjectVersion', 's3:PutObject', 's3:DeleteObjectVersion'],
+        {'Effect': 'Allow', 'Action': ['s3:GetObject', 's3:GetObjectVersion', 's3:PutObject'],
          'Resource': ['arn:aws:s3:::' + b + '/' + state['prefix'] + '*' for b in ('dkp-quarantine', 'dkp-originals')]}
     ]}
     curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/add-canned-policy?name=dkp104-scoped', json.dumps(policy))
     curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/add-user?accessKey=' + app_access, json.dumps({'secretKey': app_secret, 'status': 'enabled'}))
     curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/set-user-or-group-policy?policyName=dkp104-scoped&userOrGroup=' + app_access + '&isGroup=false')
+    policy['Statement'][2]['Action'] = ['s3:GetObjectVersion', 's3:DeleteObjectVersion']
+    curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/add-canned-policy?name=dkp104-cleanup', json.dumps(policy))
+    curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/add-user?accessKey=' + cleanup_access, json.dumps({'secretKey': cleanup_secret, 'status': 'enabled'}))
+    curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/set-user-or-group-policy?policyName=dkp104-cleanup&userOrGroup=' + cleanup_access + '&isGroup=false')
     print('RustFS fixture ready; root bootstrap complete; native IAM scoped app authority volume=' + state['authority'])
 
 
