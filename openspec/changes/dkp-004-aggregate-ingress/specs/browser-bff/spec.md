@@ -43,3 +43,14 @@ After independent development approval, the outer BFF SHALL use only the exact f
 #### Scenario: Unsupported settlement profile
 - **WHEN** exact artifact, class, loader, field type/modifier or read-access validation fails
 - **THEN** no settlement is inferred, no arbitrary lookup, private write, JVM opener or fallback is used, and the charge remains retained
+
+### Requirement: Application-owned HTTP client shutdown
+Each fixed outbound gateway SHALL request shutdown of its own JDK HTTP client when its application bean is destroyed, using the public non-blocking shutdownNow lifecycle API. Request completion or cancellation SHALL NOT shut down that shared application client. Invalid upload deadline construction SHALL reject before allocating a client. Shutdown invocation alone SHALL NOT be represented as transport or worker settlement.
+
+#### Scenario: Application destruction releases owned idle clients
+- **WHEN** real exchanges have completed and their application context is closed
+- **THEN** all three exact owned clients reach actual termination within the bounded test observation without garbage collection, while clients owned by another live application context remain usable
+
+#### Scenario: Invalid upload deadline construction
+- **WHEN** a caller supplies an invalid Java-only test deadline
+- **THEN** construction rejects before creating a JDK client and existing production deadlines remain unchanged

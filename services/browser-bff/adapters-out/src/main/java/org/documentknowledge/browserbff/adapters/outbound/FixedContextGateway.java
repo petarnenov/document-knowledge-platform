@@ -18,7 +18,7 @@ import org.documentknowledge.browserbff.domain.BrowserIdentity;
 
 /** Fixed route adapter. Request headers/URLs are never copied from an inbound browser request. */
 @Singleton
-public final class FixedContextGateway implements ContextGateway {
+public final class FixedContextGateway implements ContextGateway, AutoCloseable {
     private final Map<String, String> upstreams;
     private final JsonMapper json;
     private final HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).connectTimeout(Duration.ofSeconds(2)).build();
@@ -59,4 +59,7 @@ public final class FixedContextGateway implements ContextGateway {
         } catch (IllegalArgumentException invalid) { throw new BffFailure(503, "UPSTREAM_UNAVAILABLE"); }
     }
     private static void unavailable() { throw new BffFailure(503, "UPSTREAM_UNAVAILABLE"); }
+    /** Requests shutdown of this bean's client; active-exchange settlement is not implied. */
+    @jakarta.annotation.PreDestroy
+    @Override public void close() { client.shutdownNow(); }
 }

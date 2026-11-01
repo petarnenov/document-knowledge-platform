@@ -20,3 +20,9 @@
 
 
 Local evidence: shared222-only command passed89 JUnit and32 Linux cases; separate75% line/branch floors passed. Private source-bound receipt `/private/tmp/dkp222-admission-full-v3/receipt.json` SHA256 `c712db58b41d10f329e03756dea3a8f8534b80ea834b29eed6ca1351f0851898`. Independent224 bounded review CLEAR. CI/publication/integration and other aggregate pools remain open.
+
+## Application-owned JDK clients — same222/224 scope
+
+- [x] 4.1 Independent review and strict validation of the public shutdown lifecycle amendment; record standing development approval before runtime edits. Independent224 CLEAR, strict18/18; private approval receipt `/private/tmp/dkp222-client-lifecycle-development-approval.json`.
+- [x] 4.2 Preserve actual Linux RED lifecycle evidence; add owned bean-destruction shutdown and allocate upload client only after validation. Exact pre-fix image RED retained at `/private/tmp/dkp222-client-lifecycle-red-exact` (all three owned idle clients fail termination); corrected shared Linux run `/private/tmp/dkp222-client-lifecycle-green-v1` passed90 JUnit and32 Linux cases. All changed constructor/shutdown lines covered; upload validation branches6/8 (75%). Final publication and integration remain pending.
+- [ ] 4.3 Run full shared222 affected checks and coverage, independent final-source review, publish and confirm scoped CI. PR/dev integration and the remaining aggregate pools stay separate.

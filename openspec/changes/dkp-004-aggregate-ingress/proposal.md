@@ -19,4 +19,4 @@ This is one part of222. Timer cleanup, bridge/worker ownership, pending outbound
 
 ## Impact
 
-Only the outer BFF Netty/bootstrap boundary and targeted component tests. No domain/application dependency, database, credential, public schema, generated SDK, TTL, processing behavior or production readiness selection changes. Follow the owner's222-only affected verification instruction; do not rerun unrelated Foundation/provider/hour suites. Existing unrelated post-dev failure166/237 remains open.
+The outer BFF Netty/bootstrap boundary, application-owned JDK client lifecycle in outbound adapters, and targeted component tests. No domain/application dependency, database, credential, public schema, generated SDK, TTL, processing behavior or production readiness selection changes. Follow the owner's222-only affected verification instruction; do not rerun unrelated Foundation/provider/hour suites. Existing unrelated post-dev failure166/237 remains open.

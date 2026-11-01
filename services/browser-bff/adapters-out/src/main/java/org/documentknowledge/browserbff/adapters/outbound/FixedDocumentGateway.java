@@ -21,7 +21,7 @@ import org.documentknowledge.browserbff.application.UploadWire;
 import org.documentknowledge.browserbff.domain.BrowserIdentity;
 
 @Singleton
-public final class FixedDocumentGateway implements DocumentGateway {
+public final class FixedDocumentGateway implements DocumentGateway, AutoCloseable {
     private final String upstream;
     private final JsonMapper json;
     private final HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).connectTimeout(Duration.ofSeconds(2)).build();
@@ -61,4 +61,7 @@ public final class FixedDocumentGateway implements DocumentGateway {
             throw new BffFailure(503, UploadWire.jsonRoute(method,path)?"UNAVAILABLE":"UPSTREAM_UNAVAILABLE");
         }
     }
+    /** Requests shutdown of this bean's client; active-exchange settlement is not implied. */
+    @jakarta.annotation.PreDestroy
+    @Override public void close() { client.shutdownNow(); }
 }

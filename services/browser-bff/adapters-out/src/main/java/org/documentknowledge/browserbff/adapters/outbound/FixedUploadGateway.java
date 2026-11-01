@@ -14,11 +14,11 @@ import org.documentknowledge.browserbff.domain.BrowserIdentity;
 
 /** Fixed backend binary routes. No cookies, browser bearer tokens, selectors, destinations or redirects. */
 @Singleton
-public final class FixedUploadGateway implements UploadGateway {
- private final String upstream;private final JsonMapper json;private final long totalMillis,idleMillis;private final HttpClient client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).followRedirects(HttpClient.Redirect.NEVER).build();
+public final class FixedUploadGateway implements UploadGateway, AutoCloseable {
+ private final String upstream;private final JsonMapper json;private final long totalMillis,idleMillis;private final HttpClient client;
  @jakarta.inject.Inject public FixedUploadGateway(@Value("${dkp.bff.upstreams.dm:}")String upstream,JsonMapper json){this(upstream,json,300_000,30_000);}
  // Java-only shorter protocol-test deadlines; never configurable at runtime.
- FixedUploadGateway(String upstream,JsonMapper json,long totalMillis,long idleMillis){if(totalMillis<1||totalMillis>300_000||idleMillis<1||idleMillis>30_000)throw new IllegalArgumentException("Invalid stream deadline");this.upstream=upstream;this.json=json;this.totalMillis=totalMillis;this.idleMillis=idleMillis;}
+ FixedUploadGateway(String upstream,JsonMapper json,long totalMillis,long idleMillis){if(totalMillis<1||totalMillis>300_000||idleMillis<1||idleMillis>30_000)throw new IllegalArgumentException("Invalid stream deadline");this.upstream=upstream;this.json=json;this.totalMillis=totalMillis;this.idleMillis=idleMillis;this.client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).followRedirects(HttpClient.Redirect.NEVER).build();}
  private HttpRequest.Builder request(String path,BrowserIdentity identity,String tenant){URI base=URI.create(upstream);if(!Set.of("http","https").contains(base.getScheme())||base.getHost()==null||base.getUserInfo()!=null||base.getRawQuery()!=null||base.getRawFragment()!=null||!Set.of("","/").contains(base.getRawPath()))throw unavailable();return HttpRequest.newBuilder(base.resolve(path)).timeout(Duration.ofMillis(totalMillis)).header("Authorization","Bearer "+identity.accessToken()).header("X-DKP-Tenant",tenant);}
  @Override public DocumentGateway.Result transfer(String path,String key,InputStream body,long length,BrowserIdentity identity,String tenant,Runnable authorize){
   if(!UploadWire.transferRoute(path)||key==null||!key.matches("[!-~]{1,128}"))throw new BffFailure(400,"INVALID_REQUEST");if(length>100_000_000)throw new BffFailure(413,"PAYLOAD_TOO_LARGE");if(length==0||length< -1||body==null)throw new BffFailure(400,"INVALID_REQUEST");
@@ -56,4 +56,7 @@ public final class FixedUploadGateway implements UploadGateway {
  private static void validateRange(String header,long length,String requested){if(!header.matches("bytes [0-9]+-[0-9]+/[0-9]+"))throw unavailable();try{String[] parts=header.substring(6).split("[-/]");long start=Long.parseLong(parts[0]),end=Long.parseLong(parts[1]),total=Long.parseLong(parts[2]);if(start>end||end>=total||total>100_000_000||end-start+1!=length)throw unavailable();if(requested==null||!requested.matches("bytes=(?:[0-9]+-[0-9]*|-[0-9]+)"))throw unavailable();String[] wanted=requested.substring(6).split("-",-1);long expectedStart,expectedEnd;if(wanted[0].isEmpty()){long suffix=Long.parseLong(wanted[1]);if(suffix<1)throw unavailable();expectedStart=Math.max(0,total-suffix);expectedEnd=total-1;}else{expectedStart=Long.parseLong(wanted[0]);expectedEnd=wanted[1].isEmpty()?total-1:Math.min(total-1,Long.parseLong(wanted[1]));}if(start!=expectedStart||end!=expectedEnd)throw unavailable();}catch(NumberFormatException invalid){throw unavailable();}}
  private static void close(InputStream input){if(input!=null)try{input.close();}catch(IOException ignored){}}
  private static BffFailure unavailable(){return new BffFailure(503,"UNAVAILABLE");}
+    /** Requests shutdown of this bean's client; active-exchange settlement is not implied. */
+    @jakarta.annotation.PreDestroy
+    @Override public void close() { client.shutdownNow(); }
 }
