@@ -99,6 +99,20 @@ class KnowledgeHttpIntegrationTest {
         object(send("PATCH",base+"/status","{\"expectedRevision\":5,\"status\":\"ARCHIVED\",\"reason\":\"archive\"}","archive"),200);
         assertEquals(OPENS.get(),CLOSES.get());assertEquals(7,memory.outcomes.size());
     }
+    @Test void deactivationRefetchThenReactivationAndReplayUseActualHttpBoundary()throws Exception{
+        String id=create(),base="/collections/"+id;UUID document=UUID.randomUUID();
+        String add="{\"expectedRevision\":0,\"documentId\":\""+document+"\",\"expectedDocumentRevision\":0,\"sharingScope\":\"SELECTED_TENANT\",\"reason\":\"attach\"}";
+        String member=(String)object(send("POST",base+"/memberships",add,"attach"),201).get("membershipId");
+        String memberPath=base+"/memberships/"+member;
+        object(send("PATCH",memberPath,"{\"expectedRevision\":1,\"expectedMembershipRevision\":0,\"expectedDocumentRevision\":0,\"state\":\"INACTIVE\",\"reason\":\"off\"}","off"),200);
+        assertEquals("INACTIVE",((Map<?,?>)((List<?>)object(send("GET",base+"/memberships",null,null),200).get("items")).getFirst()).get("state"));
+        assertEquals(2,((Number)object(send("GET",base,null,null),200).get("revision")).intValue());
+        String activate="{\"expectedRevision\":2,\"expectedMembershipRevision\":1,\"expectedDocumentRevision\":0,\"state\":\"ACTIVE\",\"reason\":\"on\"}";
+        var accepted=object(send("PATCH",memberPath,activate,"on"),200);
+        assertEquals(accepted,object(send("PATCH",memberPath,activate,"on"),200));
+        assertEquals("ACTIVE",((Map<?,?>)((List<?>)object(send("GET",base+"/memberships",null,null),200).get("items")).getFirst()).get("state"));
+        assertEquals(4,memory.outcomes.size());assertEquals(OPENS.get(),CLOSES.get());
+    }
     @Test void closedBodiesDuplicatesNullNumbersUnknownFieldsAndMissingKeysNeverWrite()throws Exception{
         for(String body:List.of("null","[]","{}","{\"title\":\"A\",\"description\":null}","{\"title\":\"A\",\"title\":\"B\",\"description\":\"\"}","{\"title\":\"A\",\"description\":\"\",\"actor\":\"admin\"}","{\"title\":\"A\",\"description\":\"\"} {}"))error(send("POST","/collections",body,"bad"),400,"BAD_REQUEST");
         error(send("POST","/collections","{\"title\":\"A\",\"description\":\"\"}",null),400,"BAD_REQUEST");

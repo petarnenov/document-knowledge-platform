@@ -40,13 +40,13 @@ public final class FixedDocumentShareClient implements DocumentShareBatchAuthori
             SSLParameters parameters=new SSLParameters(); parameters.setEndpointIdentificationAlgorithm("HTTPS");
             client=HttpClient.newBuilder().sslContext(tls).sslParameters(parameters).followRedirects(HttpClient.Redirect.NEVER)
                 .connectTimeout(Duration.ofMillis(1500)).version(HttpClient.Version.HTTP_1_1).build();
-        } catch(Exception failure) { throw KbFailure.unavailable(); }
+        } catch(Exception failure) { KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.SHARE_CONFIG,failure); throw KbFailure.unavailable(); }
     }
     public static FixedDocumentShareClient connect(URI base,Path ca,Context verified,String authorization) {
         try {
             SSLContext tls=ScopedDmTls.load(ca);
             return new FixedDocumentShareClient(base,tls,verified,authorization);
-        } catch(Exception unavailable) { throw KbFailure.unavailable(); }
+        } catch(Exception unavailable) { KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.SHARE_CONFIG,unavailable); throw KbFailure.unavailable(); }
     }
     @Override public ShareBatchAssessment assess(Context context,List<Expectation> documents,Deadline deadline) {
         try {
@@ -61,7 +61,7 @@ public final class FixedDocumentShareClient implements DocumentShareBatchAuthori
         Map<?,?> root=shape(response,Set.of("actor","tenant","action","assessments"));
         Context bound=context(root); List<Assessment> rows=rows(root.get("assessments"));
         var result=new ShareBatchAssessment(bound,string(root.get("action")),rows); BatchEvidence.strict(context,documents,result); deadline.check(); return result;
-        } catch(KbFailure safe) { throw safe; } catch(Exception unavailable) { throw KbFailure.unavailable(); }
+        } catch(KbFailure safe) { KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.SHARE_ASSESS,safe); throw safe; } catch(Exception unavailable) { KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.SHARE_ASSESS,unavailable); throw KbFailure.unavailable(); }
     }
     @Override public ShareEligibilityResult discover(Context context,List<UUID> ids,Deadline deadline) {
         try {
@@ -69,7 +69,7 @@ public final class FixedDocumentShareClient implements DocumentShareBatchAuthori
         Map<?,?> root=shape(request("knowledge-share-eligibility",Map.of("documentIds",ids.stream().map(UUID::toString).toList()),deadline),Set.of("actor","tenant","action","requestedSetDigest","eligible"));
         var result=new ShareEligibilityResult(context(root),string(root.get("action")),string(root.get("requestedSetDigest")),rows(root.get("eligible")));
         BatchEvidence.eligibility(context,ids,result); deadline.check(); return result;
-        } catch(KbFailure safe) { throw safe; } catch(Exception unavailable) { throw KbFailure.unavailable(); }
+        } catch(KbFailure safe) { KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.SHARE_ELIGIBILITY,safe); throw safe; } catch(Exception unavailable) { KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.SHARE_ELIGIBILITY,unavailable); throw KbFailure.unavailable(); }
     }
     private void validate(Context context,List<UUID> ids) {
         if(!verified.equals(context)||ids.isEmpty()||ids.size()>100||ids.stream().anyMatch(Objects::isNull)||new HashSet<>(ids).size()!=ids.size()) throw KbFailure.unavailable();
@@ -89,9 +89,9 @@ public final class FixedDocumentShareClient implements DocumentShareBatchAuthori
             if(response.statusCode()!=200||response.headers().firstValue("Content-Encoding").isPresent()
                 ||!response.headers().firstValue("Content-Type").orElse("").matches("(?i)application/json(?:\\s*;\\s*charset=utf-8)?")) throw KbFailure.unavailable();
             Object decoded=json.readValue(response.body(),Object.class); if(!(decoded instanceof Map<?,?> map)) throw KbFailure.unavailable(); return map;
-        } catch(KbFailure safe) { throw safe; }
-        catch(InterruptedException interrupted) { Thread.currentThread().interrupt(); throw KbFailure.unavailable(); }
-        catch(Exception unavailable) { throw KbFailure.unavailable(); }
+        } catch(KbFailure safe) { KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.SHARE_HTTP,safe); throw safe; }
+        catch(InterruptedException interrupted) { KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.SHARE_HTTP,interrupted); Thread.currentThread().interrupt(); throw KbFailure.unavailable(); }
+        catch(Exception unavailable) { KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.SHARE_HTTP,unavailable); throw KbFailure.unavailable(); }
         finally { if(future!=null&&!future.isDone()) future.cancel(true); }
     }
     private static Context context(Map<?,?> root) {

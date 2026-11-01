@@ -44,6 +44,7 @@ public final class KnowledgeController {
     private record Result(int status,java.util.function.Supplier<Object> body) { }
     private interface Work { Result run(KnowledgeService service,Context context,Deadline deadline,Map<?,?> input); }
     private HttpResponse<?> invoke(HttpRequest<?> request,Authentication authentication,InputStream body,boolean list,Work work){
+        KnowledgeDiagnostics.Stage diagnosticStage=KnowledgeDiagnostics.Stage.HTTP_WORK;
         try{
             Deadline deadline=request.getAttribute(KnowledgeBoundaryFilter.DEADLINE,Deadline.class).orElseThrow(KbFailure::unavailable);try(var ownership=owners.enter(request,deadline)){deadline.check();boundary(request,list);
             String selected=request.getHeaders().get("X-DKP-Tenant");if(selected==null||selected.isBlank()||selected.length()>256)throw new KbFailure(403,"FORBIDDEN");var claims=authentication.getAttributes();AuthorityDecision membership=tenants.resolve(claims).select(selected);
@@ -54,13 +55,14 @@ public final class KnowledgeController {
             if(!request.getMethod().equals(HttpMethod.GET)&&body==null)throw KnowledgeWire.invalid();
             try(var handle=open(setup,context,claims,request.getHeaders().get("Authorization"))){
                 var result=work.run(handle.service(),context,deadline,input);
+                diagnosticStage=KnowledgeDiagnostics.Stage.FINAL_RESPONSE;
                 Deadline phase=deadline.child(java.time.Duration.ofMillis(500));
                 return responses.finish(phase,()->{setup.run(handle::revalidate);AuthorityDecision current=setup.call(()->tenants.resolve(claims).select(selected));if(current!=AuthorityDecision.ALLOW)throw new KbFailure(current==AuthorityDecision.UNAVAILABLE?503:403,current==AuthorityDecision.UNAVAILABLE?"UNAVAILABLE":"FORBIDDEN");},result.body(),result.status());
             }
             }
 
-        }catch(KbFailure failure){return HttpResponse.status(HttpStatus.valueOf(failure.status())).body(Map.of("code",failure.code())).header("Cache-Control","no-store");}
-        catch(RuntimeException failure){return HttpResponse.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("code","UNAVAILABLE")).header("Cache-Control","no-store");}
+        }catch(KbFailure failure){KnowledgeDiagnostics.failure(diagnosticStage,failure);return HttpResponse.status(HttpStatus.valueOf(failure.status())).body(Map.of("code",failure.code())).header("Cache-Control","no-store");}
+        catch(RuntimeException failure){KnowledgeDiagnostics.failure(diagnosticStage,failure);return HttpResponse.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("code","UNAVAILABLE")).header("Cache-Control","no-store");}
 
     }
     private KnowledgeRequestFactory.RequestHandle open(KnowledgeSetupBudget setup,Context context,Map<String,Object> claims,String authorization){

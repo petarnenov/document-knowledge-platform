@@ -44,14 +44,14 @@ public final class KnowledgeRuntimeFactory {
         return (verified,claims,authorization)->{
             if(!environment.getProperty("dkp.kb.enabled",Boolean.class).orElse(false))throw KbFailure.unavailable();
             KnowledgeSetupBudget setup=KnowledgeSetupBudget.current();
-            Runnable current=()->timed(setup,()->{current(tenants,verified,claims,clock);return null;});current.run();
+            Runnable current=()->{try{timed(setup,()->{current(tenants,verified,claims,clock);return null;});}catch(RuntimeException failure){KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.CURRENT_AUTHORITY,failure);throw failure;}};current.run();
             try{
                 var catalog=new FileKnowledgeAuthority(Path.of(required(environment,"dkp.kb.catalog.path")));
                 KnowledgeAuthorityPort authority=new KnowledgeAuthorityPort(){
-                    public Result authorize(Context target,Action action){current.run();return timed(setup,()->catalog.authorize(target,action));}
-                    public Result delegationCeiling(Context target,Action action){current.run();return timed(setup,()->catalog.delegationCeiling(target,action));}
+                    public Result authorize(Context target,Action action){current.run();return diagnosticCatalog(timed(setup,()->catalog.authorize(target,action)));}
+                    public Result delegationCeiling(Context target,Action action){current.run();return diagnosticCatalog(timed(setup,()->catalog.delegationCeiling(target,action)));}
                 };
-                AudienceRelationPort relations=(target,selector)->{current.run();return timed(setup,()->catalog.matches(target,selector));};
+                AudienceRelationPort relations=(target,selector)->{current.run();return diagnosticCatalog(timed(setup,()->catalog.matches(target,selector)));};
                 var cursorKey=Path.of(required(environment,"dkp.kb.cursor.key-path"));
                 var memberCursor=new EncryptedMemberCursor(cursorKey,verified);var collectionCursor=new EncryptedCollectionCursor(cursorKey,verified);
                 var remote=FixedDocumentShareClient.connect(URI.create(required(environment,"dkp.kb.dm.base-uri")),Path.of(required(environment,"dkp.kb.dm.ca-path")),verified,authorization);
@@ -61,9 +61,10 @@ public final class KnowledgeRuntimeFactory {
                     var service=new KnowledgeService(new JdbcCollectionStore(pools.get()),authority,relations,sharing,eligibility,tokens,memberCursor,collectionCursor,admission,clock,UUID::randomUUID);
                     return new KnowledgeRequestFactory.RequestHandle(service,current,remote::close);
                 }catch(RuntimeException failure){remote.close();throw failure;}
-            }catch(KbFailure failure){throw failure;}catch(RuntimeException failure){throw KbFailure.unavailable();}
+            }catch(KbFailure failure){KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.FACTORY,failure);throw failure;}catch(RuntimeException failure){KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.FACTORY,failure);throw KbFailure.unavailable();}
         };
     }
+    private static KnowledgeAuthorityPort.Result diagnosticCatalog(KnowledgeAuthorityPort.Result result){if(result==null||result==KnowledgeAuthorityPort.Result.UNAVAILABLE)KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.CATALOG,KbFailure.unavailable());return result;}
     private static <T>T timed(KnowledgeSetupBudget setup,java.util.function.Supplier<T> action){return setup==null?action.get():setup.call(action);}
     static void current(TrustedTenantResolver tenants,Context original,Map<String,Object> claims,Clock clock){
         if(!Objects.equals(original.actor().issuer(),claims.get("iss"))||!Objects.equals(original.actor().subject(),claims.get("sub")))throw KbFailure.unavailable();

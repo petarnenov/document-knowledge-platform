@@ -16,8 +16,8 @@ import org.documentknowledge.knowledgebase.domain.KbModels.Collection;
 public final class JdbcCollectionStore implements KBUnitOfWork {
     private final DataSource source;
     public JdbcCollectionStore(DataSource source){this.source=Objects.requireNonNull(source);}
-    @Override public <T>T read(Deadline deadline,Function<CollectionRepository,T> operation){return transaction(null,deadline,operation);}
-    @Override public <T>T execute(LockPlan plan,Deadline deadline,Function<CollectionRepository,T> operation){return transaction(Objects.requireNonNull(plan),deadline,operation);}
+    @Override public <T>T read(Deadline deadline,Function<CollectionRepository,T> operation){try{return transaction(null,deadline,operation);}catch(RuntimeException failure){KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.SQL_READ,failure);throw failure;}}
+    @Override public <T>T execute(LockPlan plan,Deadline deadline,Function<CollectionRepository,T> operation){try{return transaction(Objects.requireNonNull(plan),deadline,operation);}catch(RuntimeException failure){KnowledgeDiagnostics.failure(KnowledgeDiagnostics.Stage.SQL_WRITE,failure);throw failure;}}
     private <T>T transaction(LockPlan plan,Deadline supplied,Function<CollectionRepository,T> operation){
         Deadline deadline=Objects.requireNonNull(supplied).child(Duration.ofMillis(500));deadline.check();
         try(Connection connection=source.getConnection()){
@@ -29,13 +29,15 @@ public final class JdbcCollectionStore implements KBUnitOfWork {
                 if(plan!=null)repository.lock(plan);
                 T result=operation.apply(repository);repository.budget();deadline.check();
                 // A lost COMMIT response is UNKNOWN. Never retry with a new key or erase durable facts.
-                connection.commit();deadline.check();return result;
+                try{connection.commit();}catch(SQLException failure){KnowledgeDiagnostics.sql(KnowledgeDiagnostics.Stage.SQL_COMMIT,failure.getSQLState());throw failure;}deadline.check();return result;
             }catch(RuntimeException|SQLException failure){
                 try{connection.rollback();}catch(SQLException ignored){/* Rollback failure does not prove an unknown commit absent. */}
                 if(failure instanceof KbFailure known)throw known;
+                if(failure instanceof SQLException sql)KnowledgeDiagnostics.sql(plan==null?KnowledgeDiagnostics.Stage.SQL_READ:KnowledgeDiagnostics.Stage.SQL_WRITE,sql.getSQLState());
+                else KnowledgeDiagnostics.failure(plan==null?KnowledgeDiagnostics.Stage.SQL_READ:KnowledgeDiagnostics.Stage.SQL_WRITE,failure);
                 throw KbFailure.unavailable();
             }
-        }catch(SQLException failure){throw KbFailure.unavailable();}
+        }catch(SQLException failure){KnowledgeDiagnostics.sql(KnowledgeDiagnostics.Stage.SQL_ACQUIRE,failure.getSQLState());throw KbFailure.unavailable();}
     }
     private static final class Repository implements CollectionRepository {
         private final Connection connection;private final Deadline deadline;private final boolean readOnly;private final String lockedTenant;
@@ -56,9 +58,9 @@ public final class JdbcCollectionStore implements KBUnitOfWork {
         }
         private int change(String sql,Object...values){
             if(readOnly)throw KbFailure.unavailable();
-            try(var statement=prepare(sql,values)){return statement.executeUpdate();}catch(SQLException failure){throw KbFailure.unavailable();}
+            try(var statement=prepare(sql,values)){return statement.executeUpdate();}catch(SQLException failure){KnowledgeDiagnostics.sql(KnowledgeDiagnostics.Stage.SQL_WRITE,failure.getSQLState());throw KbFailure.unavailable();}
         }
-        private long number(String sql,Object...values){try(var statement=prepare(sql,values);var rows=statement.executeQuery()){return rows.next()?rows.getLong(1):0;}catch(SQLException failure){throw KbFailure.unavailable();}}
+        private long number(String sql,Object...values){try(var statement=prepare(sql,values);var rows=statement.executeQuery()){return rows.next()?rows.getLong(1):0;}catch(SQLException failure){KnowledgeDiagnostics.sql(KnowledgeDiagnostics.Stage.SQL_READ,failure.getSQLState());throw KbFailure.unavailable();}}
         void lock(LockPlan plan){
             if(plan.collectionIds().size()>100||plan.documentIds().size()>100)throw KbFailure.unavailable();
             if(plan.command()!=null&&!plan.tenant().equals(plan.command().context().tenant()))throw KbFailure.unavailable();
@@ -73,18 +75,18 @@ public final class JdbcCollectionStore implements KBUnitOfWork {
             }
             if(plan.command()!=null){
                 StringBuilder key=new StringBuilder();for(Object value:key(plan.command())){String text=value.toString();key.append(text.length()).append(':').append(text);}
-                try(var statement=prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))",key.toString())){statement.execute();}catch(SQLException failure){throw KbFailure.unavailable();}
+                try(var statement=prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))",key.toString())){statement.execute();}catch(SQLException failure){KnowledgeDiagnostics.sql(KnowledgeDiagnostics.Stage.SQL_READ,failure.getSQLState());throw KbFailure.unavailable();}
             }
         }
         private void lockIds(String table,String column,String tenant,List<UUID> ids){
             if(ids.isEmpty())return;
             var args=new ArrayList<Object>();args.add(tenant);args.addAll(ids);
             String placeholders=String.join(",",Collections.nCopies(ids.size(),"?"));
-            try(var statement=prepare("SELECT "+column+" FROM kb."+table+" WHERE tenant_id=? AND "+column+" IN ("+placeholders+") ORDER BY "+column+" FOR UPDATE",args.toArray());var rows=statement.executeQuery()){while(rows.next())deadline.check();}catch(SQLException failure){throw KbFailure.unavailable();}
+            try(var statement=prepare("SELECT "+column+" FROM kb."+table+" WHERE tenant_id=? AND "+column+" IN ("+placeholders+") ORDER BY "+column+" FOR UPDATE",args.toArray());var rows=statement.executeQuery()){while(rows.next())deadline.check();}catch(SQLException failure){KnowledgeDiagnostics.sql(KnowledgeDiagnostics.Stage.SQL_READ,failure.getSQLState());throw KbFailure.unavailable();}
         }
         @Override public long tenantFence(String tenant){return number("SELECT revision FROM kb.tenant_policy_fences WHERE tenant_id=?",tenant);}
         @Override public Optional<Collection> collection(String tenant,UUID id){
-            try(var statement=prepare("SELECT * FROM kb.knowledge_collections WHERE tenant_id=? AND collection_id=?",tenant,id);var rows=statement.executeQuery()){return rows.next()?Optional.of(collection(rows)):Optional.empty();}catch(SQLException failure){throw KbFailure.unavailable();}
+            try(var statement=prepare("SELECT * FROM kb.knowledge_collections WHERE tenant_id=? AND collection_id=?",tenant,id);var rows=statement.executeQuery()){return rows.next()?Optional.of(collection(rows)):Optional.empty();}catch(SQLException failure){KnowledgeDiagnostics.sql(KnowledgeDiagnostics.Stage.SQL_READ,failure.getSQLState());throw KbFailure.unavailable();}
         }
         @Override public List<Collection> visibleCollections(Context context,UUID after,int limit){
             if(limit<1||limit>51)throw new IllegalArgumentException("Invalid collection page");
@@ -92,7 +94,7 @@ public final class JdbcCollectionStore implements KBUnitOfWork {
             var args=new ArrayList<Object>(List.of(context.tenant(),context.actor().issuer(),context.actor().subject(),context.actor().issuer(),context.actor().subject()));
             if(after!=null){sql+=" AND c.collection_id>?";args.add(after);}args.add(limit);
             var result=new ArrayList<Collection>();
-            try(var statement=prepare(sql+" ORDER BY c.collection_id LIMIT ?",args.toArray());var rows=statement.executeQuery()){while(rows.next())result.add(collection(rows));return List.copyOf(result);}catch(SQLException failure){throw KbFailure.unavailable();}
+            try(var statement=prepare(sql+" ORDER BY c.collection_id LIMIT ?",args.toArray());var rows=statement.executeQuery()){while(rows.next())result.add(collection(rows));return List.copyOf(result);}catch(SQLException failure){KnowledgeDiagnostics.sql(KnowledgeDiagnostics.Stage.SQL_READ,failure.getSQLState());throw KbFailure.unavailable();}
         }
         private Collection collection(ResultSet row)throws SQLException{
             classification(row);
@@ -108,18 +110,18 @@ public final class JdbcCollectionStore implements KBUnitOfWork {
         private List<Membership> memberships(String column,String tenant,UUID id,int bound,String order){
             var result=new ArrayList<Membership>();try(var statement=prepare("SELECT * FROM kb.collection_memberships WHERE tenant_id=? AND "+column+"=? ORDER BY "+order+" LIMIT ?",tenant,id,bound+1);var rows=statement.executeQuery()){
                 while(rows.next()){if(result.size()>=bound)throw KbFailure.unavailable();result.add(new Membership(rows.getObject("membership_id",UUID.class),tenant,rows.getObject("collection_id",UUID.class),rows.getObject("document_id",UUID.class),rows.getLong("revision"),State.valueOf(rows.getString("state")),new Principal(rows.getString("creator_issuer"),rows.getString("creator_subject")),rows.getTimestamp("created_at").toInstant(),rows.getString("reason")));}return List.copyOf(result);
-            }catch(SQLException failure){throw KbFailure.unavailable();}
+            }catch(SQLException failure){KnowledgeDiagnostics.sql(KnowledgeDiagnostics.Stage.SQL_READ,failure.getSQLState());throw KbFailure.unavailable();}
         }
         @Override public Scope scope(String tenant,UUID id){return new Scope(tenant,id,number("SELECT set_revision FROM kb.document_membership_scopes WHERE tenant_id=? AND document_id=?",tenant,id));}
         private static Object[] key(CommandKey key){return new Object[]{key.context().tenant(),key.context().actor().issuer(),key.context().actor().subject(),key.operation(),key.resourceKey(),key.idempotencyKey()};}
         private static final String KEY="tenant_id=? AND actor_issuer=? AND actor_subject=? AND operation=? AND resource_scope=? AND idempotency_key=?";
         @Override public Optional<CommandOutcome> command(CommandKey key){
-            try(var statement=prepare("SELECT body_hash,status,collection_id,membership_id,revision,active_member_guard FROM kb.command_outcomes WHERE "+KEY,key(key));var rows=statement.executeQuery()){return rows.next()?Optional.of(new CommandOutcome(key,rows.getString(1),rows.getInt(2),new Receipt(rows.getObject(3,UUID.class),rows.getObject(4,UUID.class),rows.getLong(5)),rows.getBoolean(6))):Optional.empty();}catch(SQLException failure){throw KbFailure.unavailable();}
+            try(var statement=prepare("SELECT body_hash,status,collection_id,membership_id,revision,active_member_guard FROM kb.command_outcomes WHERE "+KEY,key(key));var rows=statement.executeQuery()){return rows.next()?Optional.of(new CommandOutcome(key,rows.getString(1),rows.getInt(2),new Receipt(rows.getObject(3,UUID.class),rows.getObject(4,UUID.class),rows.getLong(5)),rows.getBoolean(6))):Optional.empty();}catch(SQLException failure){KnowledgeDiagnostics.sql(KnowledgeDiagnostics.Stage.SQL_READ,failure.getSQLState());throw KbFailure.unavailable();}
         }
         @Override public Optional<Snapshot> snapshot(String hash,Context context,UUID document){
             try(var statement=prepare("SELECT * FROM kb.policy_snapshots WHERE token_hash=? AND tenant_id=? AND actor_issuer=? AND actor_subject=? AND document_id=?",hash,context.tenant(),context.actor().issuer(),context.actor().subject(),document);var rows=statement.executeQuery()){
                 if(!rows.next())return Optional.empty();classification(rows);return Optional.of(new Snapshot(hash,context,document,rows.getLong("document_revision"),rows.getLong("tenant_fence"),rows.getLong("set_revision"),SnapshotCodec.decode(rows.getInt("payload_version"),rows.getBytes("payload")),Decision.valueOf(rows.getString("decision")),rows.getTimestamp("created_at").toInstant()));
-            }catch(SQLException failure){throw KbFailure.unavailable();}
+            }catch(SQLException failure){KnowledgeDiagnostics.sql(KnowledgeDiagnostics.Stage.SQL_READ,failure.getSQLState());throw KbFailure.unavailable();}
         }
         private static void classification(ResultSet row)throws SQLException{if(!"development-restricted".equals(row.getString("classification"))||row.getLong("classification_policy_revision")!=1)throw KbFailure.unavailable();}
         @Override public void insertCollection(Collection c){
