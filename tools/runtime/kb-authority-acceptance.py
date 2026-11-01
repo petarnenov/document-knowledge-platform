@@ -480,7 +480,7 @@ class RuntimeFixture:
             if service in self.services:
                 raise ValueError('Duplicate owned fixture service')
             self.services[service] = identifier
-        if not {'postgres', 'kb-postgres', 'document-management', 'knowledge-base', 'browser-bff', 'dm-sharing'} <= self.services.keys():
+        if not {'dm-postgres', 'kb-postgres', 'document-management', 'knowledge-base', 'browser-bff', 'dm-sharing'} <= self.services.keys():
             raise ValueError('Incomplete actual cross-service fixture')
         self.evidence = self.directory / ('authority-acceptance-' + uuid.uuid4().hex)
         self.evidence.mkdir(mode=0o700)
@@ -515,7 +515,7 @@ class RuntimeFixture:
         self.record(case, value)
 
     def pg(self, owner):
-        return PgSession(self.services['kb-postgres' if owner == 'kb' else 'postgres'], owner,
+        return PgSession(self.services['kb-postgres' if owner == 'kb' else 'dm-postgres'], owner,
                          receipt=self.backend_receipt)
 
     def snapshot(self, session, owner):

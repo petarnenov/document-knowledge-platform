@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -348,8 +349,16 @@ class RuntimeBindingTest(unittest.TestCase):
         from unittest.mock import Mock
         runtime = Mock()
         runtime.verify.return_value = (root, {'commit': 'a' * 40, 'source': 'b' * 64})
-        services = ['postgres', 'kb-postgres', 'document-management', 'knowledge-base', 'browser-bff', 'dm-sharing']
-        runtime.inventory.return_value = {'container': {str(i + 1) * 64: {'Config': {'Labels': {'com.docker.compose.service': name}}} for i, name in enumerate(services)}}
+        # Inventory comes from versioned Compose services, not a copied fixture list.
+        compose = Path(__file__).resolve().parents[2] / 'infra/docker-compose'
+        services = []
+        for filename in ('compose.yaml', 'compose-kb.yaml'):
+            text = (compose / filename).read_text().split('\nservices:\n', 1)[1]
+            section = re.split(r'\n[^ #\s][^\n]*:', text, maxsplit=1)[0]
+            for service in re.findall(r'^  ([a-z][a-z0-9-]*):', section, re.MULTILINE):
+                if service not in services:
+                    services.append(service)
+        runtime.inventory.return_value = {'container': {format(i + 1, '064x'): {'Config': {'Labels': {'com.docker.compose.service': name}}} for i, name in enumerate(services)}}
         runtime.security.return_value.env_read.return_value = {'DKP_TEST_USERNAME': 'synthetic-user', 'DKP_TEST_PASSWORD': 'unit-credential'}
         authority = root / 'security/identity/authority'
         authority.mkdir(parents=True)
@@ -385,19 +394,27 @@ class RuntimeBindingTest(unittest.TestCase):
                     fixture.record('unknown', {})
                 with patch.object(M, 'PgSession') as pg:
                     fixture.pg('kb')
-                    self.assertEqual('2' * 64, pg.call_args.args[0])
+                    self.assertEqual(fixture.services['kb-postgres'], pg.call_args.args[0])
+                    fixture.pg('dm')
+                    self.assertEqual(fixture.services['dm-postgres'], pg.call_args.args[0])
+                    self.assertEqual('dm', pg.call_args.args[1])
             self.assertTrue(fixture.evidence.is_dir())
             self.assertEqual(0o700, fixture.evidence.stat().st_mode & 0o777)
 
     def test_foreign_missing_or_duplicate_service_and_actor_fail_before_login(self):
-        for variant in ('duplicate', 'missing', 'actor'):
+        for variant in ('duplicate', 'missing', 'obsolete-alias', 'actor'):
             with self.subTest(variant=variant), tempfile.TemporaryDirectory() as name:
                 root = Path(name)
                 runtime = self.runtime(root)
                 if variant == 'duplicate':
-                    runtime.inventory.return_value['container']['f' * 64] = {'Config': {'Labels': {'com.docker.compose.service': 'postgres'}}}
+                    runtime.inventory.return_value['container']['f' * 64] = {'Config': {'Labels': {'com.docker.compose.service': 'dm-postgres'}}}
                 elif variant == 'missing':
-                    del runtime.inventory.return_value['container']['1' * 64]
+                    missing = next(key for key, value in runtime.inventory.return_value['container'].items() if value['Config']['Labels']['com.docker.compose.service'] == 'dm-postgres')
+                    del runtime.inventory.return_value['container'][missing]
+                elif variant == 'obsolete-alias':
+                    # A legacy/invented alias must not substitute the actual owning service.
+                    value = next(value for value in runtime.inventory.return_value['container'].values() if value['Config']['Labels']['com.docker.compose.service'] == 'dm-postgres')
+                    value['Config']['Labels']['com.docker.compose.service'] = 'postgres'
                 else:
                     path = root / 'security/identity/authority/grants.json'
                     value = json.loads(path.read_text())
