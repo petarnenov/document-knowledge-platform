@@ -46,6 +46,33 @@ class DocumentHttpTest {
             assertTrue(send(server,"POST","/api/v1/dm/documents",cookie,"{\"oversize\":\""+"x".repeat(17000)+"\"}",true).statusCode()>=400);
         } finally {upstream.stop(0);}
     }
+    @Test void approvedShareAclMirrorPreservesGuardsAndUpstreamAuthorityDecisions() throws Exception {
+        var calls=new AtomicInteger();var upstream=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        String documentId=DocumentGatewayTest.ID;
+        String principal="{\"issuer\":\"https://issuer.example\",\"subject\":\"staff-1\"}";
+        String rule="{\"principal\":"+principal+",\"action\":\"document.share-to-collection\",\"effect\":\"DENY\"}";
+        String acl="{\"documentId\":\""+documentId+"\",\"revision\":1,\"rules\":["+rule+"]}";
+        upstream.createContext("/api/v1/documents/"+documentId+"/acl",exchange->{
+            calls.incrementAndGet();assertEquals("Bearer synthetic-access",exchange.getRequestHeaders().getFirst("Authorization"));
+            assertEquals("tenant-a",exchange.getRequestHeaders().getFirst("X-DKP-Tenant"));
+            String request=new String(exchange.getRequestBody().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);
+            if(exchange.getRequestMethod().equals("PATCH"))assertTrue(request.contains("document.share-to-collection"));
+            boolean delegation=request.contains("DELEGATE");
+            String body=delegation?"{\"code\":\"FORBIDDEN\"}":exchange.getRequestMethod().equals("GET")?acl:"{\"documentId\":\""+documentId+"\",\"revision\":1}";
+            exchange.getResponseHeaders().set("Content-Type","application/json");byte[] bytes=body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(delegation?403:200,bytes.length);try(var output=exchange.getResponseBody()){output.write(bytes);}
+        });upstream.start();
+        try(var server=ApplicationContext.run(EmbeddedServer.class,Map.of("micronaut.server.port",-1,"micronaut.server.host","127.0.0.1","dkp.bff.portal-origin","https://localhost:18443","dkp.bff.upstreams.dm","http://127.0.0.1:"+upstream.getAddress().getPort()))){
+            String path="/api/v1/dm/documents/"+documentId+"/acl",cookie=seed(server);
+            String restrict="{\"expectedRevision\":0,\"mode\":\"RESTRICT\",\"changes\":[{\"principal\":"+principal+",\"action\":\"document.share-to-collection\",\"operation\":\"ADD_DENY\"}]}";
+            assertEquals(403,send(server,"PATCH",path,cookie,restrict,false).statusCode());assertEquals(0,calls.get());
+            assertEquals(200,send(server,"PATCH",path,cookie,restrict,true).statusCode());assertEquals(1,calls.get());
+            var current=send(server,"GET",path,cookie,null,false);assertEquals(200,current.statusCode());
+            var mapper=server.getApplicationContext().getBean(JsonMapper.class);assertEquals(mapper.readValue(acl,Map.class),mapper.readValue(current.body(),Map.class));
+            assertEquals(403,send(server,"PATCH",path,cookie,restrict.replace("RESTRICT","DELEGATE"),true).statusCode());assertEquals(3,calls.get());
+            assertEquals(400,send(server,"PATCH",path,cookie,restrict.replace("document.share-to-collection","document.share-to-collection.extra"),true).statusCode());assertEquals(3,calls.get());
+        }finally{upstream.stop(0);}
+    }
     @SuppressWarnings("unchecked") private String seed(EmbeddedServer server) throws Exception {
         SessionStore<Session> store=server.getApplicationContext().getBean(SessionStore.class);Session session=store.newSession();var identity=new BrowserIdentity("https://issuer.example","staff-1","Synthetic",List.of("tenant-a"),true,"synthetic-access",Instant.now().plusSeconds(120));session.put(SecurityFilter.AUTHENTICATION,Authentication.build("staff-1",Map.of(VerifiedOpenIdMapper.IDENTITY_ATTRIBUTE,identity)));session.put("csrfToken",".fixture-csrf");session.put("dkp.selected.tenant","tenant-a");store.save(session).get();return "__Host-DKP-SESSION="+session.getId();
     }

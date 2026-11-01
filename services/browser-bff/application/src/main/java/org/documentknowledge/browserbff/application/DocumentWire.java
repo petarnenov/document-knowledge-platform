@@ -6,7 +6,7 @@ import java.util.Set;
 
 /** Explicit closed wire boundary shared by fixed routing and response validation. */
 public final class DocumentWire {
-    public static final Set<String> ACTIONS = Set.of("document.create", "document.inspect-draft", "document.read", "document.update-metadata", "document.acl.restrict", "document.acl.delegate", "document.version.append", "document.legal-hold.place", "document.legal-hold.inspect", "document.content.review");
+    public static final Set<String> ACTIONS = Set.of("document.create", "document.inspect-draft", "document.read", "document.update-metadata", "document.acl.restrict", "document.acl.delegate", "document.version.append", "document.legal-hold.place", "document.legal-hold.inspect", "document.content.review", "document.share-to-collection");
     private DocumentWire() { }
     public static boolean uuid(Object value) { return value instanceof String s && s.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"); }
     public static boolean route(String method, String path) {
