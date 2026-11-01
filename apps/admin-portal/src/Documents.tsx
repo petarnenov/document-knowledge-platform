@@ -130,6 +130,7 @@ function DraftWorkspace({
   const [filter, setFilter] = useState('');
   const [showAcl, setShowAcl] = useState(false);
   const [showHolds, setShowHolds] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [receipt, setReceipt] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -270,6 +271,7 @@ function DraftWorkspace({
   }
   function open(id: string) {
     setSelected(id);
+    setAdvancedOpen(false);
     setView('detail');
     setShowAcl(false);
     setShowHolds(false);
@@ -341,6 +343,7 @@ function DraftWorkspace({
               onClick={() => {
                 setView('create');
                 setSelected(null);
+                setAdvancedOpen(false);
                 setTitle('');
                 setDescription('');
                 mutation.reset();
@@ -380,6 +383,7 @@ function DraftWorkspace({
                 onClick={() => {
                   setCursor(page.data?.nextCursor ?? undefined);
                   setSelected(null);
+                  setAdvancedOpen(false);
                   setFilter('');
                 }}
               >
@@ -493,7 +497,13 @@ function DraftWorkspace({
                       </div>
                     }
                   />
-                  <details className="card">
+                  <details
+                    className="card"
+                    open={advancedOpen}
+                    onToggle={(event) =>
+                      setAdvancedOpen(event.currentTarget.open)
+                    }
+                  >
                     <summary>Advanced document controls</summary>
                     <p className="hint">
                       Access changes and legal holds are validated by the

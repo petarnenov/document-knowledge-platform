@@ -1,8 +1,12 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import { App } from './App';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Documents } from './Documents';
+import { PortalTheme } from './theme';
+import { sessionKey } from './session-key';
 const id = '11111111-1111-4111-8111-111111111111';
 const session = {
   issuer: 'https://idp.example',
@@ -46,6 +50,165 @@ const open = (path = '/documents') =>
     </MemoryRouter>,
   );
 afterEach(() => vi.unstubAllGlobals());
+it.each(['metadata', 'acl', 'hold'] as const)(
+  'preserves the native advanced expansion after %s reauthorization unmounts and restores the detail',
+  async (kind) => {
+    let revision = 0;
+    let restore: ((response: Response) => void) | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string, init?: RequestInit) => {
+        if (path === '/api/v1/session') return json(session);
+        if (init?.method !== 'GET') {
+          revision++;
+          return json(
+            { documentId: id, revision },
+            init?.method === 'POST' ? 201 : 200,
+          );
+        }
+        if (path.includes('?'))
+          return json({ items: [{ ...draft, revision }], nextCursor: null });
+        if (revision > 0)
+          return new Promise<Response>((resolve) => {
+            restore = resolve;
+          });
+        return json(draft);
+      }),
+    );
+    const user = userEvent.setup();
+    open(`/documents?documentId=${id}`);
+    await screen.findByRole('heading', { name: draft.metadata.title });
+    const original = screen
+      .getByText('Advanced document controls')
+      .closest('details')!;
+    expect(original.open).toBe(false);
+    await user.click(screen.getByText('Advanced document controls'));
+    await waitFor(() => expect(original.open).toBe(true));
+    if (kind === 'metadata') {
+      await user.click(
+        screen.getByRole('button', { name: 'Use current metadata' }),
+      );
+      await user.click(screen.getByRole('button', { name: 'Save metadata' }));
+    } else if (kind === 'acl') {
+      await user.click(
+        screen.getByRole('button', { name: 'Apply access change' }),
+      );
+    } else {
+      await user.type(
+        screen.getByLabelText('Hold reason'),
+        'Synthetic preservation',
+      );
+      await user.click(screen.getByRole('button', { name: 'Place hold' }));
+    }
+    await waitFor(() => expect(revision).toBe(1));
+    await screen.findByText('Checking draft access…');
+    expect(original.isConnected).toBe(false);
+    expect(document.querySelector('details')).toBeNull();
+    await waitFor(() => expect(restore).toBeTypeOf('function'));
+    await act(async () => {
+      restore!(json({ ...draft, revision }));
+    });
+    await screen.findByRole('heading', { name: draft.metadata.title });
+    const restored = screen
+      .getByText('Advanced document controls')
+      .closest('details')!;
+    expect(restored).not.toBe(original);
+    expect(restored.open).toBe(true);
+    expect(
+      (
+        screen.getByRole('button', {
+          name: 'Inspect access rules',
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    await user.click(screen.getByText('Advanced document controls'));
+    await waitFor(() => expect(restored.open).toBe(false));
+  },
+);
+it('resets advanced expansion when another document is opened', async () => {
+  const next = {
+    ...draft,
+    documentId: '22222222-2222-4222-8222-222222222222',
+    metadata: { ...draft.metadata, title: 'Other draft' },
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string) => {
+      if (path === '/api/v1/session') return json(session);
+      if (path.includes('?'))
+        return json({ items: [draft, next], nextCursor: null });
+      return json(path.endsWith(next.documentId) ? next : draft);
+    }),
+  );
+  const user = userEvent.setup();
+  open();
+  await user.click(
+    await screen.findByRole('button', { name: draft.metadata.title }),
+  );
+  await user.click(await screen.findByText('Advanced document controls'));
+  await waitFor(() =>
+    expect(
+      screen.getByText('Advanced document controls').closest('details')!.open,
+    ).toBe(true),
+  );
+  await user.click(screen.getByRole('button', { name: 'Back to library' }));
+  await user.click(
+    await screen.findByRole('button', { name: next.metadata.title }),
+  );
+  await screen.findByRole('heading', { name: next.metadata.title });
+  expect(
+    screen.getByText('Advanced document controls').closest('details')!.open,
+  ).toBe(false);
+});
+it.each([
+  { selectedTenant: 'tenant-b' },
+  { subject: 'other-subject' },
+  { issuer: 'https://other-idp.example' },
+  { csrfToken: 'new-session-token' },
+])(
+  'resets advanced expansion when the verified scope changes: %j',
+  async (change) => {
+    let current = session;
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    client.setQueryData(sessionKey, session);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) => {
+        const authorized = { ...draft, tenant: current.selectedTenant };
+        if (path.includes('?'))
+          return json({ items: [authorized], nextCursor: null });
+        return json(authorized);
+      }),
+    );
+    render(
+      <PortalTheme>
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={[`/documents?documentId=${id}`]}>
+            <Documents />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </PortalTheme>,
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Advanced document controls'));
+    const original = screen
+      .getByText('Advanced document controls')
+      .closest('details')!;
+    await waitFor(() => expect(original.open).toBe(true));
+    await act(async () => {
+      current = { ...session, ...change };
+      client.setQueryData(sessionKey, current);
+    });
+    await waitFor(() => expect(original.isConnected).toBe(false));
+    const fresh = (
+      await screen.findByText('Advanced document controls')
+    ).closest('details')!;
+    expect(fresh).not.toBe(original);
+    expect(fresh.open).toBe(false);
+  },
+);
 it('shows anonymous, unavailable and unselected session boundaries', async () => {
   const fetcher = vi.fn().mockResolvedValue(json({ code: 'DENIED' }, 401));
   vi.stubGlobal('fetch', fetcher);
