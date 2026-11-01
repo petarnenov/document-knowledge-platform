@@ -18,7 +18,7 @@ LAYERS = ('bootstrap', 'adapters-out', 'application')
 FLOORS = (
     ('bootstrap', 'IngressAdmission'), ('bootstrap', 'PinnedIngressSettlement'),
     ('bootstrap', 'OutboundAdmission'), ('bootstrap', 'OwnedWriteBuffer'),
-    ('bootstrap', 'OutboundWrites'),
+    ('bootstrap', 'OutboundWrites'), ('bootstrap', 'BridgeAllocationPool'),
     ('bootstrap', 'ingress'), ('bootstrap', 'liveReadback'),
     ('bootstrap', 'metadataBody'), ('adapters-out', 'transferLength'),
     ('adapters-out', 'StreamReadLifecycle'), ('adapters-out', 'UploadReadAdmission'))

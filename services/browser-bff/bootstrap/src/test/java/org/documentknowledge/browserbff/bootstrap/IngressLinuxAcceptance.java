@@ -13,6 +13,7 @@ public final class IngressLinuxAcceptance {
     }
     public static void main(String[] args)throws Exception {
         if(args.length!=0||!System.getProperty("os.name").equals("Linux"))throw new IllegalArgumentException("EXPLICIT_LINUX_PROFILE_REQUIRED");
+        run("bridge-actual-arena-copy-and-consumption", BridgeBufferCopyAcceptance::bothProfiles);
         var config=new BoundedIngressPolicyTest();var channel=new IngressChannelPolicyTest();var backpressure=new IngressBackpressureTest();
         run("profile-tcp-and-tls-config",config::exactProfileAndPlainTcpListenersAreAccepted);
         run("profile-negative-config",config::everyMemoryProtocolAndDecompressionMismatchFailsClosed);
@@ -63,7 +64,7 @@ public final class IngressLinuxAcceptance {
         run("outbound-real-slow-reader-and-disconnect", outbound::realSlowReaderRetainsFiniteWritesAndDisconnectActuallySettles);
         run("outbound-large-closed-metadata", outbound::actualLargeClosedMetadataResponseExceedsIncomingChunkWithoutTruncation);
         run("outbound-mutated-watermark-rejected", outbound::changedActualWriteWatermarkFailsClosedBeforeDispatch);
-        if(passed!=35)throw new IllegalStateException("INCOMPLETE_PROFILE");
-        System.out.println("{\"profile\":\"dkp338-linux-ingress-component\",\"passed\":35,\"failed\":0,\"skipped\":0}");
+        if(passed!=36)throw new IllegalStateException("INCOMPLETE_PROFILE");
+        System.out.println("{\"profile\":\"dkp338-linux-ingress-component\",\"passed\":36,\"failed\":0,\"skipped\":0}");
     }
 }

@@ -101,3 +101,21 @@ A source lease SHALL release exactly once only after successful underlying close
 #### Scenario: Close fails or remains pending
 - **WHEN** underlying close throws or has not returned
 - **THEN** no source settlement is reported, late read completion cannot repair a failed close, and the strongly identified owner remains charged
+
+### Requirement: Finite bridge allocation ownership
+The development bridge allocation component SHALL reserve at most8MiB/1024 allocations globally and64KiB/eight per producer before allocation. Buffers SHALL have fixed capacity at most8192 and reserve twice max(1, capacity). Copies SHALL obtain independent charges; resizing SHALL reject before changing storage. Exhaustion SHALL refuse before allocation without poisoning readiness. This component SHALL NOT imply producer, worker, JDK or whole-process bounds.
+
+#### Scenario: Copies and empty buffers share finite admission
+- **WHEN** a producer allocates or copies a bridge buffer, including an empty buffer
+- **THEN** every independent allocation is admitted before construction, views retain their shared owner, and refusal cannot silently exceed either budget
+
+### Requirement: Witness actual bridge allocation release
+Private bridge buffers SHALL use owned shared Java arenas through supported public APIs. Charges SHALL release exactly once only after successful ByteBuf deallocation and successful arena close with invalidated scope. Unknown close/allocation ownership SHALL remain strongly retained and latch this pool closed; later cleanup SHALL NOT repair it. Release callbacks SHALL run outside pool locks.
+
+#### Scenario: Framework retains a derived view or strict copy
+- **WHEN** the original buffer is released while a retained view or independently charged copy remains
+- **THEN** each live allocation remains charged until its own final deallocation and successful arena close, with stale arena-backed access invalidated
+
+#### Scenario: Arena close fails on the current thread
+- **WHEN** actual arena close fails, even if ByteBuf deallocation returned normally
+- **THEN** the arena and charge remain strongly identified, capacity is not reused, and a later cleanup cannot convert uncertainty into success

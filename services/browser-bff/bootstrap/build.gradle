@@ -103,7 +103,7 @@ tasks.register('liveReadbackCoverageVerification', JacocoCoverageVerification) {
 tasks.named('check') { dependsOn tasks.named('liveReadbackCoverageVerification') }
 
 // Separate floors prevent existing policy coverage from masking new admission/settlement gaps.
-['IngressAdmission', 'PinnedIngressSettlement', 'OutboundAdmission', 'OwnedWriteBuffer', 'OutboundWrites'].each { className ->
+['IngressAdmission', 'PinnedIngressSettlement', 'OutboundAdmission', 'OwnedWriteBuffer', 'OutboundWrites', 'BridgeAllocationPool'].each { className ->
     def selected = files(sourceSets.main.output.classesDirs.collect {
         fileTree(it) { include "**/${className}.class"; include "**/${className}\$*.class" }
     })
