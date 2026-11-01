@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, chmodSync, rmSync, symlinkSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, chmodSync, rmSync, symlinkSync, mkdirSync, copyFileSync, existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { jobInput, jobControl, faultInput, findAddress, main, readCredentials, redact, requirePrivateFile, runtimeArguments, uploadProject } from './identity-e2e.mjs';
+import { jobInput, faultInput, findAddress, main, readCredentials, redact, requirePrivateFile, runtimeArguments, uploadProject } from './identity-e2e.mjs';
 
 test('reads only synthetic browser credentials without evaluating environment text', () => {
   assert.deepEqual(readCredentials('OIDC_CLIENT_SECRET=not-read\nDKP_TEST_USERNAME=tester\nDKP_TEST_PASSWORD=$(never-executed)\n'), { username: 'tester', password: '$(never-executed)' });
@@ -325,14 +327,19 @@ test('provider job profile is closed, isolated and never replaces any existing j
     );
 });
 
-test('job control permits only the exact owned private ignored directory and closed input', () => {
-  const parent = new URL(
-    '../../local-data/security/bp03-upload/',
-    import.meta.url,
-  );
-  mkdirSync(parent, { recursive: true });
-  const directory = mkdtempSync(new URL('jobs-unit-', parent).pathname);
+test('job control permits only the exact owned private ignored directory and closed input', async () => {
+  // The runner derives confinement from its own public module location. Copy the
+  // exact module into a disposable checkout so the real guard stays unchanged.
+  const checkout = realpathSync(mkdtempSync(join(tmpdir(), 'dkp330-control-')));
   try {
+    const tools = join(checkout, 'tools/runtime');
+    mkdirSync(tools, { recursive: true });
+    const runner = join(tools, 'identity-e2e.mjs');
+    copyFileSync(new URL('identity-e2e.mjs', import.meta.url), runner);
+    const { jobControl, main } = await import(pathToFileURL(runner).href);
+    const parent = join(checkout, 'local-data/security/bp03-upload');
+    mkdirSync(parent, { recursive: true });
+    const directory = mkdtempSync(join(parent, 'jobs-unit-'));
     const control = join(directory, 'control'),
       file = join(directory, 'input.json');
     mkdirSync(control, { mode: 0o700 });
@@ -349,6 +356,23 @@ test('job control permits only the exact owned private ignored directory and clo
     writeFileSync(file, '{"schemaVersion":1,"extra":true}');
     assert.throws(() => main({ uploadJobInputFile: file }), /Closed/);
   } finally {
-    rmSync(directory, { recursive: true, force: true });
+    rmSync(checkout, { recursive: true, force: true });
+  }
+});
+
+// Execute the real job-control fixture in a disposable checkout, without Docker.
+test('job-control unit execution leaves checkout default security absent', () => {
+  const checkout = realpathSync(mkdtempSync(join(tmpdir(), 'dkp330-checkout-')));
+  try {
+    const tools = join(checkout, 'tools/runtime');
+    mkdirSync(tools, { recursive: true });
+    for (const name of ['identity-e2e.mjs', 'identity-e2e.test.mjs'])
+      copyFileSync(new URL(name, import.meta.url), join(tools, name));
+    const result = spawnSync(process.execPath, ['--test', '--test-name-pattern=^job control permits only', join(tools, 'identity-e2e.test.mjs')], { cwd: checkout, encoding: 'utf8', timeout: 10000, env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'NODE_TEST_CONTEXT')) });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /job control permits only the exact owned private ignored directory and closed input/);
+    assert.equal(existsSync(join(checkout, 'local-data/security')), false, 'The fixture must not create the checkout bootstrap namespace');
+  } finally {
+    rmSync(checkout, { recursive: true, force: true });
   }
 });
