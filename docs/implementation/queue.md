@@ -14,6 +14,14 @@ After every verified task closure, save the resumable handoff and run `/compact`
 
 While work is active, publish a structured status at least every 15 minutes with completed, in-progress and blocked tasks, executed verification/results and next actions. Brief findings between these reports do not replace the periodic task/execution status. Resume the full queue after interruptions; package completion is a milestone, not the end of the project goal.
 
+## Active execution checkpoint — #312 — 2026-11-01 06:46 UTC
+
+BP03 draftPR267 published4b5e162 has221 tooling tests PASS and independently reviewed381/384 diagnostics. Current CI exposed COMPILER_HOME/VALIDATION; reviewed388/390 correction is localb62d06a pending publication after the live native job terminates. Proposed366PR377 rebased9beb1d0 preserves all11 owned specification hashes; exact CI/development approval pending. Whole338/365/378 ingress, final audit222, final genuine60-minute expiry and dev integration remain OPEN. No current real-hour test runs.
+
+BP04 draftPR247 previous739a43f hygiene PASS/nine Foundation core jobs PASS/native job cancelled; real A/B/C startup exposed fixture-only postgres/dm-postgres mismatch before dispatch. Independently reviewed389/391 correction published56da3de; fresh isolated runtime startup in progress. Earlier runtime stopped with data/evidence retained. Remaining367/368/369/371/372/373 acceptance/integration gates stay open.
+
+BP05 approved normative specification is unchanged. Reviewed research379/387 is published in PR266f63f635; candidates are not selected. Seven Java raw-input conformance failures and24 untriaged advisory matches/seven coordinates remain blockers, with research392 convergence and393 maintained canonicalizer work now active. Missing image/security/vendor Java25/PostgreSQL18.6 interoperability proof remains explicit. Full BP00–BP17 objective stays ACTIVE; no automatic merge or architecture/security/CID/production approval.
+
 ## Active execution checkpoint — #312 — 2026-11-01 06:04 UTC
 
 BP03 local5e2ce26 contains independently reviewed360duration launcher and361/364 original COMPLETE authority/SQL-phase guards. Root application125/outbound66/three separate75% floors/architecture and216Python checks pass. Remote6bca86b Foundation41278238922 has9successful jobs with native providers/HTTPS still running; preserve the live run before publishing the next batch. Current338/365 ingress work, proposed366 effective-state attestation amendment, final provider/resource222/current-source genuine60-minute expiry and reviewed integration remain OPEN. No real-hour test is running; previous hour/353/360/browser evidence remains source-specific.

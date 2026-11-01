@@ -223,3 +223,11 @@ Current41269335770 combined COPY/fence step, including required real60-second st
 - [ ] #360/#361/#362/#364: reviewed local source5e2ce26, root integrated125application/66outbound/three separate75% floors/architecture PASS; applicable exact-source CI and reviewed dev integration pending.
 - [ ] #338/#365: selected bounded-ingress and typed chunked max+1 normalization; #366 proposed attestation mechanism amendment remains unapproved pending independent #375 and checks.
 - [ ] Final provider/resource #222, final-source genuine60-minute expiry, consolidated review and dev integration; no real-hour test running, no automatic merge, no production approval.
+
+## Scoped acceptance checkpoint — #312 — 2026-11-01 06:46 UTC
+
+- [ ] [#381](https://github.com/petarnenov/document-knowledge-platform/issues/381): reviewed public duration-launch diagnostics (#383), exact Linux300014/60003/30854ms proof; current CI now observes COMPILER_HOME/VALIDATION. Exact final CI/integration remain required.
+- [ ] [#384](https://github.com/petarnenov/document-knowledge-platform/issues/384): independently reviewed stage-only provider diagnostics (#385),221 combined tooling tests PASS; actual provider failure cause remains unknown until exact native CI.
+- [ ] [#388](https://github.com/petarnenov/document-knowledge-platform/issues/388): independently reviewed canonical trusted compiler-home launch correction (#390),223 tooling tests and strict OpenSpec15 PASS; helper guards/pinned compiler/durations unchanged. Exact CI/integration pending.
+- [ ] #338/#365/#378: public-profile source review380 PASS does not complete effective hidden-state attestation; proposed366 remains unapproved until applicable CI and recorded development approval.
+- [ ] Final audit #222, final-source genuine60-minute expiry, remaining provider/resource gates and reviewed dev integration; no current real-hour test or automatic merge.
