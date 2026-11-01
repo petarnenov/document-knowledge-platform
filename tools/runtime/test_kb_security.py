@@ -57,7 +57,8 @@ class KnowledgeSecurityTest(unittest.TestCase):
         values = {name: secrets.token_urlsafe(20) for name in kb.ENV_KEYS
                   if name not in {'DKP_KB_SECURITY_DIRECTORY', 'DKP_KB_ADMIN_PASSWORD',
                                   'DKP_KB_MIGRATOR_PASSWORD', 'DKP_KB_RUNTIME_PASSWORD'}}
-        values.update(DKP_LOCAL_UID=str(os.getuid()), DKP_LOCAL_GID=str(os.getgid()))
+        values.update(DKP_LOCAL_UID=str(os.getuid()), DKP_LOCAL_GID=str(os.getgid()),
+                      DKP_PORTAL_PORT='20443', DKP_IDP_PORT='20444')
         (destination / 'runtime.env').write_text(''.join(f'{name}={value}\n' for name, value in values.items()))
         for name in ('portal.crt', 'idp.crt', 'truststore.p12', 'java-security.options'):
             (destination / name).write_text('Synthetic unit fixture only')
@@ -102,6 +103,39 @@ class KnowledgeSecurityTest(unittest.TestCase):
         self.assertEqual(before, kb.files(self.destination))
         for path in self.destination.rglob('*'):
             self.assertEqual(0, path.stat().st_mode & 0o077)
+
+    def test_actual_identity_generator_matches_closed_kb_port_profile(self):
+        # Exercise the real OpenSSL/keytool bootstrap, not the ENV_KEYS-derived
+        # fixture: additions to the shared generator must remain compatible.
+        self.baseline.stop()
+        self.tools.stop()
+        real_baseline = kb.baseline
+
+        def actual_baseline(destination):
+            # Resolve public generator source from this checkout; the generated
+            # private destination remains inside the disposable fixture root.
+            with patch.object(kb, 'ROOT', SOURCE_ROOT):
+                real_baseline(destination)
+
+        actual = patch.object(kb, 'baseline', side_effect=actual_baseline)
+        actual.start()
+        try:
+            self.assertTrue(kb.prepare(self.destination))
+            kb.verify(self.destination)
+            self.assertFalse(kb.prepare(self.destination))
+            for relative in ('runtime.env', 'identity/runtime.env'):
+                values = kb.env_read(self.destination / relative)
+                self.assertEqual('20443', values['DKP_PORTAL_PORT'])
+                self.assertEqual('20444', values['DKP_IDP_PORT'])
+            realm = json.loads((self.destination / 'identity/dkp-realm.json').read_text())
+            client = next(c for c in realm['clients'] if c['clientId'] == 'dkp-bff')
+            self.assertEqual(['https://localhost:20443/oauth/callback/keycloak'], client['redirectUris'])
+            grants = json.loads((self.destination / 'identity/authority/grants.json').read_text())
+            self.assertTrue(all(e['issuer'] == kb.ISSUER for e in grants['entries']))
+        finally:
+            actual.stop()
+            self.baseline.start()
+            self.tools.start()
 
     def test_partial_and_changed_material_preserved_without_regeneration(self):
         self.destination.mkdir(mode=0o700)
@@ -170,6 +204,28 @@ class KnowledgeSecurityTest(unittest.TestCase):
         self.reseal()
         with self.assertRaises(ValueError):
             kb.verify(self.destination)
+
+    def test_resealed_wrong_missing_or_extra_port_configuration_is_rejected(self):
+        kb.prepare(self.destination)
+        path = self.destination / 'runtime.env'
+        original = kb.env_read(path)
+        for name, value in (('DKP_PORTAL_PORT', '18443'), ('DKP_IDP_PORT', '18444'),
+                            ('DKP_PORTAL_PORT', '20444'), ('DKP_IDP_PORT', '20443'),
+                            ('DKP_PORTAL_PORT', None), ('DKP_IDP_PORT', None),
+                            ('UNEXPECTED_PORT', '20445')):
+            with self.subTest(name=name, value=value):
+                values = dict(original)
+                if value is None:
+                    del values[name]
+                else:
+                    values[name] = value
+                path.write_text(''.join(f'{k}={v}\n' for k, v in values.items()))
+                self.reseal()
+                with self.assertRaisesRegex(ValueError, 'Unexpected private configuration'):
+                    kb.verify(self.destination)
+        path.write_text(''.join(f'{k}={v}\n' for k, v in original.items()))
+        self.reseal()
+        kb.verify(self.destination)
 
     def test_invalid_key_and_bounded_files(self):
         kb.prepare(self.destination)
@@ -240,7 +296,8 @@ class KnowledgeSecurityTest(unittest.TestCase):
     def test_suite_in_fresh_checkout_does_not_create_baseline_authority(self):
         checkout = self.checkout / 'fresh-checkout'
         for relative in ('tools/runtime/test_kb_security.py', 'tools/runtime/kb-security.py',
-                         'infra/docker-compose/realm-template.json'):
+                         'infra/docker-compose/realm-template.json',
+                         'infra/docker-compose/bootstrap-security.py'):
             target = checkout / relative
             target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             shutil.copyfile(SOURCE_ROOT / relative, target)
@@ -255,7 +312,7 @@ names = unittest.defaultTestLoader.getTestCaseNames(tests.KnowledgeSecurityTest)
 selected = [tests.KnowledgeSecurityTest(name) for name in names
             if name != 'test_suite_in_fresh_checkout_does_not_create_baseline_authority']
 result = unittest.TextTestRunner().run(unittest.TestSuite(selected))
-sys.exit(0 if result.wasSuccessful() and result.testsRun == 10 else 1)
+sys.exit(0 if result.wasSuccessful() and result.testsRun == len(selected) else 1)
 """
         result = subprocess.run([sys.executable, '-c', script], cwd=checkout,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,

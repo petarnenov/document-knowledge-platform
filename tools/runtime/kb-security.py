@@ -25,7 +25,8 @@ ENV_KEYS = {'DKP_LOCAL_UID', 'DKP_LOCAL_GID', 'OIDC_CLIENT_SECRET', 'DKP_TEST_US
             'DKP_TEST_PASSWORD', 'KC_BOOTSTRAP_ADMIN_USERNAME', 'KC_BOOTSTRAP_ADMIN_PASSWORD',
             'DKP_TRUSTSTORE_PASSWORD', 'DKP_DB_ADMIN_PASSWORD', 'DKP_DM_MIGRATOR_PASSWORD',
             'DKP_DM_RUNTIME_PASSWORD', 'DKP_KB_ADMIN_PASSWORD', 'DKP_KB_MIGRATOR_PASSWORD',
-            'DKP_KB_RUNTIME_PASSWORD', 'DKP_KB_SECURITY_DIRECTORY'}
+            'DKP_KB_RUNTIME_PASSWORD', 'DKP_KB_SECURITY_DIRECTORY',
+            'DKP_PORTAL_PORT', 'DKP_IDP_PORT'}
 
 
 def tool(*arguments):
@@ -40,7 +41,7 @@ def baseline(destination):
     spec = importlib.util.spec_from_file_location('dkp_kb_identity_bootstrap', path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    module.generate(destination)
+    module.generate(destination, portal_port=20443, idp_port=20444)
 
 
 def safe_path(destination):
@@ -153,7 +154,8 @@ def verify(directory):
             or state['files'] != files(directory)):
         raise ValueError('Existing material differs; preserve and use a new directory')
     values = env_read(directory / 'runtime.env')
-    if set(values) != ENV_KEYS or values['DKP_KB_SECURITY_DIRECTORY'] != str(directory):
+    if (set(values) != ENV_KEYS or values['DKP_KB_SECURITY_DIRECTORY'] != str(directory)
+            or values['DKP_PORTAL_PORT'] != '20443' or values['DKP_IDP_PORT'] != '20444'):
         raise ValueError('Unexpected private configuration')
     passwords = [values[name] for name in ENV_KEYS if name.endswith('_PASSWORD')]
     if len(passwords) != len(set(passwords)):
