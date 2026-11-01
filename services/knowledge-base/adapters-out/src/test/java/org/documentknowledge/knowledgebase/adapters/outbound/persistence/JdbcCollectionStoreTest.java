@@ -62,6 +62,21 @@ class JdbcCollectionStoreTest {
         }
         var sibling=source("dkp_kb_runtime",RUNTIME_PASSWORD);sibling.setURL(PG.getJdbcUrl().replace("/knowledge_base","/postgres"));assertThrows(SQLException.class,sibling::getConnection);
     }
+    @Test void changedAppliedMigrationChecksumRejectsValidationAndMigration()throws Exception{
+        long checksum=scalar("SELECT checksum FROM kb.flyway_schema_history WHERE version='1'");
+        long history=scalar("SELECT count(*) FROM kb.flyway_schema_history");
+        try{
+            sql(admin,"UPDATE kb.flyway_schema_history SET checksum=checksum+1 WHERE version='1'");
+            assertThrows(org.flywaydb.core.api.FlywayException.class,flyway::validate);
+            assertThrows(org.flywaydb.core.api.FlywayException.class,flyway::migrate);
+            assertEquals(history,scalar("SELECT count(*) FROM kb.flyway_schema_history"));
+        }finally{
+            sql(admin,"UPDATE kb.flyway_schema_history SET checksum="+checksum+" WHERE version='1'");
+        }
+        flyway.validate();
+        assertEquals(0,flyway.migrate().migrationsExecuted);
+        assertEquals(history,scalar("SELECT count(*) FROM kb.flyway_schema_history"));
+    }
     @Test void collectionAudienceSelectorsAclAndCasRoundTrip()throws Exception{
         var c=create("roundtrip");assertEquals(c,read(r->r.collection(c.tenant(),c.collectionId()).orElseThrow()));
         var rules=Set.of(new AudienceRule(Effect.ALLOW,new Selector(SelectorKind.PRINCIPAL,ALICE.issuer(),ALICE.subject())),new AudienceRule(Effect.ALLOW,new Selector(SelectorKind.TENANT,null,"roundtrip")),new AudienceRule(Effect.DENY,new Selector(SelectorKind.FIRM,ALICE.issuer(),"firm")),new AudienceRule(Effect.ALLOW,new Selector(SelectorKind.RESOURCE_SCOPE,ALICE.issuer(),"scope")));

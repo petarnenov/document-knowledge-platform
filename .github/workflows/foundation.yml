@@ -32,7 +32,11 @@ jobs:
         if: always()
         with:
           name: java-${{ matrix.service }}
-          path: services/${{ matrix.service }}/bootstrap/build/reports
+          if-no-files-found: error
+          path: |
+            services/${{ matrix.service }}/**/build/reports/tests/test
+            services/${{ matrix.service }}/**/build/reports/jacoco
+            services/${{ matrix.service }}/**/build/test-results/test/*.xml
 
   architecture:
     runs-on: ubuntu-latest

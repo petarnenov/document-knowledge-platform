@@ -117,3 +117,5 @@ The exact4519f2bf611c committed integration source passes the combined unprivile
 - [ ] [#295](https://github.com/petarnenov/document-knowledge-platform/issues/295) actual2216a8d CI BFF expected413/actual400; controlled typed framework size exception defect corrected, exact original CI scheduling not claimed reproduced. Native/Linux86tests0skip/all floors PASS; currentCI/HTTPS/integration required.
 - [x] [#298](https://github.com/petarnenov/document-knowledge-platform/issues/298) independent295 source review PASS, root reran four realHTTP/controller tests; declared/chunked oversize413, exact16KiB201 and auth/CSRF-before-read remain enforced.
 - [ ] [#300](https://github.com/petarnenov/document-knowledge-platform/issues/300) independent current bookkeeping and no-automatic-merge protocol review.
+
+- [ ] [#373](https://github.com/petarnenov/document-knowledge-platform/issues/373) P2: retain existing per-layer Java JUnit/HTML/JaCoCo evidence in CI artifacts; add a real PostgreSQL applied-migration checksum tamper regression. Independent review, exact-source CI and dev integration remain required.
