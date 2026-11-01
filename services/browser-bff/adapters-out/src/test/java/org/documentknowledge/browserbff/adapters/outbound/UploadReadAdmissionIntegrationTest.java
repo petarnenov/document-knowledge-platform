@@ -100,6 +100,7 @@ class UploadReadAdmissionIntegrationTest {
         server.start();
         try (var context = ApplicationContext.run(Map.of("dkp.bff.upstreams.dm",
                 "http://127.0.0.1:" + server.getAddress().getPort()))) {
+            context.registerSingleton(new org.documentknowledge.browserbff.application.Readiness());
             var budget = context.getBean(UploadReadAdmission.class);
             var gateway = context.getBean(FixedUploadGateway.class);
             var leases = new ArrayList<UploadReadAdmission.Lease>();

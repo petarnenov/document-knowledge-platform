@@ -172,3 +172,26 @@ All data/error/completion callbacks SHALL be serialized on the captured channel 
 #### Scenario: A blocked read is cancelled
 - **WHEN** cancellation is requested while a queued or active read still owns execution
 - **THEN** its task charge remains until actual exit and no off-loop terminal callback bypasses the delivery owner
+
+### Requirement: Finite application outbound exchange and worker ownership
+
+The development BFF SHALL retain at most64 outbound exchanges across its three fixed application-owned clients, including queued, active, draining and unknown owners. Send/JDK/close workers and queues SHALL have separately reviewed finite limits. A caller timeout/cancel SHALL NOT settle actual work. Ordinary admission refusal SHALL use the existing unavailable contract before dispatch without poisoning readiness.
+
+#### Scenario: Fixed client and queue populations survive root disposal
+- **GIVEN** request roots have been disposed while outbound exchanges or JDK work remain
+- **WHEN** admission, worker queues or cleanup are inspected
+- **THEN** the finite exchange/work/source owners remain charged independently, three application clients are never recreated on request failure, and remaining native/socket/TLS/edge and exceptional-tail headroom is reported separately
+
+### Requirement: Original outbound deadlines and late-source ownership
+
+Outbound queue wait, headers and bounded response reads SHALL consume the same original operation deadline. Existing response byte ceilings, security and status/schema controls SHALL remain unchanged. Late response bodies SHALL retain actual read/close ownership independently of caller abandonment and task completion.
+
+#### Scenario: Queued exchange expires before dispatch
+- **GIVEN** all selected send workers are occupied by genuine owned work
+- **WHEN** another admitted operation reaches its original deadline while queued
+- **THEN** the caller receives the existing unavailable result, the queued task never dispatches upstream, and capacity becomes reusable only after its actual exit and all acquired source witnesses settle
+
+#### Scenario: Caller leaves before an actual response body arrives
+- **GIVEN** an actual outbound send remains pending after its caller deadline
+- **WHEN** late headers expose a real body
+- **THEN** that exact source is identified and closed through bounded owned work, and the exchange remains charged until actual send/close exit and successful close plus admitted read exit are witnessed

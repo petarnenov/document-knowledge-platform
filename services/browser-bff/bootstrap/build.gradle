@@ -131,3 +131,15 @@ tasks.named('check') {
     dependsOn ':services:browser-bff:adapters-out:StreamReadLifecycleCoverageVerification'
     dependsOn ':services:browser-bff:adapters-out:UploadReadAdmissionCoverageVerification'
 }
+
+// #222: startup-selected BFF profile, shared with the distribution and Linux entrypoint.
+def outboundProfile = ['-Djava.util.concurrent.ForkJoinPool.common.parallelism=2', '-Djava.util.concurrent.ForkJoinPool.common.maximumSpares=0', '-Djdk.httpclient.connectionPoolSize=32', '-Djdk.httpclient.bufsize=16384', '-Djdk.httpclient.redirects.retrylimit=5', '-Djdk.httpclient.disableRetryConnect=false', '-Djdk.httpclient.enableAllMethodRetry=false']
+tasks.withType(Test).configureEach { jvmArgs outboundProfile }
+application { applicationDefaultJvmArgs = outboundProfile }
+tasks.named('ingressLinuxAcceptance') { jvmArgs outboundProfile }
+
+tasks.named('check') {
+    ['OwnedJdkTransport', 'JdkResponseSource', 'OutboundDeadline'].each { name ->
+        dependsOn ":services:browser-bff:adapters-out:${name}CoverageVerification"
+    }
+}

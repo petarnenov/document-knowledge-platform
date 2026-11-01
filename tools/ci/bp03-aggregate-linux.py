@@ -22,7 +22,9 @@ FLOORS = (
     ('bootstrap', 'DownloadBridge'), ('bootstrap', 'DownloadBodyWriter'),
     ('bootstrap', 'ingress'), ('bootstrap', 'liveReadback'),
     ('bootstrap', 'metadataBody'), ('adapters-out', 'transferLength'),
-    ('adapters-out', 'StreamReadLifecycle'), ('adapters-out', 'UploadReadAdmission'))
+    ('adapters-out', 'StreamReadLifecycle'), ('adapters-out', 'UploadReadAdmission'),
+    ('adapters-out', 'OwnedJdkTransport'), ('adapters-out', 'JdkResponseSource'),
+    ('adapters-out', 'OutboundDeadline'))
 
 
 def digest(path):

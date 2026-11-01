@@ -30,7 +30,9 @@ class ContextGatewayTest {
             server.createContext("/api/v1/security/context",exchange -> {
                 calls.incrementAndGet();assertEquals("GET",exchange.getRequestMethod());assertEquals("Bearer synthetic-access",exchange.getRequestHeaders().getFirst("Authorization"));assertEquals("tenant-a",exchange.getRequestHeaders().getFirst("X-DKP-Tenant"));assertNull(exchange.getRequestHeaders().getFirst("X-User-Id"));assertNull(exchange.getRequestHeaders().getFirst("X-Tenant-Id"));
                 String selected=mode.get();int status=200;String body="{\"service\":\"dm\",\"issuer\":\"https://issuer.example\",\"subject\":\"staff-1\",\"tenant\":\"tenant-a\"}";
-                if(selected.equals("redirect")){status=302;exchange.getResponseHeaders().set("Location","http://127.0.0.1:1/steal");}
+                if(selected.equals("oversize-denied")){status=403;body="x".repeat(8193);}
+                else if(selected.equals("oversize-unauthenticated")){status=401;body="x".repeat(8193);}
+                else if(selected.equals("redirect")){status=302;exchange.getResponseHeaders().set("Location","http://127.0.0.1:1/steal");}
                 else if(selected.equals("denied"))status=403;else if(selected.equals("unauthenticated"))status=401;else if(selected.equals("down"))status=503;
                 else if(selected.equals("oversize"))body="x".repeat(8193);else if(selected.equals("malformed"))body="not-json";
                 else if(selected.equals("wrong-subject"))body=body.replace("staff-1","another-user");else if(selected.equals("wrong-tenant"))body=body.replace("tenant-a","tenant-b");
@@ -41,7 +43,7 @@ class ContextGatewayTest {
             try {
                 String upstream="http://127.0.0.1:"+server.getAddress().getPort();var gateway=owned(new FixedContextGateway(upstream,upstream,upstream,json));
                 var verified=gateway.context("dm",actor,"tenant-a");assertEquals("dm",verified.service());assertEquals(actor.issuer(),verified.issuer());assertEquals(actor.subject(),verified.subject());assertEquals("tenant-a",verified.tenant());
-                for(String bad:List.of("redirect","down","oversize","malformed","wrong-subject","wrong-tenant","wrong-issuer","wrong-service","extra-field","null","html")) {mode.set(bad);assertEquals(503,assertThrows(BffFailure.class,()->gateway.context("dm",actor,"tenant-a"),bad).status());}
+                for(String bad:List.of("redirect","down","oversize","oversize-denied","oversize-unauthenticated","malformed","wrong-subject","wrong-tenant","wrong-issuer","wrong-service","extra-field","null","html")) {mode.set(bad);assertEquals(503,assertThrows(BffFailure.class,()->gateway.context("dm",actor,"tenant-a"),bad).status());}
                 mode.set("denied");assertEquals(403,assertThrows(BffFailure.class,()->gateway.context("dm",actor,"tenant-a")).status());mode.set("unauthenticated");assertEquals(401,assertThrows(BffFailure.class,()->gateway.context("dm",actor,"tenant-a")).status());
                 int before=calls.get();for(String target:List.of("http://evil.example","../dm","dm/../../steal","unknown"))assertEquals(404,assertThrows(BffFailure.class,()->gateway.context(target,actor,"tenant-a")).status());assertEquals(before,calls.get());
             } finally {server.stop(0);}
@@ -61,4 +63,28 @@ class ContextGatewayTest {
             try {String upstream="http://127.0.0.1:"+server.getAddress().getPort();var gateway=owned(new FixedContextGateway(upstream,upstream,upstream,context.getBean(JsonMapper.class)));long start=System.nanoTime();assertEquals(503,assertThrows(BffFailure.class,()->gateway.context("dm",actor,"tenant-a")).status());assertTrue(java.time.Duration.ofNanos(System.nanoTime()-start).toMillis()<3800);}finally{server.stop(0);}
         }
     }
+    @Test void denialBodiesStillConsumeOriginalWholeDeadline() throws Exception {
+        try (var context = ApplicationContext.run()) {
+            for (int status : new int[]{401, 403}) {
+                var release = new java.util.concurrent.CountDownLatch(1);
+                var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+                var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+                server.setExecutor(executor);
+                server.createContext("/api/v1/security/context", exchange -> {
+                    exchange.getResponseHeaders().set("Content-Type", "application/json");
+                    exchange.sendResponseHeaders(status, 100);
+                    try { release.await(5, java.util.concurrent.TimeUnit.SECONDS); }
+                    catch (InterruptedException error) { Thread.currentThread().interrupt(); }
+                    finally { exchange.close(); }
+                });
+                server.start();
+                try (var gateway = new FixedContextGateway("http://127.0.0.1:" + server.getAddress().getPort(), "", "", context.getBean(JsonMapper.class))) {
+                    long start = System.nanoTime();
+                    assertEquals(503, assertThrows(BffFailure.class, () -> gateway.context("dm", actor, "tenant-a")).status());
+                    assertTrue(java.time.Duration.ofNanos(System.nanoTime() - start).toMillis() < 3800);
+                } finally { release.countDown(); server.stop(0); executor.shutdownNow(); }
+            }
+        }
+    }
+
 }

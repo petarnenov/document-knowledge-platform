@@ -29,6 +29,8 @@ class GatewayClientLifecycleTest {
         var independent = new ArrayList<HttpClient>();
         try {
             server.start();
+            first.registerSingleton(new org.documentknowledge.browserbff.application.Readiness());
+            second.registerSingleton(new org.documentknowledge.browserbff.application.Readiness());
             first.start();
             second.start();
             var target = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/");

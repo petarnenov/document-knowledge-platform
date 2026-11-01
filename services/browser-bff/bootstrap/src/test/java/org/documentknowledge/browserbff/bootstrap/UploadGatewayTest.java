@@ -42,6 +42,8 @@ class UploadGatewayTest {
     var overwritten=result.sourceSettlement().toCompletableFuture();overwritten.obtrudeValue(null);
     assertFalse(result.sourceSettlement().toCompletableFuture().isDone());
     assertArrayEquals(bytes.get(),result.body().readAllBytes());
+    // #222: successful actual close now runs on the finite owned close executor.
+    result.sourceSettlement().toCompletableFuture().get(1,java.util.concurrent.TimeUnit.SECONDS);
     assertTrue(result.sourceSettlement().toCompletableFuture().isDone());
     assertNull(result.sourceSettlement().toCompletableFuture().join());}}
    format.set("application/pdf");status.set(206);range.set("bytes 1-2/4");bytes.set(new byte[]{2,3});try(var result=gateway.download(CONTENT,"bytes=1-2",identity,"tenant-a")){assertEquals(206,result.status());assertEquals("bytes 1-2/4",result.contentRange());assertArrayEquals(new byte[]{2,3},result.body().readAllBytes());}
