@@ -83,7 +83,7 @@ class CatalogObserverUnsettled(ValueError):
 
 
 class CatalogObserver:
-    """One read-only guest read, prepared before any request/SQL barrier.
+    """Bounded read-only guest visibility observation, prepared before the barrier.
 
     Normal docker exec completion acknowledges the remote exit status. On an
     observation timeout we neither kill the client nor infer remote settlement.
@@ -103,8 +103,10 @@ class CatalogObserver:
         script = ('printf "READY\\n"; IFS= read -r expected || exit 21; '
                   'case "$expected" in *[!a-f0-9]*|"") exit 22;; esac; '
                   '[ ${#expected} -eq 64 ] || exit 22; '
-                  'actual=$(sha256sum ' + self.PATHS[owner] + ' 2>/dev/null) || exit 23; '
-                  '[ "${actual%% *}" = "$expected" ] || exit 24; printf "ACK\\n"')
+                  'attempt=0; while [ "$attempt" -lt 32 ]; do '
+                  'actual=$(sha256sum ' + self.PATHS[owner] + ' 2>/dev/null) || actual=; '
+                  'if [ "${actual%% *}" = "$expected" ]; then printf "ACK\\n"; exit 0; fi; '
+                  'attempt=$((attempt + 1)); done; exit 24')
         self.process = popen(['docker', 'exec', '-i', container, 'timeout', '-s', 'TERM',
                               '-k', '1', '15', 'sh', '-ec', script],
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE,

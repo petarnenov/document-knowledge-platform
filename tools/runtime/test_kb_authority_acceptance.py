@@ -715,7 +715,7 @@ class CatalogObserverTest(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         observer.acknowledge('b' * 64, M.time.monotonic() + .2)
                     observer.process.wait(timeout=1)
-                    self.assertEqual(23 if missing else 24, observer.process.returncode)
+                    self.assertEqual(24, observer.process.returncode)
                 finally:
                     with self.assertRaises(M.CatalogObserverUnsettled):
                         observer.close()
@@ -757,3 +757,31 @@ class CatalogObserverTest(unittest.TestCase):
                     close()
             self.assertNotIn('SETTLED', [r['phase'] for r in records])
             self.assertFalse(observer.reader.is_alive())
+
+    def test_bounded_guest_observation_tolerates_initial_missing_lookup_without_business_retry(self):
+        # Deterministic actual local shell: the first three guest-lookup stand-ins
+        # fail, subsequent reads see the exact file. No timers or business retry.
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / 'grants.json'
+            count = Path(name) / 'count'
+            path.write_bytes(b'public synthetic catalog')
+            count.write_text('0')
+            def launch(arguments, **options):
+                prefix = ('sha256sum() { n=$(cat ' + str(count) + '); n=$((n+1)); '
+                          'printf "%s" "$n" > ' + str(count) + '; '
+                          '[ "$n" -gt 3 ] || return 1; command sha256sum "$@"; }; ')
+                script = prefix + arguments[-1].replace('/run/dkp/authority/grants.json', str(path))
+                return subprocess.Popen(['sh', '-ec', script], **options)
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            with M.CatalogObserver('a' * 64, 'dm', launch) as observer:
+                observer.acknowledge(digest, M.time.monotonic() + .2)
+            self.assertEqual('4', count.read_text())
+            count.write_text('0')
+            observer = M.CatalogObserver('a' * 64, 'dm', launch)
+            try:
+                with self.assertRaises(ValueError):
+                    observer.acknowledge('b' * 64, M.time.monotonic() + .2)
+            finally:
+                with self.assertRaises(M.CatalogObserverUnsettled):
+                    observer.close()
+            self.assertEqual('32', count.read_text())

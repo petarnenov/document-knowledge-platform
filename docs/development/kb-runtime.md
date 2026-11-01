@@ -204,7 +204,11 @@ its Docker exec normally before the fixture releases the lock. This confirms
 fixture delivery of revoked bytes; it does not replace the application's own
 current-authority check or establish the underlying filesystem failure cause.
 
-The acknowledgement shares the original remaining250ms lock budget. No retry,
+The acknowledgement shares the original remaining250ms lock budget. It makes
+at most32 read-only guest SHA observations, acknowledging only exact bytes.
+This handles an observed transient guest ENOENT immediately after host atomic
+replacement; permanent missing, unreadable or mismatched bytes fail closed.
+There is no HTTP, SQL or business-command retry, arbitrary sleep,
 production timeout change, catalog permission change or production hook is
 introduced. The guest observer has a fixed15s lifetime and1s termination grace,
 including its initial stdin wait. A missing acknowledgement, mismatch, nonzero
@@ -216,7 +220,9 @@ PostgreSQL settlement and original-key reconciliation remain required. After
 restoration, a fresh observer confirms original bytes before replay or the next
 case; it cannot reuse the revocation acknowledgement.
 
-This source change is pending independent review and fresh exact-source runtime
-A/B/C execution. A standalone5.913ms guest-read probe is diagnostic evidence,
+The initial independently reviewed single-read observer failed actual A with
+UNKNOWN settlement; the original command was reconciled with its original key.
+This bounded-observation correction is pending independent review419 and fresh
+exact-source runtime A/B/C execution. A standalone5.913ms guest-read probe is diagnostic evidence,
 not acceptance. All full100-member, protected-response withholding and true
 unknown-commit scenarios remain separate gates.
