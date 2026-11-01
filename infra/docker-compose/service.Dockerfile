@@ -3,7 +3,8 @@ WORKDIR /workspace
 COPY . .
 ARG SERVICE
 RUN case "$SERVICE" in document-management|knowledge-base|knowledge-search|browser-bff) ;; *) exit 1 ;; esac
-RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon ":services:${SERVICE}:bootstrap:installDist"
+# Gradle's writable cache/daemon registry cannot coordinate across build containers.
+RUN --mount=type=cache,target=/root/.gradle,sharing=locked ./gradlew --no-daemon ":services:${SERVICE}:bootstrap:installDist"
 
 FROM eclipse-temurin:25.0.5_8-jre@sha256:ecdc0adb37bde1a281c4d245a3cd535004b1fc8322d560f5b09463b248c81df0 AS runtime
 ARG SERVICE

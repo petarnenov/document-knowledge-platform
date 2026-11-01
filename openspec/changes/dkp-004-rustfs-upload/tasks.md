@@ -244,3 +244,5 @@ Current41269335770 combined COPY/fence step, including required real60-second st
 - [x] [#238](https://github.com/petarnenov/document-knowledge-platform/issues/238) independent diagnostic source review PASS at75b38dd8; root reran23focused tests, zero failures/skips. Changed helper99.70% source/90.52% branches. Source review does not certify actual provider success.
 
 PR146 integrated as62a73f0 after final-head CI and the distinct genuine60-minute expiry PASS. Full requirement audit222/239, integrated-dev checks and verified archive remain open. Production/CID gates remain separate.
+
+- [ ] [#454](https://github.com/petarnenov/document-knowledge-platform/issues/454) P1: serialize concurrent service-build writers to the shared Gradle cache with BuildKit `sharing=locked`. Preserve the original CI daemon-timeout evidence; two original local four-service builds passed, so the hosted failure cause remains unproven. Verify real cold and warm-cache builds, independent review, exact-source CI and dev integration before closure; preserve all provider and real-hour acceptance gates.
