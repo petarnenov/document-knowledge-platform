@@ -77,6 +77,20 @@ class FileVerificationWorkspaceTest {
         String recovered=child("recover");assertTrue(recovered.contains("recoveredBytes=0"),recovered);assertEquals(0,payloadBytes());
         assertNotEquals(crashed.split(";",2)[0],recovered.split(";",2)[0]);manager=open();assertTrue(manager.ready());
     }
+    @Test void failedSameJvmContenderMustNotReleaseTheLiveCrossProcessLock()throws Exception {
+        try(var p=phase();var workspace=manager.reserve(identity(7),p)) {
+            workspace.source().write(new Repeated(7),p);
+            var reader=workspace.retain(p);
+            try {
+                assertTrue(child("blocked").contains("locked=true"));
+                unavailable(()->open());
+                assertTrue(child("blocked").contains("locked=true"));
+                workspace.close();manager.close();unavailable(()->open());
+                assertTrue(child("blocked").contains("locked=true"));assertEquals(7,payloadBytes());
+            } finally {reader.close();}
+        }
+        manager=open();assertTrue(manager.ready());assertEquals(0,payloadBytes());
+    }
     @Test void distinctChildJvmCannotAcquireTheLiveProcessLock()throws Exception{String output=child("blocked");assertTrue(output.contains("locked=true"),output);assertTrue(manager.ready());}
     @Test void recoveryTimeoutDoesNotTransferOwnershipUntilTheActualUnlinkWorkerSettles()throws Exception{
         try(var p=phase();var workspace=manager.reserve(identity(7),p)){workspace.source().write(new Repeated(7),p);}

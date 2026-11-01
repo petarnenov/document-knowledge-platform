@@ -23,7 +23,7 @@ public final class FileVerificationWorkspace implements VerificationWorkspacePor
     @FunctionalInterface interface OwnedDelete { void delete(Path path) throws IOException; }
     private final OwnedDelete ownedDelete;private final long recoveryWaitMillis;
     private final long uid=new UnixSystem().getUid();
-    private final FileChannel lockChannel;private final FileLock processLock;
+    private final org.documentknowledge.documentmanagement.adapters.outbound.temp.FixedInodeProcessLock processLock;
     private final Object rootKey,directoryKey,markerKey,lockKey;
     private volatile VerificationLedger ledger;private volatile Owned active;private volatile boolean probing,closing,closed;
     private final java.util.concurrent.locks.ReentrantLock gate=new java.util.concurrent.locks.ReentrantLock();
@@ -36,22 +36,21 @@ public final class FileVerificationWorkspace implements VerificationWorkspacePor
         if(recoveryWaitMillis<1||recoveryWaitMillis>60_000)throw unavailable();this.ownedDelete=Objects.requireNonNull(ownedDelete);this.recoveryWaitMillis=recoveryWaitMillis;
         this.root=canonical(root);this.trusted=Objects.requireNonNull(trusted);
         directory=this.root.resolve(".verification-spool");state=directory.resolve("state.json");next=directory.resolve("state.next");marker=directory.resolve(".owner");lockPath=this.root.resolve(".verification-spool.lock");
-        FileChannel opened=null;FileLock acquired=null;
+        org.documentknowledge.documentmanagement.adapters.outbound.temp.FixedInodeProcessLock acquired=null;
         try{
             validateRoot();
             if(!Files.exists(lockPath,LinkOption.NOFOLLOW_LINKS)){Files.createFile(lockPath,mode("rw-------"));force(this.root);}
             privateFile(lockPath,0);Object expectedLock=key(lockPath);
-            opened=FileChannel.open(lockPath,Set.of(StandardOpenOption.WRITE,LinkOption.NOFOLLOW_LINKS));privateFile(lockPath,0);
-            acquired=opened.tryLock();if(acquired==null)throw unsafe();
+            acquired=org.documentknowledge.documentmanagement.adapters.outbound.temp.FixedInodeProcessLock.acquire(lockPath);privateFile(lockPath,0);
             if(!expectedLock.equals(key(lockPath)))throw unsafe();
-            this.lockChannel=opened;this.processLock=acquired;this.lockKey=expectedLock;this.rootKey=key(this.root);
+            this.processLock=acquired;this.lockKey=expectedLock;this.rootKey=key(this.root);
             if(!Files.exists(directory,LinkOption.NOFOLLOW_LINKS)){
                 refuseLegacy();Files.createDirectory(directory,mode("rwx------"));force(this.root);
                 writeNew(marker,MARKER);force(directory);
             }
             this.directoryKey=key(directory);this.markerKey=key(marker);
             guard();discardNext();ledger=readLedger();validatePayloads(ledger);
-        }catch(Exception failure){if(acquired!=null)try{acquired.release();}catch(IOException ignored){}if(opened!=null)try{opened.close();}catch(IOException ignored){}throw unavailable();}
+        }catch(Exception failure){if(acquired!=null)try{acquired.close();}catch(IOException ignored){}throw unavailable();}
     }
     @Override public Workspace reserve(Identity identity,CompleteBudget.Phase phase){
         Objects.requireNonNull(identity);phase.check();
@@ -84,7 +83,7 @@ public final class FileVerificationWorkspace implements VerificationWorkspacePor
         catch(java.util.concurrent.ExecutionException|java.util.concurrent.TimeoutException unavailable){budget.cancel();Thread worker=recoveryWorker;if(worker!=null)worker.interrupt();return false;}
     }
     @Override public void close(){closing=true;CompleteBudget current=recovery;if(current!=null)current.cancel();Thread worker=recoveryWorker;if(worker!=null)worker.interrupt();if(gate.tryLock())try{releaseIfClosing();}finally{gate.unlock();}}
-    private void releaseIfClosing(){if(closing&&!closed&&active==null&&!probing){try{processLock.release();lockChannel.close();closed=true;}catch(IOException failure){/* Unknown ownership remains unusable, never transfer on a timer. */}}}
+    private void releaseIfClosing(){if(closing&&!closed&&active==null&&!probing){try{processLock.close();closed=true;}catch(IOException failure){/* Unknown ownership remains unusable, never transfer on a timer. */}}}
     private void recover(CompleteBudget.Phase phase)throws IOException{
         live();phase.check();guard();discardNext();VerificationLedger found=readLedger();if(!Objects.equals(found,ledger))throw unavailable();validatePayloads(found);
         if(found==null)return;
