@@ -8,6 +8,7 @@ import {
   type BrowserContext,
   type Page,
   type Request,
+  type Response,
   type Route,
 } from '@playwright/test';
 import { confirmSingleCreate, replayUiCreate } from './ui-create-receipt';
@@ -905,162 +906,185 @@ async function observeThrottledUpload(
   expectedCsrf: string,
 ) {
   const cdp = await context.newCDPSession(page);
-  await cdp.send('Network.enable');
-  // Real Chromium transport only: no Fetch interception, fabricated reply, or altered body.
-  // Pinned Chromium exposes rule IDs on the exact outgoing binary request.
-  // https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-emulateNetworkConditionsByRule
-  const rules = await cdp.send('Network.emulateNetworkConditionsByRule', {
-    offline: false,
-    matchedNetworkConditions: [
-      {
-        urlPattern: `${origin}/api/v1/dm/documents/uploads/*/content`,
-        latency: 0,
-        downloadThroughput: -1,
-        uploadThroughput: 1,
-      },
-    ],
-  });
-  expect(rules.ruleIds).toHaveLength(1);
-  const binary: Request[] = [],
-    completes: Request[] = [],
-    appends: Request[] = [],
-    initializations: Request[] = [];
-  const requests: Request[] = [];
-  const canceled = new Map<string, { canceled?: boolean; errorText: string }>();
-  const conditions = new Map<string, string | undefined>();
-  const wireGuards = new Map<
-    string,
-    {
-      origin: string | undefined;
-      csrf: string | undefined;
-      key: string | undefined;
-    }
-  >();
-  const finished = new Set<string>();
-  let binaryId: string | undefined;
-  const observe = (request: Request) => {
-    if (new URL(request.url()).origin !== origin) return;
-    requests.push(request);
-    const path = new URL(request.url()).pathname;
-    if (
-      request.method() === 'PUT' &&
-      /^\/api\/v1\/dm\/documents\/uploads\/[0-9a-f-]{36}\/content$/.test(path)
-    )
-      binary.push(request);
-    if (request.method() === 'POST' && path.endsWith('/complete'))
-      completes.push(request);
-    if (request.method() === 'POST' && path === `${root}/versions`)
-      appends.push(request);
-    if (request.method() === 'POST' && path === '/api/v1/dm/documents/uploads')
-      initializations.push(request);
-  };
-  page.on('request', observe);
-  cdp.on('Network.requestWillBeSent', ({ requestId, request }) => {
-    if (
-      request.method === 'PUT' &&
-      new URL(request.url).origin === origin &&
-      /^\/api\/v1\/dm\/documents\/uploads\/[0-9a-f-]{36}\/content$/.test(
-        new URL(request.url).pathname,
-      )
-    )
-      binaryId = requestId;
-  });
-  cdp.on(
-    'Network.requestWillBeSentExtraInfo',
-    ({ requestId, appliedNetworkConditionsId, headers }) => {
-      conditions.set(requestId, appliedNetworkConditionsId);
-      const selected = (name: string): string | undefined => {
-        const matches = Object.entries(headers).filter(
-          ([key]) => key.toLowerCase() === name,
-        );
-        return matches.length === 1 && typeof matches[0]![1] === 'string'
-          ? matches[0]![1]
-          : undefined;
-      };
-      wireGuards.set(requestId, {
-        origin: selected('origin'),
-        csrf: selected('x-csrf-token'),
-        key: selected('idempotency-key'),
-      });
-    },
-  );
-  cdp.on(
-    'Network.loadingFailed',
-    ({ requestId, canceled: wasCanceled, errorText }) =>
-      canceled.set(requestId, {
-        ...(wasCanceled === undefined ? {} : { canceled: wasCanceled }),
-        errorText,
-      }),
-  );
-  cdp.on('Network.loadingFinished', ({ requestId }) => finished.add(requestId));
-  const status = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'GET' &&
-      /\/uploads\/[0-9a-f-]{36}\/status$/.test(
-        new URL(response.url()).pathname,
-      ),
-  );
-  await page
-    .getByRole('button', { name: 'Upload and append', exact: true })
-    .click();
-  await expect.poll(() => binary.length, { timeout: 10_000 }).toBe(1);
-  await expect
-    .poll(
-      () =>
-        binaryId !== undefined && conditions.get(binaryId) === rules.ruleIds[0],
-      { timeout: 10_000 },
-    )
-    .toBe(true);
-  expect((await status).status()).toBe(200);
-  await expect(
-    page.getByText(/^Upload state: (INITIALIZED|RECEIVING)$/),
-  ).toBeVisible();
-  await expect(
-    page
-      .getByRole('status')
-      .filter({ hasText: 'Transferring into quarantine…' }),
-  ).toBeVisible();
-  const request = binary[0]!;
-  const uploadId = new URL(request.url()).pathname.split('/')[6]!;
-  expect(uploadId).toMatch(/^[0-9a-f-]{36}$/);
-  // Playwright request.headers() deliberately omits security-sensitive headers.
-  // Observe the full real request AND matching wire ExtraInfo; never synthesize guards.
-  const guards = await request.allHeaders();
-  const wire = wireGuards.get(binaryId!);
-  expect(guards.origin).toBe(origin);
-  expect(wire?.origin).toBe(origin);
-  expect(
-    guards['x-csrf-token'] === expectedCsrf && wire?.csrf === expectedCsrf,
-  ).toBe(true);
-  expect(
-    typeof guards['idempotency-key'] === 'string' &&
-      /^[0-9a-f-]{36}$/.test(guards['idempotency-key']) &&
-      wire?.key === guards['idempotency-key'],
-  ).toBe(true);
-  expect(canceled.has(binaryId!)).toBe(false);
-  expect(finished.has(binaryId!)).toBe(false);
-  return {
-    cdp,
-    binary,
-    completes,
-    appends,
-    initializations,
-    requests,
-    request,
-    guards,
-    uploadId,
-    failure: () => canceled.get(binaryId!),
-    finished: () => finished.has(binaryId!),
-    release: () =>
-      cdp.send('Network.emulateNetworkConditionsByRule', {
-        offline: false,
-        matchedNetworkConditions: [],
-      }),
-    dispose: async () => {
-      page.off('request', observe);
+  let removeListeners = () => {};
+  const release = () =>
+    cdp.send('Network.emulateNetworkConditionsByRule', {
+      offline: false,
+      matchedNetworkConditions: [],
+    });
+  const dispose = async () => {
+    removeListeners();
+    try {
+      await release();
+    } finally {
       await cdp.detach();
-    },
+    }
   };
+  try {
+    await cdp.send('Network.enable');
+    // Real Chromium transport only: no Fetch interception, fabricated reply, or altered body.
+    // Pinned Chromium exposes rule IDs on the exact outgoing binary request.
+    // https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-emulateNetworkConditionsByRule
+    const rules = await cdp.send('Network.emulateNetworkConditionsByRule', {
+      offline: false,
+      matchedNetworkConditions: [
+        {
+          urlPattern: `${origin}/api/v1/dm/documents/uploads/*/content`,
+          latency: 0,
+          downloadThroughput: -1,
+          uploadThroughput: 1,
+        },
+      ],
+    });
+    expect(rules.ruleIds).toHaveLength(1);
+    const binary: Request[] = [],
+      completes: Request[] = [],
+      appends: Request[] = [],
+      initializations: Request[] = [];
+    const requests: Request[] = [];
+    const canceled = new Map<
+      string,
+      { canceled?: boolean; errorText: string }
+    >();
+    const conditions = new Map<string, string | undefined>();
+    const wireGuards = new Map<
+      string,
+      {
+        origin: string | undefined;
+        csrf: string | undefined;
+        key: string | undefined;
+      }
+    >();
+    const finished = new Set<string>();
+    let binaryId: string | undefined;
+    const observe = (request: Request) => {
+      if (new URL(request.url()).origin !== origin) return;
+      requests.push(request);
+      const path = new URL(request.url()).pathname;
+      if (
+        request.method() === 'PUT' &&
+        /^\/api\/v1\/dm\/documents\/uploads\/[0-9a-f-]{36}\/content$/.test(path)
+      )
+        binary.push(request);
+      if (request.method() === 'POST' && path.endsWith('/complete'))
+        completes.push(request);
+      if (request.method() === 'POST' && path === `${root}/versions`)
+        appends.push(request);
+      if (
+        request.method() === 'POST' &&
+        path === '/api/v1/dm/documents/uploads'
+      )
+        initializations.push(request);
+    };
+    const responses: Response[] = [];
+    const observeResponse = (response: Response) => responses.push(response);
+    page.on('request', observe);
+    page.on('response', observeResponse);
+    removeListeners = () => {
+      page.off('request', observe);
+      page.off('response', observeResponse);
+    };
+    cdp.on('Network.requestWillBeSent', ({ requestId, request }) => {
+      if (
+        request.method === 'PUT' &&
+        new URL(request.url).origin === origin &&
+        /^\/api\/v1\/dm\/documents\/uploads\/[0-9a-f-]{36}\/content$/.test(
+          new URL(request.url).pathname,
+        )
+      )
+        binaryId = requestId;
+    });
+    cdp.on(
+      'Network.requestWillBeSentExtraInfo',
+      ({ requestId, appliedNetworkConditionsId, headers }) => {
+        conditions.set(requestId, appliedNetworkConditionsId);
+        const selected = (name: string): string | undefined => {
+          const matches = Object.entries(headers).filter(
+            ([key]) => key.toLowerCase() === name,
+          );
+          return matches.length === 1 && typeof matches[0]![1] === 'string'
+            ? matches[0]![1]
+            : undefined;
+        };
+        wireGuards.set(requestId, {
+          origin: selected('origin'),
+          csrf: selected('x-csrf-token'),
+          key: selected('idempotency-key'),
+        });
+      },
+    );
+    cdp.on(
+      'Network.loadingFailed',
+      ({ requestId, canceled: wasCanceled, errorText }) =>
+        canceled.set(requestId, {
+          ...(wasCanceled === undefined ? {} : { canceled: wasCanceled }),
+          errorText,
+        }),
+    );
+    cdp.on('Network.loadingFinished', ({ requestId }) =>
+      finished.add(requestId),
+    );
+    await page
+      .getByRole('button', { name: 'Upload and append', exact: true })
+      .click();
+    await expect.poll(() => binary.length, { timeout: 10_000 }).toBe(1);
+    await expect
+      .poll(
+        () =>
+          binaryId !== undefined &&
+          conditions.get(binaryId) === rules.ruleIds[0],
+        { timeout: 10_000 },
+      )
+      .toBe(true);
+    const status = () =>
+      responses.find(
+        (response) =>
+          response.request().method() === 'GET' &&
+          new URL(response.url()).pathname ===
+            `/api/v1/dm/documents/uploads/${new URL(binary[0]!.url()).pathname.split('/')[6]!}/status`,
+      );
+    await expect.poll(() => status()?.status()).toBe(200);
+    await expect(
+      page.getByText(/^Upload state: (INITIALIZED|RECEIVING)$/),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: 'Transferring into quarantine…' }),
+    ).toBeVisible();
+    const request = binary[0]!;
+    const uploadId = new URL(request.url()).pathname.split('/')[6]!;
+    expect(uploadId).toMatch(/^[0-9a-f-]{36}$/);
+    // ExtraInfo belongs to the same requestId and reports headers already on the wire.
+    // allHeaders() can wait for completion of this deliberately pending transfer.
+    const wire = wireGuards.get(binaryId!);
+    expect(wire?.origin).toBe(origin);
+    expect(wire?.csrf === expectedCsrf).toBe(true);
+    expect(
+      typeof wire?.key === 'string' && /^[0-9a-f-]{36}$/.test(wire.key),
+    ).toBe(true);
+    expect(canceled.has(binaryId!)).toBe(false);
+    expect(finished.has(binaryId!)).toBe(false);
+    return {
+      cdp,
+      binary,
+      completes,
+      appends,
+      initializations,
+      requests,
+      request,
+      wire: () => wireGuards.get(binaryId!),
+      responses,
+      uploadId,
+      failure: () => canceled.get(binaryId!),
+      finished: () => finished.has(binaryId!),
+      release,
+      dispose,
+    };
+  } catch (error) {
+    await dispose();
+    throw error;
+  }
 }
 
 if (uploadProfile === 'true') {
@@ -1094,7 +1118,7 @@ if (uploadProfile === 'true') {
           ),
       ).length;
     const beforeReads = protectedReads();
-    const key = upload.guards['idempotency-key'];
+    const key = upload.wire()?.key;
     try {
       for (const expected of [!startingLight, startingLight]) {
         await theme.focus();
@@ -1140,7 +1164,9 @@ if (uploadProfile === 'true') {
         expect(protectedReads()).toBe(beforeReads);
         expect(upload.binary[0] === upload.request).toBe(true);
         expect(
-          (await upload.request.allHeaders())['idempotency-key'] === key,
+          upload.wire()?.key === key &&
+            upload.wire()?.origin === origin &&
+            upload.wire()?.csrf === draft.session.csrfToken,
         ).toBe(true);
         const session = await boundarySession(page);
         expect(
@@ -1150,17 +1176,34 @@ if (uploadProfile === 'true') {
             session.csrfToken === draft.session.csrfToken,
         ).toBe(true);
       }
-      const transfer = page.waitForResponse(
-        (response) => response.request() === upload.request,
-      );
-      const append = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'POST' &&
-          new URL(response.url()).pathname === `${draft.root}/versions`,
-      );
       await upload.release();
-      expect((await transfer).status()).toBe(200);
-      expect((await append).status()).toBe(201);
+      await expect
+        .poll(
+          () =>
+            upload.responses
+              .find((response) => response.request() === upload.request)
+              ?.status(),
+          { timeout: 30_000 },
+        )
+        .toBe(200);
+      // Completed requests expose full Playwright headers without blocking the boundary.
+      const guards = await upload.request.allHeaders();
+      expect(guards.origin).toBe(origin);
+      expect(guards['x-csrf-token'] === draft.session.csrfToken).toBe(true);
+      expect(guards['idempotency-key'] === key).toBe(true);
+      await expect
+        .poll(
+          () =>
+            upload.responses
+              .find(
+                (response) =>
+                  response.request().method() === 'POST' &&
+                  new URL(response.url()).pathname === `${draft.root}/versions`,
+              )
+              ?.status(),
+          { timeout: 30_000 },
+        )
+        .toBe(201);
       await expect(
         page.getByRole('button', {
           name: 'Download verified content',
@@ -1197,7 +1240,6 @@ if (uploadProfile === 'true') {
           session.csrfToken === draft.session.csrfToken,
       ).toBe(true);
     } finally {
-      await upload.release();
       await upload.dispose();
     }
   });
@@ -1216,6 +1258,10 @@ if (uploadProfile === 'true') {
     // Keep Documents mounted: changing tenant in another real tab must trigger
     // the first tab's current-session recheck/remount, not a navigation-only abort.
     const identity = await context.newPage();
+    const identityResponses: Response[] = [];
+    const observeIdentity = (response: Response) =>
+      identityResponses.push(response);
+    identity.on('response', observeIdentity);
     await identity.goto(`${origin}/identity`);
     await expect(
       identity.getByRole('heading', { name: /^Signed in as / }),
@@ -1245,22 +1291,36 @@ if (uploadProfile === 'true') {
       await identity
         .getByRole('combobox', { name: 'Tenant' })
         .selectOption(other!);
-      const changed = identity.waitForResponse(
-        (response) =>
-          response.request().method() === 'POST' &&
-          new URL(response.url()).pathname === '/api/v1/session/tenant',
-      );
+      const beforeChange = identityResponses.length;
       await identity
         .getByRole('button', { name: 'Use tenant', exact: true })
         .click();
-      expect((await changed).status()).toBe(200);
-      const freshSession = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'GET' &&
-          new URL(response.url()).pathname === '/api/v1/session',
-      );
+      await expect
+        .poll(() =>
+          identityResponses
+            .slice(beforeChange)
+            .find(
+              (response) =>
+                response.request().method() === 'POST' &&
+                new URL(response.url()).pathname === '/api/v1/session/tenant',
+            )
+            ?.status(),
+        )
+        .toBe(200);
+      const beforeSession = upload.responses.length;
       await page.bringToFront();
-      expect((await freshSession).status()).toBe(200);
+      await expect
+        .poll(() =>
+          upload.responses
+            .slice(beforeSession)
+            .find(
+              (response) =>
+                response.request().method() === 'GET' &&
+                new URL(response.url()).pathname === '/api/v1/session',
+            )
+            ?.status(),
+        )
+        .toBe(200);
       const failure = await failed;
       if ('error' in failure) throw failure.error;
       await expect
@@ -1299,15 +1359,22 @@ if (uploadProfile === 'true') {
       await identity
         .getByRole('combobox', { name: 'Tenant' })
         .selectOption(draft.session.selectedTenant);
-      const restored = identity.waitForResponse(
-        (response) =>
-          response.request().method() === 'POST' &&
-          new URL(response.url()).pathname === '/api/v1/session/tenant',
-      );
+      const beforeRestore = identityResponses.length;
       await identity
         .getByRole('button', { name: 'Use tenant', exact: true })
         .click();
-      expect((await restored).status()).toBe(200);
+      await expect
+        .poll(() =>
+          identityResponses
+            .slice(beforeRestore)
+            .find(
+              (response) =>
+                response.request().method() === 'POST' &&
+                new URL(response.url()).pathname === '/api/v1/session/tenant',
+            )
+            ?.status(),
+        )
+        .toBe(200);
       await page.bringToFront();
       const original = await page.request.get(draft.root);
       expect(original.status()).toBe(200);
@@ -1329,9 +1396,12 @@ if (uploadProfile === 'true') {
         page.getByRole('button', { name: 'Retry upload', exact: true }),
       ).toHaveCount(0);
     } finally {
-      await upload.release();
-      await upload.dispose();
-      await identity.close();
+      try {
+        await upload.dispose();
+      } finally {
+        identity.off('response', observeIdentity);
+        await identity.close();
+      }
     }
   });
 }
