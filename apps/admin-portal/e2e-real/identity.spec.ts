@@ -218,6 +218,10 @@ for (const scheme of ['dark', 'light'] as const) {
     await expect(
       page.getByRole('heading', { name: updatedTitle, exact: true }),
     ).toBeVisible();
+    await expect(page.locator('.documents details')).toHaveJSProperty(
+      'open',
+      true,
+    );
     await page
       .getByRole('button', { name: 'Inspect access rules', exact: true })
       .click();
@@ -1293,9 +1297,10 @@ if (uploadProfile === 'true') {
       await page
         .getByRole('button', { name: 'Back to document', exact: true })
         .click();
-      await page
-        .getByText('Advanced document controls', { exact: true })
-        .click();
+      await expect(page.locator('.documents details')).toHaveJSProperty(
+        'open',
+        true,
+      );
       await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
         draft.unsavedTitle,
       );

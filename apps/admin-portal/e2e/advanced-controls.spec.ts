@@ -81,13 +81,11 @@ for (const theme of ['dark', 'light']) {
         return respond({ ...draft, revision });
       });
       await page.goto(`/documents?documentId=${id}`);
-      const advanced = page
-        .locator('details')
-        .filter({
-          has: page.locator('summary', {
-            hasText: 'Advanced document controls',
-          }),
-        });
+      const advanced = page.locator('details').filter({
+        has: page.locator('summary', {
+          hasText: 'Advanced document controls',
+        }),
+      });
       await expect(advanced).toHaveJSProperty('open', false);
       await advanced.locator('summary').click();
       await expect(advanced).toHaveJSProperty('open', true);
