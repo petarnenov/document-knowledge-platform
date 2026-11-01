@@ -2,6 +2,9 @@
 """Issue360: actual generic300/60/idle30 Linux FS/TCP; synthetic SQL/S3, no providers."""
 import argparse
 import concurrent.futures
+from contextlib import contextmanager
+from enum import Enum
+import sys
 import hashlib
 import json
 import os
@@ -42,6 +45,52 @@ INIT = '''allprojects { p ->
 '''
 RESULT = {'schemaVersion': 1, 'result': 'PASS', 'modes': ['TRANSFER', 'PREAPPEND', 'IDLE'], 'realFilesystem': True, 'realTcp': True, 'realProviders': False}
 
+
+
+class Stage(Enum):
+    LAUNCH = 'LAUNCH'
+    SOURCE_INPUTS = 'SOURCE_INPUTS'
+    SOURCE_RECORD = 'SOURCE_RECORD'
+    COMPILER_HOME = 'COMPILER_HOME'
+    COMPILER_VERSION = 'COMPILER_VERSION'
+    GRADLE_COMPILE = 'GRADLE_COMPILE'
+    CLASS_BUNDLE = 'CLASS_BUNDLE'
+    IMAGE_INPUT = 'IMAGE_INPUT'
+    DURATION_EXECUTION = 'DURATION_EXECUTION'
+
+
+class DiagnosticFailure(ValueError):
+    def __init__(self, stage, category):
+        if not isinstance(stage, Stage) or category not in {'NOT_FOUND', 'PERMISSION', 'ALREADY_EXISTS', 'TIMEOUT', 'OS', 'VALIDATION', 'UNEXPECTED'}:
+            raise ValueError('Closed diagnostic required')
+        self.stage = stage
+        self.category = category
+        super().__init__('Public proof failed')
+
+
+@contextmanager
+def checkpoint(stage):
+    if not isinstance(stage, Stage):
+        raise ValueError('Closed diagnostic stage required')
+    try:
+        yield
+    except DiagnosticFailure:
+        raise
+    except Exception as failure:
+        category = ('NOT_FOUND' if isinstance(failure, FileNotFoundError) else
+                    'PERMISSION' if isinstance(failure, PermissionError) else
+                    'ALREADY_EXISTS' if isinstance(failure, FileExistsError) else
+                    'TIMEOUT' if isinstance(failure, (TimeoutError, subprocess.TimeoutExpired)) else
+                    'OS' if isinstance(failure, OSError) else
+                    'VALIDATION' if isinstance(failure, (ValueError, KeyError)) else 'UNEXPECTED')
+        raise DiagnosticFailure(stage, category) from None
+
+
+def failure_receipt(failure):
+    # No exception text/type, paths, command output, environment, or caller data.
+    known = isinstance(failure, DiagnosticFailure)
+    return {'issue': 381, 'result': 'FAIL', 'stage': failure.stage.value if known else Stage.LAUNCH.value,
+            'category': failure.category if known else 'UNEXPECTED'}
 
 def command(args, timeout=120):
     try:
@@ -86,15 +135,20 @@ def sources():
 
 
 def compile_bundle(work):
-    before = sources()
-    private(work / 'sources.json', json.dumps(before, sort_keys=True) + '\n')
-    init = work / 'classpath.init.gradle';private(init, INIT)
-    exported = work / 'classpath.json'
-    java_home = canonical(Path(os.environ['JAVA_HOME']))
-    if command([str(java_home / 'bin/javac'), '-version']).strip() != b'javac 25.0.5':
-        raise ValueError('Pinned repository javac25.0.5 required')
+    with checkpoint(Stage.SOURCE_INPUTS):
+        before = sources()
+    with checkpoint(Stage.SOURCE_RECORD):
+        private(work / 'sources.json', json.dumps(before, sort_keys=True) + '\n')
+        init = work / 'classpath.init.gradle';private(init, INIT)
+        exported = work / 'classpath.json'
+    with checkpoint(Stage.COMPILER_HOME):
+        java_home = canonical(Path(os.environ['JAVA_HOME']))
+    with checkpoint(Stage.COMPILER_VERSION):
+        if command([str(java_home / 'bin/javac'), '-version']).strip() != b'javac 25.0.5':
+            raise ValueError('Pinned repository javac25.0.5 required')
     clean = [':' + p.replace('/', ':') + ':clean' for p in PROJECTS]
-    log = command([str(ROOT / 'gradlew'), *clean, '-I', str(init), ':services:document-management:adapters-out:verificationSystemClasspath', '-PdkpSystemClasspath=' + str(exported), '--rerun-tasks'], 300)
+    with checkpoint(Stage.GRADLE_COMPILE):
+        log = command([str(ROOT / 'gradlew'), *clean, '-I', str(init), ':services:document-management:adapters-out:verificationSystemClasspath', '-PdkpSystemClasspath=' + str(exported), '--rerun-tasks'], 300)
     private(work / 'compile.log', log.decode('utf8'))
     exported.chmod(0o600)
     data = json.loads(exported.read_text())
@@ -221,14 +275,17 @@ def run():
         raise ValueError('Owned build directory required')
     parent.mkdir(exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix='generic-system-', dir=parent)).resolve();work.chmod(0o700)
-    bundle, classpath, before, classes = compile_bundle(work)
-    image = json.loads(command(['docker', 'image', 'inspect', IMAGE]))
-    if not isinstance(image, list) or len(image) != 1 or not re.fullmatch('sha256:[a-f0-9]{64}', image[0]['Id']):
-        raise ValueError('Pinned local JDK image required')
+    with checkpoint(Stage.CLASS_BUNDLE):
+        bundle, classpath, before, classes = compile_bundle(work)
+    with checkpoint(Stage.IMAGE_INPUT):
+        image = json.loads(command(['docker', 'image', 'inspect', IMAGE]))
+        if not isinstance(image, list) or len(image) != 1 or not re.fullmatch('sha256:[a-f0-9]{64}', image[0]['Id']):
+            raise ValueError('Pinned local JDK image required')
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
         futures = [pool.submit(run_proof, work, bundle, classpath, before, classes, image[0]['Id'], image[0]['Config']['Env'], mode) for mode in MODES]
         for future in futures:
-            future.result()
+            with checkpoint(Stage.DURATION_EXECUTION):
+                future.result()
     private(work / 'result.json', json.dumps(RESULT) + '\n')
     return RESULT
 
@@ -236,6 +293,8 @@ def run():
 if __name__ == '__main__':
     argparse.ArgumentParser(description=__doc__).parse_args()
     try:
-        print(json.dumps(run()))
-    except Exception:
+        with checkpoint(Stage.LAUNCH):
+            print(json.dumps(run()))
+    except Exception as failure:
+        print(json.dumps(failure_receipt(failure), separators=(',', ':')), file=sys.stderr)
         raise SystemExit('Generic Linux duration proof failed closed; private build evidence retained') from None

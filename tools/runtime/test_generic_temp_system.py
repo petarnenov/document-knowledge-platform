@@ -111,6 +111,52 @@ class SystemWorkspaceTests(unittest.TestCase):
                     self.assertEqual(m.RESULT,m.run());self.assertEqual(set(m.MODES),{call.args[-1] for call in proof.call_args_list})
         self.assertFalse((self.root/'local-data').exists())
 
+    def test_closed_diagnostics_never_render_failure_text_or_dynamic_exception_names(self):
+        secret = 'https://private.invalid/path?token=credential SQL actor-id /secret/file\nFORGED=PASS'
+        cases = [(FileNotFoundError(secret), 'NOT_FOUND'), (PermissionError(secret), 'PERMISSION'),
+                 (FileExistsError(secret), 'ALREADY_EXISTS'), (TimeoutError(secret), 'TIMEOUT'),
+                 (subprocess.TimeoutExpired(secret, 1), 'TIMEOUT'), (OSError(secret), 'OS'),
+                 (ValueError(secret), 'VALIDATION'), (KeyError(secret), 'VALIDATION'),
+                 (RuntimeError(secret), 'UNEXPECTED')]
+        for original, category in cases:
+            for stage in m.Stage:
+                with self.subTest(category=category, stage=stage), self.assertRaises(m.DiagnosticFailure) as caught:
+                    with m.checkpoint(stage):
+                        raise original
+                receipt = m.failure_receipt(caught.exception)
+                self.assertEqual({'issue':381,'result':'FAIL','stage':stage.value,'category':category}, receipt)
+                self.assertNotIn(secret, json.dumps(receipt))
+        self.assertEqual({'issue':381,'result':'FAIL','stage':'LAUNCH','category':'UNEXPECTED'}, m.failure_receipt(RuntimeError(secret)))
+        for stage, category in [('FORGED', 'OS'), (m.Stage.LAUNCH, secret)]:
+            with self.assertRaises(ValueError):m.DiagnosticFailure(stage, category)
+        with self.assertRaises(ValueError):
+            with m.checkpoint(secret):pass
+        with self.assertRaises(m.DiagnosticFailure) as caught:
+            with m.checkpoint(m.Stage.LAUNCH):
+                with m.checkpoint(m.Stage.COMPILER_VERSION):raise ValueError(secret)
+        self.assertEqual('COMPILER_VERSION',m.failure_receipt(caught.exception)['stage'])
+
+    def test_preflight_missing_source_home_and_wrong_compiler_are_distinct_without_dispatch(self):
+        work=self.root/'work';work.mkdir()
+        with self.assertRaises(m.DiagnosticFailure) as caught:
+            m.compile_bundle(work)
+        self.assertEqual('SOURCE_INPUTS',m.failure_receipt(caught.exception)['stage'])
+        self.assertEqual('NOT_FOUND',m.failure_receipt(caught.exception)['category'])
+        self.seed_sources()
+        with patch.dict(os.environ, {'JAVA_HOME':str(self.root/'missing-private-home')}),patch.object(m,'command') as command,self.assertRaises(m.DiagnosticFailure) as caught:
+            m.compile_bundle(work)
+        command.assert_not_called()
+        self.assertEqual('COMPILER_HOME',m.failure_receipt(caught.exception)['stage'])
+        home=self.root/'jdk';home.mkdir();work2=self.root/'work2';work2.mkdir()
+        with patch.dict(os.environ, {'JAVA_HOME':str(home)}),patch.object(m,'command',return_value=b'javac 24\n') as command,self.assertRaises(m.DiagnosticFailure) as caught:
+            m.compile_bundle(work2)
+        self.assertEqual(1,command.call_count)
+        self.assertEqual('COMPILER_VERSION',m.failure_receipt(caught.exception)['stage'])
+        work3=self.root/'work3';work3.mkdir()
+        with patch.dict(os.environ, {'JAVA_HOME':str(home)}),patch.object(m,'command',side_effect=[b'javac 25.0.5\n',ValueError('private-gradle-output')]),self.assertRaises(m.DiagnosticFailure) as caught:
+            m.compile_bundle(work3)
+        self.assertEqual('GRADLE_COMPILE',m.failure_receipt(caught.exception)['stage'])
+
     def seed_sources(self):
         for name in [*m.FIXTURES,'tools/runtime/generic-temp-system.py','gradle.properties','build.gradle','settings.gradle','gradle/libs.versions.toml','gradle/wrapper/gradle-wrapper.properties','gradle/wrapper/gradle-wrapper.jar','gradlew']:
             p=self.root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(b'public')
