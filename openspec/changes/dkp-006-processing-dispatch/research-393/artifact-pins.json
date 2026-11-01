@@ -1,0 +1,539 @@
+{
+  "schemaVersion": 1,
+  "issue": 393,
+  "status": "UNAPPROVED_RESEARCH_ONLY",
+  "artifacts": [
+    {
+      "coordinate": "com.apicatalog:titanium-jcs:3.0.0-M4",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/apicatalog/titanium-jcs/3.0.0-M4/titanium-jcs-3.0.0-M4.jar",
+          "sha256": "219e9c72fdf29cdb17702d57f770baa1dc901ca0f6abb63120e06f5aad4f950c",
+          "bytes": 10259
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/apicatalog/titanium-jcs/3.0.0-M4/titanium-jcs-3.0.0-M4-sources.jar",
+          "sha256": "0ee17afece9ec923d5323ad2d4d4b6546e7dc1f7d7ae26b1d01757a9d814b14c",
+          "bytes": 8972
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/apicatalog/titanium-jcs/3.0.0-M4/titanium-jcs-3.0.0-M4.pom",
+          "sha256": "dbbec2ba81451364e4feb13387b04c1a14294f9830ec380243520196c53ddf9b",
+          "bytes": 7295
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Apache License, Version 2.0",
+          "url": "http://apache.org/licenses/LICENSE-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.apicatalog:tree-io-api:1.0.0-M2",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/apicatalog/tree-io-api/1.0.0-M2/tree-io-api-1.0.0-M2.jar",
+          "sha256": "3ffb66ab7306e55d381d543761e7bade59d97c9d0206f1defe676d616fb9ffbc",
+          "bytes": 28515
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/apicatalog/tree-io-api/1.0.0-M2/tree-io-api-1.0.0-M2-sources.jar",
+          "sha256": "031d6f7303150d0c826c056ed7dd0d2ae799bb192f5b46efd34a6791d1aeae01",
+          "bytes": 16445
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/apicatalog/tree-io-api/1.0.0-M2/tree-io-api-1.0.0-M2.pom",
+          "sha256": "08e2bd1ca90d28c419706786218b06d8ac9ddd564a4e06f7edcc06a5954e17a6",
+          "bytes": 6345
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Apache License, Version 2.0",
+          "url": "http://apache.org/licenses/LICENSE-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "tools.jackson.core:jackson-core:3.2.4",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/tools/jackson/core/jackson-core/3.2.4/jackson-core-3.2.4.jar",
+          "sha256": "494b9f5fccf008042d5a72c5bf00629b144c0ba7362a9864cbb02234c9772651",
+          "bytes": 613344
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/tools/jackson/core/jackson-core/3.2.4/jackson-core-3.2.4-sources.jar",
+          "sha256": "bc4a044f6517b1b2a1b374fdd24ee4c02094c95e9aaa579bca8549e0ca9531ac",
+          "bytes": 510119
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/tools/jackson/core/jackson-core/3.2.4/jackson-core-3.2.4.pom",
+          "sha256": "728897bac06417793b6b0d957ab7e4899fc880594df422296b17d196a8bdd170",
+          "bytes": 12080
+        }
+      ],
+      "licenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "tools.jackson.core:jackson-databind:3.2.4",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/tools/jackson/core/jackson-databind/3.2.4/jackson-databind-3.2.4.jar",
+          "sha256": "c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+          "bytes": 1990007
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/tools/jackson/core/jackson-databind/3.2.4/jackson-databind-3.2.4-sources.jar",
+          "sha256": "6c4666fd8aebaf625f089eb76f486acc99d79d9cc721edad61973f88efbdfc58",
+          "bytes": 1405982
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/tools/jackson/core/jackson-databind/3.2.4/jackson-databind-3.2.4.pom",
+          "sha256": "ce888a26268256c5425d56f959a10fc9234a458bcd8b7299c07ea573a405d380",
+          "bytes": 17910
+        }
+      ],
+      "licenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.fasterxml.jackson.core:jackson-annotations:2.22",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.22/jackson-annotations-2.22.jar",
+          "sha256": "21ddb598807d3a51a876704eb979d9296e1c6a6f47ab1826ff88c6d6a127a2d0",
+          "bytes": 84211
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.22/jackson-annotations-2.22-sources.jar",
+          "sha256": "f5375c756ee3c585808f9937eb087d074743fd3f05f6aeff9b183cf19230c9f7",
+          "bytes": 91807
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.22/jackson-annotations-2.22.pom",
+          "sha256": "38c3ba52a0eade3e3eacc5b13499d56e1038ccbad8ec4bb79426dc21432b46d0",
+          "bytes": 7184
+        }
+      ],
+      "licenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.github.erdtman:java-json-canonicalization:1.1",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/github/erdtman/java-json-canonicalization/1.1/java-json-canonicalization-1.1.jar",
+          "sha256": "ed12a01f28d147898312963a1f704e90290b67a61f34fa3a761f41c134f4e691",
+          "bytes": 28379
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/github/erdtman/java-json-canonicalization/1.1/java-json-canonicalization-1.1-sources.jar",
+          "sha256": "98de9b4ee9e220da0a8b4338f0612924c36612d060ca71064a9f56422e7e2068",
+          "bytes": 31239
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/github/erdtman/java-json-canonicalization/1.1/java-json-canonicalization-1.1.pom",
+          "sha256": "37114938a89def00596ff5541b794abc6be626b4c73e988d5a5bd457a3f38477",
+          "bytes": 6378
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.polyglot:js:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/polyglot/js/25.4.4.1.1/js-25.4.4.1.1.pom",
+          "sha256": "5818bf24bd40691ac33da78ff46f268ce1fe3eab17f1cf7a77ba29ede49d75d3",
+          "bytes": 1660
+        }
+      ],
+      "licenses": [
+        {
+          "name": "MIT License",
+          "url": "http://opensource.org/licenses/MIT"
+        },
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.js:js:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/js/js/25.4.4.1.1/js-25.4.4.1.1.pom",
+          "sha256": "916c195c00e0896ead84635fce49f4059178e66219425f960feda86a0255edc8",
+          "bytes": 1841
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        },
+        {
+          "name": "MIT License",
+          "url": "http://opensource.org/licenses/MIT"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.js:js-language:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/js/js-language/25.4.4.1.1/js-language-25.4.4.1.1.pom",
+          "sha256": "1fbe9994304c5eef24cd02d1bb2eeb048cb98f1831d82851a0805428a0ac9e60",
+          "bytes": 2270
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/js/js-language/25.4.4.1.1/js-language-25.4.4.1.1.jar",
+          "sha256": "50a91172497d9b94b83210af2e95472ba3bd39e6b5606c9e7b07f3de0022fa93",
+          "bytes": 27924410
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/js/js-language/25.4.4.1.1/js-language-25.4.4.1.1-sources.jar",
+          "sha256": "c28a869ccce9324de2e5583d3b35de9c388d7ce64f7b72ad980ab422a689a64b",
+          "bytes": 5069867
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        },
+        {
+          "name": "MIT License",
+          "url": "http://opensource.org/licenses/MIT"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.truffle:truffle-runtime:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/truffle/truffle-runtime/25.4.4.1.1/truffle-runtime-25.4.4.1.1.pom",
+          "sha256": "9e6a80585ec33505c42fb04a80c658fe7defe088ccb3c0b5b3d4695ad2ec9701",
+          "bytes": 1814
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/truffle/truffle-runtime/25.4.4.1.1/truffle-runtime-25.4.4.1.1.jar",
+          "sha256": "25818863ef8e50fc6329a876a033055c7418f20bedb051cfbb31c3d895fad7c9",
+          "bytes": 936029
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/truffle/truffle-runtime/25.4.4.1.1/truffle-runtime-25.4.4.1.1-sources.jar",
+          "sha256": "89aba51d3007e7835b0d6984301760852bb2827df27fc2ecaac80c4b8fb3fcfe",
+          "bytes": 307014
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.regex:regex:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/regex/regex/25.4.4.1.1/regex-25.4.4.1.1.pom",
+          "sha256": "a23bc9077397d0044944402fd266bff7890bf15728004c8577140ed88f9f956d",
+          "bytes": 1533
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/regex/regex/25.4.4.1.1/regex-25.4.4.1.1.jar",
+          "sha256": "5b43366990bdd438c7dbd2ba0b3dba211acfaf67054275d0717bd0b8ea1d8dc9",
+          "bytes": 3907369
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/regex/regex/25.4.4.1.1/regex-25.4.4.1.1-sources.jar",
+          "sha256": "c7f4c3aff4132fdd5a1fca5128da509422a1e017ddd77ca760e125b0188c7526",
+          "bytes": 1057772
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.truffle:truffle-api:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/truffle/truffle-api/25.4.4.1.1/truffle-api-25.4.4.1.1.pom",
+          "sha256": "b60d42a88d0d2e7e5b7b2ba52d0b2b43848f217bb60734973899a8a48a695d03",
+          "bytes": 2009
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/truffle/truffle-api/25.4.4.1.1/truffle-api-25.4.4.1.1.jar",
+          "sha256": "9dcc81b6890d6fcc9ab57d17bc4430335f071d82b108c0af8556a28381978da6",
+          "bytes": 16986831
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/truffle/truffle-api/25.4.4.1.1/truffle-api-25.4.4.1.1-sources.jar",
+          "sha256": "0b650f3efb747f43190d615cce1529cbd8bfde8e9956deb0bcfc9bebd6e7d996",
+          "bytes": 3379651
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.polyglot:polyglot:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/polyglot/polyglot/25.4.4.1.1/polyglot-25.4.4.1.1.pom",
+          "sha256": "041f0d9ee79ff0c2ea2bf9ca72cb60d5f557b4daa75cd5ca4709a0e0414144a0",
+          "bytes": 1584
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/polyglot/polyglot/25.4.4.1.1/polyglot-25.4.4.1.1.jar",
+          "sha256": "cbacc2628fd5f99dbcebff7d398bcddde43ea15ebadc873d1da4454c718727d8",
+          "bytes": 540894
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/polyglot/polyglot/25.4.4.1.1/polyglot-25.4.4.1.1-sources.jar",
+          "sha256": "664a52e161fb6ee3ce24265b4adc3549627a2b77047f88ccea423c32010554a5",
+          "bytes": 240456
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.shadowed:icu4j:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/shadowed/icu4j/25.4.4.1.1/icu4j-25.4.4.1.1.pom",
+          "sha256": "04bb9d203d52160a467e71928601792745a5786e61993aa551c82f4dbf327ffa",
+          "bytes": 1560
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/shadowed/icu4j/25.4.4.1.1/icu4j-25.4.4.1.1.jar",
+          "sha256": "02f9e8a76ed2f8fa80d53054ca4632c7058354010df27c8f4e7e7443543f7e1e",
+          "bytes": 18564126
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/shadowed/icu4j/25.4.4.1.1/icu4j-25.4.4.1.1-sources.jar",
+          "sha256": "d9e5d5bb018f074a531bb123fe59932df0be0dd3fd377deb27e502bb080d65af",
+          "bytes": 2856615
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Unicode/ICU License",
+          "url": "https://raw.githubusercontent.com/unicode-org/icu/main/LICENSE"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.truffle:truffle-compiler:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/truffle/truffle-compiler/25.4.4.1.1/truffle-compiler-25.4.4.1.1.pom",
+          "sha256": "a45ce47bf0ce0c9fbb045620ed294359c0b22f273aedcdc90318a5677627e7f6",
+          "bytes": 1227
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/truffle/truffle-compiler/25.4.4.1.1/truffle-compiler-25.4.4.1.1.jar",
+          "sha256": "06e9dcc0ed60616a4e1785f18ad6836c82295af7ee22f0802c69d46d325aacb2",
+          "bytes": 54767
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/truffle/truffle-compiler/25.4.4.1.1/truffle-compiler-25.4.4.1.1-sources.jar",
+          "sha256": "3b50dbc46a8dde812eed00510369c94d0c497a027fbd004cad0947a72511477f",
+          "bytes": 36069
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.sdk:collections:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/collections/25.4.4.1.1/collections-25.4.4.1.1.pom",
+          "sha256": "128df19fdf2f997acc57ce4f8636b151abf269c7176cc428f52539c2ec05904d",
+          "bytes": 1212
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/collections/25.4.4.1.1/collections-25.4.4.1.1.jar",
+          "sha256": "1b72cb9c9db533991bc308f2026a6fe986a4ca44b70b68fa6a2bb6c2fb9887ea",
+          "bytes": 129481
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/collections/25.4.4.1.1/collections-25.4.4.1.1-sources.jar",
+          "sha256": "0560dc9f3d05cd6581cdbef13f1106cc43d93f0c8b8c1a47b3f4b6b2cc2babef",
+          "bytes": 51027
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.sdk:jniutils:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/jniutils/25.4.4.1.1/jniutils-25.4.4.1.1.pom",
+          "sha256": "847684481b3492a78b6230b8bcef86944b58cba4d899ea9811996e0c7cf87e5c",
+          "bytes": 1553
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/jniutils/25.4.4.1.1/jniutils-25.4.4.1.1.jar",
+          "sha256": "a9d7e6830e5068dcd6b780ccf2903c075da04b1b2f1fa6c8197b4e9b06d4c075",
+          "bytes": 281941
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/jniutils/25.4.4.1.1/jniutils-25.4.4.1.1-sources.jar",
+          "sha256": "5d277851293bc96a83d0d44c9c3f334761c21d56a8260e21cdd9d42261968aba",
+          "bytes": 36924
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.sdk:nativeimage:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/nativeimage/25.4.4.1.1/nativeimage-25.4.4.1.1.pom",
+          "sha256": "39f0c151d154845977ac578b0402745b1dd0787bf368c0d4cdc49adc63f1d5de",
+          "bytes": 1409
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/nativeimage/25.4.4.1.1/nativeimage-25.4.4.1.1.jar",
+          "sha256": "d633cb9895f01db443dbd2b6e54211cd505e679279f6745a84b1fee843156677",
+          "bytes": 249944
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/nativeimage/25.4.4.1.1/nativeimage-25.4.4.1.1-sources.jar",
+          "sha256": "8536ae9ea0db2efa22df1e249d6113b6da8118093474280d49a5f6701789d48c",
+          "bytes": 255705
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.shadowed:xz:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/shadowed/xz/25.4.4.1.1/xz-25.4.4.1.1.pom",
+          "sha256": "76cbee675f45cc8d27a99782c6ee92ec26f5a85e03e377b393b690cf12ca6060",
+          "bytes": 1209
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/shadowed/xz/25.4.4.1.1/xz-25.4.4.1.1.jar",
+          "sha256": "556c0caae5b31ff84120655baeeb1d06677bc762a5632b36e7bb7b38a1773f7f",
+          "bytes": 328726
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/shadowed/xz/25.4.4.1.1/xz-25.4.4.1.1-sources.jar",
+          "sha256": "4ae3e54257a46aa1518f09a4a910dc0500cb02238f851f320c7557d88b4487e4",
+          "bytes": 158791
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.graalvm.sdk:word:25.4.4.1.1",
+      "scope": "EXPERIMENTAL_POLYGLOT_ONLY",
+      "artifacts": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/word/25.4.4.1.1/word-25.4.4.1.1.pom",
+          "sha256": "d99510ee76b7d69d987b11995d0f1ac3a004351b4decfc3d04bc6af1e1111b05",
+          "bytes": 1211
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/word/25.4.4.1.1/word-25.4.4.1.1.jar",
+          "sha256": "f20b7adf174a8c61018ce4e717d9dda65fec27d00540e547e63f1bafa400ac9a",
+          "bytes": 73166
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/graalvm/sdk/word/25.4.4.1.1/word-25.4.4.1.1-sources.jar",
+          "sha256": "8046206a6ebe831889222bbe385340b692a147d805793277de65d25fde6ec08d",
+          "bytes": 31150
+        }
+      ],
+      "licenses": [
+        {
+          "name": "Universal Permissive License, Version 1.0",
+          "url": "http://opensource.org/licenses/UPL"
+        }
+      ]
+    }
+  ],
+  "selectionNotes": {
+    "jackson": "3.2.4 current Maven release (research only; application platformcurrently3.2.3, independentcompatibilityneeded)",
+    "titanium": "3.0.0-M4 supported3.x but milestone; stable2.0 explicitlyunsupported",
+    "erdtman": "1.1 priorcandidate; maintenanceunresolved; conformancecompositionNOTproductionselection"
+  },
+  "polyglotScope": "UNAPPROVED_EXPLORE_ONLY: no runtime/build integration or sandbox/resource/capacity approval; all polyglotconformance inputs untrusteddata, fixedlibrarycode only."
+}

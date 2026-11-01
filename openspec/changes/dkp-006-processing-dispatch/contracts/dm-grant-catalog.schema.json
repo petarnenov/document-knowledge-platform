@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://document-knowledge-platform.example/schemas/development-dm-sharing-grant-catalog-v1",
+  "title": "Proposed additive DM sharing catalog; approved actions preserved",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "entries"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "issuer",
+          "subject",
+          "tenant",
+          "actions"
+        ],
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "format": "uri",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "tenant": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "actions": {
+            "type": "array",
+            "uniqueItems": true,
+            "maxItems": 32,
+            "items": {
+              "enum": [
+                "document.create",
+                "document.inspect-draft",
+                "document.read",
+                "document.update-metadata",
+                "document.acl.restrict",
+                "document.acl.delegate",
+                "document.version.append",
+                "document.legal-hold.place",
+                "document.legal-hold.inspect",
+                "document.content.review",
+                "document.share-to-collection",
+                "document.processing.request",
+                "document.processing.inspect",
+                "document.processing.cancel"
+              ]
+            }
+          },
+          "delegationCeiling": {
+            "type": "array",
+            "uniqueItems": true,
+            "maxItems": 32,
+            "items": {
+              "enum": [
+                "document.create",
+                "document.inspect-draft",
+                "document.read",
+                "document.update-metadata",
+                "document.acl.restrict",
+                "document.acl.delegate",
+                "document.version.append",
+                "document.legal-hold.place",
+                "document.legal-hold.inspect",
+                "document.content.review",
+                "document.share-to-collection",
+                "document.processing.request",
+                "document.processing.inspect",
+                "document.processing.cancel"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

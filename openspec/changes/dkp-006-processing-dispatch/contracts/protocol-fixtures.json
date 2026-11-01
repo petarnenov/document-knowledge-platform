@@ -1,0 +1,324 @@
+[
+  {
+    "kind": "handoff",
+    "name": "worker before dispatcher acknowledgement",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "prepared": true,
+      "executionMatches": true,
+      "cancelled": false,
+      "dispatcherAcknowledged": false
+    },
+    "expected": "200_CURRENT_ATTEMPT"
+  },
+  {
+    "kind": "handoff",
+    "name": "restart after remote Start ACK loss",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "prepared": true,
+      "executionMatches": true,
+      "cancelled": false,
+      "dispatcherAcknowledged": false,
+      "dispatcherRestarted": true
+    },
+    "expected": "200_CURRENT_ATTEMPT"
+  },
+  {
+    "kind": "handoff",
+    "name": "unknown Temporal execution",
+    "input": {
+      "authorized": true,
+      "known": false,
+      "prepared": true,
+      "executionMatches": true,
+      "cancelled": false,
+      "dispatcherAcknowledged": false
+    },
+    "expected": "503"
+  },
+  {
+    "kind": "handoff",
+    "name": "different execution",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "prepared": true,
+      "executionMatches": false,
+      "cancelled": false,
+      "dispatcherAcknowledged": false
+    },
+    "expected": "409"
+  },
+  {
+    "kind": "handoff",
+    "name": "cancel races early worker",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "prepared": true,
+      "executionMatches": true,
+      "cancelled": true,
+      "dispatcherAcknowledged": false
+    },
+    "expected": "409"
+  },
+  {
+    "kind": "handoff",
+    "name": "current actor revoked",
+    "input": {
+      "authorized": false,
+      "known": true,
+      "prepared": true,
+      "executionMatches": true,
+      "cancelled": false,
+      "dispatcherAcknowledged": false
+    },
+    "expected": "404"
+  },
+  {
+    "kind": "checkpoint",
+    "name": "lost ACK replay despite advanced revision",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "cancelled": false,
+      "compatible": true,
+      "currentEpoch": true,
+      "exists": true,
+      "exactResolution": true,
+      "currentRevision": false
+    },
+    "expected": "200_ORIGINAL_NO_EFFECT"
+  },
+  {
+    "kind": "checkpoint",
+    "name": "fresh resolution keeps original observedAt",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "cancelled": false,
+      "compatible": true,
+      "currentEpoch": true,
+      "exists": true,
+      "exactResolution": true,
+      "currentRevision": false,
+      "resolutionReplayed": true
+    },
+    "expected": "200_ORIGINAL_NO_EFFECT"
+  },
+  {
+    "kind": "checkpoint",
+    "name": "compatible new epoch reuses checkpoint",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "cancelled": false,
+      "compatible": true,
+      "currentEpoch": true,
+      "exists": true,
+      "exactResolution": true,
+      "currentRevision": false,
+      "epochAdvanced": true
+    },
+    "expected": "200_ORIGINAL_NO_EFFECT"
+  },
+  {
+    "kind": "checkpoint",
+    "name": "old epoch cannot promote",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "cancelled": false,
+      "compatible": true,
+      "currentEpoch": false,
+      "exists": true,
+      "exactResolution": true,
+      "currentRevision": false
+    },
+    "expected": "409"
+  },
+  {
+    "kind": "checkpoint",
+    "name": "different evidence on same semantic key",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "cancelled": false,
+      "compatible": true,
+      "currentEpoch": true,
+      "exists": true,
+      "exactResolution": false,
+      "currentRevision": false
+    },
+    "expected": "409"
+  },
+  {
+    "kind": "checkpoint",
+    "name": "revocation on replay",
+    "input": {
+      "authorized": false,
+      "known": true,
+      "cancelled": false,
+      "compatible": true,
+      "currentEpoch": true,
+      "exists": true,
+      "exactResolution": true,
+      "currentRevision": false
+    },
+    "expected": "404"
+  },
+  {
+    "kind": "checkpoint",
+    "name": "unknown current trust",
+    "input": {
+      "authorized": true,
+      "known": false,
+      "cancelled": false,
+      "compatible": true,
+      "currentEpoch": true,
+      "exists": true,
+      "exactResolution": true,
+      "currentRevision": false
+    },
+    "expected": "503"
+  },
+  {
+    "kind": "checkpoint",
+    "name": "stale absent write",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "cancelled": false,
+      "compatible": true,
+      "currentEpoch": true,
+      "exists": false,
+      "exactResolution": true,
+      "currentRevision": false
+    },
+    "expected": "409"
+  },
+  {
+    "kind": "checkpoint",
+    "name": "first current fenced write",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "cancelled": false,
+      "compatible": true,
+      "currentEpoch": true,
+      "exists": false,
+      "exactResolution": true,
+      "currentRevision": true
+    },
+    "expected": "200_INSERT_ONCE"
+  },
+  {
+    "kind": "checkpoint",
+    "name": "cancel before late callback",
+    "input": {
+      "authorized": true,
+      "known": true,
+      "cancelled": true,
+      "compatible": true,
+      "currentEpoch": true,
+      "exists": true,
+      "exactResolution": true,
+      "currentRevision": false
+    },
+    "expected": "409"
+  },
+  {
+    "kind": "event",
+    "name": "same document revision new run state",
+    "input": {
+      "seenId": false,
+      "sameHash": true,
+      "lastSequence": 1,
+      "sequence": 2,
+      "runRevision": 7,
+      "documentRevision": 3
+    },
+    "expected": "APPLY_OWN_RUN"
+  },
+  {
+    "kind": "event",
+    "name": "different run independent sequence",
+    "input": {
+      "seenId": false,
+      "sameHash": true,
+      "lastSequence": 0,
+      "sequence": 1,
+      "runRevision": 7,
+      "documentRevision": 3,
+      "run": "other"
+    },
+    "expected": "APPLY_OWN_RUN"
+  },
+  {
+    "kind": "event",
+    "name": "out of order own run",
+    "input": {
+      "seenId": false,
+      "sameHash": true,
+      "lastSequence": 1,
+      "sequence": 3,
+      "runRevision": 7,
+      "documentRevision": 3
+    },
+    "expected": "BUFFER_RECONCILE_OWN_RUN"
+  },
+  {
+    "kind": "event",
+    "name": "duplicate own event",
+    "input": {
+      "seenId": true,
+      "sameHash": true,
+      "lastSequence": 1,
+      "sequence": 2,
+      "runRevision": 7,
+      "documentRevision": 3
+    },
+    "expected": "DUPLICATE_NO_EFFECT"
+  },
+  {
+    "kind": "event",
+    "name": "same ID changed payload",
+    "input": {
+      "seenId": true,
+      "sameHash": false,
+      "lastSequence": 1,
+      "sequence": 2,
+      "runRevision": 7,
+      "documentRevision": 3
+    },
+    "expected": "CONFLICT"
+  },
+  {
+    "kind": "event",
+    "name": "unrelated document revisions cause no gap",
+    "input": {
+      "seenId": false,
+      "sameHash": true,
+      "lastSequence": 1,
+      "sequence": 2,
+      "runRevision": 7,
+      "documentRevision": 100
+    },
+    "expected": "APPLY_OWN_RUN"
+  },
+  {
+    "kind": "event",
+    "name": "different event ID occupying same sequence conflicts",
+    "input": {
+      "seenId": false,
+      "sameHash": true,
+      "sequenceOccupied": true,
+      "lastSequence": 1,
+      "sequence": 2
+    },
+    "expected": "CONFLICT"
+  }
+]
