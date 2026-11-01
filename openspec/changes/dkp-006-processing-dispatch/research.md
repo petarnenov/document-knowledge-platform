@@ -16,3 +16,7 @@ These exact releases are candidates for independentreview, not installed depende
 Browsertool verified officialreleasepages andsemantics. DirectPython metadata HTTPS couldnotconnect inthisenvironment (URLError); no fictitiousMavenchecksum/digest claim orregistryprobe result is recorded. Releasepage evidence selects exact candidateversion only; Mavenresolution andregistrydigestverification are future explicitgates. Workflows30min/global50 andstageisolation derivepublicSystemDesign8.2, notvendorsecurityapproval. Kafkaoutboxatleastonceandconsumerdedup followourPGboundary, notavendorexactly-once guarantee.
 
 Fingerprint proposal259 uses [RFC8785 JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785), verified against the official RFC Editor text. Exact Java canonicalizer pin and shared conformance fixtures remain implementation gates; ordinary map iteration/JSON formatting is not a digest definition.
+
+## Follow-up prerequisite evidence — issue 379 (2026-11-01)
+
+[Candidate provenance and shared conformance packet](research-379/README.md) adds verified Maven/registry metadata and isolated JDK25 research probes. Unlike the earlier Python HTTPS attempt, verified-TLS curl succeeded. Candidate dependencies remain unselected: the raw graph has advisory matches and Java canonicalizer1.1 fails seven raw-input rejection cases. No approved requirement, implementation prerequisite or production approval is changed.
