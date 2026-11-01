@@ -1,0 +1,11 @@
+# Development implementation approval — #341
+
+Recorded 2026-11-01 05:30 UTC under the owner's standing automatic specification approval instruction.
+
+Approved candidate: commit `dd7f47f56ee0a22536bc70b988a71cfc24f5fc95`, original11-file sha256sum-manifest SHA256 `be7b3ead37627a648da8798f142f8ffc34ebede4b8e89e3c4436faf5c11e5b9f`. Independent specification/security review [#346](https://github.com/petarnenov/document-knowledge-platform/issues/346) passed against these exact files and pinned primary framework sources. Independent strict OpenSpec13/13, profile tests3/3 (84.21% lines,85.71% branches,100% functions), strict schema1positive/7negative and exact hash checks passed. Exact-source [Foundation41275595316](https://github.com/petarnenov/document-knowledge-platform/actions/runs/41275595316) completed successfully with all10 jobs, including native-provider acceptance; [hygiene41275595240](https://github.com/petarnenov/document-knowledge-platform/actions/runs/41275595240) also passed.
+
+The bounded per-retained-request profile is approved for development implementation under [#338](https://github.com/petarnenov/document-knowledge-platform/issues/338). Earlier PROPOSED/NOT APPROVED labels in the frozen candidate describe its pre-review state; this dated approval changes that status only. It does not change numeric values, supported protocol assumptions, wire schemas, existing authority/deadline semantics or conditional acceptance requirements. Only the review/check checklist and this approval record are updated.
+
+Approval does not assert that production code or runtime enforcement exists. Actual final-channel/cached allocator, legal pipeline/coalescing/high-water/backpressure, unsupported protocol, cancellation/late-byte, metadata/security, pinned non-root Linux, native305/elapsed60/currentCI and aggregate222 gates remain mandatory.147456bytes is a conditional per-retained-request body allowance, not a per-connection/global/JVM cap. Original deployed transfer503 attribution remains qualified as in the reviewed diagnosis.
+
+No architecture, security-control, CID, production-readiness or release sign-off is granted. PR345 publication/review and dev integration remain open; latest owner AGENTS prohibits automatic merging. Full BP03 and project acceptance remain open.
