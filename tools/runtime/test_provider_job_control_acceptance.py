@@ -121,6 +121,12 @@ class ControlTests(unittest.TestCase):
             self.assertEqual('VALIDATION',json.loads(self.diagnostics.getvalue())['category'])
 
     def test_public_schema_and_classifier_are_closed_even_for_malicious_errors(self):
+        self.check_public_schema_and_classifier()
+
+    def test_classifier_keeps_finalizer_warning_separate_from_exact_hostile_error_records(self):
+        self.check_public_schema_and_classifier(emit_warning=True)
+
+    def check_public_schema_and_classifier(self,emit_warning=False):
         errors=[(m.r.CommandFailure('command-unavailable'),m.Category.COMMAND_UNAVAILABLE),
                 (m.r.CommandFailure('raw-token=https://private/path'),m.Category.COMMAND_FAILED),
                 (ValueError('private SQL password'),m.Category.VALIDATION),
@@ -129,13 +135,20 @@ class ControlTests(unittest.TestCase):
         for error,expected in errors:
             self.assertEqual(expected,m.category(error))
             capture=io.StringIO()
-            with patch.object(m.sys,'stderr',capture),patch.object(m,'execute_fixture',side_effect=error):
+            def fail(*args):
+                if emit_warning:warnings.warn('synthetic delayed finalizer',ResourceWarning)
+                raise error
+            with warnings.catch_warnings(record=True) as observed,patch.object(m.sys,'stderr',capture),patch.object(m,'execute_fixture',side_effect=fail):
+                warnings.simplefilter('always',ResourceWarning)
                 with self.assertRaises(m.ControlFailure):m.run()
             record=json.loads(capture.getvalue())
             self.assertEqual({'schemaVersion','issue','result','stage','boundary','category','controlFixtureCleanup'},set(record))
             self.assertLessEqual(len(capture.getvalue()),220)
             self.assertNotIn(str(error),capture.getvalue())
             self.assertEqual(expected.value,record['category'])
+            if emit_warning:
+                synthetic=[warning for warning in observed if warning.category is ResourceWarning and str(warning.message)=='synthetic delayed finalizer']
+                self.assertEqual(1,len(synthetic))
         for values in [('arbitrary',m.Boundary.COMMAND,m.Category.UNKNOWN),(m.Stage.READ,'arbitrary',m.Category.UNKNOWN),(m.Stage.READ,m.Boundary.COMMAND,'arbitrary')]:
             with self.assertRaises(ValueError):m.ControlFailure(*values)
         with self.assertRaises(ValueError):m.step('user-input',m.Boundary.COMMAND,lambda:None)
