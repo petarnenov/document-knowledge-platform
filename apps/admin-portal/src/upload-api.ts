@@ -1,3 +1,4 @@
+import { withAuthority, type RequestSignal } from './request-authority';
 import { z } from 'zod';
 import type { SessionView } from './identity-api';
 import { DocumentRequestError } from './document-api';
@@ -99,59 +100,67 @@ async function bytes(
   }
   return result;
 }
-async function send(path: string, signal: AbortSignal, init: RequestInit = {}) {
-  let response: Response;
-  try {
-    response = await fetch(`${root}${path}`, {
-      ...init,
-      signal: AbortSignal.any([signal, AbortSignal.timeout(300_000)]),
-      credentials: 'same-origin',
-      cache: 'no-store',
-      redirect: 'error',
-    });
-  } catch {
-    throw new DocumentRequestError(503, 'UNAVAILABLE');
-  }
-  if (!response.ok) {
-    let code = 'UNAVAILABLE';
+async function send(
+  path: string,
+  signal: RequestSignal,
+  init: RequestInit = {},
+) {
+  return withAuthority(signal, async (signal) => {
+    let response: Response;
     try {
-      code = z
-        .object({ code: errorCode })
-        .strict()
-        .parse(
-          JSON.parse(new TextDecoder().decode(await bytes(response, 16384))),
-        ).code;
+      response = await fetch(`${root}${path}`, {
+        ...init,
+        signal: AbortSignal.any([signal, AbortSignal.timeout(300_000)]),
+        credentials: 'same-origin',
+        cache: 'no-store',
+        redirect: 'error',
+      });
     } catch {
-      /* Never display diagnostic bodies. */
+      throw new DocumentRequestError(503, 'UNAVAILABLE');
     }
-    throw new DocumentRequestError(response.status, code);
-  }
-  return response;
+    if (!response.ok) {
+      let code = 'UNAVAILABLE';
+      try {
+        code = z
+          .object({ code: errorCode })
+          .strict()
+          .parse(
+            JSON.parse(new TextDecoder().decode(await bytes(response, 16384))),
+          ).code;
+      } catch {
+        /* Never display diagnostic bodies. */
+      }
+      throw new DocumentRequestError(response.status, code);
+    }
+    return response;
+  });
 }
 async function json<T>(
   path: string,
   schema: z.ZodType<T>,
-  signal: AbortSignal,
+  signal: RequestSignal,
   status: number,
   init: RequestInit = {},
 ) {
-  const response = await send(path, signal, init);
-  if (
-    response.status !== status ||
-    response.headers
-      .get('content-type')
-      ?.split(';')[0]
-      ?.trim()
-      .toLowerCase() !== 'application/json'
-  )
-    throw new DocumentRequestError(503, 'INVALID_RESPONSE');
-  try {
-    return schema.parse(
-      JSON.parse(new TextDecoder().decode(await bytes(response, 16384))),
-    );
-  } catch {
-    throw new DocumentRequestError(503, 'INVALID_RESPONSE');
-  }
+  return withAuthority(signal, async (signal) => {
+    const response = await send(path, signal, init);
+    if (
+      response.status !== status ||
+      response.headers
+        .get('content-type')
+        ?.split(';')[0]
+        ?.trim()
+        .toLowerCase() !== 'application/json'
+    )
+      throw new DocumentRequestError(503, 'INVALID_RESPONSE');
+    try {
+      return schema.parse(
+        JSON.parse(new TextDecoder().decode(await bytes(response, 16384))),
+      );
+    } catch {
+      throw new DocumentRequestError(503, 'INVALID_RESPONSE');
+    }
+  });
 }
 function headers(session: SessionView, key: string, type = 'application/json') {
   return {
@@ -173,7 +182,7 @@ export function initializeUpload(
   file: File,
   session: SessionView,
   key: string,
-  signal: AbortSignal,
+  signal: RequestSignal,
 ) {
   if (
     !formats.includes(format) ||
@@ -199,7 +208,7 @@ export async function transferUpload(
   file: File,
   session: SessionView,
   key: string,
-  signal: AbortSignal,
+  signal: RequestSignal,
 ) {
   const result = await json(
     `/uploads/${id(uploadId)}/content`,
@@ -220,7 +229,7 @@ export async function completeUpload(
   uploadId: string,
   session: SessionView,
   key: string,
-  signal: AbortSignal,
+  signal: RequestSignal,
 ) {
   const result = await json(
     `/uploads/${id(uploadId)}/complete`,
@@ -239,7 +248,7 @@ export async function appendUpload(
   receiptId: string,
   session: SessionView,
   key: string,
-  signal: AbortSignal,
+  signal: RequestSignal,
 ) {
   const result = await json(
     `/${id(documentId)}/versions`,
@@ -262,7 +271,7 @@ export async function appendUpload(
 export async function discoverVersion(
   documentId: string,
   receiptId: string,
-  signal: AbortSignal,
+  signal: RequestSignal,
 ) {
   const result = await json(
     `/${id(documentId)}/upload-receipts/${id(receiptId)}/version`,
@@ -274,7 +283,7 @@ export async function discoverVersion(
     throw new DocumentRequestError(503, 'INVALID_RESPONSE');
   return result;
 }
-export async function inspectUpload(uploadId: string, signal: AbortSignal) {
+export async function inspectUpload(uploadId: string, signal: RequestSignal) {
   const result = await json(
     `/uploads/${id(uploadId)}/status`,
     uploadStatus,
@@ -289,28 +298,30 @@ export async function downloadVersion(
   documentId: string,
   versionId: string,
   format: Format,
-  signal: AbortSignal,
+  signal: RequestSignal,
 ) {
-  const response = await send(
-    `/${id(documentId)}/versions/${id(versionId)}/content`,
-    signal,
-    { headers: { Accept: mimes[format] } },
-  );
-  const length = response.headers.get('content-length');
-  if (
-    response.status !== 200 ||
-    response.headers.get('content-type') !== mimes[format] ||
-    response.headers.get('content-disposition') !==
-      `attachment; filename="${versionId}.${format.toLowerCase()}"` ||
-    !length ||
-    !/^[1-9][0-9]{0,8}$/.test(length) ||
-    Number(length) > 100_000_000 ||
-    response.headers.get('cache-control') !== 'no-store' ||
-    response.headers.get('x-content-type-options') !== 'nosniff'
-  )
-    throw new DocumentRequestError(503, 'INVALID_RESPONSE');
-  const data = await bytes(response, Number(length));
-  if (data.byteLength !== Number(length))
-    throw new DocumentRequestError(503, 'INVALID_RESPONSE');
-  return new Blob([data], { type: mimes[format] });
+  return withAuthority(signal, async (signal) => {
+    const response = await send(
+      `/${id(documentId)}/versions/${id(versionId)}/content`,
+      signal,
+      { headers: { Accept: mimes[format] } },
+    );
+    const length = response.headers.get('content-length');
+    if (
+      response.status !== 200 ||
+      response.headers.get('content-type') !== mimes[format] ||
+      response.headers.get('content-disposition') !==
+        `attachment; filename="${versionId}.${format.toLowerCase()}"` ||
+      !length ||
+      !/^[1-9][0-9]{0,8}$/.test(length) ||
+      Number(length) > 100_000_000 ||
+      response.headers.get('cache-control') !== 'no-store' ||
+      response.headers.get('x-content-type-options') !== 'nosniff'
+    )
+      throw new DocumentRequestError(503, 'INVALID_RESPONSE');
+    const data = await bytes(response, Number(length));
+    if (data.byteLength !== Number(length))
+      throw new DocumentRequestError(503, 'INVALID_RESPONSE');
+    return new Blob([data], { type: mimes[format] });
+  });
 }

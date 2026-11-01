@@ -1,0 +1,349 @@
+{
+  "valid": [
+    {
+      "name": "initial-reservation",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": null
+        }
+      }
+    },
+    {
+      "name": "copy-scratch",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "MAY_EXIST",
+        "scratch": {
+          "role": "COPY",
+          "state": "MAY_EXIST",
+          "reservationId": "ffffffff-ffff-4fff-8fff-ffffffffffff"
+        }
+      }
+    },
+    {
+      "name": "largest-canonical-record",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "DELETE_PENDING",
+        "scratch": {
+          "role": "READBACK",
+          "state": "DELETE_PENDING",
+          "reservationId": "ffffffff-ffff-4fff-8fff-ffffffffffff"
+        }
+      }
+    },
+    {
+      "name": "all-payloads-absent",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "ABSENT",
+        "scratch": {
+          "role": "NONE",
+          "state": "ABSENT",
+          "reservationId": null
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "unknown-path",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": null
+        },
+        "path": "/untrusted"
+      }
+    },
+    {
+      "name": "unknown-nested-path",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": null,
+          "path": "/untrusted"
+        }
+      }
+    },
+    {
+      "name": "version",
+      "record": {
+        "version": 2,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": null
+        }
+      }
+    },
+    {
+      "name": "oversize",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000001,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": null
+        }
+      }
+    },
+    {
+      "name": "zero",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 0,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": null
+        }
+      }
+    },
+    {
+      "name": "unknown-state",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "CLEAN",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": null
+        }
+      }
+    },
+    {
+      "name": "unknown-role",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "OTHER",
+          "state": "RESERVED",
+          "reservationId": null
+        }
+      }
+    },
+    {
+      "name": "unowned-present-scratch",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "NONE",
+          "state": "MAY_EXIST",
+          "reservationId": null
+        }
+      }
+    },
+    {
+      "name": "source-absence-before-scratch",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "ABSENT",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": null
+        }
+      }
+    },
+    {
+      "name": "NONE-with-id",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": "ffffffff-ffff-4fff-8fff-ffffffffffff"
+        }
+      }
+    },
+    {
+      "name": "COPY-without-id",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "COPY",
+          "state": "RESERVED",
+          "reservationId": null
+        }
+      }
+    },
+    {
+      "name": "raw-actor",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "raw-actor",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": null
+        }
+      }
+    },
+    {
+      "name": "missing-owner",
+      "record": {
+        "version": 1,
+        "operationId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": null
+        }
+      }
+    },
+    {
+      "name": "noncanonical-id",
+      "record": {
+        "version": 1,
+        "operationId": "FFFFFFFF-FFFF-4FFF-8FFF-FFFFFFFFFFFF",
+        "ownerEpoch": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "tenantDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "actorDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "documentId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "uploadId": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "declaredSize": 100000000,
+        "source": "RESERVED",
+        "scratch": {
+          "role": "NONE",
+          "state": "RESERVED",
+          "reservationId": null
+        }
+      }
+    }
+  ]
+}

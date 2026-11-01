@@ -7,8 +7,8 @@ import org.documentknowledge.documentmanagement.domain.upload.*;
 import static org.documentknowledge.documentmanagement.domain.upload.UploadModels.*;
 /** Internal system work only. No public delete/hold-release authority is exposed. Unknown remote attempts never transfer ownership. */
 public final class UploadCleanupService {
- private final DocumentUnitOfWork transactions;private final UploadStoragePort storage;private final Clock clock;
- public UploadCleanupService(DocumentUnitOfWork transactions,UploadStoragePort storage,Clock clock){this.transactions=Objects.requireNonNull(transactions);this.storage=Objects.requireNonNull(storage);this.clock=Objects.requireNonNull(clock);}
+ private final DocumentUnitOfWork transactions;private final CleanupStoragePort storage;private final Clock clock;
+ public UploadCleanupService(DocumentUnitOfWork transactions,CleanupStoragePort storage,Clock clock){this.transactions=Objects.requireNonNull(transactions);this.storage=Objects.requireNonNull(storage);this.clock=Objects.requireNonNull(clock);}
  public record SweepResult(int expired,int cleaned,int blocked) { }
  public SweepResult sweep(UUID executor,int limit){if(limit<1||limit>50)throw new IllegalArgumentException("Invalid cleanup batch");int expired=0,cleaned=0,blocked=0;
   for(var slot:transactions.execute(r->r.uploads().expirable(now(),limit))){try{expire(slot.tenant(),slot.uploadId());expired++;}catch(DmFailure unavailable){blocked++;}}

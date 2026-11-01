@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "profile": "bff-http1-ingress-v1",
+  "selectionState": "PROPOSED",
+  "micronautHttp": "5.2.20",
+  "netty": "4.2.19.Final",
+  "frameworkQueueBytes": 131072,
+  "initialCreditBytes": 65535,
+  "receiveBytes": 8192,
+  "receiveMessages": 1,
+  "decoderPieceBytes": 8192,
+  "bridgePieces": 2,
+  "metadataBytes": 16384,
+  "binaryMaxBytes": 100000000,
+  "transferMillis": 300000,
+  "idleMillis": 30000,
+  "internalProtocol": "HTTP_1_1",
+  "directTls": false,
+  "http2": false,
+  "http3": false,
+  "decompression": false
+}

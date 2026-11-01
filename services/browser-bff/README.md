@@ -23,3 +23,42 @@ Standalone membership uses only the framework-validated ID-token snapshot with e
 Run `./gradlew :services:browser-bff:bootstrap:build --no-daemon` with the repository's pinned Java LTS. Tests exercise real framework HTTP OAuth positive/negative exchanges, session/CSRF/Origin and raw JSON contracts, upstream faults and deadlines, trust-configuration rejection and external authority decisions. Source line and branch coverage gates are at least 75%. These controlled provider fixtures complement the real HTTPS Keycloak Playwright E2E; they do not replace it.
 
 Session storage is single-instance and ephemeral. Restart requires login again; idle/absolute access cannot outlive the earlier verified ID-token expiry or token-endpoint access-token lifetime, capped at 300 seconds. Durable multi-instance sessions and actual workload mTLS remain BP-16 gates. No production readiness is claimed.
+
+The reviewed development ingress profile (`dkp-004-bounded-bff-ingress`, #341/#338)
+sets the framework request queue allowance to 131072 bytes. This is global
+configuration applied separately to each request, including metadata requests;
+semantic JSON validation still allows only 16384 bytes. Binary input remains
+1..100000000 bytes with the existing 300-second total/30-second idle transport
+limits and current session, tenant, Origin and CSRF checks.
+
+The internal listener supports plaintext HTTP/1.1 behind the existing TLS edge.
+Each accepted connection receives its own fixed 8192-byte receive allocator with
+one message per read and an 8192-byte decoder chunk size. Actual receive-handle
+identity, channel configuration and pipeline checks run before decoding and
+protected dispatch; a mismatch closes the affected channel and latches readiness
+unavailable. HTTP/2 negotiation, h2c prior knowledge, direct TLS, QUIC, request
+inflation and whole-body aggregation do not inherit this profile.
+
+The conditional 147456-byte allowance is for one retained framework request body
+(queue plus separately bounded current/swap bridge pieces). Legal pipelining can
+retain multiple request bodies. This is not a connection, JVM or aggregate memory
+cap. Aggregate capacity (#222), genuine provider/full-HTTPS acceptance and current
+CI remain separate mandatory gates; local component tests do not approve them.
+
+The separately approved development amendment #366 permits a narrow read-only
+adapter for exactly two fields in Micronaut 5.2.20's selected final handler. Startup
+checks the exact unshaded classpath JAR SHA-256, class loader/module/layout and
+private field owner/type/modifiers/access. It neither writes private state nor
+repairs setters, opens modules, forks the framework or falls back to public
+configuration. Live limits and decompression values are reread on the channel
+EventLoop before every read, readComplete and error handoff. The final guard must
+immediately precede the same actual Micronaut handler; executor hops or relocation
+close the channel before handoff and latch readiness until runtime restart.
+Readiness is initially unavailable until actual accepted-channel evidence exists.
+
+This checks serialized callback boundaries; it is not a sandbox for malicious
+in-process code or a claim about unsynchronized arbitrary Java setter races.
+Component/source evidence, current native/provider/full HTTPS acceptance, aggregate
+capacity and genuine elapsed-hour acceptance remain distinct mandatory gates.
+The development technique approval grants no formal architecture, security-control,
+CID, production readiness or release approval.

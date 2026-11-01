@@ -36,15 +36,18 @@ public final class IsolatedInspectionAdapter implements StructureInspectionPort,
         authorization="Bearer "+Base64.getEncoder().encodeToString(key);
         client=HttpClient.newBuilder().sslContext(Objects.requireNonNull(tls)).connectTimeout(Duration.ofSeconds(2)).followRedirects(HttpClient.Redirect.NEVER).build();
     }
-    @Override public InspectionEvidence inspect(ArtifactSource source) {
-        CompletableFuture<HttpResponse<byte[]>> pending=null;
+    @Override public InspectionEvidence inspect(ArtifactSource source) {return inspect(source,null);}
+    @Override public InspectionEvidence inspect(ArtifactSource source,CompleteBudget.Phase phase) {
+        CompletableFuture<HttpResponse<byte[]>> pending=null;AutoCloseable registration=null;
         try {
             if(Files.isSymbolicLink(source.path()) || !Files.isRegularFile(source.path(),LinkOption.NOFOLLOW_LINKS) || Files.size(source.path())!=source.sizeBytes())throw unavailable();
-            var request=HttpRequest.newBuilder(endpoint).timeout(deadline).header("Authorization",authorization).header("Content-Type","application/octet-stream").header("X-DKP-Format",source.format().name()).POST(HttpRequest.BodyPublishers.ofFile(source.path())).build();
+            Duration remaining=phase==null?deadline:Duration.ofNanos(Math.min(deadline.toNanos(),phase.remaining().toNanos()));
+            var request=HttpRequest.newBuilder(endpoint).timeout(remaining).header("Authorization",authorization).header("Content-Type","application/octet-stream").header("X-DKP-Format",source.format().name()).POST(HttpRequest.BodyPublishers.ofFile(source.path())).build();
             // JDK25 cancels HttpRequest's timer when headers arrive. Bound the entire
             // asynchronous exchange, including the body, and cancel transport on failure.
             pending=client.sendAsync(request,ignored->new BoundedInspectionResponse());
-            var response=pending.get(deadline.toNanos(),TimeUnit.NANOSECONDS);
+            var invocation=pending;if(phase!=null)registration=phase.onCancel(()->invocation.cancel(true));
+            var response=pending.get(remaining.toNanos(),TimeUnit.NANOSECONDS);if(phase!=null)phase.check();
             byte[] bytes=response.body();
             if(!response.headers().firstValue("Content-Type").orElse("").equals("application/json"))throw unavailable();
             JsonNode value=JSON.readTree(bytes);if(value==null || !value.isObject())throw unavailable();
@@ -57,7 +60,7 @@ public final class IsolatedInspectionAdapter implements StructureInspectionPort,
             JsonNode pages=value.get("pageCount");Integer pageCount=null;if(!pages.isNull()){if(!pages.isIntegralNumber() || !pages.canConvertToInt())throw unavailable();pageCount=pages.intValue();}
             return new InspectionEvidence(source.format(),source.format().mime(),source.sizeBytes(),source.sha256(),pageCount,"1",profile,image,clock.instant());
         }catch(DmFailure failure){throw failure;}catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw unavailable();}catch(Exception invalid){throw unavailable();}
-        finally {if(pending!=null && !pending.isDone())pending.cancel(true);}
+        finally {if(registration!=null)try{registration.close();}catch(Exception ignored){}if(pending!=null && !pending.isDone())pending.cancel(true);}
     }
     private static String text(JsonNode node,String field) {JsonNode value=node.get(field);if(value==null || !value.isString())throw unavailable();return value.asString();}
     private static DmFailure unavailable() {return new DmFailure(503,"UNAVAILABLE");}

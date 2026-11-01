@@ -69,4 +69,17 @@ class ClamAvScanAdapterTest {
             long start=System.nanoTime();assertThrows(java.net.SocketTimeoutException.class,connection::response);assertTrue(java.time.Duration.ofNanos(System.nanoTime()-start).toMillis()<1000);
         }
     }
+    @Test void completeCancellationClosesOnlyItsOwnClamdExchange()throws Exception {
+        var budget=new org.documentknowledge.documentmanagement.application.upload.CompleteBudget(VerificationFixtures.CLOCK);
+        try(var phase=budget.phase(org.documentknowledge.documentmanagement.application.upload.CompleteBudget.Kind.SCAN);var listener=new java.net.ServerSocket(0,1,java.net.InetAddress.getLoopbackAddress());var executor=java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()){
+            var scanner=new ClamAvScanAdapter(new java.net.InetSocketAddress(java.net.InetAddress.getLoopbackAddress(),listener.getLocalPort()),new StandardDefinitions(temp.resolve("defs"),VerificationFixtures.CLOCK),VerificationFixtures.CLOCK);
+            var pending=executor.submit(()->assertThrows(DmFailure.class,()->scanner.scan(source,phase)));
+            try(var peer=listener.accept()){peer.setSoTimeout(2000);var command=new ByteArrayOutputStream();int c;while((c=peer.getInputStream().read())>0)command.write(c);assertEquals("zVERSION",command.toString(java.nio.charset.StandardCharsets.US_ASCII));budget.cancel();assertEquals(-1,peer.getInputStream().read());}
+            assertEquals(503,pending.get(2,java.util.concurrent.TimeUnit.SECONDS).status());
+        }
+        try(var server=new VerificationFixtures.FakeClamd();var phase=new org.documentknowledge.documentmanagement.application.upload.CompleteBudget(VerificationFixtures.CLOCK).phase(org.documentknowledge.documentmanagement.application.upload.CompleteBudget.Kind.SCAN)){
+            assertEquals(source.sha256(),adapter(server).scan(source,phase).sourceSha256());
+        }
+    }
+
 }

@@ -6,17 +6,18 @@ import {
   Paper,
   Title,
 } from '@mantine/core';
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { sessionKey } from './session-key';
 import {
   getContext,
   getSession,
   IdentityRequestError,
-  logout,
-  selectTenant,
   type Service,
 } from './identity-api';
+
+import { useIdentityCommands } from './features/identity/useIdentityCommands';
+import { useSessionAuthority } from './features/identity/authority';
 
 const services: { id: Service; label: string }[] = [
   { id: 'dm', label: 'Document Management' },
@@ -25,71 +26,91 @@ const services: { id: Service; label: string }[] = [
 ];
 
 export function Identity() {
-  const client = useQueryClient();
+  const commands = useIdentityCommands();
   const sessionQuery = useQuery({
     queryKey: sessionKey,
     queryFn: ({ signal }) => getSession(signal),
   });
-  const [tenantChoice, setTenant] = useState<string | null>(null);
-  const [signedOut, setSignedOut] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [service, setService] = useState<Service | null>(null);
+  // The opaque tag scopes temporary form/navigation selections; session data stays in Query.
+  const [selection, setSelection] = useState<{
+    scope: unknown;
+    tenant: string | null;
+    service: Service | null;
+  }>({ scope: null, tenant: null, service: null });
   const session = sessionQuery.data;
+  const authority = useSessionAuthority(session);
+  const tenantChoice = selection.scope === session ? selection.tenant : null;
+  const activeService =
+    selection.scope === session && !sessionQuery.error
+      ? selection.service
+      : null;
   const tenant = tenantChoice ?? session?.selectedTenant ?? '';
+  function setTenant(value: string) {
+    setSelection((previous) => ({
+      scope: session,
+      tenant: value,
+      service: previous.scope === session ? previous.service : null,
+    }));
+  }
+  function setService(value: Service | null) {
+    setSelection((previous) => ({
+      scope: session,
+      tenant: previous.scope === session ? previous.tenant : null,
+      service: value,
+    }));
+  }
   const contextQuery = useQuery({
     queryKey: [
       'context',
       session?.issuer,
       session?.subject,
       session?.selectedTenant,
-      service,
+      session?.csrfToken,
+      activeService,
     ],
-    queryFn: ({ signal }) => getContext(service!, session!, signal),
-    enabled: false,
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) =>
+        getContext(activeService!, session!, guard),
+      ),
+    enabled: !!activeService && !!session && !authority.blocked,
   });
-  const context = service ? contextQuery.data : null;
+  const context =
+    activeService && !contextQuery.error ? contextQuery.data : null;
+  const failure = commands.error ?? (activeService ? contextQuery.error : null);
+  const error = failure
+    ? failure instanceof IdentityRequestError && failure.status === 401
+      ? 'Your session has expired. Sign in again to continue.'
+      : failure instanceof IdentityRequestError && failure.status === 403
+        ? 'This action was denied. Your tenant selection has not changed.'
+        : 'Identity services are unavailable. Please try again.'
+    : null;
+  const busy = commands.busy || (!!activeService && contextQuery.isFetching);
+  useEffect(() => {
+    if (
+      session &&
+      activeService &&
+      contextQuery.error instanceof IdentityRequestError &&
+      contextQuery.error.status === 401
+    )
+      void commands.expire(session);
+  }, [session, activeService, contextQuery.error, commands]);
   const state =
-    session && !signedOut && !sessionQuery.error
+    session && !sessionQuery.error
       ? { kind: 'authenticated' as const, session }
       : {
-          kind: signedOut
-            ? ('anonymous' as const)
-            : sessionQuery.isPending
-              ? ('loading' as const)
-              : sessionQuery.error instanceof IdentityRequestError &&
-                  sessionQuery.error.status === 401
-                ? ('anonymous' as const)
-                : ('unavailable' as const),
+          kind:
+            session === null
+              ? ('anonymous' as const)
+              : sessionQuery.isPending
+                ? ('loading' as const)
+                : sessionQuery.error instanceof IdentityRequestError &&
+                    sessionQuery.error.status === 401
+                  ? ('anonymous' as const)
+                  : ('unavailable' as const),
         };
-  async function perform(action: (signal: AbortSignal) => Promise<void>) {
-    setBusy(true);
-    setError(null);
-    setService(null);
-    try {
-      await action(new AbortController().signal);
-    } catch (failure: unknown) {
-      if (failure instanceof IdentityRequestError && failure.status === 401) {
-        await client.cancelQueries();
-        client.removeQueries({ predicate: (q) => q.queryKey[0] !== 'session' });
-        client.setQueryData(sessionKey, null);
-        setSignedOut(true);
-        setError('Your session has expired. Sign in again to continue.');
-      } else if (
-        failure instanceof IdentityRequestError &&
-        failure.status === 403
-      )
-        setError(
-          'This action was denied. Your tenant selection has not changed.',
-        );
-      else setError('Identity services are unavailable. Please try again.');
-    } finally {
-      setBusy(false);
-    }
-  }
   function retry() {
-    setSignedOut(false);
-    setError(null);
+    commands.reset();
+    setService(null);
     void sessionQuery.refetch();
   }
 
@@ -156,19 +177,10 @@ export function Identity() {
                 className="identity-button"
                 type="button"
                 disabled={busy}
-                onClick={() =>
-                  void perform(async (signal) => {
-                    await logout(state.session, signal);
-                    if (signal.aborted) return;
-                    await client.cancelQueries();
-                    client.removeQueries({
-                      predicate: (q) => q.queryKey[0] !== 'session',
-                    });
-                    client.setQueryData(sessionKey, null);
-                    setSignedOut(true);
-                    setTenant('');
-                  })
-                }
+                onClick={() => {
+                  setService(null);
+                  commands.execute(state.session, { kind: 'logout' });
+                }}
               >
                 Sign out
               </Button>
@@ -185,20 +197,8 @@ export function Identity() {
               className="tenant-form"
               onSubmit={(event) => {
                 event.preventDefault();
-                void perform(async (signal) => {
-                  const session = await selectTenant(
-                    state.session,
-                    tenant,
-                    signal,
-                  );
-                  if (signal.aborted) return;
-                  await client.cancelQueries();
-                  client.removeQueries({
-                    predicate: (q) => q.queryKey[0] !== 'session',
-                  });
-                  client.setQueryData(sessionKey, session);
-                  setTenant(session.selectedTenant ?? '');
-                });
+                setService(null);
+                commands.execute(state.session, { kind: 'tenant', tenant });
               }}
             >
               <label htmlFor="tenant-selector">Tenant</label>
@@ -248,28 +248,12 @@ export function Identity() {
                   key={service.id}
                   type="button"
                   disabled={busy || !state.session.selectedTenant}
-                  onClick={() =>
-                    void perform(async (signal) => {
-                      const verified = await getContext(
-                        service.id,
-                        state.session,
-                        signal,
-                      );
-                      if (!signal.aborted) {
-                        client.setQueryData(
-                          [
-                            'context',
-                            state.session.issuer,
-                            state.session.subject,
-                            state.session.selectedTenant,
-                            service.id,
-                          ],
-                          verified,
-                        );
-                        setService(service.id);
-                      }
-                    })
-                  }
+                  onClick={() => {
+                    commands.reset();
+                    setService(service.id);
+                    if (activeService === service.id)
+                      void contextQuery.refetch();
+                  }}
                 >
                   Check {service.label} context
                 </Button>

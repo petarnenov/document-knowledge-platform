@@ -30,25 +30,31 @@ class UploadControllerTest {
  final UploadStoragePort storage=new UploadStoragePort(){
   public ObjectIdentity put(ObjectKey key,Path file,long size,String hash){try{var object=new ObjectIdentity(key,UUID.randomUUID().toString());objects.put(object,Files.readAllBytes(file));return object;}catch(IOException failure){throw new IllegalStateException(failure);}}
   public InputStream open(ObjectIdentity object){return new ByteArrayInputStream(objects.get(object));}
+  public ObjectIdentity put(ObjectKey key,Path file,long size,String hash,GenericTempBudget budget){budget.check();return put(key,file,size,hash);}
+  public InputStream open(ObjectIdentity object,GenericTempBudget budget){budget.check();return open(object);}
+  public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase){phase.check();return open(object);}
+  public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,VerificationWorkspacePort.Workspace workspace){phase.check();var scratch=workspace.scratch(VerificationWorkspacePort.Role.COPY,phase);try{scratch.write(new ByteArrayInputStream(objects.get(source)),phase);return copy(source,target);}finally{scratch.cleanup(phase);}}
   public ObjectIdentity copy(ObjectIdentity source,ObjectKey target){var object=new ObjectIdentity(target,UUID.randomUUID().toString());objects.put(object,objects.get(source).clone());return object;}
   public List<ObjectIdentity> versions(ObjectKey key){throw new UnsupportedOperationException();}
   public DeletionResult deleteOnce(DeletionFence fence){throw new UnsupportedOperationException();}
  };
- DocumentService documents;UploadController controller;UUID document;
+ DocumentService documents;UploadController controller;UUID document;GenericTempPort generic;VerificationWorkspacePort workspace;
  @BeforeEach void prepare(){
   var delegation=new DelegationPolicyPort(){public AuthorityDecision ceiling(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}public AuthorityDecision targetGrant(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}};
   var cursors=new DocumentCursorPort(){public String encode(PagePosition p,Actor a,String t){return "opaque";}public PagePosition decode(String c,Actor a,String t){throw new UnsupportedOperationException();}};
-  documents=new DocumentService(repository,grants,delegation,new ReceiptArtifactAuthority(repository,storage,clock,spool),cursors,clock);
+  generic=UploadServiceTestFactory.generic(spool,clock);workspace=UploadServiceTestFactory.workspace(spool,clock,p->{try{Files.deleteIfExists(p);}catch(IOException failure){throw new UncheckedIOException(failure);}});
+  documents=new DocumentService(repository,grants,delegation,new ReceiptArtifactAuthority(repository,storage,clock,generic),cursors,clock);
   var resolver=new TrustedTenantResolver(new TrustConfiguration()){@Override public TenantMembership resolve(Map<String,Object> claims){return new TenantMembership(AuthorityDecision.ALLOW,Set.of("tenant-a"));}};
   var boundary=new DocumentController(documents,resolver);
   MalwareScanPort scanner=s->new ScanEvidence(s.sha256(),s.sizeBytes(),"1.5.4","1",clock.instant().minusSeconds(1),"d".repeat(64),clock.instant());
   StructureInspectionPort inspector=s->new InspectionEvidence(s.format(),s.format().mime(),s.sizeBytes(),s.sha256(),1,"1","f".repeat(64),"sha256:"+"a".repeat(64),clock.instant());
-  controller=new UploadController(new UploadService(repository,grants,storage,scanner,inspector,clock,spool),new ContentService(repository,grants,storage,clock,spool),boundary);
+  controller=new UploadController(new UploadService(repository,grants,storage,scanner,inspector,clock,spool,workspace,generic),new ContentService(repository,grants,storage,clock,spool),boundary);
   document=documents.create(new DocumentCaller(actor,"tenant-a",()->AuthorityDecision.ALLOW),"create",new Metadata("Synthetic"," ")).documentId();
  }
  MutableHttpRequest<?> request(String path,String type){return HttpRequest.POST(path,"").header("X-DKP-Tenant","tenant-a").header("Idempotency-Key","command").header("Content-Type",type);}
  InputStream json(Object value){return new ByteArrayInputStream(JsonMapper.builder().build().writeValueAsBytes(value));}
  Map<?,?> body(HttpResponse<?> response){return (Map<?,?>)response.body();}
+ @AfterEach void closeOwners(){workspace.close();generic.close();}
  UUID initialize(){var response=controller.initialize(request("/api/v1/documents/uploads","application/json"),authentication,json(Map.of("documentId",document.toString(),"expectedRevision",0,"format","PDF","sizeBytes",4)));assertEquals(201,response.code());assertEquals(Set.of("uploadId"),body(response).keySet());return UUID.fromString((String)body(response).get("uploadId"));}
  @Test void fullWireJourneyPreservesMinimalCommandsAndExactRangeAndRevocation()throws Exception{
   UUID slot=initialize();assertEquals(slot.toString(),body(controller.initialize(request("/api/v1/documents/uploads","application/json"),authentication,json(Map.of("documentId",document.toString(),"expectedRevision",0,"format","PDF","sizeBytes",4)))).get("uploadId"));

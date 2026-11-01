@@ -64,3 +64,22 @@ The selector regression tests are:
 ```sh
 node --test tools/runtime/upload-expiry.test.mjs
 ```
+
+## Final-source content capacity and cleanup authority
+
+The #242/#249 correction must pass the full affected acceptance again, including
+the genuine sixty-minute scenario, after consolidation. Historical elapsed-time
+success does not establish final-source readiness. The normal storage client has
+no exact-version deletion operation; only the separately keyed cleanup adapter
+can perform it. Its required `GetObjectVersion` IAM permission also permits a
+versioned GET because IAM cannot distinguish that from versioned HEAD.
+
+Content transmission reserves one of two durable private slots before reading or
+writing source bytes. Each slot permits at most100MB, and failed deletion retains
+its actor/capacity reservation. Live channels close before reclamation. Shutdown
+closes the content service, and a new exclusive process owner recovers only its
+closed content-only namespace. Unknown or unsafe files fail closed. If legacy
+`dkp-bytes-*.tmp` remnants exist before that namespace is initialized, the service
+returns503 rather than adopting or deleting indistinguishable files. Existing
+upload spools remain separate. Preserve remnants for deliberate investigation;
+source/unit coverage does not establish successful runtime recovery or readiness.

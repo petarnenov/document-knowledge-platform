@@ -20,6 +20,8 @@ services:
       DKP_DM_STORAGE_REGION: ${DKP_UPLOAD_STORAGE_REGION:?Set verified RustFS region}
       DKP_DM_STORAGE_ACCESS_KEY_PATH: /run/dkp/storage/access.key
       DKP_DM_STORAGE_SECRET_KEY_PATH: /run/dkp/storage/secret.key
+      DKP_DM_CLEANUP_ACCESS_KEY_PATH: /run/dkp/cleanup/access.key
+      DKP_DM_CLEANUP_SECRET_KEY_PATH: /run/dkp/cleanup/secret.key
       DKP_DM_STORAGE_CA_PATH: /run/dkp/storage/ca.crt
       DKP_DM_UPLOAD_PRIVATE_SPOOL_PATH: /var/lib/dkp/uploads
       DKP_DM_SCANNER_HOST: ${DKP_UPLOAD_SCANNER_HOST:?Set private standard-definition ClamAV host}
@@ -37,6 +39,10 @@ services:
       # Deliberately mount only application authority, never CA/server/root private keys.
       - ${DKP_UPLOAD_STORAGE_ACCESS_KEY_FILE:?Set application-only RustFS access key file}:/run/dkp/storage/access.key:ro
       - ${DKP_UPLOAD_STORAGE_SECRET_KEY_FILE:?Set application-only RustFS secret key file}:/run/dkp/storage/secret.key:ro
+      - ${DKP_UPLOAD_STORAGE_ROLE_FILE:?Set normal credential role binding}:/run/dkp/storage/access.key.role:ro
+      - ${DKP_UPLOAD_CLEANUP_ACCESS_KEY_FILE:?Set cleanup-only RustFS access key file}:/run/dkp/cleanup/access.key:ro
+      - ${DKP_UPLOAD_CLEANUP_SECRET_KEY_FILE:?Set cleanup-only RustFS secret key file}:/run/dkp/cleanup/secret.key:ro
+      - ${DKP_UPLOAD_CLEANUP_ROLE_FILE:?Set cleanup credential role binding}:/run/dkp/cleanup/access.key.role:ro
       - ${DKP_UPLOAD_STORAGE_CA_FILE:?Set RustFS public CA file}:/run/dkp/storage/ca.crt:ro
       - ${DKP_UPLOAD_SPOOL_DIRECTORY:?Set owned private upload spool directory}:/var/lib/dkp/uploads
       - ${DKP_UPLOAD_DEFINITIONS_DIRECTORY:?Set immutable verified definition generation}:/var/lib/clamav:ro

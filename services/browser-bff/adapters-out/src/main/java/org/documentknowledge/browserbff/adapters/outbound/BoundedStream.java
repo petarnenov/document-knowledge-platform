@@ -16,10 +16,26 @@ final class BoundedStream extends FilterInputStream {
  @Override public int read(byte[] bytes,int offset,int length)throws IOException{
   if(length==0)return 0;if(timedOut)throw new IOException("Stream deadline");if(closed.get())return -1;
   if(!started){started=true;try{firstByte.run();}catch(RuntimeException denied){if(denied instanceof org.documentknowledge.browserbff.application.BffFailure failure)rejection=failure;close();throw denied;}}
-  int n=in.read(bytes,offset,Math.min(length,65536));if(timedOut)throw new IOException("Stream deadline");
+  int n;
+  try{n=in.read(bytes,offset,Math.min(length,65536));}
+  catch(IOException|RuntimeException failure){
+   if(totalLengthExceeded(failure)){
+    rejection=new org.documentknowledge.browserbff.application.BffFailure(413,"PAYLOAD_TOO_LARGE");
+    try{close();}catch(IOException closeFailure){failure.addSuppressed(closeFailure);}
+   }
+   throw failure;
+  }
+  if(timedOut)throw new IOException("Stream deadline");
   if(n<0){if(expected>=0&&count!=expected){rejection=new org.documentknowledge.browserbff.application.BffFailure(422,"SIZE_MISMATCH");close();throw new IOException("Truncated stream");}close();return -1;}
   count+=n;if(count>100_000_000||expected>=0&&count>expected){rejection=new org.documentknowledge.browserbff.application.BffFailure(count>100_000_000?413:422,count>100_000_000?"PAYLOAD_TOO_LARGE":"SIZE_MISMATCH");close();throw new IOException("Stream size limit");}
   synchronized(this){idle.cancel(false);if(!closed.get())idle=TIMER.schedule(this::timeout,idleMillis,TimeUnit.MILLISECONDS);}return n;
+ }
+ private static boolean totalLengthExceeded(Throwable failure){
+  // The framework's total-body exception is distinct from a queue overflow or dependency failure.
+  // Inspect types only, never provider messages; bounded traversal also handles cyclic cause chains.
+  for(int depth=0;failure!=null&&depth<8;depth++,failure=failure.getCause())
+   if(failure instanceof io.micronaut.http.exceptions.ContentLengthExceededException)return true;
+  return false;
  }
  org.documentknowledge.browserbff.application.BffFailure rejection(){return rejection;}
  @Override public void close()throws IOException{if(closed.compareAndSet(false,true)){total.cancel(false);synchronized(this){idle.cancel(false);}super.close();}}

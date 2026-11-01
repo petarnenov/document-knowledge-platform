@@ -1,3 +1,4 @@
+import { UploadJourney } from './features/uploads/UploadJourney';
 import {
   Alert,
   Button,
@@ -6,10 +7,13 @@ import {
   NativeSelect,
   Paper,
   Text,
+  Stack,
+  VisuallyHidden,
 } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SessionView } from './identity-api';
+import { useSessionAuthority } from './features/identity/authority';
 import { documentError } from './document-api';
 import {
   appendUpload,
@@ -42,6 +46,7 @@ export function Uploads({
   session: SessionView;
 }) {
   const client = useQueryClient();
+  const authority = useSessionAuthority(session);
   const [file, setFile] = useState<File | null>(null);
   const [format, setFormat] = useState<Format>('PDF');
   const [stage, setStage] = useState('');
@@ -67,19 +72,23 @@ export function Uploads({
   const status = useQuery({
     gcTime: 0,
     queryKey: [...scope, 'upload', documentId, uploadId],
-    queryFn: ({ signal }) => inspectUpload(uploadId!, signal),
-    enabled: !!uploadId,
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) => inspectUpload(uploadId!, guard)),
+    enabled: !!uploadId && !authority.blocked,
   });
   const mutation = useMutation({
     mutationKey: [...scope, 'upload-command', documentId],
     gcTime: 0,
     mutationFn: async () => {
+      authority.request(new AbortController().signal).assertCurrent();
       const pending = job.current;
       if (!pending) throw new Error('Choose a file');
       const control = new AbortController();
       active.current = control;
       const signal = control.signal;
+      const request = authority.request(signal);
       const update = (value: string) => {
+        request.assertCurrent();
         if (mounted.current && !signal.aborted) setStage(value);
       };
       try {
@@ -93,7 +102,7 @@ export function Uploads({
               pending.file,
               session,
               pending.keys[0],
-              signal,
+              request,
             )
           ).uploadId;
           if (mounted.current && !signal.aborted) setUploadId(pending.uploadId);
@@ -105,7 +114,7 @@ export function Uploads({
             pending.file,
             session,
             pending.keys[1],
-            signal,
+            request,
           );
           update('Checking malware and document structure…');
           pending.receiptId = (
@@ -113,7 +122,7 @@ export function Uploads({
               pending.uploadId,
               session,
               pending.keys[2],
-              signal,
+              request,
             )
           ).receiptId;
         }
@@ -125,7 +134,7 @@ export function Uploads({
             pending.receiptId,
             session,
             pending.keys[3],
-            signal,
+            request,
           );
           pending.appended = true;
         }
@@ -133,8 +142,9 @@ export function Uploads({
         const result = await discoverVersion(
           documentId,
           pending.receiptId,
-          signal,
+          request,
         );
+        request.assertCurrent();
         if (signal.aborted || !mounted.current) throw new Error('Cancelled');
         update(
           'Verified version appended. Publication and processing have not started.',
@@ -145,7 +155,7 @@ export function Uploads({
       }
     },
     onSettled: () => {
-      if (mounted.current) {
+      if (mounted.current && !authority.blocked) {
         if (job.current?.uploadId) void status.refetch();
         void client.invalidateQueries({
           queryKey: [...scope, 'detail', documentId],
@@ -158,6 +168,8 @@ export function Uploads({
     mutationKey: [...scope, 'download-command', documentId],
     gcTime: 0,
     mutationFn: async () => {
+      const guard = authority.request(new AbortController().signal);
+      guard.assertCurrent();
       if (!mutation.data) throw new Error('No version');
       const control = new AbortController();
       active.current = control;
@@ -166,8 +178,9 @@ export function Uploads({
           documentId,
           mutation.data.versionId,
           mutation.data.format,
-          control.signal,
+          authority.request(control.signal),
         );
+        guard.assertCurrent();
         if (control.signal.aborted || !mounted.current) return;
         const url = URL.createObjectURL(blob);
         try {
@@ -184,6 +197,11 @@ export function Uploads({
     },
   });
   function start() {
+    try {
+      authority.request(new AbortController().signal).assertCurrent();
+    } catch {
+      return;
+    }
     if (!file) return;
     if (!job.current)
       job.current = {
@@ -212,63 +230,90 @@ export function Uploads({
   return (
     <Paper
       component="section"
-      className="info-card"
+      className="card"
       aria-labelledby={`upload-${documentId}`}
     >
-      <h3 id={`upload-${documentId}`}>Upload a verified version</h3>
-      <Text>
-        PDF, DOCX, PPTX or XLSX · up to 100 MB. Server checks determine whether
-        content is safe. Appending preserves the active version.
-      </Text>
-      <NativeSelect
-        label="Document format"
-        data={[...formats]}
-        value={format}
-        disabled={busy || !mutation.isIdle}
-        onChange={(event) => setFormat(event.currentTarget.value as Format)}
-      />
-      <FileInput
-        label="Choose document file"
-        value={file}
-        onChange={setFile}
-        disabled={busy || !mutation.isIdle}
-        accept=".pdf,.docx,.pptx,.xlsx"
-      />
-      {file && (file.size < 1 || file.size > 100_000_000) && (
-        <Alert role="alert">Choose a nonempty file of at most 100 MB.</Alert>
-      )}
-      <Group>
-        <Button
-          onClick={start}
-          disabled={
-            busy ||
-            !file ||
-            file.size < 1 ||
-            file.size > 100_000_000 ||
-            mutation.isSuccess
+      <Stack gap="md">
+        <VisuallyHidden>
+          <h2 id={`upload-${documentId}`}>Upload a verified version</h2>
+        </VisuallyHidden>
+        <NativeSelect
+          label="Document format"
+          data={[...formats]}
+          value={format}
+          disabled={busy || !mutation.isIdle}
+          onChange={(event) => setFormat(event.currentTarget.value as Format)}
+        />
+        <FileInput
+          label="Choose document file"
+          placeholder="Choose file…"
+          value={file}
+          onChange={setFile}
+          disabled={busy || !mutation.isIdle}
+          accept=".pdf,.docx,.pptx,.xlsx"
+        />
+        <Text size="sm" c="dimmed">
+          PDF, DOCX, PPTX or XLSX · up to 100 MB (exactly 100,000,000 bytes).
+          Selecting a file does not verify its contents. Server checks determine
+          whether content is safe. Appending preserves the active version.
+        </Text>
+        <UploadJourney
+          verified={
+            !!mutation.data ||
+            status.data?.state === 'VERIFIED' ||
+            status.data?.state === 'CONSUMED'
           }
-        >
-          {mutation.isError ? 'Retry upload' : 'Upload and append'}
-        </Button>
-        <Button onClick={reset}>Cancel and clear</Button>
-      </Group>
-      {stage && <p role="status">{stage}</p>}
-      {status.data && <p>Upload state: {status.data.state}</p>}
-      {[mutation.error, download.error, status.error]
-        .filter(Boolean)
-        .map((error, index) => (
-          <Alert role="alert" key={index}>
-            {documentError(error)}
-          </Alert>
-        ))}
-      {mutation.data && (
-        <>
-          <p>Version {mutation.data.versionId}</p>
-          <Button onClick={() => download.mutate()} disabled={busy}>
-            Download verified content
+          recorded={!!mutation.data}
+        />
+        {file && (file.size < 1 || file.size > 100_000_000) && (
+          <Alert role="alert">Choose a nonempty file of at most 100 MB.</Alert>
+        )}
+        <Group>
+          <Button
+            onClick={start}
+            disabled={
+              busy ||
+              !file ||
+              file.size < 1 ||
+              file.size > 100_000_000 ||
+              mutation.isSuccess
+            }
+          >
+            {mutation.isError ? 'Retry upload' : 'Upload and append'}
           </Button>
-        </>
-      )}
+          <Button variant="default" onClick={reset}>
+            Cancel and clear
+          </Button>
+        </Group>
+        {stage && (
+          <Text role="status" aria-live="polite">
+            {stage}
+          </Text>
+        )}
+        {mutation.isError && (
+          <Text size="sm">
+            The last operation may have completed. Retry upload reuses the
+            original command keys to reconcile its outcome; it does not start a
+            second version.
+          </Text>
+        )}
+        {status.data && <p>Upload state: {status.data.state}</p>}
+        {[mutation.error, download.error, status.error]
+          .filter(Boolean)
+          .map((error, index) => (
+            <Alert role="alert" key={index}>
+              {documentError(error)}
+            </Alert>
+          ))}
+        {mutation.data && (
+          <>
+            <p>Version {mutation.data.versionId}</p>
+            <Button onClick={() => download.mutate()} disabled={busy}>
+              Download verified content
+            </Button>
+          </>
+        )}
+      </Stack>
     </Paper>
   );
 }

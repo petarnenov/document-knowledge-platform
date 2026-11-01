@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, chmodSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, chmodSync, rmSync, symlinkSync, mkdirSync, copyFileSync, existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { faultInput, findAddress, main, readCredentials, redact, requirePrivateFile, runtimeArguments, uploadProject } from './identity-e2e.mjs';
+import { jobInput, faultInput, findAddress, main, readCredentials, redact, requirePrivateFile, runtimeArguments, uploadProject } from './identity-e2e.mjs';
 
 test('reads only synthetic browser credentials without evaluating environment text', () => {
   assert.deepEqual(readCredentials('OIDC_CLIENT_SECRET=not-read\nDKP_TEST_USERNAME=tester\nDKP_TEST_PASSWORD=$(never-executed)\n'), { username: 'tester', password: '$(never-executed)' });
@@ -266,4 +268,130 @@ test('private fault input implies recorded upload stack and rejects oversized or
     for (const conflict of [{ uploadDurabilityFixture: true }, { uploadLimitsProfile: 'expiry' }]) assert.throws(() => main({ ...conflict, uploadFaultInputFile: input }), /Separate/);
     writeFileSync(input, ' '.repeat(16385));assert.throws(() => main({ uploadFaultInputFile: input }), /Bounded/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('provider job profile is closed, isolated and never replaces any existing journey', () => {
+  const input = {
+    portalId: 'a'.repeat(64),
+    address: '172.20.0.4',
+    certificate: '/ca',
+    uploadRuntime: true,
+  };
+  assert.deepEqual(jobInput({ schemaVersion: 1 }), { schemaVersion: 1 });
+  for (const value of [
+    null,
+    [],
+    {},
+    { schemaVersion: true },
+    { schemaVersion: 1, phase: 'unsafe' },
+  ])
+    assert.throws(() => jobInput(value), /Closed/);
+  const args = runtimeArguments({
+    ...input,
+    uploadJobInput: { schemaVersion: 1 },
+    uploadJobControl: '/private/control',
+  });
+  assert.equal(args.at(-1), 'upload-job-boundary.spec.ts');
+  assert.ok(args.includes('DKP_UPLOAD_JOB_INPUT={"schemaVersion":1}'));
+  assert.equal(args.some(value => value.includes('dst=/run/dkp/job-boundary')), false);
+  assert.equal(
+    runtimeArguments(input).includes('upload-job-boundary.spec.ts'),
+    false,
+  );
+  for (const extra of [
+    { uploadRuntime: false },
+    { uploadLimitsProfile: 'quota' },
+    { uploadDurabilityFixture: true },
+    { uploadFaultInput: faultSeed },
+    { uploadJobControl: 'relative' },
+    { uploadJobControl: '/private/,unsafe' },
+  ])
+    assert.throws(
+      () =>
+        runtimeArguments({
+          ...input,
+          uploadJobInput: { schemaVersion: 1 },
+          uploadJobControl: '/private/control',
+          ...extra,
+        }),
+      /Separate/,
+    );
+  for (const extra of [
+    { uploadLimitsProfile: 'quota' },
+    { uploadDurabilityFixture: true },
+    { uploadFaultInputFile: '/private/input' },
+  ])
+    assert.throws(
+      () => main({ uploadJobInputFile: '/private/jobs', ...extra }),
+      /Separate/,
+    );
+});
+
+test('job control permits only the exact owned private ignored directory and closed input', async () => {
+  // The runner derives confinement from its own public module location. Copy the
+  // exact module into a disposable checkout so the real guard stays unchanged.
+  const checkout = realpathSync(mkdtempSync(join(tmpdir(), 'dkp330-control-')));
+  try {
+    const tools = join(checkout, 'tools/runtime');
+    mkdirSync(tools, { recursive: true });
+    const runner = join(tools, 'identity-e2e.mjs');
+    copyFileSync(new URL('identity-e2e.mjs', import.meta.url), runner);
+    const { jobControl, main } = await import(pathToFileURL(runner).href);
+    const parent = join(checkout, 'local-data/security/bp03-upload');
+    mkdirSync(parent, { recursive: true });
+    const directory = mkdtempSync(join(parent, 'jobs-unit-'));
+    const control = join(directory, 'control'),
+      file = join(directory, 'input.json');
+    mkdirSync(control, { mode: 0o700 });
+    writeFileSync(file, '{"schemaVersion":1}', { mode: 0o600 });
+    assert.equal(jobControl(file), control);
+    chmodSync(directory, 0o777);assert.throws(() => jobControl(file), /ancestry/);chmodSync(directory, 0o700);
+    chmodSync(control, 0o755);
+    assert.throws(() => jobControl(file), /Confined/);
+    chmodSync(control, 0o700);
+    symlinkSync(file, join(directory, 'link.json'));
+    assert.throws(() => jobControl(join(directory, 'link.json')), /owner-only/);
+    writeFileSync(file, 'x'.repeat(1025));
+    assert.throws(() => main({ uploadJobInputFile: file }), /Bounded/);
+    writeFileSync(file, '{"schemaVersion":1,"extra":true}');
+    assert.throws(() => main({ uploadJobInputFile: file }), /Closed/);
+  } finally {
+    rmSync(checkout, { recursive: true, force: true });
+  }
+});
+
+// Execute the real job-control fixture in a disposable checkout, without Docker.
+test('job-control unit execution leaves checkout default security absent', () => {
+  const checkout = realpathSync(mkdtempSync(join(tmpdir(), 'dkp330-checkout-')));
+  try {
+    const tools = join(checkout, 'tools/runtime');
+    mkdirSync(tools, { recursive: true });
+    for (const name of ['identity-e2e.mjs', 'identity-e2e.test.mjs'])
+      copyFileSync(new URL(name, import.meta.url), join(tools, name));
+    const result = spawnSync(process.execPath, ['--test', '--test-name-pattern=^job control permits only', join(tools, 'identity-e2e.test.mjs')], { cwd: checkout, encoding: 'utf8', timeout: 10000, env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'NODE_TEST_CONTEXT')) });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /job control permits only the exact owned private ignored directory and closed input/);
+    assert.equal(existsSync(join(checkout, 'local-data/security')), false, 'The fixture must not create the checkout bootstrap namespace');
+  } finally {
+    rmSync(checkout, { recursive: true, force: true });
+  }
+});
+
+
+test('actual browser job diagnostic helpers preserve assertions and exclude private errors', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'dkp433-diagnostic-unit-'));
+  try {
+    const source = readFileSync(new URL('../../apps/admin-portal/e2e-real/upload-job-boundary.spec.ts', import.meta.url), 'utf8');
+    const helpers = source.slice(source.indexOf('const phases ='), source.indexOf('async function emit('));
+    let script = "import { writeFile, rename, readFile } from 'node:fs/promises';\nimport assert from 'node:assert/strict';\n";
+    script += 'const control = ' + JSON.stringify(directory + '/') + ';\n';
+    script += "const expect = (actual: number) => ({ toBe(expected: number) { if (actual !== expected) throw Object.assign(new Error('private-csrf-cookie-body'), { matcherResult: { private: 'secret' } }); } });\n";
+    script += helpers;
+    script += "\nawait assert.rejects(phase('invalid' as Phase));\nawait phase('FIRST_TRANSFER');\nawait status(200, 200);\nlet caught;\ntry { await status(503, 200); } catch (error) { caught = error; }\nassert.ok(caught, 'HTTP mismatch must still throw');\nawait failure(caught);\nlet value = JSON.parse(await readFile(control + 'diagnostic.json', 'utf8'));\nassert.deepEqual(value, {schemaVersion: 1, phase: 'FIRST_TRANSFER', errorClass: 'ASSERTION', expectedStatus: 200, actualStatus: 503});\nassert.equal(JSON.stringify(value).includes('private'), false);\nawait phase('SIGN_IN');\nawait failure(Object.assign(new Error('credential-bearing-url'), {name: 'TimeoutError'}));\nvalue = JSON.parse(await readFile(control + 'diagnostic.json', 'utf8'));\nassert.deepEqual(value, {schemaVersion: 1, phase: 'SIGN_IN', errorClass: 'TIMEOUT', expectedStatus: null, actualStatus: null});\nawait failure(new Error('secret-header-body'));\nvalue = JSON.parse(await readFile(control + 'diagnostic.json', 'utf8'));\nassert.equal(value.errorClass, 'ERROR');\nassert.equal(JSON.stringify(value).includes('secret'), false);\n";
+    const result = spawnSync(process.execPath, ['--input-type=module-typescript', '-'], {input: script, encoding: 'utf8', timeout:10000});
+    assert.equal(result.status, 0, 'Browser diagnostic helper unit failed');
+    assert.equal(result.stdout, '');
+  } finally {
+    rmSync(directory, {recursive:true, force:true});
+  }
 });

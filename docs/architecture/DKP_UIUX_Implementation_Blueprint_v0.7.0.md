@@ -1,12 +1,12 @@
 # Document Knowledge Platform — UI/UX Implementation Blueprint
 
-**Document ID:** DKP-UX-002  
-**Version:** 0.7.0-draft  
-**Date:** 2026-11-01  
-**Language:** English  
-**Status:** Proposed frontend implementation blueprint — requires contract and product acceptance  
-**Scope:** Knowledge Administration Portal UI/UX, frontend architecture, accessibility, mocked prototype, integration, and frontend tests. **Not** a replacement for the overall system blueprint.  
-**Authority:** `DKPS-SDD-001 v1.0.0-rc1` for system invariants; `DKP-UX-001 v0.6.0-draft` for existing UX proposals; approved UX direction (Balanced Workspace, Comfortable Density, dark default).  
+**Document ID:** DKP-UX-002\
+**Version:** 0.7.0-draft\
+**Date:** 2026-11-01\
+**Language:** English\
+**Status:** Proposed frontend implementation blueprint — requires contract and product acceptance\
+**Scope:** Knowledge Administration Portal UI/UX, frontend architecture, accessibility, mocked prototype, integration, and frontend tests. **Not** a replacement for the overall system blueprint.\
+**Authority:** `DKPS-SDD-001 v1.0.0-rc1` for system invariants; `DKP-UX-001 v0.6.0-draft` for existing UX proposals; approved UX direction (Balanced Workspace, Comfortable Density, dark default).\
 **Change policy:** Do not infer business permission rules or change DM-001–DM-072, upstream ADRs, service ownership, security model, or approved contracts by implementing this document.
 
 ---
@@ -188,6 +188,13 @@ apps/knowledge-admin-ui/
 | Dialog confirmation and temporary UI preferences | Feature-local state | Never interpreted as server acceptance |
 | Theme preference | User preference / permitted local persistence | No credentials, tokens or private contents |
 | Demo fixtures | Isolated mock adapter only | Explicitly labeled and excluded from production builds |
+
+
+### Mandatory server-state implementation — owner requirement, 2026-11-01
+
+**TanStack React Query (`@tanstack/react-query`) is mandatory for all frontend server state.** Feature/application hooks own queries, mutations, cache invalidation, cancellation and reconciliation through typed clients/adapters and the trusted BFF. Components must not create an independent fetch/useEffect server-state cache. React local state remains appropriate for forms and transient interface state.
+
+Protected query keys must include the authenticated session and selected tenant where relevant. Tenant/session changes, logout, expiry and revoked access must cancel affected requests and remove protected cached data; cancellation alone is insufficient. A mutation succeeds only after authoritative acknowledgement; network silence remains unknown and follows the existing idempotent reconciliation contract. Do not persist credentials, protected query data or uploaded contents in ordinary browser storage.
 
 ### 5.4 Suggested typed view models (not wire contracts)
 
@@ -518,3 +525,11 @@ Where tests rely on server security guarantees, browser tests must be complement
 - [ ] No existing Library or upstream architecture record is overwritten without explicit approval.
 
 **End of blueprint — DKP-UX-002 v0.7.0-draft.**
+
+## Incremental implementation tracking
+
+Track actual delivery, source-bound verification gaps and dependencies in [UI/UX modernization status](../implementation/uiux-modernization-status.md), [contract compatibility matrix](../development/uiux-contract-compatibility.md) and UX001 OpenSpec (#434). The Blueprint defines the agreed target; the status record distinguishes locally verified, CI verified and integrated behavior. Follow the full project implementation protocol for every frontend stream.
+
+## Interactive Design v0.5 implementation authority
+
+The owner's current execution instruction makes [Interactive Design v0.5](../prototypes/DKP_Interactive_Design_v0.5.html) authoritative for visual appearance, navigation, layout, information hierarchy and demonstrated interactions. This Blueprint remains architecture, accessibility and implementation guidance; accepted system/security/domain contracts remain authoritative for business behavior. Render and inspect the prototype, share measured tokens, and retain matching dark/light desktop/mobile reference and React comparisons. Do not silently redesign or claim visual fidelity from component tests. Missing capabilities retain recognizable structure and explicit unavailable states. Track implementation and deviations in [the canonical status and fidelity record](../implementation/uiux-modernization-status.md), issue #443.

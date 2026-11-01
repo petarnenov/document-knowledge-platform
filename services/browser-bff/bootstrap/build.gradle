@@ -1,1 +1,78 @@
 // Layer dependencies and verification are configured centrally.
+
+// NettyHttpRequest's supported public channel API exposes Reactor types in its signatures.
+// The existing Micronaut platform and dependency lock supply the runtime's exact version.
+dependencies {
+    implementation 'io.projectreactor:reactor-core'
+}
+
+def ingressClassFiles = files(sourceSets.main.output.classesDirs.collect {
+    fileTree(it) { include '**/BoundedIngressPolicy*.class'; include '**/PinnedIngressReadback*.class' }
+})
+tasks.register('ingressCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.setFrom(ingressClassFiles)
+    sourceDirectories.setFrom(sourceSets.main.allJava.srcDirs)
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('ingressCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('ingressCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.setFrom(ingressClassFiles)
+    sourceDirectories.setFrom(sourceSets.main.allJava.srcDirs)
+    violationRules {
+        rule {
+            limit { counter = 'LINE'; minimum = 0.75 }
+            limit { counter = 'BRANCH'; minimum = 0.75 }
+        }
+    }
+}
+tasks.named('check') { dependsOn tasks.named('ingressCoverageVerification') }
+tasks.named('check') {
+    dependsOn ':services:browser-bff:adapters-out:transferLengthCoverageVerification'
+}
+
+// JSON semantic limits must remain independent of the larger framework streaming window.
+def metadataClassFiles = files(project(':services:browser-bff:adapters-in').sourceSets.main.output.classesDirs.collect {
+    fileTree(it) { include '**/BoundedMetadataBody.class' }
+})
+tasks.register('metadataBodyCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.setFrom(metadataClassFiles)
+    sourceDirectories.setFrom(project(':services:browser-bff:adapters-in').sourceSets.main.allJava.srcDirs)
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('metadataBodyCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('metadataBodyCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.setFrom(metadataClassFiles)
+    violationRules { rule {
+        limit { counter = 'LINE'; minimum = 0.75 }
+        limit { counter = 'BRANCH'; minimum = 0.75 }
+    } }
+}
+tasks.named('check') { dependsOn tasks.named('metadataBodyCoverageVerification') }
+
+// The pinned read-only implementation has its own floor; policy coverage cannot hide its gaps.
+def liveReadbackClassFiles = files(sourceSets.main.output.classesDirs.collect {
+    fileTree(it) { include '**/PinnedIngressReadback.class' }
+})
+tasks.register('liveReadbackCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.setFrom(liveReadbackClassFiles)
+    sourceDirectories.setFrom(sourceSets.main.allJava.srcDirs)
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('liveReadbackCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('liveReadbackCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.setFrom(liveReadbackClassFiles)
+    violationRules { rule {
+        limit { counter = 'LINE'; minimum = 0.75 }
+        limit { counter = 'BRANCH'; minimum = 0.75 }
+    } }
+}
+tasks.named('check') { dependsOn tasks.named('liveReadbackCoverageVerification') }

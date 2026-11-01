@@ -1,0 +1,160 @@
+/* Test-only stand-in for the measured #443 shared class/theme contract.
+ * Screenshots prove component structure; integrated theme acceptance is separate.
+ */
+:root[data-mantine-color-scheme='dark'] {
+  --fixture-bg: #10141b;
+  --fixture-surface: #191f29;
+  --fixture-panel: #212936;
+  --fixture-text: #edf1f7;
+  --fixture-muted: #a2afc0;
+  --fixture-border: #354051;
+  --fixture-accent: #6597f7;
+}
+:root[data-mantine-color-scheme='light'] {
+  --fixture-bg: #f6f8fc;
+  --fixture-surface: #ffffff;
+  --fixture-panel: #eef2f8;
+  --fixture-text: #1b2533;
+  --fixture-muted: #5e6c80;
+  --fixture-border: #d9e0e9;
+  --fixture-accent: #235cbd;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--fixture-bg);
+  color: var(--fixture-text);
+  font-size: 16px;
+  line-height: normal;
+}
+.fixture-notice {
+  font-size: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--fixture-border);
+}
+.visual-stage {
+  padding: 26px;
+  margin-left: max(215px, calc((100vw - 1420px) / 2 + 215px));
+  max-width: 1000px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.visual-stage h1 {
+  font-size: 26px;
+  margin: 7px 0 8px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+.visual-stage h2 {
+  font-size: 17px;
+  margin: 4px 0 15px;
+  font-weight: 700;
+}
+.visual-stage .breadcrumbs {
+  font-size: 12px;
+  color: var(--fixture-muted);
+  margin: 0;
+}
+.visual-stage .card {
+  border: 1px solid var(--fixture-border);
+  border-radius: 13px;
+  padding: 17px;
+  margin: 12px 0;
+  background: var(--fixture-surface);
+  min-width: 0;
+}
+.visual-stage .sub {
+  color: var(--fixture-muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+.visual-stage .small {
+  font-size: 13px;
+}
+.visual-stage .hint {
+  font-size: 12px;
+  color: var(--fixture-muted);
+}
+.visual-stage .muted {
+  color: var(--fixture-muted);
+}
+.visual-stage .rowline {
+  padding: 13px 0;
+  border-bottom: 1px solid var(--fixture-border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.visual-stage .grow {
+  flex: 1;
+  min-width: 0;
+}
+.visual-stage .toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 15px 0;
+}
+.visual-stage .detail {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--fixture-border);
+  padding: 11px 0;
+  gap: 12px;
+  font-size: 14px;
+}
+.visual-stage .mantine-Input-input {
+  background: var(--fixture-surface);
+  color: var(--fixture-text);
+  border: 1px solid var(--fixture-border);
+  border-radius: 9px;
+  font-size: 16px;
+  min-height: 40px;
+  height: auto;
+  padding: 10px;
+  line-height: normal;
+}
+.visual-stage .mantine-NativeSelect-input {
+  padding-right: 30px;
+}
+.visual-stage .mantine-InputWrapper-label {
+  display: block;
+  font-size: 13px;
+  color: var(--fixture-muted);
+  margin: 10px 0 5px;
+  font-weight: 400;
+}
+.visual-stage .mantine-Button-root {
+  max-width: 100%;
+  border-radius: 9px;
+  min-height: 38px;
+  height: auto;
+  padding: 9px 12px;
+  font-size: 16px;
+  font-weight: 400;
+}
+.visual-stage .mantine-Button-root:disabled {
+  background: var(--fixture-panel);
+  color: var(--fixture-muted);
+  border: 1px solid var(--fixture-border);
+  cursor: not-allowed;
+}
+.visual-stage .mantine-Button-label {
+  white-space: normal;
+  line-height: normal;
+}
+.visual-stage button:focus-visible {
+  outline: 2px solid var(--fixture-accent);
+  outline-offset: 2px;
+}
+@media (max-width: 750px) {
+  .visual-stage {
+    margin-left: 62px;
+    padding: 16px;
+  }
+  .visual-stage h1 {
+    font-size: 22px;
+  }
+}

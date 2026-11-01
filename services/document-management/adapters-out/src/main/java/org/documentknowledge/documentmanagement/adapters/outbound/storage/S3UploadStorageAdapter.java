@@ -16,20 +16,17 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Semaphore;
 import javax.net.ssl.TrustManagerFactory;
 import org.documentknowledge.authorization.TrustedAuthorityFiles;
 import org.documentknowledge.documentmanagement.application.DmFailure;
 import org.documentknowledge.documentmanagement.application.upload.UploadStoragePort;
+import org.documentknowledge.documentmanagement.application.upload.CompleteBudget;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels;
-import org.documentknowledge.documentmanagement.domain.upload.UploadModels.DeletionFence;
-import org.documentknowledge.documentmanagement.domain.upload.UploadModels.FencePhase;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.ObjectIdentity;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.ObjectKey;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.apache5.Apache5HttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -38,19 +35,16 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
 import software.amazon.awssdk.services.s3.model.ChecksumMode;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 
 /** Private versioned storage. Domain authorization, accounting and dispatch fencing belong to the UoW. */
 public final class S3UploadStorageAdapter implements UploadStoragePort, AutoCloseable {
     private final S3Client client;
     private final Path spoolRoot;
-    private final Semaphore copyAdmission = new Semaphore(1);
+    private final org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort workspaces;
 
     public record Configuration(URI endpoint, String region, Path accessKeyFile,
             Path secretKeyFile, Path caFile, Path privateSpoolRoot) {
@@ -78,8 +72,26 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
             if (!MessageDigest.isEqual(marker, "dkp-private-spool-v1\n".getBytes(StandardCharsets.US_ASCII))) {
                 throw unavailable();
             }
+            S3Client s3 = client(configuration, "normal");
+            return new S3UploadStorageAdapter(s3, root);
+        } catch (Exception failure) {
+            throw unavailable();
+        }
+    }
+
+    public static S3UploadStorageAdapter connect(Configuration configuration,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort workspaces){
+        var adapter=connect(configuration);
+        return new S3UploadStorageAdapter(adapter.client,adapter.spoolRoot,workspaces);
+    }
+
+    static S3Client client(Configuration configuration, String role) {
+        try {
             String access = credential(configuration.accessKeyFile(), 16, 128);
             String secret = credential(configuration.secretKeyFile(), 32, 256);
+            if (access.equals(secret) || Files.isSameFile(configuration.accessKeyFile(), configuration.secretKeyFile())) throw unavailable();
+            String binding = "dkp-storage-" + role + "-v1\n" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(access.getBytes(StandardCharsets.US_ASCII))) + "\n" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(secret.getBytes(StandardCharsets.US_ASCII))) + "\n";
+            byte[] authority = TrustedAuthorityFiles.read(configuration.accessKeyFile().resolveSibling(configuration.accessKeyFile().getFileName() + ".role"), 256, true);
+            if (!MessageDigest.isEqual(authority, binding.getBytes(StandardCharsets.US_ASCII))) throw unavailable();
             var certificates = CertificateFactory.getInstance("X.509").generateCertificates(
                 new java.io.ByteArrayInputStream(TrustedAuthorityFiles.read(configuration.caFile(), 65536, false)));
             if (certificates.isEmpty()) throw unavailable();
@@ -107,20 +119,22 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
                 .httpClientBuilder(Apache5HttpClient.builder().connectionTimeout(Duration.ofSeconds(5))
                     .socketTimeout(Duration.ofSeconds(30)).tlsTrustManagersProvider(() -> managers))
                 .build();
-            return new S3UploadStorageAdapter(s3, root);
-        } catch (Exception failure) {
-            throw unavailable();
-        }
+            return s3;
+        } catch (Exception failure) { throw unavailable(); }
     }
 
     // Constructor seam for transport contract tests, never selected by runtime configuration.
-    S3UploadStorageAdapter(S3Client client, Path spoolRoot) {
+    S3UploadStorageAdapter(S3Client client, Path spoolRoot) {this(client,spoolRoot,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.unavailable());}
+    S3UploadStorageAdapter(S3Client client, Path spoolRoot,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort workspaces) {
+        this.workspaces=Objects.requireNonNull(workspaces);
         this.client = Objects.requireNonNull(client);
         this.spoolRoot = Objects.requireNonNull(spoolRoot).toAbsolutePath().normalize();
     }
 
     /** Bounded non-mutating readiness; the runtime policy explicitly permits this on both private buckets. */
-    public boolean ready() {
+    public boolean ready() { return ready(client); }
+
+    static boolean ready(S3Client client) {
         try {
             for (String bucket : List.of("dkp-quarantine", "dkp-originals")) {
                 var request = software.amazon.awssdk.services.s3.model.GetBucketVersioningRequest.builder()
@@ -136,30 +150,34 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
 
     @Override
-    public ObjectIdentity put(ObjectKey key, Path source, long sizeBytes, String sha256) {
+    public ObjectIdentity put(ObjectKey key, Path source, long sizeBytes, String sha256) {return putBounded(key,source,sizeBytes,sha256,null);}
+    private ObjectIdentity putBounded(ObjectKey key,Path source,long sizeBytes,String sha256,StorageBudget phase) {
         try {
+            if(phase!=null)phase.check();
             UploadModels.size(sizeBytes);
             UploadModels.hash(sha256);
             Path normalized = source.toAbsolutePath().normalize();
             if (!source.isAbsolute() || !source.equals(normalized) || !spoolRoot.equals(source.getParent())
                     || !Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) throw unavailable();
             Digest before;
-            try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS)) {
-                before = digest(input);
+            try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS);var abort=abortInput(input,phase)) {
+                before = digest(input,phase);
             }
             if (before.size() != sizeBytes || !before.sha256().equals(sha256)) throw unavailable();
-            var request = PutObjectRequest.builder().bucket(key.bucket()).key(key.key())
+            var builder = PutObjectRequest.builder().bucket(key.bucket()).key(key.key())
                 .ifNoneMatch("*").contentLength(sizeBytes).contentType("application/octet-stream")
                 .checksumAlgorithm(ChecksumAlgorithm.SHA256)
-                .checksumSHA256(Base64.getEncoder().encodeToString(HexFormat.of().parseHex(sha256))).build();
+                .checksumSHA256(Base64.getEncoder().encodeToString(HexFormat.of().parseHex(sha256)));
+            if(phase!=null){var remaining=phase.remaining();builder.overrideConfiguration(c->c.apiCallTimeout(remaining).apiCallAttemptTimeout(remaining));}
+            var request=builder.build();
             ObjectIdentity object;
-            try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS)) {
+            try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS);var abort=abortInput(input,phase)) {
                 var response = client.putObject(request, RequestBody.fromInputStream(input, sizeBytes));
                 object = identity(key, response.versionId());
             }
             // Stored checksums alone are insufficient: verify bytes of the exact returned version.
-            try (InputStream input = open(object)) {
-                Digest readback = digest(input);
+            try (InputStream input = openBounded(object,phase)) {
+                Digest readback = digest(input,phase);
                 if (!before.equals(readback)) throw unavailable();
             }
             return object;
@@ -169,65 +187,51 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
 
     @Override
-    public InputStream open(ObjectIdentity object) {
+    public InputStream open(ObjectIdentity object) {return openBounded(object,null);}
+    @Override public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase) {return openBounded(object,wrap(phase));}
+    @Override public InputStream open(ObjectIdentity object,org.documentknowledge.documentmanagement.application.upload.GenericTempBudget budget){return openBounded(object,wrap(Objects.requireNonNull(budget)));}
+    @Override public ObjectIdentity put(ObjectKey key,Path source,long size,String hash,org.documentknowledge.documentmanagement.application.upload.GenericTempBudget budget){return putBounded(key,source,size,hash,wrap(Objects.requireNonNull(budget)));}
+    private InputStream openBounded(ObjectIdentity object,StorageBudget phase) {
         ResponseInputStream<GetObjectResponse> input = null;
         try {
+            if(phase!=null)phase.check();
             var key = object.objectKey();
-            input = client.getObject(GetObjectRequest.builder().bucket(key.bucket()).key(key.key())
-                .versionId(object.versionId()).checksumMode(ChecksumMode.ENABLED).build());
+            var builder=GetObjectRequest.builder().bucket(key.bucket()).key(key.key()).versionId(object.versionId()).checksumMode(ChecksumMode.ENABLED);
+            if(phase!=null){var remaining=phase.remaining();builder.overrideConfiguration(c->c.apiCallTimeout(remaining).apiCallAttemptTimeout(remaining));}
+            input=client.getObject(builder.build());
             var response = input.response();
             if (!object.versionId().equals(response.versionId()) || response.contentLength() == null
                     || response.contentLength() < 1 || response.contentLength() > UploadModels.MAX_BYTES) {
                 throw unavailable();
             }
-            return new ExactLengthStream(input, response.contentLength());
+            return new ExactLengthStream(input,response.contentLength(),phase);
         } catch (Exception failure) {
             if (input != null) input.abort();
             throw unavailable();
         }
     }
 
-    @Override
-    public ObjectIdentity copy(ObjectIdentity source, ObjectKey target) {
-        if (!"dkp-quarantine".equals(source.objectKey().bucket()) || !"dkp-originals".equals(target.bucket())
-                || !source.objectKey().key().substring(0, 102).equals(target.key().substring(0, 102))) {
-            throw unavailable();
-        }
-        if (!copyAdmission.tryAcquire()) throw new DmFailure(429, "QUOTA_EXCEEDED");
-        Path temporary = null;
-        try {
-            temporary = Files.createTempFile(spoolRoot, "verified-copy-", ".bin");
-            try (InputStream input = open(source); var output = Files.newOutputStream(temporary)) {
-                byte[] buffer = new byte[65536];
-                long count = 0;
-                int read;
-                while ((read = input.read(buffer)) != -1) {
-                    count = Math.addExact(count, read);
-                    if (count > UploadModels.MAX_BYTES) throw unavailable();
-                    output.write(buffer, 0, read);
-                }
-            }
-            Digest hash;
-            try (InputStream input = Files.newInputStream(temporary, LinkOption.NOFOLLOW_LINKS)) {
-                hash = digest(input);
-            }
-            // A conditional PUT is used instead of relying on vendor-specific destination CopyObject conditions.
-            return put(target, temporary, hash.size(), hash.sha256());
-        } catch (Exception failure) {
-            throw unavailable();
-        } finally {
-            boolean cleaned = true;
-            if (temporary != null) {
-                try { Files.deleteIfExists(temporary); } catch (IOException failure) { cleaned = false; }
-            }
-            // Retain admission after failed local cleanup: retries cannot accumulate unbounded spool files.
-            if (cleaned) copyAdmission.release();
-            else throw unavailable();
-        }
+    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target){throw unavailable();}
+    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase){throw unavailable();}
+    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.Workspace workspace){
+        workspaces.check(workspace,phase);
+        if(!"dkp-quarantine".equals(source.objectKey().bucket())||!"dkp-originals".equals(target.bucket())||!source.objectKey().key().substring(0,102).equals(target.key().substring(0,102)))throw unavailable();
+        var scratch=workspace.scratch(org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.Role.COPY,phase);
+        ObjectIdentity known=null;
+        try{
+            org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.ArtifactFile copied;
+            try(var input=open(source,phase);var abort=phase.onCancel(()->{try{input.close();}catch(IOException ignored){}})){copied=scratch.write(input,phase);}
+            workspaces.check(workspace,phase);
+            try(var use=workspace.retain(phase)){known=putBounded(target,copied.path(),copied.size(),copied.sha256(),wrap(phase));return known;}
+        }catch(Exception failure){throw unavailable();}
+        finally{try{scratch.cleanup(phase);}catch(RuntimeException cleanupFailed){if(known==null)throw cleanupFailed;/* Known remote identity is settlement-only; retained scratch blocks READBACK and receipt. */}}
     }
 
+
     @Override
-    public List<ObjectIdentity> versions(ObjectKey key) {
+    public List<ObjectIdentity> versions(ObjectKey key) { return versions(client, key); }
+
+    static List<ObjectIdentity> versions(S3Client client, ObjectKey key) {
         try {
             var response = client.listObjectVersions(ListObjectVersionsRequest.builder()
                 .bucket(key.bucket()).prefix(key.key()).maxKeys(1000).build());
@@ -244,54 +248,9 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
         }
     }
 
-    @Override
-    public DeletionResult deleteOnce(DeletionFence fence) {
-        if (fence.phase() != FencePhase.DISPATCHED) throw unavailable();
-        var object = fence.object();
-        try {
-            var key = object.objectKey();
-            var response = client.deleteObject(DeleteObjectRequest.builder().bucket(key.bucket()).key(key.key())
-                .versionId(object.versionId()).build());
-            String requestId = response.responseMetadata().requestId();
-            if (response.sdkHttpResponse().statusCode() != 204 || !requestId(requestId)
-                    || (response.versionId() != null && !response.versionId().equals(object.versionId()))) {
-                return unknown(fence);
-            }
-            boolean absent = absent(object);
-            return new DeletionResult(fence.attemptId(), object, requestId, true, true, absent, true);
-        } catch (S3Exception failure) {
-            // A validated terminal 4xx is a rejected one-shot attempt, not proof of deletion.
-            if (failure.statusCode() >= 400 && failure.statusCode() < 500 && requestId(failure.requestId())) {
-                return new DeletionResult(fence.attemptId(), object, failure.requestId(), true, true, false, false);
-            }
-            return unknown(fence);
-        } catch (SdkClientException failure) {
-            return unknown(fence); // Timeout/lost response must never clear the durable fence.
-        }
-    }
-
-    private boolean absent(ObjectIdentity object) {
-        try {
-            client.headObject(HeadObjectRequest.builder().bucket(object.objectKey().bucket())
-                .key(object.objectKey().key()).versionId(object.versionId()).build());
-            return false;
-        } catch (S3Exception failure) {
-            return failure.statusCode() == 404 && failure.awsErrorDetails() != null
-                && List.of("NoSuchKey", "NoSuchVersion", "NotFound").contains(failure.awsErrorDetails().errorCode());
-        }
-    }
-
     private static ObjectIdentity identity(ObjectKey key, String versionId) {
         if (versionId == null || versionId.isBlank() || "null".equalsIgnoreCase(versionId)) throw unavailable();
         return new ObjectIdentity(key, versionId);
-    }
-    private static boolean requestId(String value) {
-        // AWS response metadata substitutes UNKNOWN when the server supplied no request ID.
-        return value != null && !"UNKNOWN".equalsIgnoreCase(value)
-            && value.matches("[A-Za-z0-9._:-]{1,256}");
-    }
-    private static DeletionResult unknown(DeletionFence fence) {
-        return new DeletionResult(fence.attemptId(), fence.object(), null, false, false, false, false);
     }
     private static String credential(Path path, int minimum, int maximum) throws IOException {
         String value = new String(TrustedAuthorityFiles.read(path, maximum + 1, true), StandardCharsets.US_ASCII).strip();
@@ -299,12 +258,14 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
         return value;
     }
     private record Digest(long size, String sha256) { }
-    private static Digest digest(InputStream input) throws Exception {
+    private static Digest digest(InputStream input) throws Exception {return digest(input,null);}
+    private static Digest digest(InputStream input,StorageBudget phase) throws Exception {
         var digest = MessageDigest.getInstance("SHA-256");
         long total = 0;
         byte[] buffer = new byte[65536];
         int count;
         while ((count = input.read(buffer)) != -1) {
+            if(phase!=null)phase.check();
             total = Math.addExact(total, count);
             if (total > UploadModels.MAX_BYTES) throw unavailable();
             digest.update(buffer, 0, count);
@@ -315,21 +276,32 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     private static DmFailure unavailable() { return new DmFailure(503, "UNAVAILABLE"); }
     @Override public void close() { client.close(); }
 
+    private static Cancellation abortInput(InputStream input,StorageBudget phase){return phase==null?null:phase.onCancel(()->{try{input.close();}catch(IOException ignored){}});}
+    private interface Cancellation extends AutoCloseable { @Override void close(); }
+    private interface StorageBudget {void check();Duration remaining();Cancellation onCancel(Runnable hook);}
+    private static StorageBudget wrap(CompleteBudget.Phase phase){if(phase==null)return null;return new StorageBudget(){public void check(){phase.check();}public Duration remaining(){return phase.remaining();}public Cancellation onCancel(Runnable hook){var registration=phase.onCancel(hook);return registration::close;}};}
+    private static StorageBudget wrap(org.documentknowledge.documentmanagement.application.upload.GenericTempBudget budget){return new StorageBudget(){public void check(){budget.check();}public Duration remaining(){Duration left=budget.remaining();return left.compareTo(Duration.ofSeconds(60))<0?left:Duration.ofSeconds(60);}public Cancellation onCancel(Runnable hook){var registration=budget.onCancel(hook);return registration::close;}};}
+
     private static final class ExactLengthStream extends FilterInputStream {
         private final long expected;
+        private final StorageBudget phase;private final Cancellation cancellation;
         private long read;
-        ExactLengthStream(InputStream input, long expected) { super(input); this.expected = expected; }
+        ExactLengthStream(ResponseInputStream<GetObjectResponse> input,long expected,StorageBudget phase) {super(input);this.expected=expected;this.phase=phase;cancellation=phase==null?null:phase.onCancel(input::abort);}
+        @Override public void close()throws IOException {try{if(phase==null)super.close();else ((ResponseInputStream<?>)in).abort();}finally{if(cancellation!=null)cancellation.close();}}
         @Override public int read() throws IOException {
+            if(phase!=null)phase.check();
             int result = in.read();
             check(result == -1 ? -1 : 1);
             return result;
         }
         @Override public int read(byte[] bytes, int offset, int length) throws IOException {
+            if(phase!=null)phase.check();
             int result = in.read(bytes, offset, length);
             check(result);
             return result;
         }
         private void check(int count) throws IOException {
+            if(phase!=null)phase.check();
             if (count == -1 ? read != expected : (read += count) > expected) {
                 close();
                 throw new IOException("Invalid immutable object length");

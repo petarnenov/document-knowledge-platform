@@ -2,7 +2,16 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { expect, test, type Route } from '@playwright/test';
+import {
+  expect,
+  test,
+  type BrowserContext,
+  type Page,
+  type Request,
+  type Response,
+  type Route,
+} from '@playwright/test';
+import { nativeBoundaryBrowser } from './native-boundary-browser';
 import { confirmSingleCreate, replayUiCreate } from './ui-create-receipt';
 
 const uploadProfile = process.env.DKP_UPLOAD_E2E_ENABLED;
@@ -101,18 +110,26 @@ for (const scheme of ['dark', 'light'] as const) {
     await page.getByRole('link', { name: 'Documents', exact: true }).click();
     const initialPage = await initialDrafts;
     expect(initialPage.status()).toBe(200);
-    // React renders this list only after the real query succeeds. CDP's
+    // React renders a table or the bounded empty result only after the real query succeeds. CDP's
     // transport-finished observer may hang even after HTTP200; it is not UI state.
     await expect(
       page
         .getByRole('region', { name: 'Accessible drafts', exact: true })
-        .getByRole('list'),
+        .getByRole('table', { name: 'Document library' })
+        .or(
+          page
+            .getByRole('region', { name: 'Accessible drafts', exact: true })
+            .getByText('No accessible drafts on this page.', { exact: true }),
+        ),
     ).toHaveCount(1);
     await expect(
       page.getByText('Loading drafts…', { exact: true }),
     ).toHaveCount(0);
     await expect(page.getByRole('alert')).toHaveCount(0);
     const title = `Synthetic draft ${Date.now()}`;
+    await page
+      .getByRole('button', { name: 'New document', exact: true })
+      .click();
     await page.getByLabel('Title', { exact: true }).fill(title);
     await page
       .getByLabel('Description', { exact: true })
@@ -142,8 +159,15 @@ for (const scheme of ['dark', 'light'] as const) {
     ).toBeVisible();
     const root = `/api/v1/dm/documents/${receipt.documentId}`;
     await expect(
-      page.getByRole('button', { name: 'Create draft', exact: true }),
+      page.getByRole('heading', { name: 'Document Library', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'New document', exact: true }),
     ).toBeEnabled();
+    await expect(page.locator('.documents')).toHaveAttribute(
+      'aria-busy',
+      'false',
+    );
     // An earlier run can leave more than one visible page. Follow authenticated cursors only.
     for (
       let pages = 0;
@@ -165,7 +189,12 @@ for (const scheme of ['dark', 'light'] as const) {
       await expect(
         page
           .getByRole('region', { name: 'Accessible drafts', exact: true })
-          .getByRole('list'),
+          .getByRole('table', { name: 'Document library' })
+          .or(
+            page
+              .getByRole('region', { name: 'Accessible drafts', exact: true })
+              .getByText('No accessible drafts on this page.', { exact: true }),
+          ),
       ).toHaveCount(1);
       await expect(
         page.getByText('Loading drafts…', { exact: true }),
@@ -177,6 +206,7 @@ for (const scheme of ['dark', 'light'] as const) {
       page.getByRole('heading', { name: title, exact: true }),
     ).toBeVisible();
     await confirmSingleCreate(page.request, intended, receipt.documentId);
+    await page.getByText('Advanced document controls', { exact: true }).click();
     await page
       .getByRole('button', { name: 'Use current metadata', exact: true })
       .click();
@@ -188,6 +218,10 @@ for (const scheme of ['dark', 'light'] as const) {
     await expect(
       page.getByRole('heading', { name: updatedTitle, exact: true }),
     ).toBeVisible();
+    await expect(page.locator('.documents details')).toHaveJSProperty(
+      'open',
+      true,
+    );
     await page
       .getByRole('button', { name: 'Inspect access rules', exact: true })
       .click();
@@ -286,6 +320,10 @@ for (const scheme of ['dark', 'light'] as const) {
     let lastVerified:
       | { path: string; mime: string; uploadId: string; receiptId: string }
       | undefined;
+    if (uploadProfile === 'true')
+      await page
+        .getByRole('button', { name: 'Upload version', exact: true })
+        .click();
     // Real untrusted bytes traverse BFF, RustFS quarantine, standard ClamAV and inspector.
     for (const format of uploadProfile === 'true'
       ? (['PDF', 'DOCX', 'PPTX', 'XLSX'] as const)
@@ -756,5 +794,723 @@ for (const scheme of ['dark', 'light'] as const) {
     await expect(
       page.getByRole('heading', { name: updatedTitle, exact: true }),
     ).toHaveCount(0);
+  });
+}
+
+type BoundarySession = {
+  issuer: string;
+  subject: string;
+  selectedTenant: string;
+  tenants: string[];
+  csrfToken: string;
+};
+
+async function boundarySession(page: Page): Promise<BoundarySession> {
+  const response = await page.request.get(
+    new URL('/api/v1/session', page.url()).href,
+  );
+  expect(response.status()).toBe(200);
+  return (await response.json()) as BoundarySession;
+}
+
+async function prepareBoundaryDraft(page: Page, origin: string) {
+  await page.goto(`${origin}/identity`);
+  await page.getByRole('link', { name: 'Sign in', exact: true }).click();
+  await expect(page.locator('#username')).toBeVisible();
+  await page.locator('#username').fill(process.env.DKP_IDENTITY_USERNAME!);
+  await page.locator('#password').fill(process.env.DKP_IDENTITY_PASSWORD!);
+  await page.locator('#kc-login').click();
+  await page.waitForURL((url) => url.origin === origin && url.pathname === '/');
+  await page.goto(`${origin}/identity`);
+  const selector = page.getByRole('combobox', { name: 'Tenant' });
+  const tenant = await selector.locator('option').nth(1).getAttribute('value');
+  expect(tenant).toBeTruthy();
+  await selector.selectOption(tenant!);
+  const selected = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/v1/session/tenant' &&
+      response.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Use tenant', exact: true }).click();
+  expect((await selected).status()).toBe(200);
+  const session = await boundarySession(page);
+  expect(session.selectedTenant).toBe(tenant);
+  const listed = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/v1/dm/documents' &&
+      response.request().method() === 'GET',
+  );
+  await page.getByRole('link', { name: 'Documents', exact: true }).click();
+  expect((await listed).status()).toBe(200);
+  await expect(
+    page
+      .getByRole('region', { name: 'Accessible drafts', exact: true })
+      .getByRole('table', { name: 'Document library' })
+      .or(
+        page
+          .getByRole('region', { name: 'Accessible drafts', exact: true })
+          .getByText('No accessible drafts on this page.', { exact: true }),
+      ),
+  ).toHaveCount(1);
+  await expect(page.getByText('Loading drafts…', { exact: true })).toHaveCount(
+    0,
+  );
+  const title = `Synthetic pending boundary ${crypto.randomUUID()}`;
+  const description = 'Public synthetic browser boundary fixture.';
+  await page.getByRole('button', { name: 'New document', exact: true }).click();
+  await page.getByLabel('Title', { exact: true }).fill(title);
+  await page.getByLabel('Description', { exact: true }).fill(description);
+  const created = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/v1/dm/documents' &&
+      response.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Create draft', exact: true }).click();
+  const receipt = await replayUiCreate(page.request, await created, {
+    origin,
+    title,
+    description,
+  });
+  await expect(
+    page
+      .getByRole('status')
+      .filter({ hasText: `Saved document ${receipt.documentId}, revision 0.` }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'New document', exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole('heading', { name: 'Document Library', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('.documents')).toHaveAttribute(
+    'aria-busy',
+    'false',
+  );
+  for (
+    let count = 0;
+    count < 20 &&
+    (await page.getByRole('button', { name: title, exact: true }).count()) ===
+      0;
+    count++
+  ) {
+    const next = page.getByRole('button', { name: 'Next page', exact: true });
+    await expect(next).toBeVisible();
+    const nextPage = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/v1/dm/documents' &&
+        response.request().method() === 'GET',
+    );
+    await next.click();
+    expect((await nextPage).status()).toBe(200);
+    await expect(
+      page
+        .getByRole('region', { name: 'Accessible drafts', exact: true })
+        .getByRole('table', { name: 'Document library' })
+        .or(
+          page
+            .getByRole('region', { name: 'Accessible drafts', exact: true })
+            .getByText('No accessible drafts on this page.', { exact: true }),
+        ),
+    ).toHaveCount(1);
+    await expect(
+      page.getByText('Loading drafts…', { exact: true }),
+    ).toHaveCount(0);
+  }
+  await page.getByRole('button', { name: title, exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: title, exact: true }),
+  ).toBeVisible();
+  await confirmSingleCreate(
+    page.request,
+    { origin, title, description },
+    receipt.documentId,
+  );
+  await page.getByText('Advanced document controls', { exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Use current metadata', exact: true })
+    .click();
+  const unsavedTitle = `${title} unsaved`;
+  await page.getByLabel('Title', { exact: true }).fill(unsavedTitle);
+  await page
+    .getByLabel('Description', { exact: true })
+    .fill('Unsaved form must survive a theme change.');
+  await page
+    .getByRole('button', { name: 'Upload version', exact: true })
+    .click();
+  await page.getByLabel('Document format', { exact: true }).selectOption('PDF');
+  const fixture = fileURLToPath(
+    new URL('./fixtures/synthetic.pdf', import.meta.url),
+  );
+  await page.locator('input[type=file]').setInputFiles(fixture);
+  return {
+    session,
+    title,
+    unsavedTitle,
+    fixture,
+    root: `/api/v1/dm/documents/${receipt.documentId}`,
+    documentId: receipt.documentId,
+  };
+}
+
+async function observeThrottledUpload(
+  page: Page,
+  context: BrowserContext,
+  origin: string,
+  root: string,
+  expectedCsrf: string,
+) {
+  const cdp = await context.newCDPSession(page);
+  let removeListeners = () => {};
+  const release = () =>
+    cdp.send('Network.emulateNetworkConditionsByRule', {
+      offline: false,
+      matchedNetworkConditions: [],
+    });
+  const dispose = async () => {
+    removeListeners();
+    try {
+      await release();
+    } finally {
+      await cdp.detach();
+    }
+  };
+  try {
+    await cdp.send('Network.enable');
+    // Real Chromium transport only: no Fetch interception, fabricated reply, or altered body.
+    // Pinned Chromium exposes rule IDs on the exact outgoing binary request.
+    // https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-emulateNetworkConditionsByRule
+    const rules = await cdp.send('Network.emulateNetworkConditionsByRule', {
+      offline: false,
+      matchedNetworkConditions: [
+        {
+          urlPattern: `${origin}/api/v1/dm/documents/uploads/*/content`,
+          latency: 0,
+          downloadThroughput: -1,
+          uploadThroughput: 1,
+        },
+      ],
+    });
+    expect(rules.ruleIds).toHaveLength(1);
+    const binary: Request[] = [],
+      completes: Request[] = [],
+      appends: Request[] = [],
+      initializations: Request[] = [];
+    const requests: Request[] = [];
+    const canceled = new Map<
+      string,
+      { canceled?: boolean; errorText: string }
+    >();
+    const conditions = new Map<string, string | undefined>();
+    const wireGuards = new Map<
+      string,
+      {
+        origin: string | undefined;
+        csrf: string | undefined;
+        key: string | undefined;
+      }
+    >();
+    const finished = new Set<string>();
+    let binaryId: string | undefined;
+    const observe = (request: Request) => {
+      if (new URL(request.url()).origin !== origin) return;
+      requests.push(request);
+      const path = new URL(request.url()).pathname;
+      if (
+        request.method() === 'PUT' &&
+        /^\/api\/v1\/dm\/documents\/uploads\/[0-9a-f-]{36}\/content$/.test(path)
+      )
+        binary.push(request);
+      if (request.method() === 'POST' && path.endsWith('/complete'))
+        completes.push(request);
+      if (request.method() === 'POST' && path === `${root}/versions`)
+        appends.push(request);
+      if (
+        request.method() === 'POST' &&
+        path === '/api/v1/dm/documents/uploads'
+      )
+        initializations.push(request);
+    };
+    const responses: Response[] = [];
+    const observeResponse = (response: Response) => responses.push(response);
+    page.on('request', observe);
+    page.on('response', observeResponse);
+    removeListeners = () => {
+      page.off('request', observe);
+      page.off('response', observeResponse);
+    };
+    cdp.on('Network.requestWillBeSent', ({ requestId, request }) => {
+      if (
+        request.method === 'PUT' &&
+        new URL(request.url).origin === origin &&
+        /^\/api\/v1\/dm\/documents\/uploads\/[0-9a-f-]{36}\/content$/.test(
+          new URL(request.url).pathname,
+        )
+      )
+        binaryId = requestId;
+    });
+    cdp.on(
+      'Network.requestWillBeSentExtraInfo',
+      ({ requestId, appliedNetworkConditionsId, headers }) => {
+        conditions.set(requestId, appliedNetworkConditionsId);
+        const selected = (name: string): string | undefined => {
+          const matches = Object.entries(headers).filter(
+            ([key]) => key.toLowerCase() === name,
+          );
+          return matches.length === 1 && typeof matches[0]![1] === 'string'
+            ? matches[0]![1]
+            : undefined;
+        };
+        wireGuards.set(requestId, {
+          origin: selected('origin'),
+          csrf: selected('x-csrf-token'),
+          key: selected('idempotency-key'),
+        });
+      },
+    );
+    cdp.on(
+      'Network.loadingFailed',
+      ({ requestId, canceled: wasCanceled, errorText }) =>
+        canceled.set(requestId, {
+          ...(wasCanceled === undefined ? {} : { canceled: wasCanceled }),
+          errorText,
+        }),
+    );
+    cdp.on('Network.loadingFinished', ({ requestId }) =>
+      finished.add(requestId),
+    );
+    await page
+      .getByRole('button', { name: 'Upload and append', exact: true })
+      .click();
+    await expect.poll(() => binary.length, { timeout: 10_000 }).toBe(1);
+    await expect
+      .poll(
+        () =>
+          binaryId !== undefined &&
+          conditions.get(binaryId) === rules.ruleIds[0],
+        { timeout: 10_000 },
+      )
+      .toBe(true);
+    const status = () =>
+      responses.find(
+        (response) =>
+          response.request().method() === 'GET' &&
+          new URL(response.url()).pathname ===
+            `/api/v1/dm/documents/uploads/${new URL(binary[0]!.url()).pathname.split('/')[6]!}/status`,
+      );
+    await expect.poll(() => status()?.status()).toBe(200);
+    await expect(
+      page.getByText(/^Upload state: (INITIALIZED|RECEIVING)$/),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: 'Transferring into quarantine…' }),
+    ).toBeVisible();
+    const request = binary[0]!;
+    const uploadId = new URL(request.url()).pathname.split('/')[6]!;
+    expect(uploadId).toMatch(/^[0-9a-f-]{36}$/);
+    // ExtraInfo belongs to the same requestId and reports headers already on the wire.
+    // allHeaders() can wait for completion of this deliberately pending transfer.
+    const wire = wireGuards.get(binaryId!);
+    expect(wire?.origin).toBe(origin);
+    expect(wire?.csrf === expectedCsrf).toBe(true);
+    expect(
+      typeof wire?.key === 'string' && /^[0-9a-f-]{36}$/.test(wire.key),
+    ).toBe(true);
+    expect(canceled.has(binaryId!)).toBe(false);
+    expect(finished.has(binaryId!)).toBe(false);
+    return {
+      cdp,
+      binary,
+      completes,
+      appends,
+      initializations,
+      requests,
+      request,
+      wire: () => wireGuards.get(binaryId!),
+      responses,
+      uploadId,
+      failure: () => canceled.get(binaryId!),
+      finished: () => finished.has(binaryId!),
+      release,
+      dispose,
+    };
+  } catch (error) {
+    await dispose();
+    throw error;
+  }
+}
+
+if (uploadProfile === 'true') {
+  // The successful command releases admission before the cancellation case.
+  // A deliberately aborted INITIALIZED slot can legitimately remain charged
+  // until its fixed server expiry; never require a sixth same-tenant admission.
+  test('real HTTPS keyboard theme changes preserve one pending upload command, form and route through verified download', async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    test.setTimeout(180_000);
+    const origin = new URL(baseURL!).origin;
+    const draft = await prepareBoundaryDraft(page, origin);
+    const upload = await observeThrottledUpload(
+      page,
+      context,
+      origin,
+      draft.root,
+      draft.session.csrfToken,
+    );
+    const route = page.url();
+    const theme = page.getByRole('switch', { name: 'Light theme' });
+    const startingLight = await theme.isChecked();
+    const protectedReads = () =>
+      upload.requests.filter(
+        (request) =>
+          request.method() === 'GET' &&
+          /^\/api\/v1\/(session|dm|context)(?:\/|$)/.test(
+            new URL(request.url()).pathname,
+          ),
+      ).length;
+    const beforeReads = protectedReads();
+    const key = upload.wire()?.key;
+    try {
+      for (const expected of [!startingLight, startingLight]) {
+        await theme.focus();
+        await theme.press('Space');
+        await expect(theme).toBeChecked({ checked: expected });
+        await expect(theme).toBeFocused();
+        await expect(page.locator('html')).toHaveAttribute(
+          'data-mantine-color-scheme',
+          expected ? 'light' : 'dark',
+        );
+        await page.evaluate(
+          () =>
+            new Promise<void>((resolve) =>
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() => resolve()),
+              ),
+            ),
+        );
+        expect(page.url()).toBe(route);
+        // The dedicated upload view does not mount metadata controls. Verify
+        // their exact retained values after completion without navigating away
+        // from (and therefore aborting) this pending native transfer.
+        await expect(page.getByLabel('Title', { exact: true })).toHaveCount(0);
+        await expect(
+          page.getByLabel('Description', { exact: true }),
+        ).toHaveCount(0);
+        await expect(
+          page.getByLabel('Document format', { exact: true }),
+        ).toHaveValue('PDF');
+        await expect(
+          page.getByText('synthetic.pdf', { exact: true }),
+        ).toBeVisible();
+        await expect(
+          page
+            .getByRole('status')
+            .filter({ hasText: 'Transferring into quarantine…' }),
+        ).toBeVisible();
+        expect(upload.failure()).toBeUndefined();
+        expect(upload.finished()).toBe(false);
+        expect(upload.initializations.length).toBe(1);
+        expect(upload.binary.length).toBe(1);
+        expect(upload.completes.length).toBe(0);
+        expect(upload.appends.length).toBe(0);
+        expect(protectedReads()).toBe(beforeReads);
+        expect(upload.binary[0] === upload.request).toBe(true);
+        expect(
+          upload.wire()?.key === key &&
+            upload.wire()?.origin === origin &&
+            upload.wire()?.csrf === draft.session.csrfToken,
+        ).toBe(true);
+        const session = await boundarySession(page);
+        expect(
+          session.issuer === draft.session.issuer &&
+            session.subject === draft.session.subject &&
+            session.selectedTenant === draft.session.selectedTenant &&
+            session.csrfToken === draft.session.csrfToken,
+        ).toBe(true);
+      }
+      await upload.release();
+      await expect
+        .poll(
+          () =>
+            upload.responses
+              .find((response) => response.request() === upload.request)
+              ?.status(),
+          { timeout: 30_000 },
+        )
+        .toBe(200);
+      // Completed requests expose full Playwright headers without blocking the boundary.
+      const guards = await upload.request.allHeaders();
+      expect(guards.origin).toBe(origin);
+      expect(guards['x-csrf-token'] === draft.session.csrfToken).toBe(true);
+      expect(guards['idempotency-key'] === key).toBe(true);
+      await expect
+        .poll(
+          () =>
+            upload.responses
+              .find(
+                (response) =>
+                  response.request().method() === 'POST' &&
+                  new URL(response.url()).pathname === `${draft.root}/versions`,
+              )
+              ?.status(),
+          { timeout: 30_000 },
+        )
+        .toBe(201);
+      await expect(
+        page.getByRole('button', {
+          name: 'Download verified content',
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: 120_000 });
+      const downloaded = page.waitForEvent('download');
+      await page
+        .getByRole('button', { name: 'Download verified content', exact: true })
+        .click();
+      const result = await downloaded;
+      const hash = createHash('sha256');
+      for await (const chunk of await result.createReadStream())
+        hash.update(chunk);
+      expect(hash.digest('hex')).toBe(
+        createHash('sha256')
+          .update(await readFile(draft.fixture))
+          .digest('hex'),
+      );
+      expect(result.suggestedFilename()).toMatch(/^[0-9a-f-]{36}\.pdf$/);
+      expect(upload.initializations.length).toBe(1);
+      expect(upload.binary.length).toBe(1);
+      expect(upload.completes.length).toBe(1);
+      expect(upload.appends.length).toBe(1);
+      expect(upload.failure()).toBeUndefined();
+      const current = await page.request.get(draft.root);
+      expect(current.status()).toBe(200);
+      expect((await current.json()).revision).toBe(1);
+      const session = await boundarySession(page);
+      expect(
+        session.issuer === draft.session.issuer &&
+          session.subject === draft.session.subject &&
+          session.selectedTenant === draft.session.selectedTenant &&
+          session.csrfToken === draft.session.csrfToken,
+      ).toBe(true);
+      await page
+        .getByRole('button', { name: 'Back to document', exact: true })
+        .click();
+      await expect(page.locator('.documents details')).toHaveJSProperty(
+        'open',
+        true,
+      );
+      await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
+        draft.unsavedTitle,
+      );
+      await expect(page.getByLabel('Description', { exact: true })).toHaveValue(
+        'Unsaved form must survive a theme change.',
+      );
+    } finally {
+      await upload.dispose();
+    }
+  });
+  test('real HTTPS tenant change during pending binary upload aborts old scoped work without verify or append', async ({
+    baseURL,
+  }) => {
+    test.setTimeout(120_000);
+    const origin = new URL(baseURL!).origin;
+    const native = await nativeBoundaryBrowser(
+      process.env.DKP_IDENTITY_IDP_ADDRESS ?? '',
+    );
+    const { page, context } = native;
+    try {
+      // This fresh native browser must prove trust before it receives OIDC credentials.
+      expect((await page.goto(origin))?.status()).toBe(200);
+      const provider = new URL(process.env.DKP_IDENTITY_IDP_BASE_URL!);
+      expect(provider.protocol).toBe('https:');
+      expect(
+        (
+          await page.goto(
+            new URL('/realms/dkp/.well-known/openid-configuration', provider)
+              .href,
+          )
+        )?.status(),
+      ).toBe(200);
+      const wrongName = new URL(origin);
+      wrongName.hostname = 'wrong-name.localhost';
+      // Chromium may commit its error page after goto rejects. Keep that
+      // expected negative probe separate from the page that receives credentials.
+      const hostnameProbe = await context.newPage();
+      try {
+        await expect(hostnameProbe.goto(wrongName.href)).rejects.toThrow(
+          'ERR_CERT_COMMON_NAME_INVALID',
+        );
+      } finally {
+        await hostnameProbe.close();
+      }
+      await page.bringToFront();
+      const draft = await prepareBoundaryDraft(page, origin);
+      const other = draft.session.tenants.find(
+        (value) => value !== draft.session.selectedTenant,
+      );
+      expect(other).toBeTruthy();
+      // Keep Documents mounted: changing tenant in another real tab must trigger
+      // the first tab's current-session recheck/remount, not a navigation-only abort.
+      const identity = await context.newPage();
+      const identityResponses: Response[] = [];
+      const observeIdentity = (response: Response) =>
+        identityResponses.push(response);
+      identity.on('response', observeIdentity);
+      await identity.goto(`${origin}/identity`);
+      await expect(
+        identity.getByRole('heading', { name: /^Signed in as / }),
+      ).toBeVisible();
+      await page.bringToFront();
+      const upload = await observeThrottledUpload(
+        page,
+        context,
+        origin,
+        draft.root,
+        draft.session.csrfToken,
+      );
+      try {
+        const failed = page
+          .waitForEvent('requestfailed', {
+            predicate: (request) => request === upload.request,
+            timeout: 15_000,
+          })
+          .then(
+            () => ({ failed: true as const }),
+            (error: unknown) => ({ error }),
+          );
+        await identity.bringToFront();
+        await expect
+          .poll(() => page.evaluate(() => document.visibilityState))
+          .toBe('hidden');
+        await identity
+          .getByRole('combobox', { name: 'Tenant' })
+          .selectOption(other!);
+        const beforeChange = identityResponses.length;
+        await identity
+          .getByRole('button', { name: 'Use tenant', exact: true })
+          .click();
+        await expect
+          .poll(() =>
+            identityResponses
+              .slice(beforeChange)
+              .find(
+                (response) =>
+                  response.request().method() === 'POST' &&
+                  new URL(response.url()).pathname === '/api/v1/session/tenant',
+              )
+              ?.status(),
+          )
+          .toBe(200);
+        const beforeSession = upload.responses.length;
+        await page.bringToFront();
+        await expect
+          .poll(() =>
+            upload.responses
+              .slice(beforeSession)
+              .find(
+                (response) =>
+                  response.request().method() === 'GET' &&
+                  new URL(response.url()).pathname === '/api/v1/session',
+              )
+              ?.status(),
+          )
+          .toBe(200);
+        const failure = await failed;
+        if ('error' in failure) throw failure.error;
+        await expect
+          .poll(() => upload.failure()?.canceled, { timeout: 10_000 })
+          .toBe(true);
+        expect(upload.request.failure()?.errorText).toContain('ERR_ABORTED');
+        expect(upload.finished()).toBe(false);
+        await expect(
+          page.getByRole('heading', { name: draft.title, exact: true }),
+        ).toHaveCount(0);
+        await expect(
+          page.getByRole('heading', {
+            name: 'Upload a verified version',
+            exact: true,
+          }),
+        ).toHaveCount(0);
+        await expect(page.getByLabel('Title', { exact: true })).toHaveCount(0);
+        await expect(
+          page.getByLabel('Description', { exact: true }),
+        ).toHaveCount(0);
+        await page
+          .getByRole('button', { name: 'New document', exact: true })
+          .click();
+        await expect(page.getByLabel('Title', { exact: true })).toHaveValue('');
+        await expect(
+          page.getByLabel('Description', { exact: true }),
+        ).toHaveValue('');
+        const session = await boundarySession(page);
+        expect(session.selectedTenant).toBe(other);
+        expect(
+          session.issuer === draft.session.issuer &&
+            session.subject === draft.session.subject,
+        ).toBe(true);
+        const hidden = await page.request.get(
+          `${origin}/api/v1/dm/documents/uploads/${upload.uploadId}/status`,
+        );
+        expect(hidden.status()).toBe(404);
+        expect(await hidden.json()).toEqual({ code: 'NOT_FOUND' });
+        const hiddenDraft = await page.request.get(origin + draft.root);
+        expect(hiddenDraft.status()).toBe(404);
+        // Switch back through the same genuine tenant UI; an aborted job never resurrects.
+        await identity.bringToFront();
+        await identity
+          .getByRole('combobox', { name: 'Tenant' })
+          .selectOption(draft.session.selectedTenant);
+        const beforeRestore = identityResponses.length;
+        await identity
+          .getByRole('button', { name: 'Use tenant', exact: true })
+          .click();
+        await expect
+          .poll(() =>
+            identityResponses
+              .slice(beforeRestore)
+              .find(
+                (response) =>
+                  response.request().method() === 'POST' &&
+                  new URL(response.url()).pathname === '/api/v1/session/tenant',
+              )
+              ?.status(),
+          )
+          .toBe(200);
+        await page.bringToFront();
+        const original = await page.request.get(origin + draft.root);
+        expect(original.status()).toBe(200);
+        const unchanged = await original.json();
+        expect(unchanged.revision).toBe(0);
+        expect(unchanged.activeVersionId).toBeNull();
+        const status = await page.request.get(
+          `${origin}/api/v1/dm/documents/uploads/${upload.uploadId}/status`,
+        );
+        expect(status.status()).toBe(200);
+        expect([
+          'INITIALIZED',
+          'RECEIVING',
+          'QUARANTINED',
+          'REJECTED',
+        ]).toContain((await status.json()).state);
+        expect(upload.initializations.length).toBe(1);
+        expect(upload.binary.length).toBe(1);
+        expect(upload.completes.length).toBe(0);
+        expect(upload.appends.length).toBe(0);
+        await expect(
+          page.getByRole('button', { name: 'Retry upload', exact: true }),
+        ).toHaveCount(0);
+      } finally {
+        try {
+          await upload.dispose();
+        } finally {
+          identity.off('response', observeIdentity);
+          await identity.close();
+        }
+      }
+    } finally {
+      await native.close();
+    }
   });
 }
