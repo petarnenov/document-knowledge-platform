@@ -29,3 +29,11 @@ All tasks remain governed by issue-first ordering. Unnumbered future implementat
 - [ ] 3.4 Close only verified issues, persist resumable checkpoint and invoke actual current-session /compact if available; otherwise record pending. Continue full-project queue.
 
 - [ ] [#185](https://github.com/petarnenov/document-knowledge-platform/issues/185) P1: latest owner standing automatic dev merge permission after green tests/CI; retain independent review and acceptance gates.
+
+## Contract promotion correction
+
+- [ ] [#193](https://github.com/petarnenov/document-knowledge-platform/issues/193) Publish compatible BP04 contracts and deterministic SDKs from reviewed staging; dev integration remains gated.
+- [ ] [#219](https://github.com/petarnenov/document-knowledge-platform/issues/219) Correct mixed-witness DM error ownership; specification amendment independently accepted, integration pending.
+- [x] [#220](https://github.com/petarnenov/document-knowledge-platform/issues/220) Independent narrow219 review PASS; exact reversal reproduces prior approved baseline, all contract checks pass.
+
+- [x] [#221](https://github.com/petarnenov/document-knowledge-platform/issues/221) Independent published-contract/SDK compatibility review PASS;16 validator/null-model tests0skip and full deterministic drift/Java+TS compile PASS. Runtime193 integration remains open.

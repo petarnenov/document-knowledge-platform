@@ -108,6 +108,72 @@
     },
     "/api/v1/dm/documents/{documentId}/upload-receipts/{receiptId}/version": {
       "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1%7BdocumentId%7D~1upload-receipts~1%7BreceiptId%7D~1version"
+    },
+    "/api/v1/documents/knowledge-share-assessments": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1knowledge-share-assessments"
+    },
+    "/api/v1/documents/knowledge-share-eligibility": {
+      "$ref": "./document-management.yaml#/paths/~1api~1v1~1documents~1knowledge-share-eligibility"
+    },
+    "/api/v1/knowledge/collections": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1knowledge~1collections"
+    },
+    "/api/v1/kb/collections": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1kb~1collections"
+    },
+    "/api/v1/knowledge/collections/{collectionId}": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1knowledge~1collections~1%7BcollectionId%7D"
+    },
+    "/api/v1/kb/collections/{collectionId}": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1kb~1collections~1%7BcollectionId%7D"
+    },
+    "/api/v1/knowledge/collections/{collectionId}/status": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1knowledge~1collections~1%7BcollectionId%7D~1status"
+    },
+    "/api/v1/kb/collections/{collectionId}/status": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1kb~1collections~1%7BcollectionId%7D~1status"
+    },
+    "/api/v1/knowledge/collections/{collectionId}/acl": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1knowledge~1collections~1%7BcollectionId%7D~1acl"
+    },
+    "/api/v1/kb/collections/{collectionId}/acl": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1kb~1collections~1%7BcollectionId%7D~1acl"
+    },
+    "/api/v1/knowledge/collections/{collectionId}/audience": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1knowledge~1collections~1%7BcollectionId%7D~1audience"
+    },
+    "/api/v1/kb/collections/{collectionId}/audience": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1kb~1collections~1%7BcollectionId%7D~1audience"
+    },
+    "/api/v1/knowledge/collections/{collectionId}/audience-evaluations": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1knowledge~1collections~1%7BcollectionId%7D~1audience-evaluations"
+    },
+    "/api/v1/kb/collections/{collectionId}/audience-evaluations": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1kb~1collections~1%7BcollectionId%7D~1audience-evaluations"
+    },
+    "/api/v1/knowledge/collections/{collectionId}/memberships": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1knowledge~1collections~1%7BcollectionId%7D~1memberships"
+    },
+    "/api/v1/kb/collections/{collectionId}/memberships": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1kb~1collections~1%7BcollectionId%7D~1memberships"
+    },
+    "/api/v1/knowledge/collections/{collectionId}/memberships/{membershipId}": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1knowledge~1collections~1%7BcollectionId%7D~1memberships~1%7BmembershipId%7D"
+    },
+    "/api/v1/kb/collections/{collectionId}/memberships/{membershipId}": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1kb~1collections~1%7BcollectionId%7D~1memberships~1%7BmembershipId%7D"
+    },
+    "/api/v1/knowledge/documents/{documentId}/policy-snapshots": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1knowledge~1documents~1%7BdocumentId%7D~1policy-snapshots"
+    },
+    "/api/v1/kb/documents/{documentId}/policy-snapshots": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1kb~1documents~1%7BdocumentId%7D~1policy-snapshots"
+    },
+    "/api/v1/knowledge/documents/{documentId}/policy-validations": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1knowledge~1documents~1%7BdocumentId%7D~1policy-validations"
+    },
+    "/api/v1/kb/documents/{documentId}/policy-validations": {
+      "$ref": "./knowledge-base.yaml#/paths/~1api~1v1~1kb~1documents~1%7BdocumentId%7D~1policy-validations"
     }
   },
   "components": {
@@ -200,6 +266,159 @@
       },
       "AclChangeEntry": {
         "$ref": "./document-management.yaml#/components/schemas/AclChangeEntry"
+      },
+      "UploadInit": {
+        "$ref": "./document-management.yaml#/components/schemas/UploadInit"
+      },
+      "UploadSlotReceipt": {
+        "$ref": "./document-management.yaml#/components/schemas/UploadSlotReceipt"
+      },
+      "EmptyCommand": {
+        "$ref": "./document-management.yaml#/components/schemas/EmptyCommand"
+      },
+      "UploadCompleteReceipt": {
+        "$ref": "./document-management.yaml#/components/schemas/UploadCompleteReceipt"
+      },
+      "UploadStatus": {
+        "$ref": "./document-management.yaml#/components/schemas/UploadStatus"
+      },
+      "ConsumedVersion": {
+        "$ref": "./document-management.yaml#/components/schemas/ConsumedVersion"
+      },
+      "UploadError": {
+        "$ref": "./document-management.yaml#/components/schemas/UploadError"
+      },
+      "ShareDocumentExpectation": {
+        "$ref": "./document-management.yaml#/components/schemas/ShareDocumentExpectation"
+      },
+      "ShareBatchAssessmentRequest": {
+        "$ref": "./document-management.yaml#/components/schemas/ShareBatchAssessmentRequest"
+      },
+      "ShareAssessment": {
+        "$ref": "./document-management.yaml#/components/schemas/ShareAssessment"
+      },
+      "ShareBatchAssessment": {
+        "$ref": "./document-management.yaml#/components/schemas/ShareBatchAssessment"
+      },
+      "ShareEligibilityRequest": {
+        "$ref": "./document-management.yaml#/components/schemas/ShareEligibilityRequest"
+      },
+      "ShareEligibilityResult": {
+        "$ref": "./document-management.yaml#/components/schemas/ShareEligibilityResult"
+      },
+      "KnowledgeActor": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/Actor"
+      },
+      "KnowledgeAction": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/KnowledgeAction"
+      },
+      "KnowledgeError": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/Error"
+      },
+      "CollectionReceipt": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/CollectionReceipt"
+      },
+      "MembershipReceipt": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/MembershipReceipt"
+      },
+      "CollectionMetadata": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/CollectionMetadata"
+      },
+      "CreateCollection": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/CreateCollection"
+      },
+      "UpdateCollection": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/UpdateCollection"
+      },
+      "CollectionStatus": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/CollectionStatus"
+      },
+      "UpdateStatus": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/UpdateStatus"
+      },
+      "Collection": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/Collection"
+      },
+      "CollectionPage": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/CollectionPage"
+      },
+      "AudienceSelector": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/AudienceSelector"
+      },
+      "AudienceEvaluation": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/AudienceEvaluation"
+      },
+      "EvaluateAudience": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/EvaluateAudience"
+      },
+      "AudienceRule": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/AudienceRule"
+      },
+      "AudiencePolicy": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/AudiencePolicy"
+      },
+      "UpdateAudience": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/UpdateAudience"
+      },
+      "KnowledgeAclRule": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/AclRule"
+      },
+      "KnowledgeAcl": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/Acl"
+      },
+      "KnowledgeAclChangeEntry": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/AclChangeEntry"
+      },
+      "UpdateAcl": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/UpdateAcl"
+      },
+      "CreateMembership": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/CreateMembership"
+      },
+      "UpdateMembership": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/UpdateMembership"
+      },
+      "Membership": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/Membership"
+      },
+      "MembershipPage": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/MembershipPage"
+      },
+      "CreatePolicySnapshot": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/CreatePolicySnapshot"
+      },
+      "PolicyDecision": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/PolicyDecision"
+      },
+      "PolicySnapshot": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/PolicySnapshot"
+      },
+      "ValidatePolicy": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/ValidatePolicy"
+      },
+      "PolicyValidation": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/PolicyValidation"
+      },
+      "KnowledgeShareAssessment": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/ShareAssessment"
+      },
+      "KnowledgeShareDocumentExpectation": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/ShareDocumentExpectation"
+      },
+      "KnowledgeShareBatchAssessmentRequest": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/ShareBatchAssessmentRequest"
+      },
+      "KnowledgeShareBatchAssessment": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/ShareBatchAssessment"
+      },
+      "KnowledgeShareEligibilityRequest": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/ShareEligibilityRequest"
+      },
+      "KnowledgeShareEligibilityResult": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/ShareEligibilityResult"
+      },
+      "DocumentShareError": {
+        "$ref": "./knowledge-base.yaml#/components/schemas/DocumentShareError"
       }
     }
   },
