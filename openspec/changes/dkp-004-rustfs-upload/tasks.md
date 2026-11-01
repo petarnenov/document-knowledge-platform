@@ -147,3 +147,10 @@ Runtime issues91–99 were created before execution. Development specification a
 
 - [ ] [#198](https://github.com/petarnenov/document-knowledge-platform/issues/198) P1: first genuine sixty-minute run FAILED on asynchronous persisted-state observation; automatic expiry+6.59seconds and immediate409 verified read-only. Minimal bounded status observation reviewed; NEWfresh real sixty-minute acceptance and integration pending.
 - [x] [#199](https://github.com/petarnenov/document-knowledge-platform/issues/199) P1: independent expiry observation review PASS; unchanged real-hour wait, immediate409 and all remaining assertions, invariant deadline every observation, latched invalid response and finite30second observation. This is source review, not elapsed-time acceptance.
+
+## Post-integration CI diagnosis — 2026-11-01
+
+- [ ] [#237](https://github.com/petarnenov/document-knowledge-platform/issues/237) retain safe finite authenticated-fault CI diagnostics. PR223/run41257973173 failed the authenticated provider gate with only generic private-evidence output; the original cause remains unknown. The three-file reporting correction passes144 runtime tests and retains all actual provider/accounting/ownership assertions, private evidence and nonzero failure status. A reviewed diagnostic CI run must establish the next action; no failure is waived.
+- [x] [#238](https://github.com/petarnenov/document-knowledge-platform/issues/238) independent diagnostic source review PASS at75b38dd8; root reran23focused tests, zero failures/skips. Changed helper99.70% source/90.52% branches. Source review does not certify actual provider success.
+
+PR146 integrated as62a73f0 after final-head CI and the distinct genuine60-minute expiry PASS. Full requirement audit222/239, integrated-dev checks and verified archive remain open. Production/CID gates remain separate.
