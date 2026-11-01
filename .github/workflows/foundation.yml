@@ -16,7 +16,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [document-management, knowledge-base, knowledge-search, browser-bff]
+        service:
+          [document-management, knowledge-base, knowledge-search, browser-bff]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
@@ -64,11 +65,12 @@ jobs:
         run: >-
           pnpm --filter admin-portal exec vitest run
           src/upload-fault-contract.test.tsx src/ui-create-receipt.test.tsx
-          src/native-boundary-browser.test.tsx
+          src/native-boundary-browser.test.tsx src/upload-job-fixture.test.tsx
           --coverage
           --coverage.include=e2e-real/upload-fault-contract.ts
           --coverage.include=e2e-real/ui-create-receipt.ts
           --coverage.include=e2e-real/native-boundary-browser.ts
+          --coverage.include=e2e-real/upload-job-fixture.ts
           --coverage.reportsDirectory=coverage/acceptance-helpers
           --coverage.thresholds.lines=75 --coverage.thresholds.branches=75
           --coverage.thresholds.functions=75 --coverage.thresholds.statements=75
@@ -173,6 +175,7 @@ jobs:
           node --experimental-test-coverage --test-coverage-lines=75
           --test-coverage-branches=75 --test-coverage-functions=75 --test
           tools/runtime/identity-e2e.test.mjs tools/runtime/compose-upload.test.mjs
+          tools/runtime/provider-job-probe.test.mjs
       - name: Deterministic public synthetic document generator coverage
         run: >-
           node --experimental-test-coverage --test-coverage-lines=75
@@ -192,7 +195,7 @@ jobs:
           python3 - <<'PY'
           import json
           report = json.load(open('/tmp/dkp-upload-helper-coverage.json'))
-          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py', 'upload-durability.py', 'upload-accounting-acceptance.py', 'upload-acceptance.py', 'upload-faults.py'):
+          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py', 'upload-durability.py', 'upload-accounting-acceptance.py', 'upload-acceptance.py', 'upload-faults.py', 'provider-jobs.py', 'application-provenance.py', 'provider-job-control-acceptance.py'):
               matches = [v['summary'] for p, v in report['files'].items() if p.endswith('/' + name)]
               if len(matches) != 1:
                   raise SystemExit('Missing source coverage for ' + name)
@@ -296,12 +299,23 @@ jobs:
           node tools/runtime/identity-e2e.mjs --upload-limits-profile quota
           --security-directory local-data/security/bp03-upload/ci-quota/identity
           --runtime-env-file local-data/security/bp03-upload/ci-quota/runtime.env
+      - name: Release quota runtime before dedicated provider job acceptance
+        run: python3 tools/runtime/upload-runtime.py stop --directory local-data/security/bp03-upload/ci-quota
+      - name: Start dedicated fresh provider job runtime
+        run: python3 tools/runtime/upload-runtime.py start --directory local-data/security/bp03-upload/ci-jobs
+      - name: Verify dedicated fresh provider job runtime
+        run: python3 tools/runtime/upload-runtime.py verify --directory local-data/security/bp03-upload/ci-jobs
+      - name: Real owned scanner and inspector concurrency, guarded cancellation and DM crash
+        run: >-
+          python3 tools/runtime/provider-jobs.py
+          --directory local-data/security/bp03-upload/provider-jobs-ci
+          --runtime-directory local-data/security/bp03-upload/ci-jobs
       - name: Stop only recorded BP03 project resources
         if: always()
         run: |
           set -euo pipefail
           dkp_stop_status=0
-          for directory in local-data/security/bp03-upload/ci local-data/security/bp03-upload/ci-quota; do
+          for directory in local-data/security/bp03-upload/ci local-data/security/bp03-upload/ci-quota local-data/security/bp03-upload/ci-jobs; do
             if test -f "$directory/state.json"; then
               if ! python3 tools/runtime/upload-runtime.py stop --directory "$directory"; then
                 dkp_stop_status=1
