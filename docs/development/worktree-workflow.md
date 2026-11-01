@@ -13,15 +13,42 @@ Every change must include an approved OpenSpec change when it affects runtime be
 
 ## Mandatory GitHub issue lifecycle
 
-Owner requirement adopted on 2026-10-31: **create a GitHub issue with an explicit priority before starting every task, and close it after verified completion**. This applies to specifications, implementation, bug fixes, tests, reviews, infrastructure, delivery and protocol changes. A task checklist in a spec or chat does not replace its GitHub issue.
+Owner requirement adopted on 2026-10-31: **have a suitable GitHub issue with an explicit priority before starting every task, and close it after verified completion**. This applies to specifications, implementation, bug fixes, tests, reviews, infrastructure, delivery and protocol changes. A task checklist in a spec or chat does not replace its GitHub issue.
 
-1. Before task execution or delegation, create its issue. Include the concrete problem/outcome, scope, acceptance criteria, verification plan, dependencies, delivery package and an explicit `priority:P0`, `priority:P1`, `priority:P2` or `priority:P3` label. Record the priority reason; do not leave it implicit in the title.
+1. Before task execution or delegation, search for and reuse a suitable existing issue. Create a new issue only after the duplicate check below; an existing suitable issue satisfies issue-before-work. Include the concrete problem/outcome, scope, acceptance criteria, verification plan, dependencies, delivery package and an explicit `priority:P0`, `priority:P1`, `priority:P2` or `priority:P3` label. Record the priority reason; do not leave it implicit in the title.
 2. Use P0 for an active critical incident or immediate security/data-loss emergency; P1 for security, data integrity or a required delivery gate; P2 for normal planned feature work; P3 for optional improvements. Priority does not waive dependencies or review gates.
-3. Give each independently executable or delegated work item its own issue. A package/tracking issue may group child issues, but does not replace them. Do not create an issue per individual assertion, shell command or other non-independent mechanical step.
+3. Map each independently executable or delegated scope to a suitable issue with distinguishable acceptance criteria. Reuse existing issues for that scope; delegation or a new agent does not itself require another issue. A package/tracking issue may group child issues, but does not replace their distinct acceptance tracking. Do not create an issue per individual assertion, shell command or other non-independent mechanical step.
 4. Link issue numbers in the OpenSpec task checklist, delivery queue/status and PR. Keep the issue open while any acceptance criterion, required review, test or integration gate remains unfinished. Report the issue, execution state and verification results in the 15-minute status.
 5. Update acceptance/evidence as work proceeds. The final evidence records implementation/specification/PR links, relevant tests and coverage, independent review and integration commit. A work item whose acceptance requires integration closes only after the reviewed PR is merged and applicable checks pass; a pure review/research item may close when its documented deliverable is accepted.
 6. Close the issue as completed only after all of its criteria pass. Blocked or deferred work stays open with the blocker and next action visible. Superseded/duplicate/cancelled issues must say so explicitly and must not be reported as implemented.
 7. Work already started before this requirement must be backfilled with its true execution state and evidence, explicitly marked retrospective. Never invent an earlier issue/approval timestamp. All new work follows issue-first ordering immediately.
+
+## Mandatory duplicate check and consolidation
+
+Owner correction on 2026-11-01, tracked in [#5](https://github.com/petarnenov/document-knowledge-platform/issues/5): issue-first means **find or create**, never create by default.
+
+Before every new issue:
+
+1. Search **both open and closed** issues using component, symptom, exact error, acceptance criterion and related BP. Use several focused queries; a title-only match or absence of one title is insufficient. Read likely issue bodies and relevant comments, linked evidence, dependencies and resolution history.
+2. For the same unresolved problem, update the existing issue. A new commit, failed repeated test, new CI run, diagnostic step or clarification belongs there; none alone justifies another issue. Create a separate issue only when an independently proven problem has its own distinguishable scope and acceptance criteria.
+3. For recurrence of a closed problem, explicitly decide whether to reopen the original or create a linked regression. Record the reason, the historical fix/source and the new evidence; do not erase the original completed result.
+4. For distinct new scope, link parent/related issues and explain the difference. Include this short record in the new issue body:
+
+   ```text
+   Duplicate check
+   Searches: <open + closed queries; component/symptom/error/acceptance/BP>
+   Candidates read: <issue links and scope/resolution comparison>
+   Decision: <why existing issues do not cover these acceptance criteria>
+   Ownership: <responsible agent/workstream; final recheck time>
+   ```
+
+5. With parallel agents, the lead reserves one owner for the scope and coordinates issue creation. Recheck open and closed matches immediately before creation; a previously completed search is not a reservation. If another agent has already opened a suitable issue, reuse it and update the ownership record.
+
+Before changing an overlapping issue set, publish a short map of the primary task, related tasks, distinct scopes and probable duplicates. Confirm duplicates from their actual acceptance and evidence, rather than a shared error label. Different component/security boundaries or independently testable fixes may remain distinct.
+
+For proven duplicates, first transfer or explicitly cross-link **all** acceptance criteria, evidence, dependencies and related/PR links into the canonical issue, including unfinished gates. Add bidirectional references and a rationale to both issues. Preserve the original bodies, comments and artifacts. Mark the duplicate as `duplicate` or `superseded`, and close it with GitHub's **not planned** reason, never completed. The canonical issue stays open until all consolidated acceptance passes. Report exactly which IDs were consolidated and which were deliberately retained separately; consolidation is not implementation success.
+
+Local verification, CI confirmation and dev integration remain separate states. Recording this rule does not alone prove adoption: the delivery evidence must show the searches, the reuse/new-scope decision, any consolidation, independent review and actual PR/CI/integration result. No change to security, runtime or production acceptance gates is authorized by this workflow.
 
 ## Mandatory compaction after task closure
 
@@ -69,7 +96,7 @@ Promotion from `dev` to `main` uses a separate reviewed PR with a compatibility 
 
 ## PR gates
 
-1. Prioritized GitHub issues exist before task execution; OpenSpec proposal/design/tasks are approved before implementation.
+1. Suitable prioritized GitHub issues exist before task execution; mandatory duplicate search/reuse decisions are recorded before new issue creation; OpenSpec proposal/design/tasks are approved before implementation.
 2. Contracts, compatibility checks, and security scope reviewed.
 3. Java/TypeScript tests, dependency/secret scans, architecture boundaries and coverage pass.
 4. Integration/E2E and negative authorization tests pass for affected behavior.
