@@ -1,0 +1,53 @@
+diff --git a/lib/components/CloseButton/CloseButton.d.ts b/lib/components/CloseButton/CloseButton.d.ts
+index 3e9459bc5db6c21e0db3dd6ae2d8ac776ec35484..7642bec75e4a076a0af85f8fd02308d0b364b99a 100644
+--- a/lib/components/CloseButton/CloseButton.d.ts
++++ b/lib/components/CloseButton/CloseButton.d.ts
+@@ -11,7 +11,7 @@ export interface __CloseButtonProps {
+     /** Key of `theme.radius` or any valid CSS value to set border-radius. Numbers are converted to rem. @default theme.defaultRadius */
+     radius?: MantineRadius;
+     /** Sets `disabled` attribute, assigns disabled styles */
+-    disabled?: boolean;
++    disabled?: boolean | undefined;
+     /** `X` icon `width` and `height` @default 70% */
+     iconSize?: number | string;
+     /** Content rendered inside the button. For example `VisuallyHidden` with label for screen readers. */
+diff --git a/lib/components/Input/Input.d.ts b/lib/components/Input/Input.d.ts
+index cb36e0b8787e11815b6094acb92b492961829752..5b59cb2850a473992b3087dc836a761cc4570dd4 100644
+--- a/lib/components/Input/Input.d.ts
++++ b/lib/components/Input/Input.d.ts
+@@ -40,11 +40,11 @@ export interface __InputProps {
+     /** Sets `pointer-events` styles on the `rightSection` element. Use `'all'` when section contains interactive elements (buttons, links). @default 'none' */
+     rightSectionPointerEvents?: React.CSSProperties['pointerEvents'];
+     /** Sets `required` attribute on the `input` element */
+-    required?: boolean;
++    required?: boolean | undefined;
+     /** Key of `theme.radius` or any valid CSS value to set `border-radius`, numbers are converted to rem @default theme.defaultRadius */
+     radius?: MantineRadius;
+     /** Sets `disabled` attribute on the `input` element */
+-    disabled?: boolean;
++    disabled?: boolean | undefined;
+     /** Controls input `height`, horizontal `padding`, and `font-size` @default 'sm' */
+     size?: MantineSize | (string & {});
+     /** Determines whether the input should have `cursor: pointer` style. Use when input acts as a button-like trigger (e.g., `component="button"` for Select/DatePicker). @default false */
+@@ -83,7 +83,7 @@ export interface InputProps extends BoxProps, __InputProps, StylesApiProps<Input
+     /** Adjusts padding and sizing calculations for multiline inputs (use with `component="textarea"`). Does not make the input multiline by itself. @default false */
+     multiline?: boolean;
+     /** Input element id */
+-    id?: string;
++    id?: string | undefined;
+     /** Determines whether `aria-` and other accessibility attributes should be added to the input. Only disable when implementing custom accessibility handling. @default true */
+     withAria?: boolean;
+     /** Props passed down to the root element of the `Input` component */
+diff --git a/lib/components/Input/InputWrapper/InputWrapper.d.ts b/lib/components/Input/InputWrapper/InputWrapper.d.ts
+index a6afc03001a56728f9aff922dad4e491d2f7b06f..7fb11ed34fbfb8ae89633c88619b70354f091d47 100644
+--- a/lib/components/Input/InputWrapper/InputWrapper.d.ts
++++ b/lib/components/Input/InputWrapper/InputWrapper.d.ts
+@@ -15,7 +15,7 @@ export interface __InputWrapperProps {
+     /** Contents of `Input.Success` component. If not set, success is not displayed. */
+     success?: React.ReactNode;
+     /** Adds required attribute to the input and a red asterisk on the right side of label @default false */
+-    required?: boolean;
++    required?: boolean | undefined;
+     /** If set, the required asterisk is displayed next to the label. Overrides `required` prop. Does not add required attribute to the input. @default false */
+     withAsterisk?: boolean;
+     /** Props passed down to the `Input.Label` component */

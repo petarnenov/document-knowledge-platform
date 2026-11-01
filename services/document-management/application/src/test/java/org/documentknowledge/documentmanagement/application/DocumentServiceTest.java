@@ -97,11 +97,10 @@ class DocumentServiceTest {
   allowed.remove(Action.HOLD_INSPECT);denied(404,"NOT_FOUND",()->s.inspectHolds(caller,id));
   var holds=new ArrayList<LegalHold>();for(int i=0;i<100;i++)holds.add(new LegalHold(UUID.randomUUID(),"Reason",caller.principal(),CLOCK.instant()));store.docs.put(id,new DocumentAggregate(id,held.tenant(),held.creator(),held.createdAt(),held.revision(),held.metadata(),held.rules(),holds,held.versions()));denied(422,"HOLD_LIMIT",()->s.placeHold(caller,id,1,"overflow","Reason"));assertThrows(IllegalArgumentException.class,()->s.placeHold(caller,id,1,"blank",""));
  }
- @Test void versionRuntimeUnavailableAndVerifiedFixturePreservesRealActivePointer(){
-  UUID id=create();var s=service();denied(503,"UNAVAILABLE",()->s.appendVersion(caller,id,0,"append","receipt"));assertTrue(store.docs.get(id).versions().isEmpty());
-  artifact=(a,t,d,r)->null;denied(503,"UNAVAILABLE",()->s.appendVersion(caller,id,0,"append","receipt"));artifact=(a,t,d,r)->new VerifiedArtifactAuthorityPort.VerifiedArtifact("a".repeat(64),"application/pdf","rustfs:test-only/reference","synthetic-test-authority");
-  assertEquals(1,s.appendVersion(caller,id,0,"append","receipt").revision());var first=store.docs.get(id);UUID active=first.versions().getFirst().versionId();store.docs.put(id,new DocumentAggregate(id,first.tenant(),first.creator(),first.createdAt(),first.revision(),first.metadata(),active,first.rules(),first.holds(),first.versions()));
-  s.appendVersion(caller,id,1,"append2","receipt2");var two=store.docs.get(id);assertEquals(active,two.activeVersionId());assertEquals(first.versions().getFirst(),two.versions().getFirst());assertEquals(2,two.versions().getLast().versionNumber());assertEquals("development-restricted",two.versions().getFirst().submittedClassification());assertEquals("UNREVIEWED",two.versions().getFirst().initialReviewState());
+ @Test void verifyOnlyArtifactCannotBypassTransactionBoundReceiptAuthority(){
+  UUID id=create();var s=service();denied(404,"NOT_FOUND",()->s.appendVersion(caller,id,0,"append","receipt"));assertTrue(store.docs.get(id).versions().isEmpty());
+  artifact=(a,t,d,r)->new VerifiedArtifactAuthorityPort.VerifiedArtifact("a".repeat(64),"application/pdf","untrusted-fixture","synthetic");
+  denied(404,"NOT_FOUND",()->s.appendVersion(caller,id,0,"append",UUID.randomUUID().toString()));assertTrue(store.docs.get(id).versions().isEmpty());assertTrue(store.uploads.consumed.isEmpty());
  }
  @Test void authorityRevocationDuringCommandRollsBackBeforePersistence(){
   UUID id=create();var original=store.docs.get(id);grantCalls=0;revokeAt=3;denied(403,"OPERATION_DENIED",()->service().updateMetadata(caller,id,0,"racing",new Metadata("Changed","")));assertEquals(original,store.docs.get(id));assertEquals(1,store.audits.size());
@@ -152,15 +151,9 @@ class DocumentServiceTest {
    denied(status,code,()->app.changeAcl(caller,id,0,"final-"+failure,new AclChange(AclChange.Mode.DELEGATE,entries)));assertEquals(before,store.docs.get(id));assertEquals(1,store.commands.size());assertEquals(1,store.audits.size());
   }
  }
- static final class Memory implements DocumentUnitOfWork,DocumentRepository {
-  Map<UUID,DocumentAggregate> docs=new HashMap<>();Map<CommandKey,StoredCommand> commands=new HashMap<>();List<AuditFact> audits=new ArrayList<>();int finds,executions;boolean failRecord;
-  @Override public synchronized <T>T execute(Function<DocumentRepository,T> work){executions++;var oldDocs=new HashMap<>(docs);var oldCommands=new HashMap<>(commands);var oldAudits=new ArrayList<>(audits);try{return work.apply(this);}catch(RuntimeException ex){docs=oldDocs;commands=oldCommands;audits=oldAudits;throw ex;}}
-  public void lockCommand(CommandKey key){}
-  public Optional<StoredCommand> command(CommandKey key){return Optional.ofNullable(commands.get(key));}
-  public Optional<DocumentAggregate> find(String tenant,UUID id){finds++;return Optional.ofNullable(docs.get(id)).filter(d->d.tenant().equals(tenant));}
-  public List<DocumentAggregate> listVisible(String tenant,Principal principal,Action action,PagePosition after,int limit){return docs.values().stream().filter(d->d.tenant().equals(tenant)&&d.permits(principal,action)).sorted(Comparator.comparing(DocumentAggregate::createdAt).thenComparing(d->d.documentId().toString())).limit(limit).toList();}
-  public void insert(DocumentAggregate document){if(docs.putIfAbsent(document.documentId(),document)!=null)throw new IllegalStateException();}
-  public void update(DocumentAggregate document,long expected){if(docs.get(document.documentId()).revision()!=expected)throw new DmFailure(409,"REVISION_CONFLICT");docs.put(document.documentId(),document);}
-  public void record(StoredCommand command,AuditFact audit){if(failRecord)throw new IllegalStateException();commands.put(command.key(),command);audits.add(audit);}
+ @Test void unconfiguredUploadRepositoryFailsClosedRatherThanPermitVerifyOnlyAppend(){
+  DocumentRepository unconfigured=new DocumentRepository(){public void lockCommand(CommandKey k){}public Optional<StoredCommand> command(CommandKey k){return Optional.empty();}public Optional<DocumentAggregate> find(String t,UUID id){return Optional.empty();}public List<DocumentAggregate> listVisible(String t,Principal p,Action a,PagePosition after,int limit){return List.of();}public void insert(DocumentAggregate d){throw new AssertionError();}public void update(DocumentAggregate d,long expected){throw new AssertionError();}public void record(StoredCommand c,AuditFact a){throw new AssertionError();}};
+  denied(503,"UNAVAILABLE",unconfigured::uploads);
  }
+ static final class Memory extends UploadMemory { }
 }

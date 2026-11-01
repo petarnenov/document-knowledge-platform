@@ -7,6 +7,7 @@ allowBuilds:
   '@scarf/scarf': false
   esbuild: true
 patchedDependencies:
+  '@mantine/core@9.7.4': patches/@mantine__core@9.7.4.patch
   '@stoplight/spectral-core@1.24.0': patches/@stoplight__spectral-core@1.24.0.patch
 overrides:
   'eslint@10.14.0>minimatch': 11.0.1

@@ -42,6 +42,7 @@ export declare const AclRuleActionEnum: {
     readonly DocumentVersionAppend: "document.version.append";
     readonly DocumentLegalHoldPlace: "document.legal-hold.place";
     readonly DocumentLegalHoldInspect: "document.legal-hold.inspect";
+    readonly DocumentContentReview: "document.content.review";
 };
 export type AclRuleActionEnum = typeof AclRuleActionEnum[keyof typeof AclRuleActionEnum];
 /**

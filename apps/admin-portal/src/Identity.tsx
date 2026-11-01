@@ -1,3 +1,11 @@
+import {
+  Alert,
+  Anchor,
+  Button,
+  NativeSelect,
+  Paper,
+  Title,
+} from '@mantine/core';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { sessionKey } from './session-key';
@@ -88,46 +96,63 @@ export function Identity() {
   return (
     <>
       <p className="eyebrow">DKP / IDENTITY</p>
-      <h1>Your workspace access.</h1>
+      <Title order={1}>Your workspace access.</Title>
       <p className="lead">
         Sign in and choose a tenant to check your verified service context.
         Metadata-only drafts are available from Documents; knowledge workflows
         remain planned.
       </p>
       {error && (
-        <p className="identity-error" role="alert">
+        <Alert
+          className="identity-error"
+          variant="outline"
+          color="red"
+          role="alert"
+        >
           {error}
-        </p>
+        </Alert>
       )}
       {state.kind === 'loading' && <p role="status">Checking your session…</p>}
       {state.kind === 'unavailable' && (
-        <section className="info-card" aria-labelledby="unavailable-title">
+        <Paper
+          component="section"
+          className="info-card"
+          aria-labelledby="unavailable-title"
+        >
           <h2 id="unavailable-title">Identity services are unavailable.</h2>
           <p>Your access could not be verified. Please try again.</p>
-          <button className="identity-button" type="button" onClick={retry}>
+          <Button className="identity-button" type="button" onClick={retry}>
             Retry session
-          </button>
-        </section>
+          </Button>
+        </Paper>
       )}
       {state.kind === 'anonymous' && (
-        <section className="info-card" aria-labelledby="signin-title">
+        <Paper
+          component="section"
+          className="info-card"
+          aria-labelledby="signin-title"
+        >
           <h2 id="signin-title">Sign in to your workspace.</h2>
           <p>
             You are signed out. Your identity provider will verify your access.
           </p>
-          <a className="primary-link" href="/oauth/login/keycloak">
+          <Anchor className="primary-link" href="/oauth/login/keycloak">
             Sign in
-          </a>
-        </section>
+          </Anchor>
+        </Paper>
       )}
       {state.kind === 'authenticated' && (
         <>
-          <section className="info-card" aria-labelledby="account-title">
+          <Paper
+            component="section"
+            className="info-card"
+            aria-labelledby="account-title"
+          >
             <div className="section-heading">
               <h2 id="account-title">
                 Signed in as {state.session.displayName}
               </h2>
-              <button
+              <Button
                 className="identity-button"
                 type="button"
                 disabled={busy}
@@ -146,7 +171,7 @@ export function Identity() {
                 }
               >
                 Sign out
-              </button>
+              </Button>
             </div>
             <dl className="identity-details">
               <dt>Identity provider</dt>
@@ -177,7 +202,7 @@ export function Identity() {
               }}
             >
               <label htmlFor="tenant-selector">Tenant</label>
-              <select
+              <NativeSelect
                 id="tenant-selector"
                 value={tenant}
                 disabled={busy}
@@ -189,20 +214,21 @@ export function Identity() {
                     {id}
                   </option>
                 ))}
-              </select>
-              <button
+              </NativeSelect>
+              <Button
                 className="identity-button"
                 type="submit"
                 disabled={busy || !tenant}
               >
                 Use tenant
-              </button>
+              </Button>
             </form>
             {state.session.tenants.length === 0 && (
               <p>No tenant access is available.</p>
             )}
-          </section>
-          <section
+          </Paper>
+          <Paper
+            component="section"
             className="info-card"
             aria-labelledby="context-title"
             aria-busy={busy}
@@ -217,7 +243,7 @@ export function Identity() {
             )}
             <div className="context-actions">
               {services.map((service) => (
-                <button
+                <Button
                   className="identity-button"
                   key={service.id}
                   type="button"
@@ -246,7 +272,7 @@ export function Identity() {
                   }
                 >
                   Check {service.label} context
-                </button>
+                </Button>
               ))}
             </div>
             {busy && <p role="status">Verifying access…</p>}
@@ -262,7 +288,7 @@ export function Identity() {
                 <dd>{context.tenant}</dd>
               </dl>
             )}
-          </section>
+          </Paper>
         </>
       )}
     </>

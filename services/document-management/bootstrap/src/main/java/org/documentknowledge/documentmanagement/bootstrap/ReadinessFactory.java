@@ -9,7 +9,7 @@ import org.documentknowledge.documentmanagement.application.Readiness;
 
 @Factory
 public final class ReadinessFactory {
-    @Singleton public Readiness readiness(@Named("default") BeanProvider<DataSource> runtime){
-        return new Readiness(()->{try {if(!runtime.isPresent())return false;try(var connection=runtime.get().getConnection()){return connection.isValid(1);}}catch(Exception unavailable){return false;}});
+    @Singleton public Readiness readiness(@Named("default") BeanProvider<DataSource> runtime,DocumentFactory.Bindings bindings){
+        return new Readiness(()->{try {if(!runtime.isPresent())return false;try(var connection=runtime.get().getConnection()){if(!connection.isValid(1))return false;}return bindings.uploads().ready();}catch(Exception unavailable){return false;}});
     }
 }

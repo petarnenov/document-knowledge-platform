@@ -66,6 +66,7 @@ export const DmChangeAclRequestChangesInnerActionEnum = {
     DocumentVersionAppend: 'document.version.append',
     DocumentLegalHoldPlace: 'document.legal-hold.place',
     DocumentLegalHoldInspect: 'document.legal-hold.inspect',
+    DocumentContentReview: 'document.content.review',
 } as const;
 export type DmChangeAclRequestChangesInnerActionEnum = typeof DmChangeAclRequestChangesInnerActionEnum[keyof typeof DmChangeAclRequestChangesInnerActionEnum];
 

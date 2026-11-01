@@ -39,7 +39,7 @@ class DocumentGatewayTest {
                 assertEquals(200,gateway.exchange("GET",PATH,Map.of(),null,null,identity,"tenant-a").status());
                 response.set(Map.of("documentId",ID,"revision",1));assertEquals(200,gateway.exchange("PATCH",PATH,Map.of(),UPDATE,"retry-key",identity,"tenant-a").status());
                 status.set(201);assertEquals(201,gateway.exchange("POST","/api/v1/documents",Map.of(),CREATE,"retry-key",identity,"tenant-a").status());
-                assertEquals(503,assertThrows(BffFailure.class,()->gateway.exchange("POST",PATH+"/versions",Map.of(),Map.of("expectedRevision",0,"receiptId","opaque"),"retry-key",identity,"tenant-a")).status());
+                assertEquals(201,gateway.exchange("POST",PATH+"/versions",Map.of(),Map.of("expectedRevision",0,"receiptId","opaque"),"retry-key",identity,"tenant-a").status());
                 for(int denied:List.of(400,401,403,404,409,413,415,422,503)){status.set(denied);response.set(Map.of("code","REQUEST_DENIED"));assertEquals(denied,gateway.exchange("GET",PATH,Map.of(),null,null,identity,"tenant-a").status());}
                 for(int bad:List.of(202,204,302,500)){status.set(bad);assertEquals(503,assertThrows(BffFailure.class,()->gateway.exchange("GET",PATH,Map.of(),null,null,identity,"tenant-a")).status());}
                 status.set(403);for(var bad:List.of(Map.of("code","diagnostics-secret"),Map.of("code","DENIED","token","secret"))){response.set(new java.util.HashMap<>(bad));assertEquals(503,assertThrows(BffFailure.class,()->gateway.exchange("GET",PATH,Map.of(),null,null,identity,"tenant-a")).status());}

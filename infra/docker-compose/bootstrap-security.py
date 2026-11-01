@@ -18,7 +18,8 @@ REQUIRED = ('ca.crt', 'ca.key', 'portal.crt', 'portal.key', 'idp.crt', 'idp.key'
             'authority/grants.json', 'authority/cursor.key')
 ACTIONS = ('document.create', 'document.inspect-draft', 'document.read',
            'document.update-metadata', 'document.acl.restrict', 'document.acl.delegate',
-           'document.version.append', 'document.legal-hold.place', 'document.legal-hold.inspect')
+           'document.version.append', 'document.legal-hold.place', 'document.legal-hold.inspect',
+           'document.content.review')
 
 
 def run(*args, env=None):
@@ -28,7 +29,36 @@ def run(*args, env=None):
         raise RuntimeError(f'Local security tool failed: {Path(args[0]).name}')
 
 
-def generate(destination, *, keytool=None, runtime_uid=None, runtime_gid=None):
+def origins(portal_port, idp_port):
+    # Deliberately accept ports, not arbitrary URL/host input or shell text.
+    if (type(portal_port) is not int or type(idp_port) is not int
+            or not 1024 <= portal_port <= 65535 or not 1024 <= idp_port <= 65535
+            or portal_port == idp_port
+            or {portal_port, idp_port} & {18081, 18082, 18083, 19081, 19082, 19083}):
+        raise ValueError('Distinct non-privileged identity ports must not collide with API ports')
+    return f'https://localhost:{portal_port}', f'https://idp.localhost:{idp_port}/realms/dkp'
+
+
+def verify_origins(destination, portal_origin, issuer, portal_port, idp_port):
+    realm = json.loads((destination / 'dkp-realm.json').read_text())
+    clients = [c for c in realm['clients'] if c['clientId'] == 'dkp-bff']
+    catalog = json.loads((destination / 'authority/grants.json').read_text())
+    values = dict(line.split('=', 1) for line in (destination / 'runtime.env').read_text().splitlines())
+    if (len(clients) != 1 or clients[0]['redirectUris'] != [portal_origin + '/oauth/callback/keycloak']
+            or clients[0]['webOrigins'] != [portal_origin]
+            or not catalog['entries'] or any(e['issuer'] != issuer for e in catalog['entries'])
+            or values.get('DKP_PORTAL_PORT', '18443') != str(portal_port)
+            or values.get('DKP_IDP_PORT', '18444') != str(idp_port)):
+        raise ValueError('Existing security material has different identity origins; use a new directory')
+    options = ('-Djavax.net.ssl.trustStore=/run/dkp/truststore.p12\n'
+               '-Djavax.net.ssl.trustStoreType=PKCS12\n'
+               '-Djavax.net.ssl.trustStorePassword=' + values['DKP_TRUSTSTORE_PASSWORD'] + '\n')
+    if (destination / 'java-security.options').read_text() != options:
+        raise ValueError('Existing scoped Java trust options do not match security material')
+
+
+def generate(destination, *, keytool=None, runtime_uid=None, runtime_gid=None, portal_port=18443, idp_port=18444):
+    portal_origin, issuer = origins(portal_port, idp_port)
     destination = Path(destination).absolute()
     if destination.is_symlink():
         raise ValueError('Refusing a symlink security directory')
@@ -46,6 +76,7 @@ def generate(destination, *, keytool=None, runtime_uid=None, runtime_gid=None):
         for name in ('grants.json', 'cursor.key'):
             if (authority / name).stat().st_mode & 0o377:
                 raise ValueError('Authority files must be owner-read-only')
+        verify_origins(destination, portal_origin, issuer, portal_port, idp_port)
         run('openssl', 'x509', '-checkend', '3600', '-noout', '-in', str(destination / 'portal.crt'))
         run('openssl', 'x509', '-checkend', '3600', '-noout', '-in', str(destination / 'idp.crt'))
         return False
@@ -89,6 +120,7 @@ def generate(destination, *, keytool=None, runtime_uid=None, runtime_gid=None):
         template = TEMPLATE.read_text()
         for name in ('CLIENT_SECRET', 'USER_PASSWORD'):
             template = template.replace(f'@@{name}@@', material[name])
+        template = template.replace('@@PORTAL_ORIGIN@@', portal_origin)
         realm = json.loads(template)
         if '@@' in template:
             raise ValueError('Unresolved realm placeholder')
@@ -99,7 +131,7 @@ def generate(destination, *, keytool=None, runtime_uid=None, runtime_gid=None):
         authority = scratch / 'authority'
         authority.mkdir(mode=0o700)
         grants = {'schemaVersion': 1, 'entries': [
-            {'issuer': 'https://idp.localhost:18444/realms/dkp', 'subject': user['id'],
+            {'issuer': issuer, 'subject': user['id'],
              'tenant': tenant, 'actions': list(ACTIONS), 'delegationCeiling': list(ACTIONS)}
             for tenant in user['attributes']['dkp_tenants']]}
         (authority / 'grants.json').write_text(json.dumps(grants, indent=2) + '\n')
@@ -108,6 +140,7 @@ def generate(destination, *, keytool=None, runtime_uid=None, runtime_gid=None):
             path.chmod(0o400)
         authority.chmod(0o550)
         values = {'DKP_LOCAL_UID': str(runtime_uid), 'DKP_LOCAL_GID': str(runtime_gid),
+                  'DKP_PORTAL_PORT': str(portal_port), 'DKP_IDP_PORT': str(idp_port),
                   'OIDC_CLIENT_SECRET': material['CLIENT_SECRET'],
                   'DKP_TEST_USERNAME': 'dkp-tester', 'DKP_TEST_PASSWORD': material['USER_PASSWORD'],
                   'KC_BOOTSTRAP_ADMIN_USERNAME': 'dkp-local-admin',
@@ -135,6 +168,8 @@ def generate(destination, *, keytool=None, runtime_uid=None, runtime_gid=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--directory', type=Path, default=ROOT / 'local-data/security')
+    parser.add_argument('--portal-port', type=int, default=18443)
+    parser.add_argument('--idp-port', type=int, default=18444)
     arguments = parser.parse_args()
-    created = generate(arguments.directory)
+    created = generate(arguments.directory, portal_port=arguments.portal_port, idp_port=arguments.idp_port)
     print('Local security material generated.' if created else 'Existing local security material verified; credentials preserved.')

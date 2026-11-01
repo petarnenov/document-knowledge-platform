@@ -14,7 +14,7 @@
 
 import { mapValues } from '../runtime.js';
 /**
- * Sole success body for every BP-02 mutation; no inspection-only facts. Replay requires current original-operation authority+ACL, create catalog only.
+ *
  * @export
  * @interface CommandReceipt
  */

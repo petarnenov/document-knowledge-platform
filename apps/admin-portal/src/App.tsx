@@ -1,4 +1,14 @@
-import { useState } from 'react';
+import {
+  Anchor,
+  Box,
+  Group,
+  Paper,
+  Switch,
+  Text,
+  Title,
+  useMantineColorScheme,
+} from '@mantine/core';
+import { PortalTheme } from './theme';
 import { Link, NavLink, Route, Routes } from 'react-router-dom';
 import { Identity } from './Identity';
 import { Documents } from './Documents';
@@ -6,21 +16,23 @@ import { ServerState } from './query';
 
 export function App() {
   return (
-    <ServerState>
-      <Shell />
-    </ServerState>
+    <PortalTheme>
+      <ServerState>
+        <Shell />
+      </ServerState>
+    </PortalTheme>
   );
 }
 
 function Shell() {
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
 
   return (
-    <div className="shell" data-theme={theme}>
+    <Box className="shell">
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <header className="topbar">
+      <Group component="header" className="topbar">
         <Link
           className="brand"
           to="/"
@@ -34,19 +46,21 @@ function Shell() {
             <span className="brand-caption">Administration foundation</span>
           </span>
         </Link>
-        <button
-          className="theme-toggle"
-          type="button"
-          aria-label="Light theme"
-          aria-pressed={theme === 'light'}
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-        >
-          <span aria-hidden="true">◐</span>{' '}
-          {theme === 'dark' ? 'Light theme' : 'Dark theme'}
-        </button>
-      </header>
+        <Group gap="sm" className="theme-control">
+          <Switch
+            label="Light theme"
+            checked={colorScheme === 'light'}
+            onChange={(event) =>
+              setColorScheme(event.currentTarget.checked ? 'light' : 'dark')
+            }
+          />
+          <Text size="xs">
+            {colorScheme === 'light' ? 'Light mode' : 'Dark mode'}
+          </Text>
+        </Group>
+      </Group>
       <div className="workspace">
-        <aside className="sidebar">
+        <Box component="aside" className="sidebar">
           <p className="nav-label">Workspace</p>
           <nav aria-label="Main navigation">
             <NavLink to="/" end>
@@ -61,7 +75,7 @@ function Shell() {
             <br />
             Ready for deliberate next steps.
           </p>
-        </aside>
+        </Box>
         <main id="main-content" tabIndex={-1}>
           <Routes>
             <Route path="/" element={<Overview />} />
@@ -73,9 +87,10 @@ function Shell() {
         </main>
       </div>
       <footer>
-        Independent platform · Metadata-only drafts · No content uploads
+        Independent platform · Drafts and verified uploads · Publication
+        unavailable
       </footer>
-    </div>
+    </Box>
   );
 }
 
@@ -84,25 +99,28 @@ function Overview() {
     <>
       <p className="eyebrow">DKP / OVERVIEW</p>
       <div className="page-heading">
-        <h1>A foundation for knowledge.</h1>
+        <Title order={1}>A foundation for knowledge.</Title>
         <span className="status">Foundation shell</span>
       </div>
       <p className="lead">
         A clear starting point for secure document and knowledge workflows. The
         engineering foundation is taking shape.
       </p>
-      <section className="welcome-card" aria-labelledby="welcome-title">
+      <Paper
+        component="section"
+        className="welcome-card"
+        aria-labelledby="welcome-title"
+      >
         <span className="card-kicker">START HERE</span>
         <h2 id="welcome-title">Structure before content.</h2>
         <p>
-          This shell establishes navigation and presentation. Metadata-only
-          document drafts are available through verified workspace access.
-          Collections and search remain planned.
+          Draft metadata and verified content uploads are available through
+          verified workspace access. Collections and search remain planned.
         </p>
-        <Link className="primary-link" to="/foundation">
+        <Anchor component={Link} className="primary-link" to="/foundation">
           Explore the foundation <span aria-hidden="true">↗</span>
-        </Link>
-      </section>
+        </Anchor>
+      </Paper>
       <section aria-labelledby="boundaries-title">
         <div className="section-heading">
           <h2 id="boundaries-title">Platform boundaries</h2>
@@ -140,7 +158,7 @@ function DomainCard({
   description: string;
 }) {
   return (
-    <article className="domain-card">
+    <Paper component="article" className="domain-card">
       <span className="domain-number">{number}</span>
       <h3>{title}</h3>
       <p>{description}</p>
@@ -149,7 +167,7 @@ function DomainCard({
           ? 'Metadata drafts available'
           : 'Planned capability'}
       </span>
-    </article>
+    </Paper>
   );
 }
 
@@ -157,12 +175,16 @@ function Foundation() {
   return (
     <>
       <p className="eyebrow">DKP / FOUNDATION</p>
-      <h1>Built to grow with care.</h1>
+      <Title order={1}>Built to grow with care.</Title>
       <p className="lead">
         This is an engineering foundation, with authorized metadata-only draft
         management. Knowledge workflows remain planned.
       </p>
-      <section className="info-card" aria-labelledby="principles-title">
+      <Paper
+        component="section"
+        className="info-card"
+        aria-labelledby="principles-title"
+      >
         <h2 id="principles-title">Guiding principles</h2>
         <ul className="principles">
           <li>Independent domain ownership and releases.</li>
@@ -173,8 +195,12 @@ function Foundation() {
             services.
           </li>
         </ul>
-      </section>
-      <section className="info-card" aria-labelledby="scope-title">
+      </Paper>
+      <Paper
+        component="section"
+        className="info-card"
+        aria-labelledby="scope-title"
+      >
         <h2 id="scope-title">What you can do here</h2>
         <p>
           Navigate the shell, choose a display theme and verify your workspace
@@ -182,7 +208,7 @@ function Foundation() {
           available. Draft metadata, bounded access rules and legal holds are
           available in Documents.
         </p>
-      </section>
+      </Paper>
     </>
   );
 }
@@ -191,7 +217,7 @@ function NotFound() {
   return (
     <>
       <p className="eyebrow">DKP / 404</p>
-      <h1>Page not found.</h1>
+      <Title order={1}>Page not found.</Title>
       <p className="lead">This route is not part of the foundation shell.</p>
       <Link className="primary-link" to="/">
         Return to overview

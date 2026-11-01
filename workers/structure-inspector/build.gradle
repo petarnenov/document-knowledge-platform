@@ -1,0 +1,15 @@
+plugins { id 'application' }
+application { mainClass = 'org.documentknowledge.inspector.InspectorApplication' }
+dependencies {
+    implementation "org.apache.pdfbox:pdfbox:${rootProject.libs.versions.pdfbox.get()}"
+    implementation platform("com.fasterxml.jackson:jackson-bom:${rootProject.libs.versions.jackson.sdk.get()}")
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+}
+tasks.named('jacocoTestReport') { dependsOn test; reports { xml.required = true; html.required = true } }
+tasks.register('sourceCoverageVerification', JacocoCoverageVerification) {
+    dependsOn test
+    executionData test
+    sourceSets sourceSets.main
+    violationRules { rule { limit { counter = 'LINE'; minimum = 0.75 }; limit { counter = 'BRANCH'; minimum = 0.75 } } }
+}
+tasks.named('check') { dependsOn 'sourceCoverageVerification', 'jacocoTestReport' }

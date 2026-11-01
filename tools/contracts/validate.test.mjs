@@ -93,33 +93,68 @@ test('published identity contract preserves independent trust and mutation guard
   assert.equal(contract.components.securitySchemes.SessionCookie.name, '__Host-DKP-SESSION');
 });
 
-test('published DM contract preserves approved minimal receipts and independent browser guards', async () => {
+test('published DM contract preserves approved BP02 semantics and exact additive BP03 freeze', async () => {
   const contract = parse(await readFile(resolve(root, 'contracts/openapi/v1/document-management.yaml'), 'utf8'));
-  const approved = JSON.parse(await readFile(resolve(root, 'openspec/changes/archive/2026-10-31-dkp-003-document-management/contracts/document-management.openapi.json'), 'utf8'));
-  assert.deepEqual(contract, approved);
+  const metadata = JSON.parse(await readFile(resolve(root, 'openspec/changes/archive/2026-10-31-dkp-003-document-management/contracts/document-management.openapi.json'), 'utf8'));
+  const uploads = JSON.parse(await readFile(resolve(root, 'openspec/changes/dkp-004-rustfs-upload/contracts/rustfs-upload.openapi.json'), 'utf8'));
+  const expectedPaths = structuredClone(metadata.paths);
+  for (const [path, operations] of Object.entries(uploads.paths)) {
+    expectedPaths[path] = { ...expectedPaths[path], ...operations };
+  }
+  assert.deepEqual(contract.paths, expectedPaths, 'Only exact approved BP03 additions/replacements are published');
+  assert.deepEqual(contract.components, {
+    ...metadata.components,
+    schemas: { ...metadata.components.schemas, ...uploads.components.schemas },
+  });
+  assert.deepEqual(contract.servers, metadata.servers);
+  assert.equal(contract.info.version, '0.2.0');
+  const semantic = (value) => Array.isArray(value) ? value.map(semantic)
+    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value)
+      .filter(([key]) => key !== 'description').map(([key, child]) => [key, semantic(child)])) : value;
+  for (const [name, schema] of Object.entries(metadata.components.schemas)) {
+    if (name === 'Action') {
+      assert.deepEqual(contract.components.schemas.Action.enum, [...schema.enum, 'document.content.review']);
+    } else {
+      assert.deepEqual(semantic(contract.components.schemas[name]), semantic(schema), `BP02 schema ${name} is preserved`);
+    }
+  }
+  for (const [path, operations] of Object.entries(metadata.paths)) {
+    for (const [method, operation] of Object.entries(operations)) {
+      const actual = contract.paths[path][method];
+      assert.equal(actual.operationId, operation.operationId, `${method} ${path} SDK method`);
+      assert.deepEqual(actual.requestBody, operation.requestBody, `${method} ${path} request DTO`);
+      for (const [status, response] of Object.entries(operation.responses)) {
+        if (status.startsWith('2')) assert.deepEqual(semantic(actual.responses[status]), semantic(response));
+      }
+      if (!path.endsWith('/versions')) {
+        assert.deepEqual(semantic(actual), semantic(operation), `${method} ${path} complete BP02 wire`);
+      } else {
+        assert.deepEqual(actual, uploads.paths[path][method], 'Append failures are exactly the approved typed UploadError/429 delta');
+      }
+    }
+  }
   const schemas = contract.components.schemas;
   assert.equal(schemas.CommandReceipt.additionalProperties, false);
   assert.deepEqual(Object.keys(schemas.CommandReceipt.properties).toSorted(), ['documentId', 'revision']);
   assert.deepEqual(schemas.CommandReceipt.required.toSorted(), ['documentId', 'revision']);
   assert.equal(schemas.Document.properties.activeVersionId.type, 'null');
   assert.equal(schemas.Retention.properties.retainUntil.type, 'null');
-  let mutations = 0;
   for (const [path, operations] of Object.entries(contract.paths)) {
-    assert.equal(operations.put, undefined);
-    for (const method of ['post', 'patch']) {
-      const operation = operations[method];
-      if (!operation) continue;
-      mutations++;
-      assert.ok(operation.parameters.some((parameter) => parameter.name === 'Idempotency-Key' && parameter.required));
-      for (const [status, response] of Object.entries(operation.responses)) {
-        if (status.startsWith('2')) assert.equal(response.content['application/json'].schema.$ref, '#/components/schemas/CommandReceipt');
-      }
+    for (const [method, operation] of Object.entries(operations)) {
+      assert.equal(operation.responses['202'], undefined, 'BP03 never fabricates processing handoff');
       const browser = path.startsWith('/api/v1/dm/');
       assert.deepEqual(operation.security, browser ? [{ SessionCookie: [] }] : [{ BearerAuth: [] }]);
-      for (const name of browser ? ['Origin', 'X-CSRF-TOKEN'] : ['X-DKP-Tenant']) {
-        assert.ok(operation.parameters.some((parameter) => parameter.name === name && parameter.required));
+      if (['post', 'patch', 'put'].includes(method)) {
+        assert.ok(operation.parameters.some(({ name, required }) => name === 'Idempotency-Key' && required));
+        for (const name of browser ? ['Origin', 'X-CSRF-TOKEN'] : ['X-DKP-Tenant']) {
+          assert.ok(operation.parameters.some((parameter) => parameter.name === name && parameter.required));
+        }
+      }
+      if (!browser) {
+        const mirrored = contract.paths[path.replace('/api/v1/documents', '/api/v1/dm/documents')][method];
+        assert.deepEqual(mirrored.requestBody, operation.requestBody, `${path} browser request parity`);
+        assert.deepEqual(mirrored.responses, operation.responses, `${path} browser response parity`);
       }
     }
   }
-  assert.equal(mutations, 10);
 });

@@ -14,7 +14,7 @@ function renderShell(path = '/') {
 
 describe('foundation shell', () => {
   it('shows honest scope, semantic landmarks and active home navigation', () => {
-    const { container } = renderShell();
+    renderShell();
     expect(
       screen.getByRole('heading', { name: 'A foundation for knowledge.' }),
     ).toBeTruthy();
@@ -29,10 +29,10 @@ describe('foundation shell', () => {
     ).toBe('page');
     expect(screen.getByText('Foundation shell', { exact: true })).toBeTruthy();
     expect(screen.getAllByText('Planned capability')).toHaveLength(2);
-    expect(screen.getAllByRole('button')).toHaveLength(1);
-    expect(container.querySelector('.shell')?.getAttribute('data-theme')).toBe(
-      'dark',
-    );
+    expect(screen.getAllByRole('switch')).toHaveLength(1);
+    expect(
+      document.documentElement.getAttribute('data-mantine-color-scheme'),
+    ).toBe('dark');
   });
 
   it('navigates to foundation information and returns through the brand', async () => {
@@ -79,19 +79,19 @@ describe('foundation shell', () => {
 
   it('changes theme in both directions by keyboard', async () => {
     const user = userEvent.setup();
-    const { container } = renderShell();
-    const toggle = screen.getByRole('button', { name: 'Light theme' });
+    renderShell();
+    const toggle = screen.getByRole('switch', { name: 'Light theme' });
     toggle.focus();
     await user.keyboard(' ');
-    expect(toggle.getAttribute('aria-pressed')).toBe('true');
-    expect(container.querySelector('.shell')?.getAttribute('data-theme')).toBe(
-      'light',
-    );
-    await user.keyboard('{Enter}');
-    expect(toggle.getAttribute('aria-pressed')).toBe('false');
-    expect(container.querySelector('.shell')?.getAttribute('data-theme')).toBe(
-      'dark',
-    );
+    expect((toggle as HTMLInputElement).checked).toBe(true);
+    expect(
+      document.documentElement.getAttribute('data-mantine-color-scheme'),
+    ).toBe('light');
+    await user.keyboard(' ');
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+    expect(
+      document.documentElement.getAttribute('data-mantine-color-scheme'),
+    ).toBe('dark');
   });
 
   it('provides skip navigation as the first keyboard destination', async () => {

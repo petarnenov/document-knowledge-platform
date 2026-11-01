@@ -16,11 +16,14 @@ test('built shell supports navigation, deep-link reload, theme and fallback', as
   await expect(
     page.getByRole('link', { name: 'Foundation', exact: true }),
   ).toHaveAttribute('aria-current', 'page');
-  const theme = page.getByRole('button', { name: 'Light theme' });
+  const theme = page.getByRole('switch', { name: 'Light theme' });
   await theme.focus();
   await page.keyboard.press('Space');
-  await expect(theme).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.shell')).toHaveAttribute('data-theme', 'light');
+  await expect(theme).toBeChecked();
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-mantine-color-scheme',
+    'light',
+  );
   await page.goto('/unknown');
   await expect(
     page.getByRole('heading', { name: 'Page not found.' }),

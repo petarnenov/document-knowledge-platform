@@ -46,7 +46,9 @@ public enum Action {
 
   DOCUMENT_LEGAL_HOLD_PLACE("document.legal-hold.place"),
 
-  DOCUMENT_LEGAL_HOLD_INSPECT("document.legal-hold.inspect");
+  DOCUMENT_LEGAL_HOLD_INSPECT("document.legal-hold.inspect"),
+
+  DOCUMENT_CONTENT_REVIEW("document.content.review");
 
   private String value;
 

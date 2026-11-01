@@ -31,6 +31,7 @@ export const actions = [
   'document.version.append',
   'document.legal-hold.place',
   'document.legal-hold.inspect',
+  'document.content.review',
 ] as const;
 const action = z.enum(actions);
 const receiptSchema = z.object({ documentId: z.uuid(), revision }).strict();
@@ -265,6 +266,20 @@ export async function command(
 export function documentError(error: unknown): string {
   if (!(error instanceof DocumentRequestError))
     return 'Document services are unavailable. Try again.';
+  switch (error.code) {
+    case 'UPLOAD_EXPIRED':
+      return 'The upload expired. Cancel and clear it before starting again.';
+    case 'QUOTA_EXCEEDED':
+      return 'Upload capacity is currently full. Wait before retrying.';
+    case 'MALWARE_DETECTED':
+      return 'The uploaded file was rejected by the malware check.';
+    case 'INVALID_FILE':
+    case 'STRUCTURE_LIMIT':
+    case 'UNSUPPORTED_CONTENT':
+      return 'The file did not pass the document format and structure checks.';
+    case 'SIZE_MISMATCH':
+      return 'The transfer size did not match the selected file. Cancel and clear before retrying.';
+  }
   switch (error.status) {
     case 401:
       return 'Your session has expired. Sign in again.';

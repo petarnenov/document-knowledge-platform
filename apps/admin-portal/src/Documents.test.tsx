@@ -121,6 +121,17 @@ it('runs real request shapes for create, inspect, metadata, ACL and holds withou
   open();
   await user.type(await screen.findByLabelText('Title'), 'New draft');
   await user.type(screen.getByLabelText('Description'), 'Description');
+  const beforeTheme = fetcher.mock.calls.length;
+  const themeSwitch = screen.getByRole('switch', { name: 'Light theme' });
+  await user.click(themeSwitch);
+  expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe(
+    'New draft',
+  );
+  expect(
+    (screen.getByLabelText('Description') as HTMLTextAreaElement).value,
+  ).toBe('Description');
+  expect(document.activeElement).toBe(themeSwitch);
+  expect(fetcher.mock.calls.length).toBe(beforeTheme);
   await user.click(screen.getByRole('button', { name: 'Create draft' }));
   await screen.findByText(`Saved document ${id}, revision 1.`);
   expect(bodies[0]?.body).toMatchObject({
@@ -162,6 +173,21 @@ it('runs real request shapes for create, inspect, metadata, ACL and holds withou
     screen.getByLabelText('Document action'),
     'document.update-metadata',
   );
+  const beforeThemeAcl = bodies.length;
+  await user.click(themeSwitch);
+  expect(
+    (screen.getByLabelText('Access mode') as HTMLSelectElement).value,
+  ).toBe('DELEGATE');
+  expect(
+    (screen.getByLabelText('Rule operation') as HTMLSelectElement).value,
+  ).toBe('ADD_ALLOW');
+  expect(
+    (screen.getByLabelText('Document action') as HTMLSelectElement).value,
+  ).toBe('document.update-metadata');
+  expect(
+    (screen.getByLabelText('Target subject') as HTMLInputElement).value,
+  ).toBe('other');
+  expect(bodies.length).toBe(beforeThemeAcl);
   await user.click(screen.getByRole('button', { name: 'Apply access change' }));
   await screen.findByText(`Saved document ${id}, revision 4.`);
   expect(bodies[3]?.body).toMatchObject({
@@ -179,6 +205,11 @@ it('runs real request shapes for create, inspect, metadata, ACL and holds withou
   );
   expect(await screen.findByLabelText('Legal holds')).toBeTruthy();
   await user.type(screen.getByLabelText('Hold reason'), 'Preserve');
+  await user.click(themeSwitch);
+  expect(
+    (screen.getByLabelText('Hold reason') as HTMLTextAreaElement).value,
+  ).toBe('Preserve');
+  expect(document.activeElement).toBe(themeSwitch);
   await user.click(screen.getByRole('button', { name: 'Place hold' }));
   await screen.findByText(`Saved document ${id}, revision 5.`);
   expect(bodies[4]?.body).toMatchObject({

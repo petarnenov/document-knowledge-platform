@@ -27,6 +27,7 @@ export const Action = {
     DocumentVersionAppend: 'document.version.append',
     DocumentLegalHoldPlace: 'document.legal-hold.place',
     DocumentLegalHoldInspect: 'document.legal-hold.inspect',
+    DocumentContentReview: 'document.content.review',
 } as const;
 export type Action = typeof Action[keyof typeof Action];
 

@@ -64,7 +64,9 @@ public class AclRule {
 
     DOCUMENT_LEGAL_HOLD_PLACE(String.valueOf("document.legal-hold.place")),
 
-    DOCUMENT_LEGAL_HOLD_INSPECT(String.valueOf("document.legal-hold.inspect"));
+    DOCUMENT_LEGAL_HOLD_INSPECT(String.valueOf("document.legal-hold.inspect")),
+
+    DOCUMENT_CONTENT_REVIEW(String.valueOf("document.content.review"));
 
     private String value;
 

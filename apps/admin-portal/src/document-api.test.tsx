@@ -233,3 +233,18 @@ describe('document boundary', () => {
     expect(documentError(new Error('private'))).toContain('unavailable');
   });
 });
+
+it('describes upload expiry, capacity and rejection without exposing scanner diagnostics', () => {
+  for (const code of [
+    'UPLOAD_EXPIRED',
+    'QUOTA_EXCEEDED',
+    'MALWARE_DETECTED',
+    'INVALID_FILE',
+    'STRUCTURE_LIMIT',
+    'UNSUPPORTED_CONTENT',
+    'SIZE_MISMATCH',
+  ])
+    expect(documentError(new DocumentRequestError(422, code))).not.toContain(
+      'request was rejected',
+    );
+});

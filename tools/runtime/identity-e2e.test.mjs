@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, chmodSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { findAddress, main, readCredentials, redact, requirePrivateFile, runtimeArguments } from './identity-e2e.mjs';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import { faultInput, findAddress, main, readCredentials, redact, requirePrivateFile, runtimeArguments, uploadProject } from './identity-e2e.mjs';
 
 test('reads only synthetic browser credentials without evaluating environment text', () => {
   assert.deepEqual(readCredentials('OIDC_CLIENT_SECRET=not-read\nDKP_TEST_USERNAME=tester\nDKP_TEST_PASSWORD=$(never-executed)\n'), { username: 'tester', password: '$(never-executed)' });
@@ -46,6 +48,66 @@ test('shares only portal network namespace and mounts only the public CA', () =>
   assert.throws(() => runtimeArguments({ portalId: 'a'.repeat(64), address: 'evil', certificate: '/ca' }), /address/);
 });
 
+test('limits acceptance uses only an explicit finite profile and exact test file', () => {
+  const input = { portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca', uploadRuntime: true };
+  for (const profile of ['quota', 'expiry']) {
+    const args = runtimeArguments({ ...input, uploadLimitsProfile: profile });
+    assert.ok(args.includes(`DKP_UPLOAD_LIMITS_PROFILE=${profile}`));
+    assert.equal(args.at(-1), 'upload-limits.spec.ts');
+    assert.equal(args.at(-2), 'dkp-identity-e2e:local');
+  }
+  assert.equal(runtimeArguments(input).includes('upload-limits.spec.ts'), false);
+  for (const profile of ['', 'all', 'expiry;command', true, null]) {
+    assert.throws(() => runtimeArguments({ ...input, uploadLimitsProfile: profile }), /limits profile/);
+    assert.throws(() => main({ uploadLimitsProfile: profile }), /Invalid upload limits/);
+  }
+  assert.throws(() => runtimeArguments({ ...input, uploadRuntime: false, uploadLimitsProfile: 'quota' }), /requires upload runtime/);
+});
+
+test('durability fixture is explicit, mutually exclusive and selects only its real fixture', () => {
+  const input = { portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca', uploadRuntime: true };
+  const args = runtimeArguments({ ...input, uploadDurabilityFixture: true });
+  assert.ok(args.includes('DKP_UPLOAD_DURABILITY_FIXTURE=true'));
+  assert.equal(args.at(-1), 'upload-durability.spec.ts');
+  assert.equal(runtimeArguments(input).includes('DKP_UPLOAD_DURABILITY_FIXTURE=true'), false);
+  for (const invalid of ['true', 1, null]) {
+    assert.throws(() => runtimeArguments({ ...input, uploadDurabilityFixture: invalid }), /durability fixture/);
+    assert.throws(() => main({ uploadDurabilityFixture: invalid }), /durability fixture/);
+  }
+  assert.throws(() => runtimeArguments({ ...input, uploadRuntime: false, uploadDurabilityFixture: true }), /durability fixture/);
+  assert.throws(() => runtimeArguments({ ...input, uploadDurabilityFixture: true, uploadLimitsProfile: 'quota' }), /durability fixture/);
+  assert.throws(() => main({ uploadDurabilityFixture: true, uploadLimitsProfile: 'expiry' }), /durability fixture/);
+});
+
+test('explicit limits profile selects upload stack even without separate upload flag', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'dkp-limits-run-'));
+  const calls = [];
+  try {
+    writeFileSync(join(directory, 'runtime.env'), 'DKP_TEST_USERNAME=tester\nDKP_TEST_PASSWORD=synthetic-password\nDKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\n', { mode: 0o600 });
+    writeFileSync(join(directory, 'ca.crt'), 'synthetic-public-ca', { mode: 0o600 });
+    const execute = (args) => {
+      calls.push(args);
+      if (args[0] === 'compose') return 'a'.repeat(64);
+      if (args[0] === 'inspect') return JSON.stringify([{ NetworkSettings: { Networks: { isolated: { IPAddress: '172.20.0.4' } } } }]);
+      return '';
+    };
+    main({ uploadLimitsProfile: 'expiry', securityDirectory: directory, execute, log: () => {} });
+    assert.ok(calls[0].includes('dkp-bp03-012345abcdef'));
+    assert.ok(calls[0].includes('infra/docker-compose/compose-upload.yaml'));
+    assert.ok(calls.at(-1).includes('DKP_IDENTITY_BASE_URL=https://localhost:19443'));
+    assert.ok(calls.at(-1).includes('DKP_UPLOAD_LIMITS_PROFILE=expiry'));
+    assert.equal(calls.at(-1).at(-1), 'upload-limits.spec.ts');
+    calls.length = 0;
+    main({ uploadDurabilityFixture: true, securityDirectory: directory, execute, log: () => {} });
+    assert.ok(calls[0].includes('dkp-bp03-012345abcdef'));
+    assert.ok(calls.at(-1).includes('DKP_UPLOAD_E2E_ENABLED=true'));
+    assert.ok(calls.at(-1).includes('DKP_UPLOAD_DURABILITY_FIXTURE=true'));
+    assert.equal(calls.at(-1).at(-1), 'upload-durability.spec.ts');
+    const dockerfile = readFileSync(new URL('../../infra/docker-compose/identity-e2e.Dockerfile', import.meta.url), 'utf8');
+    assert.ok(dockerfile.includes('test --config playwright.identity.runtime.config.ts "$@"'));
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('redacts every test password occurrence from captured runner output', () => {
   assert.equal(redact('before synthetic-password after synthetic-password', 'synthetic-password'), 'before [REDACTED] after [REDACTED]');
   assert.equal(redact('unchanged', ''), 'unchanged');
@@ -80,5 +142,128 @@ test('orchestrates fixed runtime inspection and passes credentials only to the b
     assert.equal(calls[5].options.environment.OIDC_CLIENT_SECRET, process.env.OIDC_CLIENT_SECRET);
     assert.throws(() => main({ securityDirectory: directory, execute: () => '', log: () => {} }), /Start the identity/);
     assert.throws(() => main({ securityDirectory: directory, execute: (args) => args[0] === 'compose' ? portalId : '[{}]', log: () => {} }), /one explicit/);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+
+test('isolated upload runtime keeps strict origins and avoids the BP02 stack', () => {
+  assert.equal(uploadProject('DKP_TEST_USERNAME=tester\n'), 'dkp-bp03');
+  assert.equal(uploadProject('DKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\n'), 'dkp-bp03-012345abcdef');
+  for (const value of ['foreign', 'dkp-bp03-XYZ', 'dkp-bp03-012345abcdef;command']) assert.throws(() => uploadProject('DKP_UPLOAD_COMPOSE_PROJECT=' + value), /Invalid/);
+  assert.throws(() => uploadProject('DKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\nDKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef'), /Duplicate/);
+  const input = { portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca' };
+  assert.equal(runtimeArguments(input).some((v) => v.startsWith('DKP_UPLOAD_E2E_ENABLED=')), false);
+  assert.equal(runtimeArguments({ ...input, uploadRuntime: false }).some((v) => v.startsWith('DKP_UPLOAD_E2E_ENABLED=')), false);
+  assert.throws(() => runtimeArguments({ ...input, uploadRuntime: 'true' }), /boolean/);
+  const args = runtimeArguments({ ...input, portalPort: 19443, idpPort: 19444, uploadRuntime: true });
+  assert.ok(args.includes('DKP_UPLOAD_E2E_ENABLED=true'));
+  assert.ok(args.includes('DKP_IDENTITY_BASE_URL=https://localhost:19443'));
+  assert.ok(args.includes('DKP_IDENTITY_IDP_BASE_URL=https://idp.localhost:19444'));
+  for (const port of [0, 443, 65536, NaN, 1.2, '19443;command']) assert.throws(() => runtimeArguments({ portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca', portalPort: port }), /port/);
+  assert.throws(() => runtimeArguments({ portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca', portalPort: 19444, idpPort: 19444 }), /Distinct/);
+  const directory = mkdtempSync(join(tmpdir(), 'dkp-upload-e2e-'));
+  const calls = [];
+  try {
+    writeFileSync(join(directory, 'runtime.env'), 'DKP_TEST_USERNAME=tester\nDKP_TEST_PASSWORD=synthetic-password\nDKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\n', { mode: 0o600 });
+    writeFileSync(join(directory, 'ca.crt'), 'synthetic public certificate', { mode: 0o600 });
+    const combined = join(directory, 'combined.env');
+    writeFileSync(combined, 'DKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\nDKP_UPLOAD_STORAGE_ENDPOINT=https://rustfs:9000\n', { mode: 0o600 });
+    const execute = (arguments_, options) => {
+      calls.push({ args: arguments_, options });
+      if (arguments_[0] === 'compose') return arguments_.at(-1) === 'admin-portal' ? 'a'.repeat(64) : 'b'.repeat(64);
+      if (arguments_[0] === 'inspect') return JSON.stringify([{ NetworkSettings: { Networks: { dkp: { IPAddress: '172.20.0.4' } } } }]);
+      return '';
+    };
+    main({ uploadRuntime: true, securityDirectory: directory, runtimeEnvironmentFile: combined, execute, log: () => {} });
+    assert.ok(calls[0].args.includes(combined));
+    assert.ok(calls[0].args.includes('dkp-bp03-012345abcdef'));
+    assert.ok(calls[0].args.includes('infra/docker-compose/compose-upload.yaml'));
+    assert.ok(calls.at(-1).args.includes('DKP_IDENTITY_BASE_URL=https://localhost:19443'));
+    assert.ok(calls.at(-1).args.includes('DKP_UPLOAD_E2E_ENABLED=true'));
+    assert.equal(calls.at(-1).args.some((arg) => arg.includes('synthetic-password')), false);
+    writeFileSync(combined, 'DKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-fedcba543210\n');
+    assert.throws(() => main({ uploadRuntime: true, securityDirectory: directory, runtimeEnvironmentFile: combined, execute, log: () => {} }), /does not match/);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+
+test('built runner trust probe uses string URLs on the configured isolated ports', async () => {
+  const dockerfile = readFileSync(new URL('../../infra/docker-compose/identity-e2e.Dockerfile', import.meta.url), 'utf8');
+  const source = dockerfile.split("<<'TRUST'\n")[1].split('\nTRUST')[0]
+    .replace("import { chromium } from '@playwright/test';", 'const chromium = fakeChromium;');
+  const visited = [];
+  const page = { goto: async (url) => {
+    assert.equal(typeof url, 'string', 'Playwright requires a URL string');
+    visited.push(url);
+    if (url.startsWith('https://wrong-name.localhost:19443/')) throw new Error('ERR_CERT_COMMON_NAME_INVALID');
+    return { status: () => 200 };
+  } };
+  let closed = false;
+  const browser = { newContext: async (options) => {
+    assert.equal(options.ignoreHTTPSErrors, false);
+    return { newPage: async () => page };
+  }, close: async () => { closed = true; } };
+  const process = { env: { DKP_IDENTITY_BASE_URL: 'https://localhost:19443',
+    DKP_IDENTITY_IDP_BASE_URL: 'https://idp.localhost:19444', DKP_IDENTITY_IDP_ADDRESS: '172.20.0.4' } };
+  await vm.runInNewContext(`(async () => { ${source} })()`, {
+    URL, process, fakeChromium: { launch: async () => browser }, console: { log() {}, error() {} },
+  });
+  assert.equal(process.exitCode, undefined);
+  assert.deepEqual(visited, ['https://localhost:19443/',
+    'https://idp.localhost:19444/realms/dkp/.well-known/openid-configuration', 'https://wrong-name.localhost:19443/']);
+  assert.equal(closed, true);
+  const nodeProbe = dockerfile.match(/node --input-type=module -e '([^']+)'/)[1];
+  let fetched;
+  await vm.runInNewContext(`(async () => { ${nodeProbe} })()`, {
+    process: { ...process, exit: () => { throw new Error('unexpected failure'); } },
+    fetch: async (url) => { fetched = url; return { ok: true }; }, console,
+  });
+  assert.equal(fetched, 'https://localhost:19443');
+});
+
+const faultSeed = { schemaVersion: 1, phase: 'seed', service: null, fixture: null };
+function faultFixture() {
+  const id = '00000000-0000-4000-8000-000000000001';
+  const artifact = { documentId: id, uploadId: id, receiptId: id, versionId: id, completeKey: id, appendKey: id };
+  return { tenant: 'tenant-a', sha256: 'a'.repeat(64), sizeBytes: 346, consumed: { ...artifact }, unconsumed: { ...artifact, versionId: null }, candidate: null };
+}
+test('fault input is closed finite synthetic metadata without host or authority selectors', () => {
+  assert.deepEqual(faultInput(faultSeed), faultSeed);
+  const valid = { schemaVersion: 1, phase: 'verify', service: null, fixture: faultFixture() };
+  faultInput(valid);
+  for (const value of [{ ...faultSeed, extra: 'x' }, { ...faultSeed, schemaVersion: 2 }, { ...faultSeed, phase: 'execute' }, { ...faultSeed, service: 'foreign' }, { ...faultSeed, fixture: {} }, { ...faultSeed, service: 'pg' }]) assert.throws(() => faultInput(value));
+  for (const [key, value] of [['extra', 'x'], ['tenant', 'foreign'], ['sha256', 'http://host'], ['sizeBytes', true], ['sizeBytes', 0], ['sizeBytes', 100000001]]) assert.throws(() => faultInput({ ...valid, fixture: { ...valid.fixture, [key]: value } }));
+  for (const [key, value] of [['extra', 'x'], ['documentId', '../path'], ['versionId', 'bad'], ['versionId', null], ['receiptId', null]]) assert.throws(() => faultInput({ ...valid, fixture: { ...valid.fixture, consumed: { ...valid.fixture.consumed, [key]: value } } }));
+  assert.throws(() => faultInput({ ...valid, phase: 'readonly-outage' }), /service/);
+  assert.throws(() => faultInput({ ...valid, phase: 'recover', service: 'pg' }), /candidate/);
+  faultInput({ ...valid, phase: 'candidate-outage', service: 'pg', fixture: { ...valid.fixture, candidate: { ...valid.fixture.consumed, receiptId: null, versionId: null } } });
+});
+test('fault browser gets exact dedicated spec and only bounded synthetic metadata', () => {
+  const input = { portalId: 'a'.repeat(64), address: '172.20.0.4', certificate: '/ca', uploadRuntime: true, uploadFaultInput: faultSeed };
+  const args = runtimeArguments(input);
+  assert.equal(args.at(-1), 'upload-faults.spec.ts');
+  assert.ok(args.includes('DKP_UPLOAD_FAULT_INPUT=' + JSON.stringify(faultSeed)));
+  assert.equal(args.filter(value => value.includes('DKP_UPLOAD_FAULT_INPUT=')).length, 1);
+  for (const changes of [{ uploadRuntime: false }, { uploadDurabilityFixture: true }, { uploadLimitsProfile: 'quota' }]) assert.throws(() => runtimeArguments({ ...input, ...changes }), /Separate/);
+  assert.equal(runtimeArguments({ ...input, uploadFaultInput: undefined }).includes('upload-faults.spec.ts'), false);
+});
+test('private fault input implies recorded upload stack and rejects oversized or conflicting profiles before Docker', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'dkp-fault-run-')); const calls = [];
+  try {
+    writeFileSync(join(directory, 'runtime.env'), 'DKP_TEST_USERNAME=tester\nDKP_TEST_PASSWORD=synthetic-password\nDKP_UPLOAD_COMPOSE_PROJECT=dkp-bp03-012345abcdef\n', { mode: 0o600 });
+    writeFileSync(join(directory, 'ca.crt'), 'synthetic-public-ca', { mode: 0o600 });
+    const input = join(directory, 'input.json');writeFileSync(input, JSON.stringify(faultSeed), { mode: 0o600 });
+    const execute = args => {
+      calls.push(args);
+      if (args[0] === 'compose') return 'a'.repeat(64);
+      if (args[0] === 'inspect') return JSON.stringify([{ NetworkSettings: { Networks: { isolated: { IPAddress: '172.20.0.4' } } } }]);
+      return '';
+    };
+    main({ uploadFaultInputFile: input, securityDirectory: directory, execute, log: () => {} });
+    assert.ok(calls[0].includes('dkp-bp03-012345abcdef'));
+    assert.ok(calls.at(-1).includes('DKP_UPLOAD_E2E_ENABLED=true'));
+    assert.equal(calls.at(-1).at(-1), 'upload-faults.spec.ts');
+    for (const conflict of [{ uploadDurabilityFixture: true }, { uploadLimitsProfile: 'expiry' }]) assert.throws(() => main({ ...conflict, uploadFaultInputFile: input }), /Separate/);
+    writeFileSync(input, ' '.repeat(16385));assert.throws(() => main({ uploadFaultInputFile: input }), /Bounded/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
