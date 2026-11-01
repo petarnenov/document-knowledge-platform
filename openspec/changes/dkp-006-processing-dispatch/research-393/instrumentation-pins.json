@@ -1,0 +1,17 @@
+{
+  "scope": "RESEARCH_COVERAGE_TOOL_ONLY",
+  "version": "0.8.16",
+  "license": "EPL-2.0",
+  "artifacts": [
+    {
+      "url": "https://repo.maven.apache.org/maven2/org/jacoco/org.jacoco.agent/0.8.16/org.jacoco.agent-0.8.16-runtime.jar",
+      "sha256": "37ae2f374ad77e85c59c6e5b46565226c3ac3cb460ac19de0bcb844ac2f43e33",
+      "bytes": 314470
+    },
+    {
+      "url": "https://repo.maven.apache.org/maven2/org/jacoco/org.jacoco.cli/0.8.16/org.jacoco.cli-0.8.16-nodeps.jar",
+      "sha256": "1f2a806225623fbd9f53d1ee0e42a6975323de0adebe01c12fc464ed147d756a",
+      "bytes": 618646
+    }
+  ]
+}
