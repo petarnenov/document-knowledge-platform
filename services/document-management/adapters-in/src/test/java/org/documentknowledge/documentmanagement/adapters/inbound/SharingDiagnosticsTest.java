@@ -17,9 +17,23 @@ class SharingDiagnosticsTest {
         final Logger logger=Logger.getLogger("org.documentknowledge.documentmanagement.sharing");
         final List<String> lines=new ArrayList<>();final List<Throwable> thrown=new ArrayList<>();
         final boolean parents=logger.getUseParentHandlers();final Level level=logger.getLevel();
-        final Handler handler=new Handler(){public void publish(LogRecord r){lines.add(r.getMessage());thrown.add(r.getThrown());}public void flush(){}public void close(){}};
+        final Handler handler=new Handler(){public void publish(LogRecord r){if(logger.getName().equals(r.getLoggerName())){lines.add(r.getMessage());thrown.add(r.getThrown());}}public void flush(){}public void close(){}};
         Capture(){logger.setUseParentHandlers(false);logger.setLevel(Level.ALL);logger.addHandler(handler);}
         public void close(){logger.removeHandler(handler);logger.setUseParentHandlers(parents);logger.setLevel(level);}
+    }
+    @Test void captureIncludesOnlyExactBoundaryLoggerWithoutChangingChildDelivery(){
+        var child=Logger.getLogger("org.documentknowledge.documentmanagement.sharing.authority");
+        var childLines=new ArrayList<String>();
+        var handler=new Handler(){public void publish(LogRecord record){childLines.add(record.getMessage());}public void flush(){}public void close(){}};
+        var previousLevel=child.getLevel();var previousParents=child.getUseParentHandlers();
+        child.setLevel(Level.ALL);child.setUseParentHandlers(true);child.addHandler(handler);
+        try(var capture=new Capture()){
+            child.warning("synthetic child event");
+            SharingDiagnostics.controller(new DmFailure(404,PRIVATE));
+            assertEquals(List.of("synthetic child event"),childLines);
+            assertEquals(List.of("dm_sharing stage=CONTROLLER_FAILURE category=NOT_FOUND"),capture.lines);
+            assertEquals(Collections.singletonList(null),capture.thrown);
+        }finally{child.removeHandler(handler);child.setLevel(previousLevel);child.setUseParentHandlers(previousParents);}
     }
     @Test void closedEventsNeverRenderPrivateExceptionData(){
         try(var c=new Capture()){
