@@ -949,7 +949,10 @@ async function observeThrottledUpload(
           urlPattern: `${origin}/api/v1/dm/documents/uploads/*/content`,
           latency: 0,
           downloadThroughput: -1,
-          uploadThroughput: 1,
+          // Keep this finite rule unchanged until the request terminates. Replacing
+          // a live HTTPS rule can emit ERR_ABORTED after a fully consumed 200.
+          // The pinned fixture remains pending for about six seconds at this rate.
+          uploadThroughput: 256,
         },
       ],
     });
@@ -1095,7 +1098,6 @@ async function observeThrottledUpload(
       uploadId,
       failure: () => canceled.get(binaryId!),
       finished: () => finished.has(binaryId!),
-      release,
       dispose,
     };
   } catch (error) {
@@ -1194,9 +1196,10 @@ if (uploadProfile === 'true') {
         ).toBe(true);
       }
       /* DKP270_OBSERVER_BEGIN */
-      markBoundaryObserver(page, 'before-release');
+      markBoundaryObserver(page, 'before-completion-wait');
       /* DKP270_OBSERVER_END */
-      await upload.release();
+      // Let the real throttled transfer finish naturally; retain every transport
+      // assertion and the original response deadline below.
       await expect
         .poll(
           () =>

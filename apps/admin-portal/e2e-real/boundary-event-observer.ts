@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { CDPSession, Page } from '@playwright/test';
 
 const marks = [
-  'before-release',
+  'before-completion-wait',
   'binary-200-observed',
   'append-observed',
   'before-download',

@@ -60,7 +60,7 @@ afterEach(() => vi.restoreAllMocks());
 it('retains response200 then failure order and exact test markers without exposing correlation or transport secrets', () => {
   const f = fixture();
   f.request();
-  markBoundaryObserver(f.page, 'before-release');
+  markBoundaryObserver(f.page, 'before-completion-wait');
   f.response('PRIVATE_REQUEST_ID', binary, 200);
   markBoundaryObserver(f.page, 'binary-200-observed');
   f.response('append-id', `${origin}${root}/versions`, 201);
@@ -82,7 +82,7 @@ it('retains response200 then failure order and exact test markers without exposi
   expect(result.schemaVersion).toBe(1);
   expect(result.rows.map((row) => row.kind)).toEqual([
     'binary-request',
-    'before-release',
+    'before-completion-wait',
     'binary-response',
     'binary-200-observed',
     'append-response',
@@ -204,7 +204,7 @@ it('flushes once, removes only its own listeners and releases the page recorder 
   expect(f.cdp.listenerCount('Network.requestWillBeSent')).toBe(1);
   f.record();
   flushBoundaryObserver(f.page);
-  markBoundaryObserver(f.page, 'before-release');
+  markBoundaryObserver(f.page, 'before-completion-wait');
   expect(f.output).toHaveLength(1);
   expect(f.cdp.eventNames()).toEqual(['Network.loadingFinished']);
   f.cdp.emit('Network.loadingFinished', { requestId: 'id' });
@@ -218,7 +218,7 @@ it('flushes once, removes only its own listeners and releases the page recorder 
 it('keeps finite timestamps and permits original disposal when diagnostic output fails', () => {
   const f = fixture();
   vi.spyOn(performance, 'now').mockReturnValue(Number.NaN);
-  markBoundaryObserver(f.page, 'before-release');
+  markBoundaryObserver(f.page, 'before-completion-wait');
   expect(f.record().rows[0]?.elapsedUs).toBe(0);
   startBoundaryObserver(f.cdp as unknown as CDPSession, f.page, origin, root);
   vi.mocked(process.stdout.write).mockImplementation(() => {
