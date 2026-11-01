@@ -18,7 +18,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import org.documentknowledge.documentmanagement.application.DmFailure;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.*;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
+import org.documentknowledge.documentmanagement.application.upload.*;
+import org.documentknowledge.documentmanagement.adapters.outbound.verificationtemp.RealVerificationWorkspaceFixture;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.awscore.AwsResponseMetadata;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
@@ -31,7 +33,9 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
 class S3UploadStorageAdapterTest {
-    @TempDir Path temporary;
+    Path temporary;VerificationWorkspacePort workspaces;
+    @BeforeEach void workspace()throws Exception{Path parent=Path.of("build/storage-workspaces").toAbsolutePath();Files.createDirectories(parent);Files.setPosixFilePermissions(parent,java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));temporary=Files.createTempDirectory(parent,"owned-",java.nio.file.attribute.PosixFilePermissions.asFileAttribute(java.nio.file.attribute.PosixFilePermissions.fromString("rwx------")));Files.writeString(temporary.resolve(".spool-authority"),"dkp-private-spool-v1\n");Files.setPosixFilePermissions(temporary.resolve(".spool-authority"),java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));workspaces=RealVerificationWorkspaceFixture.open(temporary);}
+    @AfterEach void closeWorkspace()throws Exception{workspaces.close();try(var paths=Files.walk(temporary)){for(Path p:paths.sorted(java.util.Comparator.reverseOrder()).toList())Files.delete(p);}}
     private static final byte[] BYTES = "synthetic-storage-contract".getBytes(StandardCharsets.UTF_8);
     private static final String KEY = "a".repeat(64) + "/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002";
     private static final ObjectKey QUARANTINE = new ObjectKey("dkp-quarantine", KEY);
@@ -46,7 +50,7 @@ class S3UploadStorageAdapterTest {
             if(method.equals("putObject"))return PutObjectResponse.builder().versionId("exact-version").build();assertEquals("getObject",method);return body(BYTES,"exact-version",BYTES.length);
         });
         try(var phase=budget.phase(org.documentknowledge.documentmanagement.application.upload.CompleteBudget.Kind.STORAGE)){
-            assertEquals(new ObjectIdentity(ORIGINAL,"exact-version"),adapter.copy(OBJECT,ORIGINAL,phase));assertEquals(3,calls.get());
+            assertEquals(new ObjectIdentity(ORIGINAL,"exact-version"),copy(adapter,OBJECT,ORIGINAL,phase));assertEquals(3,calls.get());
             try(var input=adapter.open(OBJECT,phase)){assertArrayEquals(BYTES,input.readAllBytes());budget.cancel();assertThrows(DmFailure.class,input::read);}
         }
         assertArrayEquals(BYTES,adapter((m,a)->body(BYTES,"exact-version",BYTES.length)).open(OBJECT).readAllBytes());
@@ -147,11 +151,11 @@ class S3UploadStorageAdapterTest {
             assertEquals("getObject", method);
             return body(BYTES, "exact-version", BYTES.length);
         });
-        assertEquals(new ObjectIdentity(ORIGINAL, "exact-version"), adapter.copy(OBJECT, ORIGINAL));
+        assertEquals(new ObjectIdentity(ORIGINAL, "exact-version"), copy(adapter,OBJECT,ORIGINAL));
         assertEquals(3, calls.get());
-        try (var files = Files.list(temporary)) { assertEquals(0, files.count()); }
-        assertUnavailable(() -> adapter.copy(OBJECT, QUARANTINE));
-        assertUnavailable(() -> adapter.copy(new ObjectIdentity(ORIGINAL, "exact-version"), ORIGINAL));
+        try (var files = Files.list(temporary)) { assertEquals(0,files.filter(p->p.getFileName().toString().startsWith("dkp-verification-")||p.getFileName().toString().startsWith("verified-copy-")).count()); }
+        assertUnavailable(() -> copy(adapter,OBJECT,QUARANTINE));
+        assertUnavailable(() -> copy(adapter,new ObjectIdentity(ORIGINAL,"exact-version"),ORIGINAL));
     }
 
     @Test void listingNeverExpandsToOtherKeysOrTrustsTruncatedEnumeration() {
@@ -197,13 +201,22 @@ class S3UploadStorageAdapterTest {
     }
 
 
+    private ObjectIdentity copy(S3UploadStorageAdapter adapter,ObjectIdentity source,ObjectKey target){try(var phase=new CompleteBudget(java.time.Clock.systemUTC()).phase(CompleteBudget.Kind.STORAGE)){return copy(adapter,source,target,phase);}}
+    private ObjectIdentity copy(S3UploadStorageAdapter adapter,ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase){
+        var identity=VerificationWorkspacePort.Identity.of("synthetic",new org.documentknowledge.identity.Actor("https://issuer.example","synthetic"),UUID.randomUUID(),UUID.randomUUID(),BYTES.length);
+        try(var workspace=workspaces.reserve(identity,phase)){workspace.source().write(new ByteArrayInputStream(BYTES),phase);try{return adapter.copy(source,target,phase,workspace);}finally{workspace.finish(phase);}}
+    }
+    @Test void legacyCopyAndForeignWorkspaceFailClosedBeforeAnyProviderCall(){
+        var calls=new AtomicInteger();var adapter=adapter((m,a)->{calls.incrementAndGet();throw new AssertionError("No provider call");});
+        assertUnavailable(()->adapter.copy(OBJECT,ORIGINAL));try(var phase=new CompleteBudget(java.time.Clock.systemUTC()).phase(CompleteBudget.Kind.STORAGE)){assertUnavailable(()->adapter.copy(OBJECT,ORIGINAL,phase));assertUnavailable(()->adapter.copy(OBJECT,ORIGINAL,phase,null));}assertEquals(0,calls.get());
+    }
     private S3UploadStorageAdapter adapter(BiFunction<String, Object[], Object> implementation) {
         var client = (S3Client) Proxy.newProxyInstance(S3Client.class.getClassLoader(), new Class<?>[] {S3Client.class},
             (proxy, method, args) -> {
                 if (method.getName().equals("close")) return null;
                 return implementation.apply(method.getName(), args);
             });
-        return new S3UploadStorageAdapter(client, temporary);
+        return new S3UploadStorageAdapter(client, temporary,workspaces);
     }
     private Path source(byte[] bytes) throws Exception {
         Path file = Files.createTempFile(temporary, "source-", ".bin");

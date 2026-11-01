@@ -50,7 +50,7 @@ public final class DocumentFactory {
     @Singleton
     public DocumentService documents(Bindings bindings){return new DocumentService(bindings.transactions(),bindings.grants(),bindings.delegation(),new ReceiptArtifactAuthority(bindings.transactions(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool()),bindings.cursors(),Clock.systemUTC());}
     @Singleton
-    public UploadService uploads(Bindings bindings){return new UploadService(bindings.transactions(),bindings.grants(),bindings.uploads(),bindings.uploads(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool());}
+    public UploadService uploads(Bindings bindings){return new UploadService(bindings.transactions(),bindings.grants(),bindings.uploads(),bindings.uploads(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool(),bindings.uploads().verification());}
     @Singleton
     @Bean(preDestroy="close")
     public ContentService content(Bindings bindings){return new ContentService(bindings.transactions(),bindings.grants(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool());}

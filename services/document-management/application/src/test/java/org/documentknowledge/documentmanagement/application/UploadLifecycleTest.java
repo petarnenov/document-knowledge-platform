@@ -24,10 +24,11 @@ class UploadLifecycleTest {
  UUID document;
  DocumentService documents(){return new DocumentService(store,grants,new DelegationPolicyPort(){public AuthorityDecision targetGrant(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}public AuthorityDecision ceiling(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}},new ReceiptArtifactAuthority(store,storage,clock,temporary),new DocumentCursorPort(){public PagePosition decode(String c,Actor a,String t){throw new IllegalArgumentException();}public String encode(PagePosition p,Actor a,String t){return "cursor";}},clock);}
  java.util.function.Consumer<Path> completeCleanup;
- UploadService uploads(){return completeCleanup==null?new UploadService(store,grants,storage,scanner,inspector,clock,temporary):UploadServiceTestFactory.create(store,grants,storage,scanner,inspector,clock,temporary,completeCleanup);}
+ VerificationWorkspacePort testWorkspace;
+ UploadService uploads(){if(testWorkspace==null)testWorkspace=UploadServiceTestFactory.workspace(temporary,clock,path->{if(completeCleanup!=null)completeCleanup.accept(path);else try{Files.deleteIfExists(path);}catch(IOException failure){throw new UncheckedIOException(failure);}});return UploadServiceTestFactory.create(store,grants,storage,scanner,inspector,clock,temporary,testWorkspace);}
  ContentService contentService;
  ContentService content(){if(contentService==null)contentService=new ContentService(store,grants,storage,clock,temporary);return contentService;}
- @AfterEach void closeContent(){if(contentService!=null)contentService.close();}
+ @AfterEach void closeContent(){if(contentService!=null)contentService.close();if(testWorkspace!=null)testWorkspace.close();}
  UploadCleanupService cleanup(){return new UploadCleanupService(store,storage,clock);}
  @BeforeEach void create(){document=documents().create(caller,"create",new Metadata("Synthetic draft","")).documentId();}
  void failure(int status,String code,Runnable call){var failure=assertThrows(DmFailure.class,call::run);assertEquals(status,failure.status());assertEquals(code,failure.code());}
@@ -417,6 +418,9 @@ class UploadLifecycleTest {
   final Map<ObjectIdentity,byte[]> objects=new HashMap<>();boolean failPut,failCopy,deleteUnknown,badDeleteBinding,discardLargePut;boolean deleteSuccess=true,corruptCopy;java.util.function.Function<DeletionFence,DeletionResult> deletion;int copyCalls,deleteCalls;Runnable onCopy=()->{},onDelete=()->{},onPut=()->{},onOpen=()->{};
   public ObjectIdentity put(ObjectKey key,Path file,long size,String sha){if(failPut)throw new IllegalStateException();try{var id=new ObjectIdentity(key,UUID.randomUUID().toString());objects.put(id,discardLargePut&&size>1_000_000?new byte[0]:Files.readAllBytes(file));onPut.run();return id;}catch(IOException e){throw new IllegalStateException(e);}}
   public InputStream open(ObjectIdentity object){onOpen.run();byte[] bytes=objects.get(object);if(bytes==null)throw new IllegalStateException();return new ByteArrayInputStream(bytes);}
+  public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,VerificationWorkspacePort.Workspace workspace){
+   var scratch=workspace.scratch(VerificationWorkspacePort.Role.COPY,phase);ObjectIdentity known=null;try{scratch.write(new ByteArrayInputStream(objects.get(source)),phase);known=copy(source,target,phase);return known;}finally{try{scratch.cleanup(phase);}catch(RuntimeException cleanupFailed){if(known==null)throw cleanupFailed;}}
+  }
   public ObjectIdentity copy(ObjectIdentity source,ObjectKey target){copyCalls++;if(failCopy)throw new IllegalStateException();var id=new ObjectIdentity(target,UUID.randomUUID().toString());byte[] copy=objects.get(source).clone();if(corruptCopy)copy[0]++;objects.put(id,copy);onCopy.run();return id;}
   public List<ObjectIdentity> versions(ObjectKey key){return objects.keySet().stream().filter(v->v.objectKey().equals(key)).toList();}
   public DeletionResult deleteOnce(DeletionFence fence){deleteCalls++;onDelete.run();if(deletion!=null)return deletion.apply(fence);if(deleteUnknown)throw new IllegalStateException();if(deleteSuccess)objects.remove(fence.object());return new DeletionResult(badDeleteBinding?UUID.randomUUID():fence.attemptId(),fence.object(),"request",true,true,deleteSuccess,deleteSuccess);}

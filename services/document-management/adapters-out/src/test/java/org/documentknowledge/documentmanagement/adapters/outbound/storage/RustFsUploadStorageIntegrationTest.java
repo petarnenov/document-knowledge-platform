@@ -57,6 +57,7 @@ class RustFsUploadStorageIntegrationTest {
     private static String prefix,tenant,container;
     private static UUID document;
     private static S3UploadStorageAdapter storage;
+    private static org.documentknowledge.documentmanagement.adapters.outbound.verificationtemp.FileVerificationWorkspace workspace;
     private static S3CleanupStorageAdapter cleanup;
     private static S3Client scoped;
     private static HttpClient http;
@@ -76,14 +77,15 @@ class RustFsUploadStorageIntegrationTest {
         trust=TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());trust.init(store);
         var ssl=SSLContext.getInstance("TLS");ssl.init(null,trust.getTrustManagers(),null);
         http=HttpClient.newBuilder().sslContext(ssl).connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build();
-        storage=S3UploadStorageAdapter.connect(configuration(authority.resolve("access-key"),authority.resolve("secret-key"),authority.resolve("ca.pem"),authority));
+        workspace=new org.documentknowledge.documentmanagement.adapters.outbound.verificationtemp.FileVerificationWorkspace(authority);
+        storage=S3UploadStorageAdapter.connect(configuration(authority.resolve("access-key"),authority.resolve("secret-key"),authority.resolve("ca.pem"),authority),workspace);
         cleanup=S3CleanupStorageAdapter.connect(configuration(authority.resolve("cleanup-access-key"),authority.resolve("cleanup-secret-key"),authority.resolve("ca.pem"),authority));
         assertTrue(cleanup.ready());
         scoped=client(credentials);
         var server=DockerClientFactory.instance().client().inspectContainerCmd(container).exec();
         assertTrue(container.matches("dkp104-[a-f0-9]{12}"));assertEquals("104",server.getConfig().getLabels().get("dkp.issue"));
     }
-    @AfterAll static void close(){if(storage!=null)storage.close();if(cleanup!=null)cleanup.close();if(scoped!=null)scoped.close();}
+    @AfterAll static void close(){if(storage!=null)storage.close();if(workspace!=null)workspace.close();if(cleanup!=null)cleanup.close();if(scoped!=null)scoped.close();}
     private static String required(String name){String value=System.getenv(name);assertNotNull(value,name+" must be explicitly provided by isolated harness");return value;}
     private static S3UploadStorageAdapter.Configuration configuration(Path access,Path secret,Path ca,Path spool){return new S3UploadStorageAdapter.Configuration(endpoint,"us-east-1",access,secret,ca,spool);}
     private static S3Client client(AwsBasicCredentials keys){return S3Client.builder().endpointOverride(endpoint).region(Region.US_EAST_1)
@@ -105,7 +107,11 @@ class RustFsUploadStorageIntegrationTest {
         assertEquals(List.of(source),storage.versions(source.objectKey()));
         var head=scoped.headObject(HeadObjectRequest.builder().bucket(source.objectKey().bucket()).key(source.objectKey().key()).versionId(source.versionId()).build());
         assertEquals(source.versionId(),head.versionId());assertEquals(CONTENT.length,head.contentLength());
-        var copied=storage.copy(source,key("dkp-originals"));assertArrayEquals(CONTENT,read(copied));assertEquals(sha(CONTENT),sha(read(copied)));
+        ObjectIdentity copied;
+        try(var phase=new org.documentknowledge.documentmanagement.application.upload.CompleteBudget(java.time.Clock.systemUTC()).phase(org.documentknowledge.documentmanagement.application.upload.CompleteBudget.Kind.STORAGE);
+            var owned=workspace.reserve(org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.Identity.of(tenant,new org.documentknowledge.identity.Actor("https://compat.example","synthetic-native-fixture"),document,UUID.randomUUID(),CONTENT.length),phase)){
+            owned.source().write(new java.io.ByteArrayInputStream(CONTENT),phase);copied=storage.copy(source,key("dkp-originals"),phase,owned);owned.finish(phase);
+        }assertArrayEquals(CONTENT,read(copied));assertEquals(sha(CONTENT),sha(read(copied)));
         try(var range=scoped.getObject(GetObjectRequest.builder().bucket(copied.objectKey().bucket()).key(copied.objectKey().key()).versionId(copied.versionId()).range("bytes=3-12").build())) {
             assertEquals(206,range.response().sdkHttpResponse().statusCode());assertEquals("bytes 3-12/"+CONTENT.length,range.response().contentRange());assertArrayEquals(java.util.Arrays.copyOfRange(CONTENT,3,13),range.readAllBytes());
         }

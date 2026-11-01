@@ -16,7 +16,6 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Semaphore;
 import javax.net.ssl.TrustManagerFactory;
 import org.documentknowledge.authorization.TrustedAuthorityFiles;
 import org.documentknowledge.documentmanagement.application.DmFailure;
@@ -45,7 +44,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 public final class S3UploadStorageAdapter implements UploadStoragePort, AutoCloseable {
     private final S3Client client;
     private final Path spoolRoot;
-    private final Semaphore copyAdmission = new Semaphore(1);
+    private final org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort workspaces;
 
     public record Configuration(URI endpoint, String region, Path accessKeyFile,
             Path secretKeyFile, Path caFile, Path privateSpoolRoot) {
@@ -78,6 +77,11 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
         } catch (Exception failure) {
             throw unavailable();
         }
+    }
+
+    public static S3UploadStorageAdapter connect(Configuration configuration,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort workspaces){
+        var adapter=connect(configuration);
+        return new S3UploadStorageAdapter(adapter.client,adapter.spoolRoot,workspaces);
     }
 
     static S3Client client(Configuration configuration, String role) {
@@ -120,7 +124,9 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
 
     // Constructor seam for transport contract tests, never selected by runtime configuration.
-    S3UploadStorageAdapter(S3Client client, Path spoolRoot) {
+    S3UploadStorageAdapter(S3Client client, Path spoolRoot) {this(client,spoolRoot,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.unavailable());}
+    S3UploadStorageAdapter(S3Client client, Path spoolRoot,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort workspaces) {
+        this.workspaces=Objects.requireNonNull(workspaces);
         this.client = Objects.requireNonNull(client);
         this.spoolRoot = Objects.requireNonNull(spoolRoot).toAbsolutePath().normalize();
     }
@@ -200,46 +206,22 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
         }
     }
 
-    @Override
-    public ObjectIdentity copy(ObjectIdentity source, ObjectKey target) {return copy(source,target,null);}
-    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase) {
-        if(phase!=null)phase.check();
-        if (!"dkp-quarantine".equals(source.objectKey().bucket()) || !"dkp-originals".equals(target.bucket())
-                || !source.objectKey().key().substring(0, 102).equals(target.key().substring(0, 102))) {
-            throw unavailable();
-        }
-        if (!copyAdmission.tryAcquire()) throw new DmFailure(429, "QUOTA_EXCEEDED");
-        Path temporary = null;
-        try {
-            temporary = Files.createTempFile(spoolRoot, "verified-copy-", ".bin");
-            try (InputStream input = open(source,phase); var output = Files.newOutputStream(temporary)) {
-                byte[] buffer = new byte[65536];
-                long count = 0;
-                int read;
-                while ((read = input.read(buffer)) != -1) {
-                    count = Math.addExact(count, read);
-                    if (count > UploadModels.MAX_BYTES) throw unavailable();
-                    output.write(buffer, 0, read);
-                }
-            }
-            Digest hash;
-            try (InputStream input = Files.newInputStream(temporary, LinkOption.NOFOLLOW_LINKS)) {
-                hash = digest(input,phase);
-            }
-            // A conditional PUT is used instead of relying on vendor-specific destination CopyObject conditions.
-            return put(target,temporary,hash.size(),hash.sha256(),phase);
-        } catch (Exception failure) {
-            throw unavailable();
-        } finally {
-            boolean cleaned = true;
-            if (temporary != null) {
-                try { Files.deleteIfExists(temporary); } catch (IOException failure) { cleaned = false; }
-            }
-            // Retain admission after failed local cleanup: retries cannot accumulate unbounded spool files.
-            if (cleaned) copyAdmission.release();
-            else throw unavailable();
-        }
+    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target){throw unavailable();}
+    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase){throw unavailable();}
+    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.Workspace workspace){
+        workspaces.check(workspace,phase);
+        if(!"dkp-quarantine".equals(source.objectKey().bucket())||!"dkp-originals".equals(target.bucket())||!source.objectKey().key().substring(0,102).equals(target.key().substring(0,102)))throw unavailable();
+        var scratch=workspace.scratch(org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.Role.COPY,phase);
+        ObjectIdentity known=null;
+        try{
+            org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.ArtifactFile copied;
+            try(var input=open(source,phase);var abort=phase.onCancel(()->{try{input.close();}catch(IOException ignored){}})){copied=scratch.write(input,phase);}
+            workspaces.check(workspace,phase);
+            try(var use=workspace.retain(phase)){known=put(target,copied.path(),copied.size(),copied.sha256(),phase);return known;}
+        }catch(Exception failure){throw unavailable();}
+        finally{try{scratch.cleanup(phase);}catch(RuntimeException cleanupFailed){if(known==null)throw cleanupFailed;/* Known remote identity is settlement-only; retained scratch blocks READBACK and receipt. */}}
     }
+
 
     @Override
     public List<ObjectIdentity> versions(ObjectKey key) { return versions(client, key); }

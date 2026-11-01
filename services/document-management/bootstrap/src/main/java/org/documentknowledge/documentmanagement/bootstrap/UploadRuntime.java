@@ -30,6 +30,8 @@ final class UploadRuntime implements UploadStoragePort,MalwareScanPort,Structure
     record Inspector(StructureInspectionPort port,Runnable close) {}
     interface Connections {
         Storage storage(S3UploadStorageAdapter.Configuration configuration);
+        default Storage storage(S3UploadStorageAdapter.Configuration configuration,VerificationWorkspacePort workspaces){return storage(configuration);}
+        default VerificationWorkspacePort verification(Path root){return VerificationWorkspacePort.unavailable();}
         Cleanup cleanup(S3UploadStorageAdapter.Configuration configuration);
         Scanner scanner(InetSocketAddress endpoint,StandardDefinitions definitions,Clock clock);
         Inspector inspector(URI endpoint,SSLContext tls,byte[] key,String profile,String image,Clock clock);
@@ -41,15 +43,25 @@ final class UploadRuntime implements UploadStoragePort,MalwareScanPort,Structure
     private Cleanup cleanup;
     private Scanner scanner;
     private Inspector inspector;
+    private VerificationWorkspacePort verificationManager;
+    private volatile boolean stopped;
+    private final VerificationWorkspacePort verificationPort=new VerificationWorkspacePort(){
+        public Workspace reserve(Identity identity,CompleteBudget.Phase phase){phase.check();return verificationManager().reserve(identity,phase);}
+        public void check(Workspace workspace,CompleteBudget.Phase phase){phase.check();verificationManager().check(workspace,phase);}
+        public boolean ready(){try{return verificationManager().ready();}catch(RuntimeException failure){return false;}}
+        public void close(){UploadRuntime.this.close();}
+    };
     UploadRuntime(Environment environment,Clock clock){this(environment,clock,TrustedAuthorityFiles::read,new RealConnections());}
     // Java-only technical connection seam. Runtime configuration cannot select another implementation.
     UploadRuntime(Environment environment,Clock clock,AuthorityFiles files,Connections connections){this.environment=Objects.requireNonNull(environment);this.clock=Objects.requireNonNull(clock);this.files=Objects.requireNonNull(files);this.connections=Objects.requireNonNull(connections);}
     Path spool(){return path("dkp.dm.upload.private-spool-path","/var/lib/dkp/uploads");}
+    VerificationWorkspacePort verification(){return verificationPort;}
+    private synchronized VerificationWorkspacePort verificationManager(){enabledOrThrow();if(stopped)throw unavailable();if(verificationManager==null)verificationManager=Objects.requireNonNull(connections.verification(spool()));return verificationManager;}
     boolean enabled(){return environment.getProperty("dkp.dm.upload.enabled",Boolean.class).orElse(false);}
-    private void enabledOrThrow(){if(!enabled())throw unavailable();}
+    private void enabledOrThrow(){if(stopped||!enabled())throw unavailable();}
     private String required(String name){return environment.getProperty(name,String.class).filter(s->!s.isBlank()).orElseThrow(UploadRuntime::unavailable);}
     private Path path(String key,String fallback){try{return Path.of(environment.getProperty(key,String.class).orElse(fallback));}catch(RuntimeException failure){throw unavailable();}}
-    private synchronized Storage storage(){enabledOrThrow();cleanupConnection();if(storage==null){try{storage=connections.storage(new S3UploadStorageAdapter.Configuration(URI.create(required("dkp.dm.storage.endpoint")),required("dkp.dm.storage.region"),path("dkp.dm.storage.access-key-path","/run/dkp/storage/access.key"),path("dkp.dm.storage.secret-key-path","/run/dkp/storage/secret.key"),path("dkp.dm.storage.ca-path","/run/dkp/storage/ca.crt"),spool()));}catch(RuntimeException failure){throw unavailable();}}return storage;}
+    private synchronized Storage storage(){enabledOrThrow();cleanupConnection();if(storage==null){try{storage=connections.storage(new S3UploadStorageAdapter.Configuration(URI.create(required("dkp.dm.storage.endpoint")),required("dkp.dm.storage.region"),path("dkp.dm.storage.access-key-path","/run/dkp/storage/access.key"),path("dkp.dm.storage.secret-key-path","/run/dkp/storage/secret.key"),path("dkp.dm.storage.ca-path","/run/dkp/storage/ca.crt"),spool()),verificationPort);}catch(RuntimeException failure){throw unavailable();}}return storage;}
     private synchronized Cleanup cleanupConnection(){enabledOrThrow();if(cleanup==null){requireSeparateCredentials();}if(cleanup==null){try{cleanup=connections.cleanup(new S3UploadStorageAdapter.Configuration(URI.create(required("dkp.dm.storage.endpoint")),required("dkp.dm.storage.region"),path("dkp.dm.cleanup.access-key-path","/run/dkp/cleanup/access.key"),path("dkp.dm.cleanup.secret-key-path","/run/dkp/cleanup/secret.key"),path("dkp.dm.storage.ca-path","/run/dkp/storage/ca.crt"),spool()));}catch(RuntimeException failure){throw unavailable();}}return cleanup;}
     private void requireSeparateCredentials(){
         try {
@@ -72,17 +84,20 @@ final class UploadRuntime implements UploadStoragePort,MalwareScanPort,Structure
     @Override public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase){phase.check();var port=storage().port();phase.check();return port.open(object,phase);}
     @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target){return storage().port().copy(source,target);}
     @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase){phase.check();var port=storage().port();phase.check();return port.copy(source,target,phase);}
+    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,VerificationWorkspacePort.Workspace workspace){phase.check();verificationPort.check(workspace,phase);var port=storage().port();phase.check();return port.copy(source,target,phase,workspace);}
     @Override public List<ObjectIdentity> versions(ObjectKey key){return storage().port().versions(key);}
     @Override public ScanEvidence scan(ArtifactSource source){return scanner().port().scan(source);}
     @Override public ScanEvidence scan(ArtifactSource source,CompleteBudget.Phase phase){phase.check();var port=scanner().port();phase.check();return port.scan(source,phase);}
     @Override public InspectionEvidence inspect(ArtifactSource source){return inspector().port().inspect(source);}
     @Override public InspectionEvidence inspect(ArtifactSource source,CompleteBudget.Phase phase){phase.check();var port=inspector().port();phase.check();return port.inspect(source,phase);}
-    boolean ready(){if(!enabled())return true;try{return storage().ready().getAsBoolean() && cleanupConnection().ready().getAsBoolean() && scanner().ready().getAsBoolean() && inspectorReady();}catch(Exception unavailable){return false;}}
+    boolean ready(){if(stopped)return false;if(!enabled())return true;try{return verificationPort.ready() && storage().ready().getAsBoolean() && cleanupConnection().ready().getAsBoolean() && scanner().ready().getAsBoolean() && inspectorReady();}catch(Exception unavailable){return false;}}
     private boolean inspectorReady()throws Exception{
         inspector();URI origin=URI.create(required("dkp.dm.inspector.endpoint"));
         return connections.health(origin.resolve("/health/readiness"),tls(path("dkp.dm.inspector.ca-path","/run/dkp/inspector/ca.crt")));
     }
     static final class RealConnections implements Connections {
+        public VerificationWorkspacePort verification(Path root){return new org.documentknowledge.documentmanagement.adapters.outbound.verificationtemp.FileVerificationWorkspace(root);}
+        public Storage storage(S3UploadStorageAdapter.Configuration configuration,VerificationWorkspacePort workspaces){var adapter=S3UploadStorageAdapter.connect(configuration,workspaces);return new Storage(adapter,adapter::ready,adapter::close);}
         public Storage storage(S3UploadStorageAdapter.Configuration configuration){var adapter=S3UploadStorageAdapter.connect(configuration);return new Storage(adapter,adapter::ready,adapter::close);}
         public Cleanup cleanup(S3UploadStorageAdapter.Configuration configuration){var adapter=org.documentknowledge.documentmanagement.adapters.outbound.storage.S3CleanupStorageAdapter.connect(configuration);return new Cleanup(adapter,adapter::ready,adapter::close);}
         public Scanner scanner(InetSocketAddress endpoint,StandardDefinitions definitions,Clock clock){var adapter=new ClamAvScanAdapter(endpoint,definitions,clock);return new Scanner(adapter,adapter::ready);}
@@ -97,6 +112,6 @@ final class UploadRuntime implements UploadStoragePort,MalwareScanPort,Structure
         }
     }
     }
-    @Override public synchronized void close(){if(storage!=null)storage.close().run();if(cleanup!=null)cleanup.close().run();if(inspector!=null)inspector.close().run();}
+    @Override public synchronized void close(){if(stopped)return;stopped=true;try{if(verificationManager!=null)verificationManager.close();}finally{try{if(storage!=null)storage.close().run();}finally{try{if(cleanup!=null)cleanup.close().run();}finally{if(inspector!=null)inspector.close().run();}}}}
     private static DmFailure unavailable(){return new DmFailure(503,"UNAVAILABLE");}
 }

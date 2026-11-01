@@ -12,6 +12,8 @@ public interface UploadStoragePort {
  /** Deadline-aware COMPLETE operations; implementations abort only their own invocation. */
  default InputStream open(ObjectIdentity object,CompleteBudget.Phase phase){phase.check();var result=open(object);try{phase.check();return result;}catch(RuntimeException failure){try{result.close();}catch(java.io.IOException ignored){}throw failure;}}
  default ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase){phase.check();return copy(source,target);}
+ /** COMPLETE copy must use the shared durable verification workspace; legacy implementations fail closed. */
+ default ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,VerificationWorkspacePort.Workspace workspace){throw new org.documentknowledge.documentmanagement.application.DmFailure(503,"UNAVAILABLE");}
  /** Recovery only: writer settlement must be proven before cleanup can consume these identities. */
  List<ObjectIdentity> versions(ObjectKey key);
  record DeletionResult(UUID attemptId,ObjectIdentity object,String requestId,boolean terminal,
