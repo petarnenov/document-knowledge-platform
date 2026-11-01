@@ -147,17 +147,31 @@ public final class KnowledgeService {
             Deadline finalPhase=whole.child(Duration.ofSeconds(2));
             currentBeforeConflict(()->assess(c,first.stream().map(a->new Expectation(a.documentId(),a.documentRevision())).toList(),finalPhase.child(Duration.ofMillis(1500))),guard);
             finalPhase.check();
+            // A rejected 101st member needs current coherent evidence, never an illegal 101-document write lock plan.
+            // Existing members (including INACTIVE) still follow the ordinary mutation/replay path at capacity.
+            if(change instanceof AddMembership add&&initial.members().size()==100&&initial.members().stream().noneMatch(m->m.documentId().equals(add.documentId()))) {
+                return units.read(finalPhase.child(Duration.ofMillis(500)),r->{
+                    finalPhase.check();whole.check();View current=finalChangeView(r,c,collectionId,change,key,initial,documents);
+                    if(current.outcome()!=null)return replay(current.outcome(),canonicalHash);
+                    throw new KbFailure(422,"LIMIT_EXCEEDED");
+                });
+            }
             return units.execute(new KBUnitOfWork.LockPlan(c.tenant(),List.of(collectionId),java.util.stream.Stream.concat(initial.members().stream().map(Membership::documentId),documents.stream()).distinct().toList(),key),finalPhase.child(Duration.ofMillis(500)),r->{
-                finalPhase.check(); whole.check(); View current=view(r,c,collectionId,change.action(),key);
-                // Current resource authority precedes drift/conflicts, including newly affected hidden scopes.
-                if(!affected(current,change).equals(documents)) throw KbFailure.stale();
+                finalPhase.check(); whole.check(); View current=finalChangeView(r,c,collectionId,change,key,initial,documents);
                 if(current.outcome()!=null) return replay(current.outcome(),canonicalHash);
-                if(current.fence()!=initial.fence()||!current.collection().equals(initial.collection())||!current.members().equals(initial.members())) throw KbFailure.stale();
-                if(current.collection().revision()!=change.expectedRevision()) throw new KbFailure(409,"STALE_REVISION");
                 CommandOutcome result=apply(r,c,current,change,key,canonicalHash);
                 finalPhase.check(); whole.check(); return result;
             });
         }
+    }
+    private View finalChangeView(CollectionRepository r,Context c,UUID collectionId,Change change,CommandKey key,View initial,List<UUID> documents) {
+        View current=view(r,c,collectionId,change.action(),key);
+        // Current resource authority precedes drift/conflicts, including newly affected hidden scopes.
+        if(!affected(current,change).equals(documents))throw KbFailure.stale();
+        if(current.outcome()!=null)return current;
+        if(current.fence()!=initial.fence()||!current.collection().equals(initial.collection())||!current.members().equals(initial.members()))throw KbFailure.stale();
+        if(current.collection().revision()!=change.expectedRevision())throw new KbFailure(409,"STALE_REVISION");
+        return current;
     }
     private CommandOutcome apply(CollectionRepository r,Context c,View view,Change change,CommandKey key,String hash) {
         Collection old=view.collection(); Collection updated; UUID membershipId=null; Instant at=clock.instant();

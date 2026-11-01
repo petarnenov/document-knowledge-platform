@@ -106,6 +106,43 @@ class KnowledgeServiceTest {
         CommandOutcome activated=change(new AddMembership(2,documentId,0,"reactivate"),"again"); assertEquals(added.receipt().membershipId(),activated.receipt().membershipId());
         change(new EditMembership(3,activated.receipt().membershipId(),2,0,State.ACTIVE,"noop"),"noop"); assertEquals(4,db.audit.size()); assertEquals(4,db.histories);
     }
+    @Test void oneHundredMembersRejectNewAttachmentBeforeIllegalLockPlan() {
+        for(int i=0;i<100;i++) member(new UUID(1,i+1),State.ACTIVE);
+        db.enforceProductionDocumentLockBound=true;
+        assertEquals("LIMIT_EXCEEDED",failure(422,()->change(new AddMembership(0,documentId,0,"full"),"full")).code());
+        assertEquals(2,calls); assertEquals(0,db.executions); assertEquals(100,db.members.size()); assertTrue(db.audit.isEmpty()); assertTrue(db.outcomes.isEmpty());
+    }
+    @Test void fullCollectionStillReactivatesExistingMemberAndReplaysOriginalKey() {
+        var inactive=member(documentId,State.INACTIVE);for(int i=0;i<99;i++)member(new UUID(1,i+1),State.ACTIVE);
+        db.enforceProductionDocumentLockBound=true;
+        var command=new AddMembership(0,documentId,0,"reactivate");var result=change(command,"reactivate");
+        assertEquals(inactive.membershipId(),result.receipt().membershipId());assertEquals(State.ACTIVE,db.members.get(inactive.membershipId()).state());
+        assertEquals(result,change(command,"reactivate"));assertEquals(100,db.members.size());assertEquals(1,db.audit.size());assertEquals(1,db.histories);
+    }
+    @Test void fullCollectionCapacityCannotOverrideHiddenOrFinalCurrentAuthority() {
+        for(int i=0;i<100;i++)member(new UUID(1,i+1),State.ACTIVE);db.enforceProductionDocumentLockBound=true;
+        var command=new AddMembership(0,documentId,0,"full");hidden.add(documentId);failure(404,()->change(command,"full"));hidden.clear();
+        grants.put(actor.actor().subject()+Action.MEMBERSHIP,KnowledgeAuthorityPort.Result.DENY);failure(403,()->change(command,"full"));grants.clear();
+        calls=0;afterFinal=()->grants.put(actor.actor().subject()+Action.MEMBERSHIP,KnowledgeAuthorityPort.Result.DENY);
+        failure(404,()->change(command,"full"));assertEquals(0,db.executions);assertTrue(db.audit.isEmpty());assertTrue(db.outcomes.isEmpty());
+    }
+    @Test void fullCollectionFinalReadRetainsRevisionDriftAndDeadlinePrecedence() {
+        for(int i=0;i<100;i++)member(new UUID(1,i+1),State.ACTIVE);db.enforceProductionDocumentLockBound=true;
+        assertEquals("STALE_REVISION",failure(409,()->change(new AddMembership(1,documentId,0,"stale"),"stale")).code());
+        calls=0;afterFinal=()->db.fence++;
+        failure(409,()->change(new AddMembership(0,documentId,0,"drift"),"drift"));
+        afterFinal=()->{};calls=0;db.beforeRead=()->{if(db.reads%2==0)nanos.addAndGet(Duration.ofSeconds(9).toNanos());};
+        failure(503,()->change(new AddMembership(0,documentId,0,"late"),"late"));
+        assertEquals(0,db.executions);assertTrue(db.audit.isEmpty());assertTrue(db.outcomes.isEmpty());assertEquals(100,db.members.size());
+    }
+    @Test void directMembershipPatchCanDeactivateThenReactivateWithCurrentGuards() {
+        var added=change(new AddMembership(0,documentId,0,"attach"),"attach");
+        var id=added.receipt().membershipId();
+        change(new EditMembership(1,id,0,0,State.INACTIVE,"off"),"off");
+        var active=new EditMembership(2,id,1,0,State.ACTIVE,"on");
+        var result=change(active,"on"); assertEquals(200,result.status()); assertEquals(State.ACTIVE,db.members.get(id).state());
+        assertEquals(result,change(active,"on")); assertEquals(3,db.audit.size());
+    }
     @Test void missingMembershipAndExpectedRevisionAreGuarded() {
         failure(404,()->change(new EditMembership(0,UUID.randomUUID(),0,0,State.INACTIVE,"x"),"x"));
         Membership m=member(documentId,State.ACTIVE);
@@ -436,9 +473,11 @@ class KnowledgeServiceTest {
     }
     final class Memory implements KBUnitOfWork,CollectionRepository {
         Map<UUID,Collection> collections=new HashMap<>(); Map<UUID,Membership> members=new HashMap<>(); Map<UUID,Scope> scopes=new HashMap<>(); Map<CommandKey,CommandOutcome> outcomes=new HashMap<>(); Map<String,Snapshot> snapshots=new HashMap<>();
-        List<Fact> audit=new ArrayList<>(); long fence; int executions,histories,reads; boolean inTransaction,failBeforeCommit,unknownCommit;
-        public <T>T read(Deadline d,Function<CollectionRepository,T> f) { reads++; assertFalse(inTransaction); d.check(); inTransaction=true; try { return f.apply(this); } finally { inTransaction=false; } }
+        List<Fact> audit=new ArrayList<>(); long fence; int executions,histories,reads; boolean inTransaction,failBeforeCommit,unknownCommit,enforceProductionDocumentLockBound;
+        Runnable beforeRead=()->{};
+        public <T>T read(Deadline d,Function<CollectionRepository,T> f) { reads++; beforeRead.run(); assertFalse(inTransaction); d.check(); inTransaction=true; try { return f.apply(this); } finally { inTransaction=false; } }
         public <T>T execute(LockPlan plan,Deadline d,Function<CollectionRepository,T> f) {
+            if(enforceProductionDocumentLockBound&&plan.documentIds().size()>100) throw KbFailure.unavailable(); // Exact JdbcCollectionStore.lock boundary.
             assertFalse(inTransaction); d.check(); executions++; var oldC=new HashMap<>(collections); var oldM=new HashMap<>(members); var oldS=new HashMap<>(scopes); var oldO=new HashMap<>(outcomes); var oldP=new HashMap<>(snapshots); var oldA=new ArrayList<>(audit); long oldF=fence; int oldH=histories;
             inTransaction=true; T result;
             try { result=f.apply(this); d.check(); if(failBeforeCommit) throw KbFailure.unavailable(); }
