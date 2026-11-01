@@ -2,8 +2,8 @@
 
 - [x] 1.1 Read approved BP03 semantic/resource contracts, effective pins and causal diagnosis331; record original-runtime attribution limitation.
 - [x] 1.2 Draft candidate shared queue/receive/bridge accounting, supported protocol envelope, fail-closed channel/readiness enforcement and prospective tests under341.
-- [ ] 1.3 Independent specification/security review; resolve findings before approval.
-- [ ] 1.4 Exact-source strict OpenSpec and closed-profile/schema/numeric checks plus applicable PR checks; record hashes/reviewer and standing development approval only when eligible.
+- [x] 1.3 Independent specification/security review #346 passed on exact dd7f47f; see approval.md.
+- [x] 1.4 Exact-source strict/profile/schema checks and Foundation41275595316 all10 jobs plus hygiene41275595240 passed; standing development approval and frozen hash recorded in approval.md.
 - [ ] 1.5 Reviewed draft PR targeting dev and gated integration; no automatic merge or formal architecture/security/production sign-off.
 
 ## 2. Implementation — issue338, NOT STARTED by this change
