@@ -24,6 +24,7 @@ export declare const Action: {
     readonly DocumentLegalHoldPlace: "document.legal-hold.place";
     readonly DocumentLegalHoldInspect: "document.legal-hold.inspect";
     readonly DocumentContentReview: "document.content.review";
+    readonly DocumentShareToCollection: "document.share-to-collection";
 };
 export type Action = typeof Action[keyof typeof Action];
 export declare function instanceOfAction(value: any): boolean;

@@ -51,3 +51,9 @@ d1aa18643c02813540bc70d40611691c58b64b592f9af069323459c00491d6f7  openspec/chang
 ```
 
 This records the approval checkpoint; task/evidence/status updates may evolve. Normative behavior changes require proportionate independent re-review. Approval.md is excluded to avoid a self-referential digest.
+
+## 2026-11-01 00:38 UTC narrow DM error ownership correction219
+
+Under standing automatic development-specification authorization, correction219 is approved after independent220 PASS and actual strict checks. The mixed witness now gives the two DM sharing routes a distinct `DocumentShareError`, exactly the canonical DM `Error`, replacing22 error references. Reversing these22 references and removing the sole new schema reproduces the approved6262d10 baseline exactly. The closed21-code KB Error enum, all KB operations, limits, success DTOs and runtime behavior are unchanged. Original approval/fingerprint above remains historical evidence, not rewritten.
+
+Corrected contract artifact digest: `21ac4faf68eb1d0694c62f50d9ed37dd9cde453e4a24e8f5d26633b9fd57860e`. Independent reviewed two-file manifest including meaningful contract tests: `f8bfc290f6070d9f7bc8b3bfa42dc92ff12eb997528ccb8e8c80aed3a617de6e`. Actual14 contract tests0skip, strict Ajv38KB/25DM schemas plus three DM-positive/KB-negative and four closed-DM-negative fixtures, zero-warning Redocly and strict OpenSpec12/12 pass. Publishing/generating SDKs193 still requires compatibility/drift/build checks and implementation PR/CI;219 closes only after integration. No architecture/security-control, CID or production sign-off is granted.

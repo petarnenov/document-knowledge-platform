@@ -8367,7 +8367,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8385,7 +8385,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8403,7 +8403,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8421,7 +8421,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8439,7 +8439,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8457,7 +8457,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8475,7 +8475,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8493,7 +8493,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8511,7 +8511,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8529,7 +8529,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8547,7 +8547,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8628,7 +8628,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8646,7 +8646,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8664,7 +8664,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8682,7 +8682,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8700,7 +8700,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8718,7 +8718,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8736,7 +8736,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8754,7 +8754,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8772,7 +8772,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8790,7 +8790,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -8808,7 +8808,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/DocumentShareError"
                 }
               }
             }
@@ -9868,6 +9868,20 @@
           }
         },
         "description": "Distinct typed discovery result, NEVER strict assessment. Actor/tenant/action bind request. requestedSetDigest=lowercase SHA256 of UTF8 compact JSON sorted unique UUID string array. eligible is sorted unique authorized metadata subset ONLY; denied, missing and foreign documents omitted indistinguishably. No denied IDs/counts/reasons/status/index/authority fingerprint. Whole uncertainty503; empty authorized subset is200."
+      },
+      "DocumentShareError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          }
+        }
       }
     }
   },

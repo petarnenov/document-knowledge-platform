@@ -111,3 +111,7 @@ Under the owner's standing automatic specification authorization, root records d
 ## 2026-10-31 23:13 UTC renewed merge authorization185
 
 Owner explicitly renewed standing automatic dev merge permission after green tests and CI, superseding the prior prohibition until revoked. AGENTS/protocol/queue/approval metadata now agree. Approved specifications, independent reviews and applicable acceptance/coverage/security gates remain mandatory. PR184 must pass final-source CI before integration. PR146 real sixty-minute acceptance remains independent and mandatory. No normative behavior/wire/limit, production, CID or formal architecture/security approval changed. Earlier no-merge checkpoints are historical.
+
+## 2026-11-01 00:38 UTC mixed-witness DM error correction219
+
+Independent220 PASS confirms only22 DM error references plus a distinct canonical-DM error schema changed. Strict Ajv38KB/25DM schemas compile; actual INVALID_REQUEST/TENANT_DENIED/AUTHORITY_UNAVAILABLE each validate for DM and fail the unchanged closed KB enum. Four malformed DM error fixtures reject;14 contract tests zero failures/skips, zero-warning Redocly and strict OpenSpec12/12 pass. This corrects the mixed specification before SDK promotion; original runtime integration, timing and production gates remain mandatory. See approval.md for the new narrow fingerprint and the historical original freeze.

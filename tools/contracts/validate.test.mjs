@@ -93,7 +93,7 @@ test('published identity contract preserves independent trust and mutation guard
   assert.equal(contract.components.securitySchemes.SessionCookie.name, '__Host-DKP-SESSION');
 });
 
-test('published DM contract preserves approved BP02 semantics and exact additive BP03 freeze', async () => {
+test('published DM contract preserves BP02/BP03 and exact additive BP04 sharing freeze', async () => {
   const contract = parse(await readFile(resolve(root, 'contracts/openapi/v1/document-management.yaml'), 'utf8'));
   const metadata = JSON.parse(await readFile(resolve(root, 'openspec/changes/archive/2026-10-31-dkp-003-document-management/contracts/document-management.openapi.json'), 'utf8'));
   const uploads = JSON.parse(await readFile(resolve(root, 'openspec/changes/dkp-004-rustfs-upload/contracts/rustfs-upload.openapi.json'), 'utf8'));
@@ -101,19 +101,22 @@ test('published DM contract preserves approved BP02 semantics and exact additive
   for (const [path, operations] of Object.entries(uploads.paths)) {
     expectedPaths[path] = { ...expectedPaths[path], ...operations };
   }
-  assert.deepEqual(contract.paths, expectedPaths, 'Only exact approved BP03 additions/replacements are published');
+  const sharing = JSON.parse(await readFile(resolve(root, 'openspec/changes/dkp-005-kb-policy/contracts/dm-sharing.openapi.json'), 'utf8'));
+  const bp03Paths = structuredClone(expectedPaths);
+  for (const [path, operations] of Object.entries(sharing.paths)) expectedPaths[path] = { ...expectedPaths[path], ...operations };
+  assert.deepEqual(contract.paths, expectedPaths, 'Only exact approved BP03 and BP04 additions/replacements are published');
   assert.deepEqual(contract.components, {
     ...metadata.components,
-    schemas: { ...metadata.components.schemas, ...uploads.components.schemas },
+    schemas: { ...metadata.components.schemas, ...uploads.components.schemas, ...sharing.components.schemas },
   });
   assert.deepEqual(contract.servers, metadata.servers);
-  assert.equal(contract.info.version, '0.2.0');
+  assert.equal(contract.info.version, '0.3.0');
   const semantic = (value) => Array.isArray(value) ? value.map(semantic)
     : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value)
       .filter(([key]) => key !== 'description').map(([key, child]) => [key, semantic(child)])) : value;
   for (const [name, schema] of Object.entries(metadata.components.schemas)) {
     if (name === 'Action') {
-      assert.deepEqual(contract.components.schemas.Action.enum, [...schema.enum, 'document.content.review']);
+      assert.deepEqual(contract.components.schemas.Action.enum, [...schema.enum, 'document.content.review', 'document.share-to-collection']);
     } else {
       assert.deepEqual(semantic(contract.components.schemas[name]), semantic(schema), `BP02 schema ${name} is preserved`);
     }
@@ -139,7 +142,7 @@ test('published DM contract preserves approved BP02 semantics and exact additive
   assert.deepEqual(schemas.CommandReceipt.required.toSorted(), ['documentId', 'revision']);
   assert.equal(schemas.Document.properties.activeVersionId.type, 'null');
   assert.equal(schemas.Retention.properties.retainUntil.type, 'null');
-  for (const [path, operations] of Object.entries(contract.paths)) {
+  for (const [path, operations] of Object.entries(bp03Paths)) {
     for (const [method, operation] of Object.entries(operations)) {
       assert.equal(operation.responses['202'], undefined, 'BP03 never fabricates processing handoff');
       const browser = path.startsWith('/api/v1/dm/');
@@ -154,6 +157,84 @@ test('published DM contract preserves approved BP02 semantics and exact additive
         const mirrored = contract.paths[path.replace('/api/v1/documents', '/api/v1/dm/documents')][method];
         assert.deepEqual(mirrored.requestBody, operation.requestBody, `${path} browser request parity`);
         assert.deepEqual(mirrored.responses, operation.responses, `${path} browser response parity`);
+      }
+    }
+  }
+});
+
+
+test('published KB contract preserves the complete approved wire and fixed browser trust boundary', async () => {
+  const published = parse(await readFile(resolve(root, 'contracts/openapi/v1/knowledge-base.yaml'), 'utf8'));
+  const approved = JSON.parse(await readFile(resolve(root, 'openspec/changes/dkp-005-kb-policy/contracts/knowledge-base.openapi.json'), 'utf8'));
+  assert.deepEqual(published, approved);
+  let directOperations = 0;
+  let browserOperations = 0;
+  for (const [path, methods] of Object.entries(published.paths)) {
+    for (const [method, operation] of Object.entries(methods)) {
+      if (!['get', 'post', 'put', 'patch', 'delete'].includes(method)) continue;
+      const browser = path.startsWith('/api/v1/kb/');
+      assert.deepEqual(operation.security, browser ? [{ SessionCookie: [] }] : [{ BearerAuth: [] }]);
+      const parameters = operation.parameters ?? [];
+      if (browser) {
+        browserOperations++;
+        assert.equal(parameters.some(({ name }) => name === 'X-DKP-Tenant'), false);
+        if (method !== 'get') {
+          for (const name of ['Origin', 'X-CSRF-TOKEN']) assert.ok(parameters.some((p) => p.name === name && p.required));
+        }
+      } else if (path.startsWith('/api/v1/knowledge/')) {
+        directOperations++;
+        assert.ok(parameters.some((p) => p.name === 'X-DKP-Tenant' && p.required));
+        const mirrored = published.paths[path.replace('/api/v1/knowledge/', '/api/v1/kb/')][method];
+        assert.deepEqual(mirrored.requestBody, operation.requestBody);
+        assert.deepEqual(mirrored.responses, operation.responses);
+      }
+    }
+  }
+  assert.equal(directOperations, 15);
+  assert.equal(browserOperations, 15);
+  for (const schema of Object.values(published.components.schemas)) {
+    if (schema.type === 'object') assert.equal(schema.additionalProperties, false);
+  }
+});
+
+test('DM sharing stays a strict direct-only batch contract, separately typed from eligibility', async () => {
+  const dm = parse(await readFile(resolve(root, 'contracts/openapi/v1/document-management.yaml'), 'utf8'));
+  const kb = parse(await readFile(resolve(root, 'contracts/openapi/v1/knowledge-base.yaml'), 'utf8'));
+  for (const suffix of ['assessments', 'eligibility']) {
+    const path = `/api/v1/documents/knowledge-share-${suffix}`;
+    const resolveError = (operation, contract) => JSON.parse(JSON.stringify(operation), (key, value) => {
+      if (key === '$ref' && ['#/components/schemas/Error', '#/components/schemas/DocumentShareError'].includes(value)) return contract.components.schemas[value.split('/').at(-1)];
+      return value;
+    });
+    assert.deepEqual(resolveError(dm.paths[path], dm), resolveError(kb.paths[path], kb));
+    assert.equal(dm.paths[path.replace('/api/v1/documents/', '/api/v1/dm/documents/')], undefined);
+    const operation = dm.paths[path].post;
+    assert.deepEqual(operation.security, [{ BearerAuth: [] }]);
+    assert.equal(operation.parameters.some(({ name }) => name === 'Idempotency-Key'), false);
+  }
+  for (const name of ['ShareDocumentExpectation', 'ShareBatchAssessmentRequest', 'ShareAssessment', 'ShareBatchAssessment', 'ShareEligibilityRequest', 'ShareEligibilityResult']) {
+    assert.deepEqual(dm.components.schemas[name], kb.components.schemas[name]);
+    assert.equal(dm.components.schemas[name].additionalProperties, false);
+  }
+  assert.notDeepEqual(dm.components.schemas.ShareBatchAssessmentRequest, dm.components.schemas.ShareEligibilityRequest);
+  assert.equal(dm.components.schemas.Action.enum.length, 11);
+});
+
+
+test('mixed KB witness keeps DM error ownership and closed KB errors separate', async () => {
+  const kb = parse(await readFile(resolve(root, 'contracts/openapi/v1/knowledge-base.yaml'), 'utf8'));
+  const dm = parse(await readFile(resolve(root, 'contracts/openapi/v1/document-management.yaml'), 'utf8'));
+  assert.deepEqual(kb.components.schemas.DocumentShareError, dm.components.schemas.Error);
+  for (const code of ['INVALID_REQUEST', 'TENANT_DENIED', 'AUTHORITY_UNAVAILABLE']) {
+    assert.match(code, new RegExp(kb.components.schemas.DocumentShareError.properties.code.pattern));
+    assert.ok(code.length <= kb.components.schemas.DocumentShareError.properties.code.maxLength);
+    assert.equal(kb.components.schemas.Error.properties.code.enum.includes(code), false);
+  }
+  for (const [path, methods] of Object.entries(kb.paths)) {
+    const expected = path.startsWith('/api/v1/documents/') ? '#/components/schemas/DocumentShareError' : '#/components/schemas/Error';
+    for (const operation of Object.values(methods)) {
+      for (const [status, response] of Object.entries(operation.responses)) {
+        if (Number(status) >= 400) assert.equal(response.content['application/json'].schema.$ref, expected);
       }
     }
   }
