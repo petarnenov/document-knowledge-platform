@@ -13,3 +13,5 @@
 - [ ] #441 Complete identity command migration to TanStack mutations with preserved security behavior before reporting full mandatory server-state adoption.
 
 - [ ] #443 Inspect/render/archive v0.5 references, implement shared measured tokens and compare each implemented screen before declaring visual completion.
+
+- [ ] #449 Correct the independently observed detail Governance affordance, visible real-file chooser and status-value emphasis; retain contract/unavailable states and verify keyboard chooser plus matched reference captures. Host/component evidence does not close real-provider, Linux, CI or integration gates.

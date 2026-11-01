@@ -231,6 +231,7 @@ export function Uploads({
         />
         <FileInput
           label="Choose document file"
+          placeholder="Choose file…"
           value={file}
           onChange={setFile}
           disabled={busy || !mutation.isIdle}

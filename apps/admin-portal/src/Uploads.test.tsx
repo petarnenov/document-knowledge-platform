@@ -40,6 +40,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+it('offers visible real file selection before initiating any upload', () => {
+  const fetcher = vi.fn();
+  vi.stubGlobal('fetch', fetcher);
+  mount();
+  expect(screen.getByText('Choose file…')).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Choose document file' }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Upload and append' }),
+  ).toHaveProperty('disabled', true);
+  expect(fetcher).not.toHaveBeenCalled();
+});
 it('shows each verified stage and downloads through current-authority endpoint without persistent links', async () => {
   const fetcher = vi.fn(async (path: string, init?: RequestInit) => {
     if (path.endsWith('/status'))

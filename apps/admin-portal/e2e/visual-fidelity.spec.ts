@@ -611,6 +611,31 @@ for (const viewport of [
             ],
           },
           {
+            name: 'latest-version-emphasis',
+            reference: '.grid .card .number',
+            react: '.document-version-grid .number',
+            properties: ['font-weight', 'font-size', 'font-synthesis-weight'],
+          },
+          {
+            name: 'active-published-version-emphasis',
+            reference: '.grid .card:nth-child(2) .number',
+            react: '.document-version-grid .card:nth-child(2) .number',
+            properties: ['font-weight', 'font-size', 'font-synthesis-weight'],
+          },
+          {
+            name: 'unavailable-governance-structure',
+            reference: '[data-action="governance"]',
+            react: 'button:has-text("Governance")',
+            properties: [
+              'width',
+              'height',
+              'padding',
+              'border-radius',
+              'font-size',
+              'background-color',
+            ],
+          },
+          {
             name: 'unavailable-preview',
             reference: '[data-action="openPreview"]',
             react: 'button:has-text("Preview")',
@@ -630,6 +655,18 @@ for (const viewport of [
         await expect(
           page.getByRole('button', { name: 'Processing', exact: true }),
         ).toBeDisabled();
+        const referenceActions = await reference
+          .locator('.toolbar button')
+          .allTextContents();
+        expect(await page.locator('.toolbar button').allTextContents()).toEqual(
+          [...referenceActions, 'Refresh document'],
+        );
+        await expect(
+          page.getByRole('button', { name: 'Governance', exact: true }),
+        ).toBeDisabled();
+        await expect(
+          page.getByRole('button', { name: 'Governance', exact: true }),
+        ).toHaveAttribute('title', 'Governance is unavailable.');
         await page
           .getByRole('button', { name: 'Upload version', exact: true })
           .click();
@@ -668,7 +705,20 @@ for (const viewport of [
             'Step status remains visually separated from its label',
           )
           .toMatch(/Transfer\s+Not confirmed/);
-        await page.locator('input[type="file"]').setInputFiles({
+        const chooserButton = page.getByRole('button', {
+          name: 'Choose document file',
+          exact: true,
+        });
+        await expect(chooserButton).toHaveText('Choose file…');
+        await chooserButton.focus();
+        await expect(chooserButton).toBeFocused();
+        const chosen = page.waitForEvent('filechooser');
+        await chooserButton.press('Enter');
+        const chooser = await chosen;
+        expect(chooser.isMultiple()).toBe(false);
+        // Real browser keyboard dialog emission, synthetic file and BFF only.
+        // This supplements rather than replaces genuine provider acceptance.
+        await chooser.setFiles({
           name: 'visual-test-only.pdf',
           mimeType: 'application/pdf',
           buffer: Buffer.from('%PDF-1.7\nSynthetic visual fixture only\n%%EOF'),

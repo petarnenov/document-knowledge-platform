@@ -18,12 +18,16 @@ export function DocumentLifecycle({
       <div className="grid document-version-grid">
         <div className="card">
           <div className="muted small">Latest version</div>
-          <div className="number">Unknown</div>
+          <div className="number" style={{ fontSynthesis: 'weight' }}>
+            Unknown
+          </div>
           <div className="sub">Version history is unavailable.</div>
         </div>
         <div className="card">
           <div className="muted small">Active published version</div>
-          <div className="number">None</div>
+          <div className="number" style={{ fontSynthesis: 'weight' }}>
+            None
+          </div>
           <div className="sub">No active published version.</div>
         </div>
       </div>

@@ -443,6 +443,26 @@ it('reauthorizes a linked document before showing details and exposes upload as 
   expect(
     fetcher.mock.calls.some(([path]) => path === `/api/v1/dm/documents/${id}`),
   ).toBe(true);
+  const governance = screen.getByRole('button', {
+    name: 'Governance',
+  });
+  expect(governance).toHaveProperty('disabled', true);
+  expect(governance.getAttribute('title')).toBe('Governance is unavailable.');
+  const toolbar = governance.closest('.toolbar')!;
+  expect(
+    Array.from(toolbar.querySelectorAll('button')).map(
+      (button) => button.textContent,
+    ),
+  ).toEqual([
+    'Upload version',
+    'Processing',
+    'Governance',
+    'Preview',
+    'Refresh document',
+  ]);
+  const beforeUnavailableClick = fetcher.mock.calls.length;
+  await user.click(governance);
+  expect(fetcher.mock.calls).toHaveLength(beforeUnavailableClick);
   expect(screen.getByText('Latest version')).toBeTruthy();
   expect(screen.getByText('Unknown')).toBeTruthy();
   expect(screen.getByText('Active published version')).toBeTruthy();
@@ -525,3 +545,30 @@ it('opens the draft form from the Home New document action without creating serv
   expect(screen.getByRole('button', { name: 'Create draft' })).toBeTruthy();
   expect(screen.queryByLabelText('Choose document file')).toBeNull();
 });
+
+it.each(['Untrusted <script>text</script>', ''])(
+  'preserves prototype emphasis and truthful lifecycle facts with description %j',
+  async (description) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) =>
+        json(
+          path === '/api/v1/session'
+            ? session
+            : path.includes('?')
+              ? { items: [], nextCursor: null }
+              : { ...draft, metadata: { ...draft.metadata, description } },
+        ),
+      ),
+    );
+    open(`/documents?documentId=${id}`);
+    await screen.findByRole('heading', { name: 'Synthetic draft' });
+    for (const value of ['Unknown', 'None']) {
+      const summary = screen.getByText(value);
+      expect(summary.classList.contains('number')).toBe(true);
+      expect(summary.style.fontSynthesis).toBe('weight');
+    }
+    expect(screen.getByText('Version history is unavailable.')).toBeTruthy();
+    expect(screen.getByText(description || 'No description')).toBeTruthy();
+  },
+);

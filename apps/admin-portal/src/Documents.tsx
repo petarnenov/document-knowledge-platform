@@ -472,6 +472,13 @@ function DraftWorkspace({
                         <Button variant="default" disabled>
                           Processing
                         </Button>
+                        <Button
+                          variant="default"
+                          disabled
+                          title="Governance is unavailable."
+                        >
+                          Governance
+                        </Button>
                         <Button variant="default" disabled>
                           Preview
                         </Button>
