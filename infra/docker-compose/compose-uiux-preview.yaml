@@ -1,0 +1,70 @@
+# Issue440: fresh, independently owned metadata-only preview; never merge upload/BP04 overlays.
+# The runner supplies absolute paths and a unique project; no default target exists.
+x-preview-identity: &preview-identity
+  OIDC_ISSUER: https://idp.localhost:24444/realms/dkp
+  OIDC_STANDALONE_ISSUER: https://idp.localhost:24444/realms/dkp
+  OIDC_JWKS_URL: https://idp.localhost:24444/realms/dkp/protocol/openid-connect/certs
+x-preview-labels: &preview-labels
+  dkp.preview.issue: '440'
+  dkp.preview.project: ${DKP_UIUX_PREVIEW_PROJECT:?Use the owned preview runner}
+services:
+  document-management:
+    labels: *preview-labels
+    ports: !override []
+    environment:
+      <<: *preview-identity
+      DKP_DM_UPLOAD_ENABLED: 'false'
+    volumes: !override
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/authority:/run/dkp/authority:ro
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/truststore.p12:/run/dkp/truststore.p12:ro
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/java-security.options:/run/dkp/java-security.options:ro
+  knowledge-base:
+    labels: *preview-labels
+    ports: !override []
+    environment: *preview-identity
+    volumes: !override
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/truststore.p12:/run/dkp/truststore.p12:ro
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/java-security.options:/run/dkp/java-security.options:ro
+  knowledge-search:
+    labels: *preview-labels
+    ports: !override []
+    environment: *preview-identity
+    volumes: !override
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/truststore.p12:/run/dkp/truststore.p12:ro
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/java-security.options:/run/dkp/java-security.options:ro
+  browser-bff:
+    labels: *preview-labels
+    environment:
+      <<: *preview-identity
+      DKP_PORTAL_ORIGIN: https://localhost:24443
+      OIDC_CALLBACK_URI: https://localhost:24443/oauth/callback/keycloak
+    volumes: !override
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/truststore.p12:/run/dkp/truststore.p12:ro
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/java-security.options:/run/dkp/java-security.options:ro
+  admin-portal:
+    labels: *preview-labels
+    ports: !override ['127.0.0.1:24443:24443']
+    volumes: !override
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/portal.crt:/run/dkp/portal.crt:ro
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/portal.key:/run/dkp/portal.key:ro
+      - ./nginx-uiux-preview.conf:/etc/nginx/conf.d/default.conf:ro
+  keycloak:
+    labels: *preview-labels
+    ports: !override ['127.0.0.1:24444:24444']
+    environment:
+      KC_HOSTNAME: https://idp.localhost:24444
+      KC_HTTPS_PORT: '24444'
+    volumes: !override
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/idp.crt:/run/dkp/idp.crt:ro
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/idp.key:/run/dkp/idp.key:ro
+      - ${DKP_UIUX_PREVIEW_SECURITY:?Use fresh preview security material}/dkp-realm.json:/opt/keycloak/data/import/dkp-realm.json:ro
+  dm-postgres:
+    labels: *preview-labels
+networks:
+  default:
+    labels: *preview-labels
+  dm-data:
+    labels: *preview-labels
+volumes:
+  dm-postgres-data:
+    labels: *preview-labels

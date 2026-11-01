@@ -187,3 +187,116 @@ it('aborts an in-flight transfer when leaving the tenant workspace and never sta
     false,
   );
 });
+
+it('rejects a 100,000,001-byte selection before issuing any upload request', async () => {
+  const fetcher = vi.fn();
+  vi.stubGlobal('fetch', fetcher);
+  const user = userEvent.setup();
+  mount();
+  const file = new File(['x'], 'too-large.pdf', { type: 'application/pdf' });
+  Object.defineProperty(file, 'size', { value: 100_000_001 });
+  await user.upload(
+    document.querySelector('input[type=file]') as HTMLInputElement,
+    file,
+  );
+  expect(screen.getByRole('alert').textContent).toContain('at most 100 MB');
+  expect(
+    (
+      screen.getByRole('button', {
+        name: 'Upload and append',
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+  expect(fetcher).not.toHaveBeenCalled();
+});
+
+it('reconciles an uncertain append with the original key and never re-verifies its known receipt', async () => {
+  const appendKeys: string[] = [];
+  let completes = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith('/status'))
+        return json({
+          uploadId: id,
+          state: 'VERIFIED',
+          expiresAt: '2026-11-01T00:00:00Z',
+          failureCode: null,
+        });
+      if (path.endsWith('/version'))
+        return json({ documentId: id, versionId: version });
+      if (path.endsWith('/versions')) {
+        appendKeys.push(
+          (init?.headers as Record<string, string>)['Idempotency-Key']!,
+        );
+        return appendKeys.length === 1
+          ? json({ code: 'UNAVAILABLE' }, 503)
+          : json({ documentId: id, revision: 1 }, 201);
+      }
+      if (path.endsWith('/complete')) {
+        completes++;
+        return json({ uploadId: id, receiptId: id });
+      }
+      return json({ uploadId: id }, path.endsWith('/uploads') ? 201 : 200);
+    }),
+  );
+  const user = userEvent.setup();
+  mount();
+  await user.upload(
+    document.querySelector('input[type=file]') as HTMLInputElement,
+    new File(['data'], 'synthetic.pdf', { type: 'application/pdf' }),
+  );
+  await user.click(screen.getByRole('button', { name: 'Upload and append' }));
+  await screen.findByRole('alert');
+  expect(screen.getByText(/last operation may have completed/)).toBeTruthy();
+  expect(await screen.findAllByText('Confirmed by the server')).toHaveLength(3);
+  expect(screen.getByText('Not confirmed')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Retry upload' }));
+  await screen.findByText(`Version ${version}`);
+  expect(appendKeys).toHaveLength(2);
+  expect(appendKeys[1]).toBe(appendKeys[0]);
+  expect(completes).toBe(1);
+});
+
+it('admits the exact 100,000,000-byte limit and freezes the selected file during transfer', async () => {
+  let admitted: Record<string, unknown> | undefined;
+  let transferred = false;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith('/status'))
+        return json({
+          uploadId: id,
+          state: 'RECEIVING',
+          expiresAt: '2026-11-01T00:00:00Z',
+          failureCode: null,
+        });
+      if (path.endsWith('/uploads')) {
+        admitted = JSON.parse(init?.body as string) as Record<string, unknown>;
+        return json({ uploadId: id }, 201);
+      }
+      transferred = true;
+      return new Promise<Response>((_resolve, reject) =>
+        init?.signal?.addEventListener('abort', () =>
+          reject(new Error('aborted')),
+        ),
+      );
+    }),
+  );
+  const user = userEvent.setup();
+  const view = mount();
+  const file = new File(['x'], 'exact-limit.pdf', { type: 'application/pdf' });
+  Object.defineProperty(file, 'size', { value: 100_000_000 });
+  await user.upload(
+    document.querySelector('input[type=file]') as HTMLInputElement,
+    file,
+  );
+  await user.click(screen.getByRole('button', { name: 'Upload and append' }));
+  await waitFor(() => expect(transferred).toBe(true));
+  expect(admitted?.sizeBytes).toBe(100_000_000);
+  expect(
+    (screen.getByLabelText('Document format') as HTMLSelectElement).disabled,
+  ).toBe(true);
+  expect(screen.queryByRole('progressbar')).toBeNull();
+  view.unmount();
+});

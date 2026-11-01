@@ -2,11 +2,11 @@
 
 Goal: **the fully implemented Document Knowledge Platform described by the public System Design**, including the complete administration portal and the security, processing, retrieval, reliability and operational test evidence. Completing one package does not complete this goal.
 
-The owner confirmed this scope and uninterrupted autonomous execution on 2026-10-31. Continue immediately to the next ready package after its predecessor is independently reviewed, verified and integrated. Automatic specification approval remains authorized after independent review and passing checks. On2026-11-01 the owner renewed standing automatic merging into dev after green tests and CI, superseding the earlier prohibition until revoked. Approved OpenSpec, independent review and every applicable acceptance/coverage/security gate remain mandatory. Use isolated worktrees from current origin/dev, official OpenSpec changes, versioned contracts, independent reviews and passing checks. Do not use GeoWealth-specific delivery workflows. Production deployment/release remains separately gated.
+The owner confirmed this scope and uninterrupted autonomous execution on 2026-10-31. Continue immediately to the next ready package after its predecessor is independently reviewed, verified and integrated. Automatic specification approval remains authorized after independent review and passing checks. The latest owner AGENTS prohibits automatic merging for all PRs, superseding earlier frontend merge permissions. Approved OpenSpec, independent review and every applicable acceptance/coverage/security gate remain mandatory. Use isolated worktrees from current origin/dev, official OpenSpec changes, versioned contracts, independent reviews and passing checks. Do not use GeoWealth-specific delivery workflows. Production deployment/release remains separately gated.
 
 ## SDLC and reporting
 
-Follow requirements and architecture analysis → OpenSpec/contract/design/test plan → independent specification review and recorded automatic approval → implementation with tests → verification/coverage/security/contract/E2E evidence → independent implementation review and fixes → PR/CI → reviewed integration into dev under the latest owner instructions, with owner-authorized automatic dev merging after green tests/CI and all applicable gates → completion audit/archive. Preserve scope and evidence at every transition.
+Follow requirements and architecture analysis → OpenSpec/contract/design/test plan → independent specification review and recorded automatic approval → implementation with tests → verification/coverage/security/contract/E2E evidence → independent implementation review and fixes → PR/CI → reviewed integration into dev under the latest owner instructions, without automatic merging, following the latest owner AGENTS instruction → completion audit/archive. Preserve scope and evidence at every transition.
 
 Before starting each task in this queue, create its prioritized GitHub issue with acceptance and verification criteria, then link it in the task checklist and PR. Track independently executable/delegated items separately beneath a package issue. Close issues only after their verified completion/integration evidence is recorded. This covers specifications, code, tests, fixes, reviews and protocol/delivery work; preexisting work is backfilled explicitly. See the mandatory issue lifecycle in `docs/development/worktree-workflow.md`.
 
@@ -60,3 +60,14 @@ When an external resource or a production-only owner decision blocks a criterion
 ## BP03 development sequencing — #87/#88
 
 The reviewed BP03 development specification uses separate verified-upload completion and existing explicit version append201. It must not expose processing readiness. BP05 retains atomic version/run/intent/outbox creation with202ACCEPTED_PENDING_DISPATCH and must explicitly reconcile legacy append compatibility and pre-processing versions. Independent security89/architecture90 accepted this sequencing and development approval is recorded in DKP-004. It does not change final project acceptance or grant production approval.
+
+
+## Parallel frontend modernization — #434
+
+Execute the approved UI/UX Blueprint v0.7.0 and Frontend Rework Instructions v1.0.0 alongside the architecture queue. This does not complete BP-14 or alter backend package acceptance. Preserve ongoing BP-04 ownership and runtime.
+
+- #435: application shell/shared states; #436: supported document/draft/upload presentation; #437: contract compatibility/adapters.
+- #438: independent specification/implementation review; #439: shared pinned Linux local/CI checks; #440: isolated real manual acceptance URL.
+- #441: remaining TanStack identity-command mutation migration; server-state requirement is not fulfilled merely by documenting it.
+
+See [current Blueprint mapping, verification state and dependencies](uiux-modernization-status.md), UX001 OpenSpec and the contract compatibility matrix. Local, CI and integrated states remain distinct. Collections follow coordinated supported BP-04 contracts; missing processing/review/publication/search/graph capabilities remain unavailable until their authoritative packages deliver them. Frontend PRs require independent review and all applicable checks/real acceptance; do not automatically merge.

@@ -39,9 +39,9 @@ const json = (value: unknown, status = 200) =>
     status,
     headers: { 'Content-Type': 'application/json' },
   });
-const open = () =>
+const open = (path = '/documents') =>
   render(
-    <MemoryRouter initialEntries={['/documents']}>
+    <MemoryRouter initialEntries={[path]}>
       <App />
     </MemoryRouter>,
   );
@@ -119,6 +119,19 @@ it('runs real request shapes for create, inspect, metadata, ACL and holds withou
   vi.stubGlobal('fetch', fetcher);
   const user = userEvent.setup();
   open();
+  await user.click(await screen.findByRole('button', { name: 'New document' }));
+  const collection = screen.getByLabelText(
+    'Collection (metadata only)',
+  ) as HTMLSelectElement;
+  expect(collection.disabled).toBe(true);
+  expect(collection.selectedOptions[0]?.textContent).toBe('Unavailable');
+  const classification = screen.getByLabelText(
+    'Classification',
+  ) as HTMLInputElement;
+  expect(classification.readOnly).toBe(true);
+  expect(classification.value).toBe('development-restricted');
+  await user.type(classification, 'public');
+  expect(classification.value).toBe('development-restricted');
   await user.type(await screen.findByLabelText('Title'), 'New draft');
   await user.type(screen.getByLabelText('Description'), 'Description');
   const beforeTheme = fetcher.mock.calls.length;
@@ -134,9 +147,10 @@ it('runs real request shapes for create, inspect, metadata, ACL and holds withou
   expect(fetcher.mock.calls.length).toBe(beforeTheme);
   await user.click(screen.getByRole('button', { name: 'Create draft' }));
   await screen.findByText(`Saved document ${id}, revision 1.`);
-  expect(bodies[0]?.body).toMatchObject({
+  expect(bodies[0]?.body).toEqual({
     classification: 'development-restricted',
-    metadata: { title: 'New draft' },
+    classificationPolicyRevision: 1,
+    metadata: { title: 'New draft', description: 'Description' },
   });
   await user.click(
     await screen.findByRole('button', { name: 'Synthetic draft' }),
@@ -144,6 +158,7 @@ it('runs real request shapes for create, inspect, metadata, ACL and holds withou
   await screen.findByRole('heading', { name: 'Synthetic draft' });
   expect(screen.getByText('Untrusted <script>text</script>')).toBeTruthy();
   expect(document.querySelector('script')).toBeNull();
+  await user.click(screen.getByText('Advanced document controls'));
   await user.click(
     screen.getByRole('button', { name: 'Use current metadata' }),
   );
@@ -237,6 +252,7 @@ it('does not render revoked inspection data and presents current denial and retr
     await screen.findByRole('button', { name: 'Synthetic draft' }),
   );
   await screen.findByRole('heading', { name: 'Synthetic draft' });
+  await user.click(screen.getByText('Advanced document controls'));
   await user.click(screen.getByRole('button', { name: 'Apply access change' }));
   await waitFor(() =>
     expect(
@@ -358,6 +374,7 @@ it('retries an uncertain mutation with its original idempotency key', async () =
   );
   const user = userEvent.setup();
   open();
+  await user.click(await screen.findByRole('button', { name: 'New document' }));
   await user.type(await screen.findByLabelText('Title'), 'Retry draft');
   await user.click(screen.getByRole('button', { name: 'Create draft' }));
   await screen.findByText('Document services are unavailable. Try again.');
@@ -365,4 +382,146 @@ it('retries an uncertain mutation with its original idempotency key', async () =
   await screen.findByText(`Saved document ${id}, revision 0.`);
   expect(keys).toHaveLength(2);
   expect(keys[1]).toBe(keys[0]);
+});
+
+it('starts with record rows and filters only the authorized page without additional requests', async () => {
+  const fetcher = vi.fn(async (path: string) =>
+    path === '/api/v1/session'
+      ? json(session)
+      : json({
+          items: [
+            draft,
+            {
+              ...draft,
+              documentId: '22222222-2222-4222-8222-222222222222',
+              metadata: { title: 'Other policy', description: '' },
+            },
+          ],
+          nextCursor: 'opaque',
+        }),
+  );
+  vi.stubGlobal('fetch', fetcher);
+  const user = userEvent.setup();
+  open();
+  await screen.findByRole('button', { name: 'Synthetic draft' });
+  expect(screen.getByRole('table', { name: 'Document library' })).toBeTruthy();
+  expect(screen.queryByLabelText('Title')).toBeNull();
+  const before = fetcher.mock.calls.length;
+  await user.type(
+    screen.getByRole('textbox', { name: 'Search documents on this page' }),
+    'other',
+  );
+  expect(screen.queryByRole('button', { name: 'Synthetic draft' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Other policy' })).toBeTruthy();
+  expect(
+    screen.getByText(/Search applies only to accessible drafts on this page/),
+  ).toBeTruthy();
+  expect(fetcher.mock.calls).toHaveLength(before);
+  await user.clear(
+    screen.getByRole('textbox', { name: 'Search documents on this page' }),
+  );
+  await user.type(
+    screen.getByRole('textbox', { name: 'Search documents on this page' }),
+    'absent',
+  );
+  expect(screen.getByText('No matching documents on this page.')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Next page' })).toBeTruthy();
+});
+
+it('reauthorizes a linked document before showing details and exposes upload as a separate task', async () => {
+  const fetcher = vi.fn(async (path: string) =>
+    path === '/api/v1/session'
+      ? json(session)
+      : path.includes('?')
+        ? json({ items: [], nextCursor: null })
+        : json(draft),
+  );
+  vi.stubGlobal('fetch', fetcher);
+  const user = userEvent.setup();
+  open(`/documents?documentId=${id}`);
+  await screen.findByRole('heading', { name: 'Synthetic draft' });
+  expect(
+    fetcher.mock.calls.some(([path]) => path === `/api/v1/dm/documents/${id}`),
+  ).toBe(true);
+  expect(screen.getByText('Latest version')).toBeTruthy();
+  expect(screen.getByText('Unknown')).toBeTruthy();
+  expect(screen.getByText('Active published version')).toBeTruthy();
+  expect(screen.queryByLabelText('Choose document file')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Upload version' }));
+  expect(
+    screen.getByRole('heading', { name: 'Add immutable version' }),
+  ).toBeTruthy();
+  expect(screen.getByLabelText('Choose document file')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Back to document' }));
+  expect(screen.queryByLabelText('Choose document file')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Back to library' }));
+  expect(screen.getByRole('button', { name: 'New document' })).toBeTruthy();
+});
+
+it.each(['not-a-uuid', id])(
+  'does not disclose a forbidden or malformed linked document (%s)',
+  async (documentId) => {
+    const fetcher = vi.fn(async (path: string) =>
+      path === '/api/v1/session'
+        ? json(session)
+        : path.includes('?')
+          ? json({ items: [], nextCursor: null })
+          : json({ code: 'NOT_FOUND' }, 404),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    open(`/documents?documentId=${documentId}`);
+    expect(
+      await screen.findByText(
+        'This document is unavailable or you do not have access.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText('Synthetic draft')).toBeNull();
+    expect(screen.queryByText('Active published version')).toBeNull();
+    if (documentId === 'not-a-uuid')
+      expect(fetcher.mock.calls.some(([path]) => path.includes('/dm/'))).toBe(
+        false,
+      );
+  },
+);
+
+it('cancels metadata-only draft entry without posting or assuming an uploaded file', async () => {
+  const fetcher = vi.fn(async (path: string) =>
+    path === '/api/v1/session'
+      ? json(session)
+      : json({ items: [], nextCursor: null }),
+  );
+  vi.stubGlobal('fetch', fetcher);
+  const user = userEvent.setup();
+  open();
+  await user.click(await screen.findByRole('button', { name: 'New document' }));
+  expect(
+    screen.getByRole('heading', { name: 'Create document draft' }),
+  ).toBeTruthy();
+  expect(screen.queryByLabelText('Choose document file')).toBeNull();
+  await user.type(screen.getByLabelText('Title'), 'Unsaved draft');
+  await user.click(screen.getByRole('button', { name: 'Back to library' }));
+  expect(screen.queryByLabelText('Title')).toBeNull();
+  expect(
+    fetcher.mock.calls.every((call) => !call[0].includes('/uploads')),
+  ).toBe(true);
+  expect(screen.queryByText('Unsaved draft')).toBeNull();
+});
+
+it('opens the draft form from the Home New document action without creating server state', async () => {
+  const fetcher = vi.fn(async (path: string, init?: RequestInit) => {
+    expect(init?.method ?? 'GET').toBe('GET');
+    return path === '/api/v1/session'
+      ? json(session)
+      : json({ items: [], nextCursor: null });
+  });
+  vi.stubGlobal('fetch', fetcher);
+  const user = userEvent.setup();
+  open('/');
+  await user.click(await screen.findByRole('link', { name: /New document/ }));
+  expect(
+    await screen.findByRole('heading', { name: 'Create document draft' }),
+  ).toBeTruthy();
+  expect(screen.getByLabelText('Title')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Create draft' })).toBeTruthy();
+  expect(screen.queryByLabelText('Choose document file')).toBeNull();
 });

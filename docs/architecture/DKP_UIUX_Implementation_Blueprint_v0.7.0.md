@@ -189,6 +189,13 @@ apps/knowledge-admin-ui/
 | Theme preference | User preference / permitted local persistence | No credentials, tokens or private contents |
 | Demo fixtures | Isolated mock adapter only | Explicitly labeled and excluded from production builds |
 
+
+### Mandatory server-state implementation — owner requirement, 2026-11-01
+
+**TanStack React Query (`@tanstack/react-query`) is mandatory for all frontend server state.** Feature/application hooks own queries, mutations, cache invalidation, cancellation and reconciliation through typed clients/adapters and the trusted BFF. Components must not create an independent fetch/useEffect server-state cache. React local state remains appropriate for forms and transient interface state.
+
+Protected query keys must include the authenticated session and selected tenant where relevant. Tenant/session changes, logout, expiry and revoked access must cancel affected requests and remove protected cached data; cancellation alone is insufficient. A mutation succeeds only after authoritative acknowledgement; network silence remains unknown and follows the existing idempotent reconciliation contract. Do not persist credentials, protected query data or uploaded contents in ordinary browser storage.
+
 ### 5.4 Suggested typed view models (not wire contracts)
 
 ```ts
@@ -518,3 +525,11 @@ Where tests rely on server security guarantees, browser tests must be complement
 - [ ] No existing Library or upstream architecture record is overwritten without explicit approval.
 
 **End of blueprint — DKP-UX-002 v0.7.0-draft.**
+
+## Incremental implementation tracking
+
+Track actual delivery, source-bound verification gaps and dependencies in [UI/UX modernization status](../implementation/uiux-modernization-status.md), [contract compatibility matrix](../development/uiux-contract-compatibility.md) and UX001 OpenSpec (#434). The Blueprint defines the agreed target; the status record distinguishes locally verified, CI verified and integrated behavior. Follow the full project implementation protocol for every frontend stream.
+
+## Interactive Design v0.5 implementation authority
+
+The owner's current execution instruction makes [Interactive Design v0.5](../prototypes/DKP_Interactive_Design_v0.5.html) authoritative for visual appearance, navigation, layout, information hierarchy and demonstrated interactions. This Blueprint remains architecture, accessibility and implementation guidance; accepted system/security/domain contracts remain authoritative for business behavior. Render and inspect the prototype, share measured tokens, and retain matching dark/light desktop/mobile reference and React comparisons. Do not silently redesign or claim visual fidelity from component tests. Missing capabilities retain recognizable structure and explicit unavailable states. Track implementation and deviations in [the canonical status and fidelity record](../implementation/uiux-modernization-status.md), issue #443.

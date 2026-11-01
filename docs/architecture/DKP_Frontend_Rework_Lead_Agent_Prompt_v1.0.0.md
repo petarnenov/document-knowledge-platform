@@ -134,6 +134,13 @@ Use typed view models and transformation/adaptation layers where Backend DTOs di
 
 Keep feature components independent of infrastructure-specific SDK details.
 
+
+### Mandatory server-state implementation — owner requirement, 2026-11-01
+
+**TanStack React Query (`@tanstack/react-query`) is mandatory for all frontend server state.** Feature/application hooks own queries, mutations, cache invalidation, cancellation and reconciliation through typed clients/adapters and the trusted BFF. Components must not create an independent fetch/useEffect server-state cache. React local state remains appropriate for forms and transient interface state.
+
+Protected query keys must include the authenticated session and selected tenant where relevant. Tenant/session changes, logout, expiry and revoked access must cancel affected requests and remove protected cached data; cancellation alone is insufficient. A mutation succeeds only after authoritative acknowledgement; network silence remains unknown and follows the existing idempotent reconciliation contract. Do not persist credentials, protected query data or uploaded contents in ordinary browser storage.
+
 ### Microkernel and Capabilities
 
 The existing Microkernel architecture must remain controlled and extensible.
@@ -491,3 +498,7 @@ Do not rewrite the Backend to fit the UI.
 Do not compromise the UI/UX design merely to preserve accidental limitations of the existing Frontend.
 
 **Adapt at the correct architectural boundary, extend contracts minimally when justified, and preserve existing domain invariants.**
+
+## Current visual execution reference
+
+For the current modernization, [Interactive Design v0.5](../prototypes/DKP_Interactive_Design_v0.5.html) is the primary visual and interaction reference, above provisional layout suggestions in the Blueprint. Inspect its rendered screens before implementation; share screenshots, measurements and Mantine component contracts across workers. Compare React and reference at identical themes/viewports with comparable fixtures; record differences, fix unintended differences, and obtain explicit product approval for material intentional visual deviations. Preserve accepted backend and security authority. Apply the project implementation protocol to each frontend slice; latest owner AGENTS requires independent PR review and no automatic merging.

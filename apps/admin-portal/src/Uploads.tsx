@@ -1,3 +1,4 @@
+import { UploadJourney } from './features/uploads/UploadJourney';
 import {
   Alert,
   Button,
@@ -6,6 +7,8 @@ import {
   NativeSelect,
   Paper,
   Text,
+  Stack,
+  VisuallyHidden,
 } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -212,63 +215,89 @@ export function Uploads({
   return (
     <Paper
       component="section"
-      className="info-card"
+      className="card"
       aria-labelledby={`upload-${documentId}`}
     >
-      <h3 id={`upload-${documentId}`}>Upload a verified version</h3>
-      <Text>
-        PDF, DOCX, PPTX or XLSX · up to 100 MB. Server checks determine whether
-        content is safe. Appending preserves the active version.
-      </Text>
-      <NativeSelect
-        label="Document format"
-        data={[...formats]}
-        value={format}
-        disabled={busy || !mutation.isIdle}
-        onChange={(event) => setFormat(event.currentTarget.value as Format)}
-      />
-      <FileInput
-        label="Choose document file"
-        value={file}
-        onChange={setFile}
-        disabled={busy || !mutation.isIdle}
-        accept=".pdf,.docx,.pptx,.xlsx"
-      />
-      {file && (file.size < 1 || file.size > 100_000_000) && (
-        <Alert role="alert">Choose a nonempty file of at most 100 MB.</Alert>
-      )}
-      <Group>
-        <Button
-          onClick={start}
-          disabled={
-            busy ||
-            !file ||
-            file.size < 1 ||
-            file.size > 100_000_000 ||
-            mutation.isSuccess
+      <Stack gap="md">
+        <VisuallyHidden>
+          <h2 id={`upload-${documentId}`}>Upload a verified version</h2>
+        </VisuallyHidden>
+        <NativeSelect
+          label="Document format"
+          data={[...formats]}
+          value={format}
+          disabled={busy || !mutation.isIdle}
+          onChange={(event) => setFormat(event.currentTarget.value as Format)}
+        />
+        <FileInput
+          label="Choose document file"
+          value={file}
+          onChange={setFile}
+          disabled={busy || !mutation.isIdle}
+          accept=".pdf,.docx,.pptx,.xlsx"
+        />
+        <Text size="sm" c="dimmed">
+          PDF, DOCX, PPTX or XLSX · up to 100 MB (exactly 100,000,000 bytes).
+          Selecting a file does not verify its contents. Server checks determine
+          whether content is safe. Appending preserves the active version.
+        </Text>
+        <UploadJourney
+          verified={
+            !!mutation.data ||
+            status.data?.state === 'VERIFIED' ||
+            status.data?.state === 'CONSUMED'
           }
-        >
-          {mutation.isError ? 'Retry upload' : 'Upload and append'}
-        </Button>
-        <Button onClick={reset}>Cancel and clear</Button>
-      </Group>
-      {stage && <p role="status">{stage}</p>}
-      {status.data && <p>Upload state: {status.data.state}</p>}
-      {[mutation.error, download.error, status.error]
-        .filter(Boolean)
-        .map((error, index) => (
-          <Alert role="alert" key={index}>
-            {documentError(error)}
-          </Alert>
-        ))}
-      {mutation.data && (
-        <>
-          <p>Version {mutation.data.versionId}</p>
-          <Button onClick={() => download.mutate()} disabled={busy}>
-            Download verified content
+          recorded={!!mutation.data}
+        />
+        {file && (file.size < 1 || file.size > 100_000_000) && (
+          <Alert role="alert">Choose a nonempty file of at most 100 MB.</Alert>
+        )}
+        <Group>
+          <Button
+            onClick={start}
+            disabled={
+              busy ||
+              !file ||
+              file.size < 1 ||
+              file.size > 100_000_000 ||
+              mutation.isSuccess
+            }
+          >
+            {mutation.isError ? 'Retry upload' : 'Upload and append'}
           </Button>
-        </>
-      )}
+          <Button variant="default" onClick={reset}>
+            Cancel and clear
+          </Button>
+        </Group>
+        {stage && (
+          <Text role="status" aria-live="polite">
+            {stage}
+          </Text>
+        )}
+        {mutation.isError && (
+          <Text size="sm">
+            The last operation may have completed. Retry upload reuses the
+            original command keys to reconcile its outcome; it does not start a
+            second version.
+          </Text>
+        )}
+        {status.data && <p>Upload state: {status.data.state}</p>}
+        {[mutation.error, download.error, status.error]
+          .filter(Boolean)
+          .map((error, index) => (
+            <Alert role="alert" key={index}>
+              {documentError(error)}
+            </Alert>
+          ))}
+        {mutation.data && (
+          <>
+            <p>Version {mutation.data.versionId}</p>
+            <Button onClick={() => download.mutate()} disabled={busy}>
+              Download verified content
+            </Button>
+          </>
+        )}
+      </Stack>
     </Paper>
   );
 }

@@ -16,19 +16,16 @@ describe('foundation shell', () => {
   it('shows honest scope, semantic landmarks and active home navigation', () => {
     renderShell();
     expect(
-      screen.getByRole('heading', { name: 'A foundation for knowledge.' }),
+      screen.getByRole('heading', { name: 'Knowledge workspace' }),
     ).toBeTruthy();
     expect(screen.getByRole('main').id).toBe('main-content');
     expect(
       screen.getByRole('navigation', { name: 'Main navigation' }),
     ).toBeTruthy();
     expect(
-      screen
-        .getByRole('link', { name: 'Overview' })
-        .getAttribute('aria-current'),
+      screen.getByRole('link', { name: 'Home' }).getAttribute('aria-current'),
     ).toBe('page');
-    expect(screen.getByText('Foundation shell', { exact: true })).toBeTruthy();
-    expect(screen.getAllByText('Planned capability')).toHaveLength(2);
+    expect(screen.getAllByText('Workspace total unavailable')).toHaveLength(4);
     expect(screen.getAllByRole('switch')).toHaveLength(1);
     expect(
       document.documentElement.getAttribute('data-mantine-color-scheme'),
@@ -38,9 +35,7 @@ describe('foundation shell', () => {
   it('navigates to foundation information and returns through the brand', async () => {
     const user = userEvent.setup();
     renderShell();
-    await user.click(
-      screen.getByRole('link', { name: 'Explore the foundation' }),
-    );
+    await user.click(screen.getByRole('link', { name: /^Foundation$/ }));
     expect(
       screen.getByRole('heading', { name: 'Built to grow with care.' }),
     ).toBeTruthy();
@@ -49,12 +44,12 @@ describe('foundation shell', () => {
         .getByRole('link', { name: /^Foundation$/ })
         .getAttribute('aria-current'),
     ).toBe('page');
-    expect(screen.getByText(/Uploading, searching, publishing/)).toBeTruthy();
+    expect(screen.getByText(/Searching, publishing and purging/)).toBeTruthy();
     await user.click(
       screen.getByRole('link', { name: 'Document Knowledge Platform home' }),
     );
     expect(
-      screen.getByRole('heading', { name: 'A foundation for knowledge.' }),
+      screen.getByRole('heading', { name: 'Knowledge workspace' }),
     ).toBeTruthy();
   });
 
@@ -73,7 +68,7 @@ describe('foundation shell', () => {
     ).toBeTruthy();
     await user.click(screen.getByRole('link', { name: 'Return to overview' }));
     expect(
-      screen.getByRole('heading', { name: 'A foundation for knowledge.' }),
+      screen.getByRole('heading', { name: 'Knowledge workspace' }),
     ).toBeTruthy();
   });
 
@@ -83,12 +78,12 @@ describe('foundation shell', () => {
     const toggle = screen.getByRole('switch', { name: 'Light theme' });
     toggle.focus();
     await user.keyboard(' ');
-    expect((toggle as HTMLInputElement).checked).toBe(true);
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
     expect(
       document.documentElement.getAttribute('data-mantine-color-scheme'),
     ).toBe('light');
     await user.keyboard(' ');
-    expect((toggle as HTMLInputElement).checked).toBe(false);
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
     expect(
       document.documentElement.getAttribute('data-mantine-color-scheme'),
     ).toBe('dark');

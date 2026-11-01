@@ -101,18 +101,26 @@ for (const scheme of ['dark', 'light'] as const) {
     await page.getByRole('link', { name: 'Documents', exact: true }).click();
     const initialPage = await initialDrafts;
     expect(initialPage.status()).toBe(200);
-    // React renders this list only after the real query succeeds. CDP's
+    // React renders a table or the bounded empty result only after the real query succeeds. CDP's
     // transport-finished observer may hang even after HTTP200; it is not UI state.
     await expect(
       page
         .getByRole('region', { name: 'Accessible drafts', exact: true })
-        .getByRole('list'),
+        .getByRole('table', { name: 'Document library' })
+        .or(
+          page
+            .getByRole('region', { name: 'Accessible drafts', exact: true })
+            .getByText('No accessible drafts on this page.', { exact: true }),
+        ),
     ).toHaveCount(1);
     await expect(
       page.getByText('Loading drafts…', { exact: true }),
     ).toHaveCount(0);
     await expect(page.getByRole('alert')).toHaveCount(0);
     const title = `Synthetic draft ${Date.now()}`;
+    await page
+      .getByRole('button', { name: 'New document', exact: true })
+      .click();
     await page.getByLabel('Title', { exact: true }).fill(title);
     await page
       .getByLabel('Description', { exact: true })
@@ -142,8 +150,15 @@ for (const scheme of ['dark', 'light'] as const) {
     ).toBeVisible();
     const root = `/api/v1/dm/documents/${receipt.documentId}`;
     await expect(
-      page.getByRole('button', { name: 'Create draft', exact: true }),
+      page.getByRole('heading', { name: 'Document Library', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'New document', exact: true }),
     ).toBeEnabled();
+    await expect(page.locator('.documents')).toHaveAttribute(
+      'aria-busy',
+      'false',
+    );
     // An earlier run can leave more than one visible page. Follow authenticated cursors only.
     for (
       let pages = 0;
@@ -165,7 +180,12 @@ for (const scheme of ['dark', 'light'] as const) {
       await expect(
         page
           .getByRole('region', { name: 'Accessible drafts', exact: true })
-          .getByRole('list'),
+          .getByRole('table', { name: 'Document library' })
+          .or(
+            page
+              .getByRole('region', { name: 'Accessible drafts', exact: true })
+              .getByText('No accessible drafts on this page.', { exact: true }),
+          ),
       ).toHaveCount(1);
       await expect(
         page.getByText('Loading drafts…', { exact: true }),
@@ -177,6 +197,7 @@ for (const scheme of ['dark', 'light'] as const) {
       page.getByRole('heading', { name: title, exact: true }),
     ).toBeVisible();
     await confirmSingleCreate(page.request, intended, receipt.documentId);
+    await page.getByText('Advanced document controls', { exact: true }).click();
     await page
       .getByRole('button', { name: 'Use current metadata', exact: true })
       .click();
@@ -286,6 +307,10 @@ for (const scheme of ['dark', 'light'] as const) {
     let lastVerified:
       | { path: string; mime: string; uploadId: string; receiptId: string }
       | undefined;
+    if (uploadProfile === 'true')
+      await page
+        .getByRole('button', { name: 'Upload version', exact: true })
+        .click();
     // Real untrusted bytes traverse BFF, RustFS quarantine, standard ClamAV and inspector.
     for (const format of uploadProfile === 'true'
       ? (['PDF', 'DOCX', 'PPTX', 'XLSX'] as const)
