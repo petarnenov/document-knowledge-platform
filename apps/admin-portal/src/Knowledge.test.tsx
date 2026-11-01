@@ -321,6 +321,9 @@ it.each(['dark', 'light'])(
       false,
     );
   },
+  // This case exercises the complete command sequence with real DOM events in
+  // each theme. Allow coverage instrumentation time without changing API deadlines.
+  20_000,
 );
 it('clears protected data on denied refresh and reopens only with fresh authorization', async () => {
   const user = userEvent.setup();

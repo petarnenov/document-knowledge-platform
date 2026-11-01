@@ -79,3 +79,10 @@ All tasks remain governed by issue-first ordering. Unnumbered future implementat
 Current193 integration snapshot includes only independently accepted235/236/244 production and existing two-theme browser source. Unreviewed243 additions remain excluded. Current-source168KBtests pass with zero skips. A macOS combined DM attempt failed15 legacy file-authority cases and skipped18 platform-dependent cases; it is not accepted as Linux proof and no authority checks are weakened. Genuine Linux gates remain required before192 execution and integration.
 
 243 maximum-size browser source is independently accepted245 at5e91d5c8 and now included in the integration snapshot. Its actual configured execution remains required under192;149unit tests, helper8tests100%line/branch and discovery3cases are source evidence only.
+
+## 2026-11-01 integration CI corrections
+
+- [ ] [#251](https://github.com/petarnenov/document-knowledge-platform/issues/251) P1: run both shared browser-runner suites under unchanged75% coverage floors and give only the two complete instrumented DOM workflow cases a20s test budget. Actual baseline reproduced both5s timeouts; corrected149portal tests pass with full-source96.27%lines/93.80%branches/92.91%functions/95.04%statements. Combined runner coverage90.88%lines/99.28%branches/94.44%functions. Final CI/integration remain required.
+- [ ] [#252](https://github.com/petarnenov/document-knowledge-platform/issues/252) independent two-file source review PASS at69f7455eae1160722b861cb56d6c69e7da45acc43ef8a5ba792bb9c0592eeb4c. All assertions, coverage floors and actual API deadlines remain unchanged; closure evidence pending.
+
+The exact4519f2bf611c committed integration source passes the combined unprivileged Linux architecture/KB/DM/BFF bootstrap build with all configured coverage gates (133tasks,2m27s). Native-provider cases skipped by this core test profile are not runtime acceptance. The isolated KB runtime, genuine browser scenarios and full cross-domain acceptance remain required under192.

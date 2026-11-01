@@ -127,7 +127,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24.22.1'
-      - run: node --experimental-test-coverage --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test tools/runtime/identity-e2e.test.mjs
+      - run: node --experimental-test-coverage --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test tools/runtime/identity-e2e.test.mjs tools/runtime/kb-browser-runtime.test.mjs
       - name: Fast versus real-time upload expiry selector
         run: >-
           node --test --experimental-test-coverage
