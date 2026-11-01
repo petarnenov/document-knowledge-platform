@@ -1270,9 +1270,17 @@ if (uploadProfile === 'true') {
       ).toBe(200);
       const wrongName = new URL(origin);
       wrongName.hostname = 'wrong-name.localhost';
-      await expect(page.goto(wrongName.href)).rejects.toThrow(
-        'ERR_CERT_COMMON_NAME_INVALID',
-      );
+      // Chromium may commit its error page after goto rejects. Keep that
+      // expected negative probe separate from the page that receives credentials.
+      const hostnameProbe = await context.newPage();
+      try {
+        await expect(hostnameProbe.goto(wrongName.href)).rejects.toThrow(
+          'ERR_CERT_COMMON_NAME_INVALID',
+        );
+      } finally {
+        await hostnameProbe.close();
+      }
+      await page.bringToFront();
       const draft = await prepareBoundaryDraft(page, origin);
       const other = draft.session.tenants.find(
         (value) => value !== draft.session.selectedTenant,

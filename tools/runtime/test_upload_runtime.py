@@ -247,6 +247,29 @@ class RuntimeTests(unittest.TestCase):
             with self.assertRaises(ValueError):m.health(state)
         with patch.object(m,'compose',return_value=b''),self.assertRaises(ValueError):m.health(state)
 
+    def test_scanner_config_is_source_bound_and_mutation_rejected_before_provider_access(self):
+        relative = 'infra/docker-compose/clamd.conf'
+        self.assertIn(relative, m.SOURCES)
+        self.arrange_start()
+        state = m.start(self.directory)
+        self.assertEqual(m.digest(self.root / relative), state['sources'][relative])
+        self.events.clear()
+        config = self.root / relative
+        config.write_text(config.read_text().replace('MaxThreads 1', 'MaxThreads 2'))
+        with self.assertRaisesRegex(ValueError, 'source changed'):
+            m.verify(self.directory)
+        self.assertEqual([], self.events, 'Changed execution profile cannot touch providers')
+
+    def test_multiple_scan_or_inspection_provider_instances_are_never_accepted(self):
+        state = {'runId': self.run_id, 'project': 'dkp-bp03-'+'a'*12, 'workerImage': self.sha}
+        item = {'Config': {'Labels': m.labels(state)}, 'Image': self.sha, 'State': {'Status': 'running'}}
+        for service in ('clamav', 'structure-inspector'):
+            def response(*args):
+                return (self.container + '\n' + 'c'*64).encode() if args[-1] == service else self.container.encode()
+            with self.subTest(service=service), patch.object(m, 'compose', side_effect=response), patch.object(m, 'docker', return_value=[item]), patch.object(m, 'wait_container'), patch.object(m, 'attest_worker'), patch.object(m, 'inspector_ready'):
+                with self.assertRaisesRegex(ValueError, 'One owned service instance'):
+                    m.health(state)
+
     def test_live_worker_profile_rejects_capabilities_writable_authority_and_resource_widening(self):
         import copy
         state={'runId':self.run_id,'project':'dkp-bp03-'+'a'*12,'workerImage':self.sha,'networkImage':self.sha,'workerVolume':'owned'}

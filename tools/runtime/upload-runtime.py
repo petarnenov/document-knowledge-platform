@@ -29,7 +29,7 @@ BUILD_SERVICES = SERVICES[:7]
 STATE_FIELDS = {'schemaVersion', 'runId', 'project', 'directory', 'phase', 'workerVolume',
                 'workerImage', 'networkImage', 'updaterRecord', 'definitions', 'sources', 'files'}
 PROFILE_SOURCE = 'workers/structure-inspector/src/main/java/org/documentknowledge/inspector/StructureInspector.java'
-SOURCES = ('infra/docker-compose/compose.yaml', 'infra/docker-compose/compose-upload.yaml',
+SOURCES = ('infra/docker-compose/clamd.conf', 'infra/docker-compose/compose.yaml', 'infra/docker-compose/compose-upload.yaml',
            'infra/docker-compose/inspector.Dockerfile', 'infra/docker-compose/inspector-network.Dockerfile',
            'infra/docker-compose/inspector-network.sh', 'infra/docker-compose/nginx-upload.conf',
            'infra/docker-compose/bootstrap-security.py', 'infra/docker-compose/realm-template.json',
