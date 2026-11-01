@@ -22,13 +22,14 @@ class UploadLifecycleTest {
  MalwareScanPort scanner=source->new ScanEvidence(source.sha256(),source.sizeBytes(),"1.5.4","standard-main+daily",clock.instant().minusSeconds(30),"d".repeat(64),clock.instant());
  StructureInspectionPort inspector=source->new InspectionEvidence(source.format(),source.format().mime(),source.sizeBytes(),source.sha256(),source.format()==UploadFormat.PDF?1:null,"1","f".repeat(64),"sha256:"+"a".repeat(64),clock.instant());
  UUID document;
- DocumentService documents(){return new DocumentService(store,grants,new DelegationPolicyPort(){public AuthorityDecision targetGrant(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}public AuthorityDecision ceiling(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}},new ReceiptArtifactAuthority(store,storage,clock,temporary),new DocumentCursorPort(){public PagePosition decode(String c,Actor a,String t){throw new IllegalArgumentException();}public String encode(PagePosition p,Actor a,String t){return "cursor";}},clock);}
+ DocumentService documents(){return new DocumentService(store,grants,new DelegationPolicyPort(){public AuthorityDecision targetGrant(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}public AuthorityDecision ceiling(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}},new ReceiptArtifactAuthority(store,storage,clock,generic()),new DocumentCursorPort(){public PagePosition decode(String c,Actor a,String t){throw new IllegalArgumentException();}public String encode(PagePosition p,Actor a,String t){return "cursor";}},clock);}
  java.util.function.Consumer<Path> completeCleanup;
- VerificationWorkspacePort testWorkspace;
- UploadService uploads(){if(testWorkspace==null)testWorkspace=UploadServiceTestFactory.workspace(temporary,clock,path->{if(completeCleanup!=null)completeCleanup.accept(path);else try{Files.deleteIfExists(path);}catch(IOException failure){throw new UncheckedIOException(failure);}});return UploadServiceTestFactory.create(store,grants,storage,scanner,inspector,clock,temporary,testWorkspace);}
+ VerificationWorkspacePort testWorkspace;GenericTempPort genericTemp;
+ GenericTempPort generic(){if(genericTemp==null)genericTemp=UploadServiceTestFactory.generic(temporary,clock);return genericTemp;}
+ UploadService uploads(){if(testWorkspace==null)testWorkspace=UploadServiceTestFactory.workspace(temporary,clock,path->{if(completeCleanup!=null)completeCleanup.accept(path);else try{Files.deleteIfExists(path);}catch(IOException failure){throw new UncheckedIOException(failure);}});return UploadServiceTestFactory.create(store,grants,storage,scanner,inspector,clock,temporary,testWorkspace,generic());}
  ContentService contentService;
  ContentService content(){if(contentService==null)contentService=new ContentService(store,grants,storage,clock,temporary);return contentService;}
- @AfterEach void closeContent(){if(contentService!=null)contentService.close();if(testWorkspace!=null)testWorkspace.close();}
+ @AfterEach void closeContent(){if(contentService!=null)contentService.close();if(testWorkspace!=null)testWorkspace.close();if(genericTemp!=null)genericTemp.close();}
  UploadCleanupService cleanup(){return new UploadCleanupService(store,storage,clock);}
  @BeforeEach void create(){document=documents().create(caller,"create",new Metadata("Synthetic draft","")).documentId();}
  void failure(int status,String code,Runnable call){var failure=assertThrows(DmFailure.class,call::run);assertEquals(status,failure.status());assertEquals(code,failure.code());}
@@ -329,7 +330,7 @@ class UploadLifecycleTest {
   assertThrows(IllegalArgumentException.class,()->cleanup().sweep(UUID.randomUUID(),0));assertThrows(IllegalArgumentException.class,()->cleanup().sweep(UUID.randomUUID(),51));
  }
  @Test void storageCorruptionIsRejectedByPreflightAndContentBeforeAnyBytes()throws Exception{
-  var app=uploads();var receipt=verified(app,UploadFormat.PDF);var authority=new ReceiptArtifactAuthority(store,storage,clock,temporary);
+  var app=uploads();var receipt=verified(app,UploadFormat.PDF);var authority=new ReceiptArtifactAuthority(store,storage,clock,generic());
   failure(404,"NOT_FOUND",()->authority.verify(actor,caller.tenant(),document,"bad"));failure(404,"NOT_FOUND",()->authority.verify(new Actor("https://different.example",actor.subject()),caller.tenant(),document,receipt.receiptId().toString()));failure(404,"NOT_FOUND",()->authority.verify(new Actor(actor.issuer(),"other"),caller.tenant(),document,receipt.receiptId().toString()));failure(404,"NOT_FOUND",()->authority.verify(actor,caller.tenant(),UUID.randomUUID(),receipt.receiptId().toString()));
   var stored=store.uploads.receipt(caller.tenant(),receipt.receiptId()).orElseThrow();byte[] original=storage.objects.get(stored.original());byte[] corrupt=original.clone();corrupt[0]++;storage.objects.put(stored.original(),corrupt);failure(503,"UNAVAILABLE",()->authority.verify(actor,caller.tenant(),document,receipt.receiptId().toString()));storage.objects.put(stored.original(),original);
   documents().appendVersion(caller,document,0,"append",receipt.receiptId().toString());UUID version=app.discover(caller,document,receipt.receiptId()).versionId();storage.objects.put(stored.original(),corrupt);failure(503,"UNAVAILABLE",()->content().open(caller,document,version,null));storage.objects.put(stored.original(),original);
@@ -417,6 +418,8 @@ class UploadLifecycleTest {
  static class BytesStorage implements UploadStoragePort, CleanupStoragePort {
   final Map<ObjectIdentity,byte[]> objects=new HashMap<>();boolean failPut,failCopy,deleteUnknown,badDeleteBinding,discardLargePut;boolean deleteSuccess=true,corruptCopy;java.util.function.Function<DeletionFence,DeletionResult> deletion;int copyCalls,deleteCalls;Runnable onCopy=()->{},onDelete=()->{},onPut=()->{},onOpen=()->{};
   public ObjectIdentity put(ObjectKey key,Path file,long size,String sha){if(failPut)throw new IllegalStateException();try{var id=new ObjectIdentity(key,UUID.randomUUID().toString());objects.put(id,discardLargePut&&size>1_000_000?new byte[0]:Files.readAllBytes(file));onPut.run();return id;}catch(IOException e){throw new IllegalStateException(e);}}
+  public ObjectIdentity put(ObjectKey key,Path file,long size,String sha,GenericTempBudget budget){budget.check();var value=put(key,file,size,sha);return value;}
+  public InputStream open(ObjectIdentity object,GenericTempBudget budget){budget.check();var value=open(object);budget.check();return value;}
   public InputStream open(ObjectIdentity object){onOpen.run();byte[] bytes=objects.get(object);if(bytes==null)throw new IllegalStateException();return new ByteArrayInputStream(bytes);}
   public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,VerificationWorkspacePort.Workspace workspace){
    var scratch=workspace.scratch(VerificationWorkspacePort.Role.COPY,phase);ObjectIdentity known=null;try{scratch.write(new ByteArrayInputStream(objects.get(source)),phase);known=copy(source,target,phase);return known;}finally{try{scratch.cleanup(phase);}catch(RuntimeException cleanupFailed){if(known==null)throw cleanupFailed;}}

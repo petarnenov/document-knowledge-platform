@@ -17,7 +17,7 @@ import static org.documentknowledge.documentmanagement.application.upload.Upload
 public final class UploadService {
  private final DocumentUnitOfWork transactions;private final UploadPolicy policy;private final UploadStoragePort storage;
  private final MalwareScanPort scanner;private final StructureInspectionPort inspector;private final Clock clock;private final Path temporary;
- private final VerificationWorkspacePort workspaces;
+ private final VerificationWorkspacePort workspaces;private final GenericTempPort genericTemps;
  private final Semaphore verification=new Semaphore(1),transfers=new Semaphore(10);
  private final Set<UUID> transferring=java.util.concurrent.ConcurrentHashMap.newKeySet();
  public UploadService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,
@@ -25,8 +25,10 @@ public final class UploadService {
   this(transactions,grants,storage,scanner,inspector,clock,temporary,VerificationWorkspacePort.unavailable());
  }
  public UploadService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,
-     MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path temporary,VerificationWorkspacePort workspaces){
-  this.workspaces=Objects.requireNonNull(workspaces);
+     MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path temporary,VerificationWorkspacePort workspaces){this(transactions,grants,storage,scanner,inspector,clock,temporary,workspaces,GenericTempPort.unavailable());}
+ public UploadService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,
+     MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path temporary,VerificationWorkspacePort workspaces,GenericTempPort genericTemps){
+  this.genericTemps=Objects.requireNonNull(genericTemps);this.workspaces=Objects.requireNonNull(workspaces);
   this.transactions=Objects.requireNonNull(transactions);policy=new UploadPolicy(grants);this.storage=Objects.requireNonNull(storage);
   this.scanner=Objects.requireNonNull(scanner);this.inspector=Objects.requireNonNull(inspector);this.clock=Objects.requireNonNull(clock);this.temporary=Objects.requireNonNull(temporary);
  }
@@ -49,25 +51,34 @@ public final class UploadService {
   });
  }
  public SlotReceipt transfer(DocumentCaller caller,UUID uploadId,String key,InputStream input){
-  UUID document=locate(caller,uploadId,false);read(caller,document,uploadId,false);
+  var budget=new GenericTempBudget(clock,GenericTempPort.Role.TRANSFER);return budget.execute(()->transferOwned(caller,uploadId,key,input,budget));
+ }
+ private SlotReceipt transferOwned(DocumentCaller caller,UUID uploadId,String key,InputStream input,GenericTempBudget budget){
+  budget.check();UUID document=locate(caller,uploadId,false,budget);read(caller,document,uploadId,false,budget);budget.check();
   if(!transfers.tryAcquire())throw new DmFailure(429,"QUOTA_EXCEEDED");
   if(!transferring.add(uploadId)){transfers.release();throw new DmFailure(429,"QUOTA_EXCEEDED");}
-  try{return transferBounded(caller,uploadId,key,input);}finally{transferring.remove(uploadId);transfers.release();}
+  try{return transferBounded(caller,uploadId,key,input,budget);}finally{transferring.remove(uploadId);transfers.release();}
  }
- private SlotReceipt transferBounded(DocumentCaller caller,UUID uploadId,String key,InputStream input){
-  Objects.requireNonNull(input);UUID document=locate(caller,uploadId,false);var command=UploadSupport.command(caller,"upload.transfer",uploadId.toString(),key);
-  TransferPlan plan=transactions.execute(repository->{repository.lockCommand(command);var u=repository.uploads();u.lockAccounts(caller.tenant());policy.document(repository,caller,document,Action.VERSION_APPEND,false);var slot=owned(u,caller,uploadId);live(slot);var previous=u.command(command);
+ private SlotReceipt transferBounded(DocumentCaller caller,UUID uploadId,String key,InputStream input,GenericTempBudget budget){
+  Objects.requireNonNull(input);UUID document=locate(caller,uploadId,false,budget);var command=UploadSupport.command(caller,"upload.transfer",uploadId.toString(),key);
+  budget.check();TransferPlan plan=transactions.execute(repository->{budget.check();boundary(budget,()->repository.lockCommand(command));var u=repository.uploads();checked(budget,()->u.lockAccounts(caller.tenant()));policy.document(repository,caller,document,Action.VERSION_APPEND,false,budget::check);var slot=owned(u,caller,uploadId,budget);live(slot);var previous=checked(budget,()->u.command(command));
    if(previous.isPresent())return new TransferPlan(slot,previous.get());
    if(slot.state()==UploadState.RECEIVING&&!slot.writerSettled()&&(slot.failureCode()!=null||!now().isBefore(slot.leaseUntil())))throw UploadPolicy.unavailable();
-   if(slot.state()!=UploadState.INITIALIZED||slot.transferAttempts()>=3)throw conflict();var next=slot.receiving(UUID.randomUUID(),lease(slot,300),key);u.updateSlot(next,slot.revision());return new TransferPlan(next,null);
+   if(slot.state()!=UploadState.INITIALIZED||slot.transferAttempts()>=3)throw conflict();var next=slot.receiving(UUID.randomUUID(),lease(slot,300),key);boundary(budget,()->u.updateSlot(next,slot.revision()));return new TransferPlan(next,null);
   });
   boolean attemptedWrite=false;ObjectIdentity object=null;ObjectKey target=UploadSupport.key(caller.tenant(),document,uploadId,false);
-  try(var spool=UploadSupport.spool(input,temporary,plan.slot().declaredSize(),clock,300)){
-   String fingerprint=UploadSupport.fingerprint(spool.sha256(),spool.size());
-   if(plan.previous()!=null){same(plan.previous(),fingerprint);read(caller,document,uploadId,false);return new SlotReceipt(uploadId);}
-   attemptedWrite=true;object=storage.put(target,spool.file(),spool.size(),spool.sha256());if(object==null||!object.objectKey().equals(target))throw UploadPolicy.unavailable();ObjectIdentity stored=object;
-   return transactions.execute(repository->{repository.lockCommand(command);var u=repository.uploads();u.lockAccounts(caller.tenant());policy.document(repository,caller,document,Action.VERSION_APPEND,false);var current=owned(u,caller,uploadId);sameLease(current,plan.slot());live(current);var next=current.quarantined(stored,spool.sha256());policy.document(repository,caller,document,Action.VERSION_APPEND,false);u.updateSlot(next,current.revision());u.record(new UploadOutcome(command,fingerprint,200,uploadId,null),audit(next,"upload.transfer",null));return new SlotReceipt(uploadId);});
-  }catch(RuntimeException failure){if(plan.previous()==null){if(!attemptedWrite)resetTransfer(plan.slot());else transferFailure(plan.slot(),target,object);}throw safe(failure);}
+  try {budget.check();try(var workspace=genericTemps.reserve(GenericTempPort.Role.TRANSFER,GenericTempPort.Identity.of(caller.tenant(),caller.actor(),document,uploadId,null,plan.slot().declaredSize()),budget)){
+   boolean cleanupAttempted=false;
+   try {
+    var spool=workspace.write(input,budget);String fingerprint=UploadSupport.fingerprint(spool.sha256(),spool.size());
+    if(plan.previous()!=null){same(plan.previous(),fingerprint);read(caller,document,uploadId,false,budget);cleanupAttempted=true;workspace.finish(budget);budget.check();return new SlotReceipt(uploadId);}
+    budget.check();attemptedWrite=true;
+    try(var reader=workspace.retain(budget)){object=storage.put(target,spool.path(),spool.size(),spool.sha256(),budget);}
+    if(object==null||!object.objectKey().equals(target))throw UploadPolicy.unavailable();ObjectIdentity stored=object;
+    cleanupAttempted=true;workspace.finish(budget);budget.check();
+    return transactions.execute(repository->{budget.check();boundary(budget,()->repository.lockCommand(command));var u=repository.uploads();checked(budget,()->u.lockAccounts(caller.tenant()));policy.document(repository,caller,document,Action.VERSION_APPEND,false,budget::check);var current=owned(u,caller,uploadId,budget);sameLease(current,plan.slot());live(current);var next=current.quarantined(stored,spool.sha256());policy.document(repository,caller,document,Action.VERSION_APPEND,false,budget::check);boundary(budget,()->u.updateSlot(next,current.revision()));boundary(budget,()->u.record(new UploadOutcome(command,fingerprint,200,uploadId,null),audit(next,"upload.transfer",null)));budget.check();return new SlotReceipt(uploadId);});
+   }catch(RuntimeException failure){if(!cleanupAttempted){cleanupAttempted=true;workspace.finish(budget);}throw failure;}
+  }}catch(RuntimeException failure){if(plan.previous()==null){if(!attemptedWrite)resetTransfer(plan.slot());else transferFailure(plan.slot(),target,object);}throw safe(failure);}
  }
  private record TransferPlan(UploadSlot slot,UploadOutcome previous) { }
  private void resetTransfer(UploadSlot claimed){transactions.execute(r->{var u=r.uploads();u.lockAccounts(claimed.tenant());r.find(claimed.tenant(),claimed.documentId()).orElseThrow(UploadPolicy::hidden);var current=u.slot(claimed.tenant(),claimed.uploadId()).orElseThrow(UploadPolicy::hidden);sameLeaseIdentity(current,claimed);u.updateSlot(current.transferReset(),current.revision());return null;});}
@@ -149,6 +160,18 @@ public final class UploadService {
    if(!consumption.documentId().equals(documentId)||!consumption.actor().equals(caller.principal())||!repository.find(caller.tenant(),documentId).orElseThrow(UploadPolicy::hidden).versions().stream().anyMatch(v->v.versionId().equals(consumption.versionId())))throw UploadPolicy.hidden();
    policy.document(repository,caller,documentId,Action.CONTENT_REVIEW,true);return new ConsumedVersion(documentId,consumption.versionId());
   });
+ }
+ private static <T>T checked(GenericTempBudget budget,java.util.function.Supplier<T> query){budget.check();T result=query.get();budget.check();return result;}
+ private static void boundary(GenericTempBudget budget,Runnable action){budget.check();action.run();budget.check();}
+ private UUID locate(DocumentCaller caller,UUID upload,boolean hidden,GenericTempBudget budget){
+  policy.route(caller,Action.VERSION_APPEND,null,hidden,budget::check);
+  return checked(budget,()->transactions.execute(r->{budget.check();return owned(r.uploads(),caller,upload,budget).documentId();}));
+ }
+ private UploadSlot read(DocumentCaller caller,UUID document,UUID upload,boolean hidden,GenericTempBudget budget){
+  return checked(budget,()->transactions.execute(r->{budget.check();policy.document(r,caller,document,Action.VERSION_APPEND,hidden,budget::check);var slot=owned(r.uploads(),caller,upload,budget);policy.document(r,caller,document,Action.VERSION_APPEND,hidden,budget::check);budget.check();return slot;}));
+ }
+ private static UploadSlot owned(UploadRepository repository,DocumentCaller caller,UUID upload,GenericTempBudget budget){
+  var found=checked(budget,()->repository.slot(caller.tenant(),upload));var slot=found.orElseThrow(UploadPolicy::hidden);if(!slot.actor().equals(caller.principal())||!slot.tenant().equals(caller.tenant()))throw UploadPolicy.hidden();budget.check();return slot;
  }
  private UUID locate(DocumentCaller caller,UUID upload,boolean hidden){policy.route(caller,Action.VERSION_APPEND,null,hidden);return transactions.execute(r->owned(r.uploads(),caller,upload).documentId());}
  private UploadSlot read(DocumentCaller caller,UUID document,UUID upload,boolean hidden){return transactions.execute(r->{policy.document(r,caller,document,Action.VERSION_APPEND,hidden);var slot=owned(r.uploads(),caller,upload);policy.document(r,caller,document,Action.VERSION_APPEND,hidden);return slot;});}

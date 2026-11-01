@@ -261,6 +261,8 @@ public final class RealUploadPersistenceStorageAcceptance {
         final UploadStoragePort delegate;final CleanupStoragePort cleanup;Forwarding(UploadStoragePort delegate){this(delegate,(CleanupStoragePort)delegate);}Forwarding(UploadStoragePort delegate,CleanupStoragePort cleanup){this.delegate=delegate;this.cleanup=cleanup;}
         public ObjectIdentity put(ObjectKey key,Path path,long bytes,String hash){return delegate.put(key,path,bytes,hash);}
         public InputStream open(ObjectIdentity object){return delegate.open(object);}
+        public ObjectIdentity put(ObjectKey key,Path path,long bytes,String hash,GenericTempBudget budget){return delegate.put(key,path,bytes,hash,budget);}
+        public InputStream open(ObjectIdentity object,GenericTempBudget budget){return delegate.open(object,budget);}
         public ObjectIdentity copy(ObjectIdentity source,ObjectKey target){return delegate.copy(source,target);}
         public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase){return delegate.open(object,phase);}
         public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase){return delegate.copy(source,target,phase);}
@@ -327,6 +329,7 @@ public final class RealUploadPersistenceStorageAcceptance {
         final byte[] bytes=Files.readAllBytes(Path.of(required("DKP_144_PDF")));
         final S3UploadStorageAdapter actual;
         final FileVerificationWorkspace workspaces;
+        final org.documentknowledge.documentmanagement.adapters.outbound.generictemp.FileGenericTemp genericTemps;
         final S3CleanupStorageAdapter actualCleanup,deniedStorage;
         final Observed storage;
         final ClamAvScanAdapter scanner;
@@ -342,6 +345,7 @@ public final class RealUploadPersistenceStorageAcceptance {
                 java.nio.file.attribute.PosixFilePermissions.asFileAttribute(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")));
             Files.writeString(marker,"dkp-private-spool-v1\n",java.nio.charset.StandardCharsets.US_ASCII);
             workspaces=new FileVerificationWorkspace(temporary);
+            genericTemps=new org.documentknowledge.documentmanagement.adapters.outbound.generictemp.FileGenericTemp(temporary);
             actual=S3UploadStorageAdapter.connect(configuration(),workspaces);
             assertTrue(actual.ready(),"Real private TLS/scoped RustFS is mandatory");
             actualCleanup=S3CleanupStorageAdapter.connect(new S3UploadStorageAdapter.Configuration(URI.create(required("DKP_RUSTFS_COMPAT_ENDPOINT")),"us-east-1",authority.resolve("cleanup-access-key"),authority.resolve("cleanup-secret-key"),authority.resolve("ca.pem"),temporary));
@@ -426,12 +430,12 @@ public final class RealUploadPersistenceStorageAcceptance {
         }
         Instant postmaster(){try(var connection=admin.getConnection();var statement=connection.createStatement();var rows=statement.executeQuery("SELECT pg_postmaster_start_time()")){assertTrue(rows.next());return rows.getTimestamp(1).toInstant();}catch(SQLException unavailable){throw new AssertionError("Owned database is not yet ready",unavailable);}}
         S3UploadStorageAdapter.Configuration configuration(){return new S3UploadStorageAdapter.Configuration(URI.create(required("DKP_RUSTFS_COMPAT_ENDPOINT")),"us-east-1",authority.resolve("access-key"),authority.resolve("secret-key"),authority.resolve("ca.pem"),temporary);}
-        UploadService upload(UploadStoragePort storage){return new UploadService(store,grants,storage,scanner,inspector,clock,temporary,workspaces);}
+        UploadService upload(UploadStoragePort storage){return new UploadService(store,grants,storage,scanner,inspector,clock,temporary,workspaces,genericTemps);}
         UploadCleanupService cleanup(CleanupStoragePort storage){return new UploadCleanupService(store,storage,clock);}
         DocumentService documents(DocumentUnitOfWork uow){
             var delegation=new DelegationPolicyPort(){public AuthorityDecision targetGrant(Actor target,String tenant,Action action){throw new AssertionError("Unused delegation path");}public AuthorityDecision ceiling(Actor actor,String tenant,Action action){throw new AssertionError("Unused delegation path");}};
             var cursor=new DocumentCursorPort(){public PagePosition decode(String value,Actor actor,String tenant){throw new AssertionError("Unused cursor path");}public String encode(PagePosition value,Actor actor,String tenant){throw new AssertionError("Unused cursor path");}};
-            return new DocumentService(uow,grants,delegation,new ReceiptArtifactAuthority(uow,storage,clock,temporary),cursor,clock);
+            return new DocumentService(uow,grants,delegation,new ReceiptArtifactAuthority(uow,storage,clock,genericTemps),cursor,clock);
         }
         UUID quarantined(){UUID id=upload(storage).initialize(caller,UUID.randomUUID().toString(),document,doc().revision(),UploadFormat.PDF,bytes.length).uploadId();upload(storage).transfer(caller,id,"body",new ByteArrayInputStream(bytes));assertEquals(UploadState.QUARANTINED,slot(id).state());return id;}
         UUID failedKnownCopy(){UUID id=quarantined();var failed=new Forwarding(storage){@Override public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase){if(object.objectKey().bucket().equals("dkp-originals"))throw new DmFailure(503,"UNAVAILABLE");return super.open(object,phase);}};denied(503,()->upload(failed).complete(caller,id,"failed-copy"));assertTrue(slot(id).writerSettled());assertNotNull(slot(id).original());return id;}
@@ -450,7 +454,7 @@ public final class RealUploadPersistenceStorageAcceptance {
         long count(String table){if(!Set.of("upload_receipts","command_outcomes","upload_deletion_settlements","audit_facts","upload_receipt_consumptions").contains(table))throw new IllegalArgumentException();try(var c=runtime.getConnection();var sql=c.createStatement();var result=sql.executeQuery("SELECT count(*) FROM dm."+table)){result.next();return result.getLong(1);}catch(SQLException failure){throw new AssertionError("Public fixture count unavailable",failure);}}
         DeletionFence attempt(ObjectIdentity object){return new DeletionFence(UUID.randomUUID(),tenant,document,UUID.randomUUID(),object,UUID.randomUUID(),clock.instant(),FencePhase.DISPATCHED);}
         byte[] read(ObjectIdentity object)throws Exception{try(var input=storage.open(object)){return input.readAllBytes();}}
-        public void close()throws Exception{inspector.close();actual.close();workspaces.close();actualCleanup.close();deniedStorage.close();postgres.stop();try(var files=Files.walk(temporary)){for(Path path:files.sorted(Comparator.reverseOrder()).toList())Files.deleteIfExists(path);}}
+        public void close()throws Exception{inspector.close();actual.close();genericTemps.close();workspaces.close();actualCleanup.close();deniedStorage.close();postgres.stop();try(var files=Files.walk(temporary)){for(Path path:files.sorted(Comparator.reverseOrder()).toList())Files.deleteIfExists(path);}}
     }
     private static String required(String name){String value=System.getenv(name);if(value==null||value.isBlank())throw new IllegalArgumentException("Required real-provider profile missing: "+name);return value;}
     private static SSLContext tls(Path ca)throws Exception {

@@ -27,4 +27,16 @@ class NativeCapabilityForwardingTest {
    assertEquals(new ObjectIdentity(target,"version"),wrapper.copy(object,target,phase,workspace));assertEquals(2,calls.get());
   }
  }
+ @Test void nativeDecoratorPreservesExactTransferAndPreappendBudget()throws Exception{
+  var calls=new AtomicInteger();var forwarded=new java.util.concurrent.atomic.AtomicReference<GenericTempBudget>();
+  var delegate=(UploadStoragePort)Proxy.newProxyInstance(getClass().getClassLoader(),new Class<?>[]{UploadStoragePort.class},(p,m,a)->{
+   assertTrue(m.getName().equals("put")||m.getName().equals("open"));assertEquals(m.getName().equals("put")?5:2,a.length);
+   forwarded.set((GenericTempBudget)a[a.length-1]);calls.incrementAndGet();return m.getName().equals("open")?new ByteArrayInputStream(new byte[]{7}):null;
+  });
+  var cleanup=(CleanupStoragePort)Proxy.newProxyInstance(getClass().getClassLoader(),new Class<?>[]{CleanupStoragePort.class},(p,m,a)->{throw new AssertionError();});
+  var wrapper=new RealUploadPersistenceStorageAcceptance.Forwarding(delegate,cleanup);
+  var transfer=new GenericTempBudget(Clock.systemUTC(),GenericTempPort.Role.TRANSFER);wrapper.put(null,null,1,"hash",transfer);assertSame(transfer,forwarded.get());
+  var append=new GenericTempBudget(Clock.systemUTC(),GenericTempPort.Role.PREAPPEND);try(var input=wrapper.open(null,append)){assertEquals(7,input.read());}assertSame(append,forwarded.get());assertEquals(2,calls.get());
+ }
+
 }

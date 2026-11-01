@@ -12,8 +12,9 @@ import org.documentknowledge.identity.ResourceAuthorizationPort;
 public final class UploadServiceTestFactory {
  private UploadServiceTestFactory(){}
  public static UploadService create(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,
-     MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path root,VerificationWorkspacePort workspace){
-  return new UploadService(transactions,grants,storage,scanner,inspector,clock,root,workspace);
+     MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path root,VerificationWorkspacePort workspace){return create(transactions,grants,storage,scanner,inspector,clock,root,workspace,generic(root,clock));}
+ public static UploadService create(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path root,VerificationWorkspacePort workspace,GenericTempPort generic){
+  return new UploadService(transactions,grants,storage,scanner,inspector,clock,root,workspace,generic);
  }
  public static VerificationWorkspacePort workspace(Path root,Clock clock,Consumer<Path> cleanup){return new UnitWorkspace(root,clock,cleanup);}
  private static final class UnitWorkspace implements VerificationWorkspacePort {
@@ -40,6 +41,22 @@ public final class UploadServiceTestFactory {
     boolean absent(){return spool==null||!Files.exists(spool.file());}
     public void cleanup(CompleteBudget.Phase phase){phase.check();if(absent())return;if(attempted&&active)throw unavailable();attempted=true;if(sourceRole)cleanup.accept(spool.file());else UploadSupport.remove(spool.file());phase.check();}
    }
+  }
+ }
+ public static GenericTempPort generic(Path root,Clock clock){return new UnitGeneric(root,clock);}
+ private static final class UnitGeneric implements GenericTempPort {
+  final Path root;final Clock clock;boolean closed;final java.util.Set<UnitOperation> operations=new java.util.HashSet<>();
+  UnitGeneric(Path root,Clock clock){this.root=root;this.clock=clock;}
+  public synchronized Workspace reserve(Role role,Identity identity,GenericTempBudget budget){budget.check();if(closed)throw unavailable();for(var old:operations)if(old.ended&&old.spool!=null&&Files.exists(old.spool.file())){budget.check();UploadSupport.remove(old.spool.file());budget.check();}if(operations.stream().filter(o->o.role==role&&!o.ended).count()>=(role==Role.TRANSFER?10:2))throw new DmFailure(429,"QUOTA_EXCEEDED");var op=new UnitOperation(role,identity);operations.add(op);return op;}
+  public boolean ready(){return !closed;}
+  public void close(){closed=true;}
+  final class UnitOperation implements Workspace {
+   final Role role;final Identity identity;UploadSupport.Spool spool;boolean ended;
+   UnitOperation(Role role,Identity identity){this.role=role;this.identity=identity;}
+   public ArtifactFile write(InputStream input,GenericTempBudget budget){budget.check();if(ended||spool!=null)throw unavailable();spool=UploadSupport.spool(input,root,identity.declaredSize(),clock,role==Role.TRANSFER?300:60);budget.check();return new ArtifactFile(spool.file(),spool.size(),spool.sha256());}
+   public Use retain(GenericTempBudget budget){budget.check();if(ended)throw unavailable();return ()->{};}
+   public void finish(GenericTempBudget budget){budget.check();if(ended)throw unavailable();if(spool!=null)UploadSupport.remove(spool.file());budget.check();}
+   public void close(){ended=true;}
   }
  }
  private static DmFailure unavailable(){return new DmFailure(503,"UNAVAILABLE");}

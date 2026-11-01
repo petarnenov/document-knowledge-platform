@@ -177,3 +177,29 @@ tasks.register('verificationTempCoverageVerification', JacocoCoverageVerificatio
     }
 }
 tasks.named('check') { dependsOn 'verificationTempCoverageVerification' }
+
+// Separate floors prevent the shared lock or generic roles from hiding behind other adapters.
+['genericTemp': 'generictemp', 'processLock': 'temp'].each { label, packageName ->
+    tasks.register("${label}CoverageReport", JacocoReport) {
+        dependsOn tasks.named('test')
+        executionData layout.buildDirectory.file('jacoco/test.exec')
+        sourceDirectories.from sourceSets.main.allSource.srcDirs
+        classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+            include "org/documentknowledge/documentmanagement/adapters/outbound/${packageName}/**"
+        }
+        reports { xml.required = true; html.required = true }
+    }
+    tasks.register("${label}CoverageVerification", JacocoCoverageVerification) {
+        dependsOn tasks.named("${label}CoverageReport")
+        executionData layout.buildDirectory.file('jacoco/test.exec')
+        sourceDirectories.from sourceSets.main.allSource.srcDirs
+        classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+            include "org/documentknowledge/documentmanagement/adapters/outbound/${packageName}/**"
+        }
+        violationRules { rule {
+            limit { counter = 'LINE'; minimum = 0.75 }
+            limit { counter = 'BRANCH'; minimum = 0.75 }
+        } }
+    }
+    tasks.named('check') { dependsOn "${label}CoverageVerification" }
+}

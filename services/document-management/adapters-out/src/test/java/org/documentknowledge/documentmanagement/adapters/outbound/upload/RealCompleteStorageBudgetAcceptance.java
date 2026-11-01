@@ -23,6 +23,8 @@ public final class RealCompleteStorageBudgetAcceptance {
    UploadStoragePort delayed=new UploadStoragePort(){
     public ObjectIdentity put(ObjectKey key,java.nio.file.Path path,long size,String hash){return f.actual.put(key,path,size,hash);}
     public InputStream open(ObjectIdentity object){return f.actual.open(object);}
+    public ObjectIdentity put(ObjectKey key,java.nio.file.Path path,long size,String hash,GenericTempBudget budget){return f.actual.put(key,path,size,hash,budget);}
+    public InputStream open(ObjectIdentity object,GenericTempBudget budget){return f.actual.open(object,budget);}
     public ObjectIdentity copy(ObjectIdentity source,ObjectKey target){throw new AssertionError("COMPLETE must propagate its deadline capability");}
     public List<ObjectIdentity> versions(ObjectKey key){return f.actual.versions(key);}
     public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase){
@@ -37,7 +39,7 @@ public final class RealCompleteStorageBudgetAcceptance {
      }finally{copySettled.countDown();}
     }
    };
-   var app=new UploadService(f.store,f.grants,delayed,f.scanner,f.inspector,Clock.systemUTC(),f.temporary,f.workspaces);
+   var app=new UploadService(f.store,f.grants,delayed,f.scanner,f.inspector,Clock.systemUTC(),f.temporary,f.workspaces,f.genericTemps);
    long start=System.nanoTime();
    try{
     assertEquals(503,assertThrows(DmFailure.class,()->app.complete(f.caller,upload,"cumulative-storage-deadline")).status());

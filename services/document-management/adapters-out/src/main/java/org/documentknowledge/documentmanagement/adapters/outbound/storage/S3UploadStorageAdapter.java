@@ -150,16 +150,17 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
 
     @Override
-    public ObjectIdentity put(ObjectKey key, Path source, long sizeBytes, String sha256) {return put(key,source,sizeBytes,sha256,null);}
-    private ObjectIdentity put(ObjectKey key,Path source,long sizeBytes,String sha256,CompleteBudget.Phase phase) {
+    public ObjectIdentity put(ObjectKey key, Path source, long sizeBytes, String sha256) {return putBounded(key,source,sizeBytes,sha256,null);}
+    private ObjectIdentity putBounded(ObjectKey key,Path source,long sizeBytes,String sha256,StorageBudget phase) {
         try {
+            if(phase!=null)phase.check();
             UploadModels.size(sizeBytes);
             UploadModels.hash(sha256);
             Path normalized = source.toAbsolutePath().normalize();
             if (!source.isAbsolute() || !source.equals(normalized) || !spoolRoot.equals(source.getParent())
                     || !Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) throw unavailable();
             Digest before;
-            try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS)) {
+            try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS);var abort=abortInput(input,phase)) {
                 before = digest(input,phase);
             }
             if (before.size() != sizeBytes || !before.sha256().equals(sha256)) throw unavailable();
@@ -170,12 +171,12 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
             if(phase!=null){var remaining=phase.remaining();builder.overrideConfiguration(c->c.apiCallTimeout(remaining).apiCallAttemptTimeout(remaining));}
             var request=builder.build();
             ObjectIdentity object;
-            try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS)) {
+            try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS);var abort=abortInput(input,phase)) {
                 var response = client.putObject(request, RequestBody.fromInputStream(input, sizeBytes));
                 object = identity(key, response.versionId());
             }
             // Stored checksums alone are insufficient: verify bytes of the exact returned version.
-            try (InputStream input = open(object,phase)) {
+            try (InputStream input = openBounded(object,phase)) {
                 Digest readback = digest(input,phase);
                 if (!before.equals(readback)) throw unavailable();
             }
@@ -186,10 +187,14 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
 
     @Override
-    public InputStream open(ObjectIdentity object) {return open(object,null);}
-    @Override public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase) {
+    public InputStream open(ObjectIdentity object) {return openBounded(object,null);}
+    @Override public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase) {return openBounded(object,wrap(phase));}
+    @Override public InputStream open(ObjectIdentity object,org.documentknowledge.documentmanagement.application.upload.GenericTempBudget budget){return openBounded(object,wrap(Objects.requireNonNull(budget)));}
+    @Override public ObjectIdentity put(ObjectKey key,Path source,long size,String hash,org.documentknowledge.documentmanagement.application.upload.GenericTempBudget budget){return putBounded(key,source,size,hash,wrap(Objects.requireNonNull(budget)));}
+    private InputStream openBounded(ObjectIdentity object,StorageBudget phase) {
         ResponseInputStream<GetObjectResponse> input = null;
         try {
+            if(phase!=null)phase.check();
             var key = object.objectKey();
             var builder=GetObjectRequest.builder().bucket(key.bucket()).key(key.key()).versionId(object.versionId()).checksumMode(ChecksumMode.ENABLED);
             if(phase!=null){var remaining=phase.remaining();builder.overrideConfiguration(c->c.apiCallTimeout(remaining).apiCallAttemptTimeout(remaining));}
@@ -217,7 +222,7 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
             org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.ArtifactFile copied;
             try(var input=open(source,phase);var abort=phase.onCancel(()->{try{input.close();}catch(IOException ignored){}})){copied=scratch.write(input,phase);}
             workspaces.check(workspace,phase);
-            try(var use=workspace.retain(phase)){known=put(target,copied.path(),copied.size(),copied.sha256(),phase);return known;}
+            try(var use=workspace.retain(phase)){known=putBounded(target,copied.path(),copied.size(),copied.sha256(),wrap(phase));return known;}
         }catch(Exception failure){throw unavailable();}
         finally{try{scratch.cleanup(phase);}catch(RuntimeException cleanupFailed){if(known==null)throw cleanupFailed;/* Known remote identity is settlement-only; retained scratch blocks READBACK and receipt. */}}
     }
@@ -254,7 +259,7 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
     private record Digest(long size, String sha256) { }
     private static Digest digest(InputStream input) throws Exception {return digest(input,null);}
-    private static Digest digest(InputStream input,CompleteBudget.Phase phase) throws Exception {
+    private static Digest digest(InputStream input,StorageBudget phase) throws Exception {
         var digest = MessageDigest.getInstance("SHA-256");
         long total = 0;
         byte[] buffer = new byte[65536];
@@ -271,11 +276,17 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     private static DmFailure unavailable() { return new DmFailure(503, "UNAVAILABLE"); }
     @Override public void close() { client.close(); }
 
+    private static Cancellation abortInput(InputStream input,StorageBudget phase){return phase==null?null:phase.onCancel(()->{try{input.close();}catch(IOException ignored){}});}
+    private interface Cancellation extends AutoCloseable { @Override void close(); }
+    private interface StorageBudget {void check();Duration remaining();Cancellation onCancel(Runnable hook);}
+    private static StorageBudget wrap(CompleteBudget.Phase phase){if(phase==null)return null;return new StorageBudget(){public void check(){phase.check();}public Duration remaining(){return phase.remaining();}public Cancellation onCancel(Runnable hook){var registration=phase.onCancel(hook);return registration::close;}};}
+    private static StorageBudget wrap(org.documentknowledge.documentmanagement.application.upload.GenericTempBudget budget){return new StorageBudget(){public void check(){budget.check();}public Duration remaining(){Duration left=budget.remaining();return left.compareTo(Duration.ofSeconds(60))<0?left:Duration.ofSeconds(60);}public Cancellation onCancel(Runnable hook){var registration=budget.onCancel(hook);return registration::close;}};}
+
     private static final class ExactLengthStream extends FilterInputStream {
         private final long expected;
-        private final CompleteBudget.Phase phase;private final CompleteBudget.Phase.Registration cancellation;
+        private final StorageBudget phase;private final Cancellation cancellation;
         private long read;
-        ExactLengthStream(ResponseInputStream<GetObjectResponse> input,long expected,CompleteBudget.Phase phase) {super(input);this.expected=expected;this.phase=phase;cancellation=phase==null?null:phase.onCancel(input::abort);}
+        ExactLengthStream(ResponseInputStream<GetObjectResponse> input,long expected,StorageBudget phase) {super(input);this.expected=expected;this.phase=phase;cancellation=phase==null?null:phase.onCancel(input::abort);}
         @Override public void close()throws IOException {try{if(phase==null)super.close();else ((ResponseInputStream<?>)in).abort();}finally{if(cancellation!=null)cancellation.close();}}
         @Override public int read() throws IOException {
             if(phase!=null)phase.check();

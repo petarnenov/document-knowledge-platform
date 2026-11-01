@@ -48,9 +48,9 @@ public final class DocumentFactory {
         return new Bindings(transactions,grants,delegation,cursors,new UploadRuntime(environment,Clock.systemUTC()));
     }
     @Singleton
-    public DocumentService documents(Bindings bindings){return new DocumentService(bindings.transactions(),bindings.grants(),bindings.delegation(),new ReceiptArtifactAuthority(bindings.transactions(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool()),bindings.cursors(),Clock.systemUTC());}
+    public DocumentService documents(Bindings bindings){return new DocumentService(bindings.transactions(),bindings.grants(),bindings.delegation(),new ReceiptArtifactAuthority(bindings.transactions(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().generic()),bindings.cursors(),Clock.systemUTC());}
     @Singleton
-    public UploadService uploads(Bindings bindings){return new UploadService(bindings.transactions(),bindings.grants(),bindings.uploads(),bindings.uploads(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool(),bindings.uploads().verification());}
+    public UploadService uploads(Bindings bindings){return new UploadService(bindings.transactions(),bindings.grants(),bindings.uploads(),bindings.uploads(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool(),bindings.uploads().verification(),bindings.uploads().generic());}
     @Singleton
     @Bean(preDestroy="close")
     public ContentService content(Bindings bindings){return new ContentService(bindings.transactions(),bindings.grants(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool());}

@@ -56,6 +56,27 @@ class S3UploadStorageAdapterTest {
         assertArrayEquals(BYTES,adapter((m,a)->body(BYTES,"exact-version",BYTES.length)).open(OBJECT).readAllBytes());
     }
 
+    @Test void genericRoleBudgetsPreserveSixtySecondTransportCapExactReadbackAndPerInvocationAbort()throws Exception {
+        for(var role:GenericTempPort.Role.values()){
+            var budget=new GenericTempBudget(java.time.Clock.systemUTC(),role);var calls=new AtomicInteger();var abort=new java.util.concurrent.CountDownLatch(1);var closes=new AtomicInteger();
+            var adapter=adapter((method,args)->{
+                if(method.equals("close")){closes.incrementAndGet();return null;}
+                calls.incrementAndGet();var request=(software.amazon.awssdk.awscore.AwsRequest)args[0];var remaining=request.overrideConfiguration().orElseThrow().apiCallTimeout().orElseThrow();assertTrue(remaining.compareTo(java.time.Duration.ofSeconds(60))<=0);assertTrue(remaining.compareTo(java.time.Duration.ZERO)>0);
+                if(method.equals("putObject"))return PutObjectResponse.builder().versionId("exact-version").build();
+                return new ResponseInputStream<>(GetObjectResponse.builder().versionId("exact-version").contentLength((long)BYTES.length).build(),AbortableInputStream.create(new ByteArrayInputStream(BYTES),abort::countDown));
+            });
+            assertEquals(OBJECT,adapter.put(QUARANTINE,source(BYTES),BYTES.length,hash(BYTES),budget));
+            try(var input=adapter.open(OBJECT,budget)){assertEquals(BYTES[0],input.read());budget.cancel();assertTrue(abort.await(2,java.util.concurrent.TimeUnit.SECONDS));assertThrows(DmFailure.class,input::read);}
+            assertEquals(3,calls.get());assertEquals(0,closes.get());
+        }
+    }
+    @Test void revokedGenericBudgetCannotDispatchPutOrGetAndDefaultPortNeverFallsBack()throws Exception {
+        var budget=new GenericTempBudget(java.time.Clock.systemUTC(),GenericTempPort.Role.TRANSFER);budget.cancel();var calls=new AtomicInteger();var adapter=adapter((method,args)->{calls.incrementAndGet();throw new AssertionError("No expired dispatch");});
+        assertUnavailable(()->adapter.put(QUARANTINE,source(BYTES),BYTES.length,hash(BYTES),budget));assertUnavailable(()->adapter.open(OBJECT,budget));assertEquals(0,calls.get());
+        UploadStoragePort legacy=new UploadStoragePort(){public ObjectIdentity put(ObjectKey k,Path p,long n,String h){throw new AssertionError("No fallback");}public InputStream open(ObjectIdentity o){throw new AssertionError("No fallback");}public ObjectIdentity copy(ObjectIdentity a,ObjectKey b){throw new AssertionError();}public List<ObjectIdentity> versions(ObjectKey k){throw new AssertionError();}};
+        var live=new GenericTempBudget(java.time.Clock.systemUTC(),GenericTempPort.Role.PREAPPEND);assertUnavailable(()->legacy.put(QUARANTINE,source(BYTES),BYTES.length,hash(BYTES),live));assertUnavailable(()->legacy.open(OBJECT,live));
+    }
+
     @Test void readinessRequiresBothBucketsVersionedAndFailsClosedWithoutWrites() {
         var buckets = new java.util.ArrayList<String>();
         var adapter = adapter((method, args) -> {

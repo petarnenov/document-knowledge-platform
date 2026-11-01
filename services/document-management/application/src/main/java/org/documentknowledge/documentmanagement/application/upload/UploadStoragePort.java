@@ -9,6 +9,9 @@ public interface UploadStoragePort {
  ObjectIdentity put(ObjectKey key,Path source,long sizeBytes,String sha256);
  InputStream open(ObjectIdentity object);
  ObjectIdentity copy(ObjectIdentity source,ObjectKey target);
+ /** Generic role budgets must be forwarded exactly; no path-only legacy fallback. */
+ default ObjectIdentity put(ObjectKey key,Path source,long sizeBytes,String sha256,GenericTempBudget budget){throw new org.documentknowledge.documentmanagement.application.DmFailure(503,"UNAVAILABLE");}
+ default InputStream open(ObjectIdentity object,GenericTempBudget budget){throw new org.documentknowledge.documentmanagement.application.DmFailure(503,"UNAVAILABLE");}
  /** Deadline-aware COMPLETE operations; implementations abort only their own invocation. */
  default InputStream open(ObjectIdentity object,CompleteBudget.Phase phase){phase.check();var result=open(object);try{phase.check();return result;}catch(RuntimeException failure){try{result.close();}catch(java.io.IOException ignored){}throw failure;}}
  default ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase){phase.check();return copy(source,target);}
