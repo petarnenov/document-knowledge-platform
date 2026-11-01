@@ -20,3 +20,7 @@ Fingerprint proposal259 uses [RFC8785 JSON Canonicalization Scheme](https://www.
 ## Follow-up prerequisite evidence — issue 379 (2026-11-01)
 
 [Candidate provenance and shared conformance packet](research-379/README.md) adds verified Maven/registry metadata and isolated JDK25 research probes. Unlike the earlier Python HTTPS attempt, verified-TLS curl succeeded. Candidate dependencies remain unselected: the raw graph has advisory matches and Java canonicalizer1.1 fails seven raw-input rejection cases. No approved requirement, implementation prerequisite or production approval is changed.
+
+## Advisory convergence follow-up — #392
+
+[Research packet](research-392/README.md), independently reviewed under [#397](https://github.com/petarnenov/document-knowledge-platform/issues/397), records a proposed54-artifact/43-production graph and a zero-match OSV snapshot after triaging all24 original matches. It does not approve production pins or prove server/history/platform interoperability. Canonicalizer selection [#393](https://github.com/petarnenov/document-knowledge-platform/issues/393), actual all-service/vendor Java25/PostgreSQL18.6 compatibility, image provenance/security and the remaining BP05 gates remain open.

@@ -22,3 +22,9 @@
 - [ ] 3.3 Close only verified issues, save resumable evidence and invoke actual current-session /compact if available, else record pending. Continue full-project queue; archive only after verified package completion.
 
 Review253 passed all three issue259 protocol corrections. Root development specification approval is recorded in approval.md. Task1.5 remains unchecked because the reviewed specification PR, final-head CI and dev integration are pending. No implementation task is started.
+
+## Runtime prerequisite follow-ups
+
+- [ ] [#379](https://github.com/petarnenov/document-knowledge-platform/issues/379): resolve runtime candidate selection before production dependency or provider implementation; published research379 alone is not selection approval.
+- [ ] [#392](https://github.com/petarnenov/document-knowledge-platform/issues/392): reviewed advisory convergence research (#397) establishes a proposed graph and bounded Java25/payload checks only; production pin compatibility/security selection remains pending.
+- [ ] [#393](https://github.com/petarnenov/document-knowledge-platform/issues/393): establish maintained full raw-input RFC8785 conformance; no canonicalizer or polyglot runtime is selected by research.
