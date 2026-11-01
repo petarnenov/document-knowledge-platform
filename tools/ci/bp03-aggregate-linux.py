@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import platform
 import re
+import subprocess
 import tempfile
 import uuid
 import xml.etree.ElementTree as ET
@@ -134,13 +135,19 @@ def run(source, evidence):
             owned(identifier, run_id, image)
             status = common.logged(['docker', 'start', '--attach', identifier], evidence / 'check.private.log', 900)
             state = owned(identifier, run_id, image)['State']
+            record['checkExitCode'] = status
+            record['reportCopyErrors'] = []
             for layer in LAYERS:
                 destination = evidence / 'reports' / layer
                 destination.mkdir(parents=True)
                 for what in ('test-results', 'reports') if layer != 'application' else ('test-results',):
-                    common.command(['docker', 'cp', identifier + ':/workspace/services/browser-bff/' + layer + '/build/' + what,
-                                    str(destination)])
-            if status or state['Running'] or state['ExitCode']:
+                    try:
+                        common.command(['docker', 'cp', identifier + ':/workspace/services/browser-bff/' + layer + '/build/' + what,
+                                        str(destination)])
+                    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as error:
+                        # Early failed layers may have no reports; still retain every available layer.
+                        record['reportCopyErrors'].append(dict(layer=layer, report=what, errorType=type(error).__name__))
+            if status or state['Running'] or state['ExitCode'] or record['reportCopyErrors']:
                 raise ValueError('Affected BFF check failed')
             if 'openjdk version "25.0.5"' not in (evidence / 'check.private.log').read_text():
                 raise ValueError('Pinned executed Java version required')

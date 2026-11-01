@@ -73,6 +73,7 @@ class ContextGatewayTest {
                 server.createContext("/api/v1/security/context", exchange -> {
                     exchange.getResponseHeaders().set("Content-Type", "application/json");
                     exchange.sendResponseHeaders(status, 100);
+                    exchange.getResponseBody().flush();
                     try { release.await(5, java.util.concurrent.TimeUnit.SECONDS); }
                     catch (InterruptedException error) { Thread.currentThread().interrupt(); }
                     finally { exchange.close(); }

@@ -218,7 +218,7 @@ class OwnedJdkTransportTest {
             var client = owner.newClient();
             var release = new CountDownLatch(1); var headers = new CountDownLatch(1);
             fixture.server.createContext("/streaming", incoming -> {
-                try { incoming.sendResponseHeaders(200, 100); headers.countDown(); release.await(); }
+                try { incoming.sendResponseHeaders(200, 100); incoming.getResponseBody().write(42); incoming.getResponseBody().flush(); headers.countDown(); release.await(); }
                 catch (InterruptedException error) { Thread.currentThread().interrupt(); }
                 finally { incoming.close(); }
             });
@@ -226,6 +226,7 @@ class OwnedJdkTransportTest {
                 var exchange = owner.reserve(client, 3000);
                 var response = exchange.send(fixture.request("/streaming"));
                 exchange.handoff(); exchange.close();
+                assertEquals(42, response.body().read(), "Genuine wire prefix precedes the blocked read");
                 var reading = readers.submit(() -> { try { return response.body().read(); } catch (IOException expected) { return -1; } });
                 assertTrue(headers.await(1, TimeUnit.SECONDS));
                 await(() -> response.body().snapshot().activeReads() == 1);

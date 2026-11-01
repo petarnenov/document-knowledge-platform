@@ -3,6 +3,7 @@ import io
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -127,18 +128,20 @@ class AggregateLinuxTest(unittest.TestCase):
             if args[:2] == ['docker', 'cp']:
                 parts = args[2].split('/')
                 layer, what = parts[-3], parts[-1]
+                if failure in ('early-reports', 'copy-missing') and layer == 'bootstrap':
+                    raise subprocess.CalledProcessError(1, args, output=b'PRIVATE_SENTINEL')
                 shutil.copytree(self.fixture / 'reports' / layer / what, Path(args[3]) / what)
             return b''
         def logged(args, path, timeout):
             path.write_text(self.log if failure != 'java' else self.log.replace('25.0.5', '25.0.4'))
-            return int(failure == ('build' if args[1] == 'build' else 'check'))
+            return int(failure == ('build' if args[1] == 'build' else 'check') or failure == 'early-reports' and args[1] != 'build')
         state = dict(State=dict(Running=False, ExitCode=0))
         with mock.patch.object(m.common, 'local_daemon'), mock.patch.object(m.common, 'snapshot', return_value=binding), \
              mock.patch.object(m, 'runner_binding'), \
              mock.patch.object(m.common, 'command', side_effect=command), \
              mock.patch.object(m.common, 'logged', side_effect=logged), \
              mock.patch.object(m.common, 'inspect', return_value=image), mock.patch.object(m, 'owned', return_value=state):
-            if failure in ('build', 'check', 'java', 'id', 'create'):
+            if failure in ('build', 'check', 'java', 'id', 'create', 'early-reports', 'copy-missing'):
                 with self.assertRaises((ValueError, TimeoutError)):
                     m.run(self.source, evidence)
                 result = json.loads((evidence / 'receipt.json').read_text())
@@ -168,6 +171,19 @@ class AggregateLinuxTest(unittest.TestCase):
             (evidence / 'check.private.log').write_text('changed')
             with self.assertRaises(ValueError):
                 m.validate(self.source, evidence)
+
+    def test_early_missing_reports_preserve_failed_layer_evidence_and_cannot_pass(self):
+        for failure in ('early-reports', 'copy-missing'):
+            with self.subTest(failure=failure):
+                result, calls, evidence, _ = self.fake_run(failure)
+                self.assertEqual('FAIL', result['result'])
+                self.assertEqual('REMOVED', result['cleanup'])
+                self.assertEqual(1 if failure == 'early-reports' else 0, result['checkExitCode'])
+                self.assertEqual(2, len(result['reportCopyErrors']))
+                self.assertTrue((evidence / 'reports/adapters-out/test-results/test/TEST-example.xml').is_file())
+                self.assertTrue((evidence / 'reports/application/test-results/test/TEST-example.xml').is_file())
+                self.assertNotIn('PRIVATE_SENTINEL', json.dumps(result))
+                shutil.rmtree(evidence)
 
     def test_executed_controller_cannot_verify_different_runner_source(self):
         directory = self.source / 'tools/ci'
