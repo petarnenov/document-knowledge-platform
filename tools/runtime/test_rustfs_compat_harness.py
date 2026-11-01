@@ -105,6 +105,89 @@ class RunnerPortabilityTests(unittest.TestCase):
             self.assertTrue(all(p.stat().st_mode&0o777==0o600 for p in directory.rglob('*') if p.is_file()))
             self.assertTrue(all(module.IMAGE in a for a in calls if a[:3]==('docker','run','-d')))
 
+    def test_native_bootstrap_requires_both_readiness_probes_before_first_write(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / 'fresh'
+            observed = []
+            native = []
+            pending = {'/health/ready': [b'403', b'404', b'200', b'200'],
+                       '/minio/health/cluster': [b'503', b'200']}
+            latest = {}
+            def command(*args, **kwargs):
+                if args[0] == 'openssl':
+                    for option in ('-out', '-keyout'):
+                        if option in args:
+                            Path(args[args.index(option) + 1]).write_text('synthetic-test-material')
+                if args[:2] == ('docker', 'inspect'):
+                    return subprocess.CompletedProcess(args, 0, json.dumps([{'NetworkSettings': {'Ports': {'9000/tcp': [{'HostPort': '19900'}]}}}]).encode())
+                if args[0] == 'curl':
+                    self.assertIn('--cacert', args)
+                    self.assertNotIn('--insecure', args)
+                    path = args[-1].removeprefix('https://localhost:19900')
+                    observed.append(path)
+                    values = pending.get(path, [b'403'])
+                    status = values.pop(0) if len(values) > 1 else values[0]
+                    latest[path] = status
+                    return subprocess.CompletedProcess(args, 0, status)
+                return subprocess.CompletedProcess(args, 0, b'')
+            def write(*args):
+                self.assertEqual(b'200', latest.get('/health/ready'))
+                self.assertEqual(b'200', latest.get('/minio/health/cluster'))
+                native.append(args)
+            with patch.object(module, 'run', side_effect=command), patch.object(module, 'curl', side_effect=write), patch.object(module.time, 'sleep'):
+                module.prepare(directory)
+            self.assertTrue(native)
+            self.assertNotIn('/health', observed)
+            self.assertGreaterEqual(observed.count('/health/ready'), 4)
+            self.assertEqual(2, observed.count('/minio/health/cluster'))
+
+    def test_readiness_failure_and_transport_errors_cannot_dispatch_or_expose_diagnostics(self):
+        cases = [(0, b'403'), (0, b'404'), (0, b'503'), (1, b'200'),
+                 (0, b'private-response'), OSError('private-response'),
+                 subprocess.TimeoutExpired(['private-response'], 2)]
+        for result in cases:
+            with self.subTest(result=type(result).__name__):
+                now = [0.0]
+                calls = []
+                def command(*args, **kwargs):
+                    calls.append(args)
+                    now[0] += 0.1
+                    self.assertEqual('curl', args[0])
+                    self.assertIn('--disable', args)
+                    self.assertIn('--proto', args)
+                    self.assertIn('--cacert', args)
+                    self.assertNotIn('--config', args)
+                    self.assertNotIn('--insecure', args)
+                    self.assertLessEqual(kwargs['timeout'], 2)
+                    if isinstance(result, Exception):
+                        raise result
+                    return subprocess.CompletedProcess(args, result[0], result[1])
+                with patch.object(module.time, 'monotonic', side_effect=lambda: now[0]), patch.object(module.time, 'sleep', side_effect=lambda n: now.__setitem__(0, now[0] + n)), patch.object(module, 'run', side_effect=command):
+                    with self.assertRaisesRegex(RuntimeError, 'no bootstrap write dispatched') as failure:
+                        module.wait_ready(Path('/owned-private'), 'https://localhost:19900')
+                self.assertNotIn('private-response', str(failure.exception))
+                self.assertLessEqual(now[0], 60.1)
+                self.assertTrue(calls)
+                self.assertTrue(all(c[-1].endswith('/health/ready') for c in calls))
+
+    def test_readiness_and_write_health_must_succeed_within_same_fixed_deadline(self):
+        for advances in ([60.0], [1.0, 59.0], [1.0, 0.0]):
+            now = [0.0]
+            calls = []
+            def command(*args, **kwargs):
+                calls.append(args[-1])
+                now[0] += advances[min(len(calls) - 1, len(advances) - 1)]
+                status = b'503' if advances == [1.0, 0.0] and args[-1].endswith('/minio/health/cluster') else b'200'
+                return subprocess.CompletedProcess(args, 0, status)
+            with patch.object(module.time, 'monotonic', side_effect=lambda: now[0]), patch.object(module.time, 'sleep', side_effect=lambda n: now.__setitem__(0, now[0] + n)), patch.object(module, 'run', side_effect=command):
+                with self.assertRaisesRegex(RuntimeError, 'no bootstrap write dispatched'):
+                    module.wait_ready(Path('/owned-private'), 'https://localhost:19900')
+            self.assertLessEqual(now[0], 60)
+            if len(advances) == 1:
+                self.assertEqual(1, len(calls))
+            else:
+                self.assertTrue(any(c.endswith('/minio/health/cluster') for c in calls))
+
     def test_private_curl_parser_failures_remain_failures_without_secret_diagnostics(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory=Path(temporary);(directory/'ca.pem').write_text('public-ca');(directory/'root-curl.private').write_text('private-root-config')
