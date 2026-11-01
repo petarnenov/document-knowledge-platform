@@ -184,4 +184,27 @@ class FileVerificationWorkspaceTest {
         public int read(){if(remaining--<=0)return -1;return 0;}
         public int read(byte[] bytes,int start,int length){if(remaining==0)return -1;int count=(int)Math.min(remaining,length);Arrays.fill(bytes,start,start+count,(byte)0);remaining-=count;return count;}
     }
+    @Test void recoveryBudgetAndWorkerAreOwnedBeforeInitialUnlockAndPendingRecoveryRejectsPublishers()throws Exception {
+        try(var p=phase();var workspace=manager.reserve(identity(7),p)){workspace.source().write(new Repeated(7),p);}
+        manager.close();var deleting=new CountDownLatch(1);var releaseDelete=new CountDownLatch(1);
+        manager=new FileVerificationWorkspace(root,files,path->{deleting.countDown();awaitEvaluation(releaseDelete);Files.delete(path);},1000);
+        var field=FileVerificationWorkspace.class.getDeclaredField("gate");field.setAccessible(true);var gap=new EvaluationGap();field.set(manager,gap);
+        var answer=new CompletableFuture<Boolean>();var probe=Thread.ofVirtual().start(()->{gap.target=Thread.currentThread();try{answer.complete(manager.ready());}catch(Throwable failure){answer.completeExceptionally(failure);}});
+        try {
+            assertTrue(gap.unlocked.await(2,TimeUnit.SECONDS));assertTrue(deleting.await(2,TimeUnit.SECONDS));
+            for(String name:new String[]{"recovery","recoveryWorker"}){var state=FileVerificationWorkspace.class.getDeclaredField(name);state.setAccessible(true);assertNotNull(state.get(manager),"Budget/worker exist BEFORE initial gate unlock");}
+            try(var p=phase()){unavailable(()->manager.reserve(identity(1),p));}
+            gap.resume.countDown();assertFalse(answer.get(2,TimeUnit.SECONDS));assertEquals(7,payloadBytes());
+            manager.close();assertTrue(child("blocked").contains("locked=true"));
+        }finally{gap.resume.countDown();releaseDelete.countDown();probe.join(3000);}
+        assertFalse(probe.isAlive());
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(5),()->{while(true)try{manager=open();break;}catch(DmFailure active){Thread.onSpinWait();}});
+        assertTrue(manager.ready());assertEquals(0,payloadBytes());
+    }
+    private static void awaitEvaluation(CountDownLatch latch){while(latch.getCount()>0)try{latch.await();}catch(InterruptedException ignored){}}
+    private static final class EvaluationGap extends java.util.concurrent.locks.ReentrantLock {
+        volatile Thread target;final java.util.concurrent.atomic.AtomicBoolean once=new java.util.concurrent.atomic.AtomicBoolean(true);final CountDownLatch unlocked=new CountDownLatch(1),resume=new CountDownLatch(1);
+        @Override public void unlock(){super.unlock();if(Thread.currentThread()==target&&once.compareAndSet(true,false)){unlocked.countDown();awaitEvaluation(resume);}}
+    }
+
 }

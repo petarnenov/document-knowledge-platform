@@ -88,21 +88,21 @@ public final class UploadService {
  }
  private CompleteReceipt completeBounded(DocumentCaller caller,UUID uploadId,String key,CompleteBudget budget){
   try(var preparation=budget.phase(CompleteBudget.Kind.STORAGE)){
-  UUID document=locate(caller,uploadId,false);var command=UploadSupport.command(caller,"upload.complete",uploadId.toString(),key);String fingerprint=UploadSupport.fingerprint("complete");
+  UUID document=locate(caller,uploadId,false,preparation);read(caller,document,uploadId,false,preparation);var command=UploadSupport.command(caller,"upload.complete",uploadId.toString(),key);String fingerprint=UploadSupport.fingerprint("complete");
   preparation.check();if(!verification.tryAcquire())throw new DmFailure(429,"QUOTA_EXCEEDED");
   UploadSlot claimed=null;
   try {
-   preparation.check();claimed=transactions.execute(repository->{preparation.check();repository.lockCommand(command);var u=repository.uploads();u.lockAccounts(caller.tenant());policy.document(repository,caller,document,Action.VERSION_APPEND,false);
-    var slot=owned(u,caller,uploadId);live(slot);var previous=u.command(command);
-    if(previous.isPresent()){same(previous.get(),fingerprint);if(u.consumption(caller.tenant(),previous.get().receiptId()).isPresent())throw new DmFailure(409,"RECEIPT_CONSUMED");policy.document(repository,caller,document,Action.VERSION_APPEND,false);return slot;}
+   preparation.check();claimed=transactions.execute(repository->{preparation.check();boundary(preparation,()->repository.lockCommand(command));var u=repository.uploads();checked(preparation,()->u.lockAccounts(caller.tenant()));policy.document(repository,caller,document,Action.VERSION_APPEND,false,preparation::check);
+    var slot=owned(u,caller,uploadId,preparation);live(slot);var previous=checked(preparation,()->u.command(command));
+    if(previous.isPresent()){same(previous.get(),fingerprint);if(checked(preparation,()->u.consumption(caller.tenant(),previous.get().receiptId())).isPresent())throw new DmFailure(409,"RECEIPT_CONSUMED");policy.document(repository,caller,document,Action.VERSION_APPEND,false,preparation::check);preparation.check();return slot;}
     boolean unresolved=slot.possibleOriginal()!=null&&!(slot.writerSettled()&&slot.copyCleanupConfirmed());
     if(unresolved&&(slot.failureCode()!=null||slot.leaseUntil()!=null&&!now().isBefore(slot.leaseUntil())))throw UploadPolicy.unavailable();
     if(slot.state()!=UploadState.QUARANTINED||slot.verificationAttempts()>=3)throw conflict();
     if(unresolved)throw UploadPolicy.unavailable();
-    var next=slot.verifying(UUID.randomUUID(),lease(slot,300));preparation.check();u.updateSlot(next,slot.revision());preparation.check();return next;
+    var next=slot.verifying(UUID.randomUUID(),lease(slot,300));boundary(preparation,()->u.updateSlot(next,slot.revision()));return next;
    });
-   preparation.close();budget.check();
-   if(claimed.state()==UploadState.VERIFIED){try(var replay=budget.phase(CompleteBudget.Kind.STORAGE)){var receipt=transactions.execute(r->{replay.check();policy.document(r,caller,document,Action.VERSION_APPEND,false);var u=r.uploads();var value=u.receiptForUpload(caller.tenant(),uploadId).orElseThrow(UploadPolicy::unavailable);if(u.consumption(caller.tenant(),value.receiptId()).isPresent())throw new DmFailure(409,"RECEIPT_CONSUMED");policy.document(r,caller,document,Action.VERSION_APPEND,false);replay.check();return value;});replay.check();return new CompleteReceipt(uploadId,receipt.receiptId());}}
+   preparation.check();preparation.close();budget.check();
+   if(claimed.state()==UploadState.VERIFIED){try(var replay=budget.phase(CompleteBudget.Kind.STORAGE)){replay.check();var receipt=transactions.execute(r->{replay.check();policy.document(r,caller,document,Action.VERSION_APPEND,false,replay::check);var u=r.uploads();var value=checked(replay,()->u.receiptForUpload(caller.tenant(),uploadId)).orElseThrow(UploadPolicy::unavailable);if(checked(replay,()->u.consumption(caller.tenant(),value.receiptId())).isPresent())throw new DmFailure(409,"RECEIPT_CONSUMED");policy.document(r,caller,document,Action.VERSION_APPEND,false,replay::check);replay.check();return value;});replay.check();return new CompleteReceipt(uploadId,receipt.receiptId());}}
    UploadSlot lease=claimed;
    try(var workspace=reserveWorkspace(caller,claimed,budget)) {
    boolean cleanupAttempted=false;
@@ -114,8 +114,9 @@ public final class UploadService {
     budget.check();
     try(var copying=budget.phase(CompleteBudget.Kind.STORAGE)){
     ObjectKey target=UploadSupport.key(caller.tenant(),document,UUID.randomUUID(),true);
-    transactions.execute(repository->{copying.check();var u=repository.uploads();u.lockAccounts(caller.tenant());policy.document(repository,caller,document,Action.VERSION_APPEND,false);var current=owned(u,caller,uploadId);sameLease(current,lease);live(current);copying.check();u.updateSlot(current.possibleCopy(target),current.revision());copying.check();return null;});
-    ObjectIdentity original=storage.copy(claimed.quarantine(),target,copying,workspace);if(original==null||!original.objectKey().equals(target))throw UploadPolicy.unavailable();
+    copying.check();transactions.execute(repository->{copying.check();var u=repository.uploads();checked(copying,()->u.lockAccounts(caller.tenant()));policy.document(repository,caller,document,Action.VERSION_APPEND,false,copying::check);var current=owned(u,caller,uploadId,copying);sameLease(current,lease);live(current);boundary(copying,()->u.updateSlot(current.possibleCopy(target),current.revision()));return null;});
+    copying.check();ObjectIdentity original=storage.copy(claimed.quarantine(),target,copying,workspace);if(original==null||!original.objectKey().equals(target))throw UploadPolicy.unavailable();
+    // Settlement-only binding of a known remote write; not receipt publication or a rollback claim.
     transactions.execute(repository->{var u=repository.uploads();u.lockAccounts(caller.tenant());repository.find(caller.tenant(),document).orElseThrow(UploadPolicy::hidden);var current=owned(u,caller,uploadId);sameLeaseIdentity(current,lease);u.updateSlot(current.copied(original),current.revision());return null;});
     copying.check();freshLease(lease);
     var readbackBuffer=workspace.scratch(VerificationWorkspacePort.Role.READBACK,copying);
@@ -125,13 +126,13 @@ public final class UploadService {
     cleanupAttempted=true;workspace.finish(copying);copying.check();
     copying.close();
     try(var persistence=budget.phase(CompleteBudget.Kind.STORAGE)){
-    return transactions.execute(repository->{persistence.check();repository.lockCommand(command);var u=repository.uploads();u.lockAccounts(caller.tenant());policy.document(repository,caller,document,Action.VERSION_APPEND,false);
-     var current=owned(u,caller,uploadId);sameLease(current,lease);live(current);Instant at=now();persistence.check();validateScan(scan,artifact);validateInspection(inspection,artifact);
+    persistence.check();return transactions.execute(repository->{persistence.check();boundary(persistence,()->repository.lockCommand(command));var u=repository.uploads();checked(persistence,()->u.lockAccounts(caller.tenant()));policy.document(repository,caller,document,Action.VERSION_APPEND,false,persistence::check);
+     var current=owned(u,caller,uploadId,persistence);sameLease(current,lease);live(current);Instant at=now();persistence.check();validateScan(scan,artifact);validateInspection(inspection,artifact);
      var evidence=new VerificationEvidence(UUID.randomUUID(),caller.tenant(),uploadId,current.quarantine(),scan,inspection,at);
      var receipt=new UploadReceipt(UUID.randomUUID(),uploadId,caller.tenant(),document,caller.principal(),source.sha256(),source.size(),current.format(),original,evidence.evidenceId(),at,current.expiresAt());
-     policy.document(repository,caller,document,Action.VERSION_APPEND,false);var next=current.verified();u.insertEvidence(evidence);u.insertReceipt(receipt);u.updateSlot(next,current.revision());
-     u.record(new UploadOutcome(command,fingerprint,200,uploadId,receipt.receiptId()),audit(next,"upload.complete",null));
-     u.enqueueCleanup(cleanup(next,current.quarantine().objectKey(),current.quarantine(),CleanupReason.VERIFIED_QUARANTINE_COPY));persistence.check();return new CompleteReceipt(uploadId,receipt.receiptId());
+     policy.document(repository,caller,document,Action.VERSION_APPEND,false,persistence::check);var next=current.verified();boundary(persistence,()->u.insertEvidence(evidence));boundary(persistence,()->u.insertReceipt(receipt));boundary(persistence,()->u.updateSlot(next,current.revision()));
+     boundary(persistence,()->u.record(new UploadOutcome(command,fingerprint,200,uploadId,receipt.receiptId()),audit(next,"upload.complete",null)));
+     boundary(persistence,()->u.enqueueCleanup(cleanup(next,current.quarantine().objectKey(),current.quarantine(),CleanupReason.VERIFIED_QUARANTINE_COPY)));persistence.check();return new CompleteReceipt(uploadId,receipt.receiptId());
     });}
     }
    }catch(RuntimeException|java.io.IOException failure){
@@ -172,6 +173,17 @@ public final class UploadService {
  }
  private static UploadSlot owned(UploadRepository repository,DocumentCaller caller,UUID upload,GenericTempBudget budget){
   var found=checked(budget,()->repository.slot(caller.tenant(),upload));var slot=found.orElseThrow(UploadPolicy::hidden);if(!slot.actor().equals(caller.principal())||!slot.tenant().equals(caller.tenant()))throw UploadPolicy.hidden();budget.check();return slot;
+ }
+ private static <T>T checked(CompleteBudget.Phase phase,java.util.function.Supplier<T> query){phase.check();T result=query.get();phase.check();return result;}
+ private static void boundary(CompleteBudget.Phase phase,Runnable action){phase.check();action.run();phase.check();}
+ private UUID locate(DocumentCaller caller,UUID upload,boolean hidden,CompleteBudget.Phase phase){
+  policy.route(caller,Action.VERSION_APPEND,null,hidden,phase::check);return checked(phase,()->transactions.execute(r->{phase.check();return owned(r.uploads(),caller,upload,phase).documentId();}));
+ }
+ private UploadSlot read(DocumentCaller caller,UUID document,UUID upload,boolean hidden,CompleteBudget.Phase phase){
+  return checked(phase,()->transactions.execute(r->{phase.check();policy.document(r,caller,document,Action.VERSION_APPEND,hidden,phase::check);var slot=owned(r.uploads(),caller,upload,phase);policy.document(r,caller,document,Action.VERSION_APPEND,hidden,phase::check);phase.check();return slot;}));
+ }
+ private static UploadSlot owned(UploadRepository repository,DocumentCaller caller,UUID upload,CompleteBudget.Phase phase){
+  var found=checked(phase,()->repository.slot(caller.tenant(),upload));var slot=found.orElseThrow(UploadPolicy::hidden);if(!slot.actor().equals(caller.principal())||!slot.tenant().equals(caller.tenant()))throw UploadPolicy.hidden();phase.check();return slot;
  }
  private UUID locate(DocumentCaller caller,UUID upload,boolean hidden){policy.route(caller,Action.VERSION_APPEND,null,hidden);return transactions.execute(r->owned(r.uploads(),caller,upload).documentId());}
  private UploadSlot read(DocumentCaller caller,UUID document,UUID upload,boolean hidden){return transactions.execute(r->{policy.document(r,caller,document,Action.VERSION_APPEND,hidden);var slot=owned(r.uploads(),caller,upload);policy.document(r,caller,document,Action.VERSION_APPEND,hidden);return slot;});}
