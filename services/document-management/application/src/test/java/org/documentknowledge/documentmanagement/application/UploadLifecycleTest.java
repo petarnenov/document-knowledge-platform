@@ -23,16 +23,80 @@ class UploadLifecycleTest {
  StructureInspectionPort inspector=source->new InspectionEvidence(source.format(),source.format().mime(),source.sizeBytes(),source.sha256(),source.format()==UploadFormat.PDF?1:null,"1","f".repeat(64),"sha256:"+"a".repeat(64),clock.instant());
  UUID document;
  DocumentService documents(){return new DocumentService(store,grants,new DelegationPolicyPort(){public AuthorityDecision targetGrant(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}public AuthorityDecision ceiling(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}},new ReceiptArtifactAuthority(store,storage,clock,temporary),new DocumentCursorPort(){public PagePosition decode(String c,Actor a,String t){throw new IllegalArgumentException();}public String encode(PagePosition p,Actor a,String t){return "cursor";}},clock);}
- UploadService uploads(){return new UploadService(store,grants,storage,scanner,inspector,clock,temporary);}
+ java.util.function.Consumer<Path> completeCleanup;
+ UploadService uploads(){return completeCleanup==null?new UploadService(store,grants,storage,scanner,inspector,clock,temporary):UploadServiceTestFactory.create(store,grants,storage,scanner,inspector,clock,temporary,completeCleanup);}
  ContentService contentService;
  ContentService content(){if(contentService==null)contentService=new ContentService(store,grants,storage,clock,temporary);return contentService;}
  @AfterEach void closeContent(){if(contentService!=null)contentService.close();}
  UploadCleanupService cleanup(){return new UploadCleanupService(store,storage,clock);}
  @BeforeEach void create(){document=documents().create(caller,"create",new Metadata("Synthetic draft","")).documentId();}
  void failure(int status,String code,Runnable call){var failure=assertThrows(DmFailure.class,call::run);assertEquals(status,failure.status());assertEquals(code,failure.code());}
+ String shaBytes(byte[] bytes){try{return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));}catch(java.security.NoSuchAlgorithmException impossible){throw new AssertionError(impossible);}}
  byte[] bytes(){return "explicit synthetic UNIT fixture only".getBytes(java.nio.charset.StandardCharsets.UTF_8);}
  UUID admitted(UploadService app,UploadFormat format){return app.initialize(caller,UUID.randomUUID().toString(),document,store.docs.get(document).revision(),format,bytes().length).uploadId();}
  UploadService.CompleteReceipt verified(UploadService app,UploadFormat format){UUID slot=admitted(app,format);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));return app.complete(caller,slot,"complete");}
+ @Test void sourceCleanupUsesRemainingSharedStorageBeforeAnyReceiptAndPreservesImmutableFacts(){
+  for(long cleanupSeconds:new long[]{29,30,31}){
+   resetUploads();storage.onOpen=()->{};var observed=new AtomicReference<Path>();
+   completeCleanup=path->{observed.set(path);assertTrue(Files.isRegularFile(path));try{Files.delete(path);}catch(IOException failure){throw new UncheckedIOException(failure);}clock.advance(cleanupSeconds);};
+   var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));var opened=new AtomicInteger();storage.onOpen=()->{if(opened.incrementAndGet()==1)clock.advance(30);};
+   if(cleanupSeconds==29){var complete=app.complete(caller,slot,"complete");var receipt=store.uploads.receipt(caller.tenant(),complete.receiptId()).orElseThrow();assertEquals(bytes().length,receipt.sizeBytes());assertEquals(shaBytes(bytes()),receipt.sha256());}
+   else{failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"complete"));assertTrue(store.uploads.receipts.isEmpty());assertTrue(store.uploads.evidence.isEmpty());assertEquals(2*bytes().length,store.uploads.global.transientBytes());assertTrue(store.uploads.slot(caller.tenant(),slot).orElseThrow().writerSettled());}
+   assertNotNull(observed.get());assertFalse(Files.exists(observed.get()),"Outer close must remain idempotent after pre-publication deletion");
+  }
+ }
+ @Test void failedFirstSourceCleanupIsNeverRetriedOutsideItsStoragePhase(){
+  var path=new AtomicReference<Path>();var attempts=new AtomicInteger();completeCleanup=source->{path.set(source);attempts.incrementAndGet();throw new DmFailure(503,"UNAVAILABLE");};
+  var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));
+  failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"first-unlink-failed"));assertEquals(1,attempts.get());assertTrue(Files.isRegularFile(path.get()),"No implicit second unlink/absence claim after failed owned attempt");assertTrue(store.uploads.receipts.isEmpty());assertTrue(store.uploads.evidence.isEmpty());assertEquals(2*bytes().length,store.uploads.global.transientBytes());
+ }
+ @Test void scannerFailureFallbackCleanupUsesOnlyRemainingStorageAndCannotIssueReceipt(){
+  var sourcePath=new AtomicReference<Path>();completeCleanup=path->{sourcePath.set(path);clock.advance(30);try{Files.delete(path);}catch(IOException failure){throw new UncheckedIOException(failure);}};
+  scanner=source->{throw new DmFailure(422,"MALWARE_DETECTED");};var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));var opens=new AtomicInteger();storage.onOpen=()->{if(opens.incrementAndGet()==1)clock.advance(30);};
+  failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"fallback-at-shared-limit"));assertNotNull(sourcePath.get());assertFalse(Files.exists(sourcePath.get()));assertTrue(store.uploads.receipts.isEmpty());assertTrue(store.uploads.evidence.isEmpty());assertEquals(2*bytes().length,store.uploads.global.transientBytes());
+ }
+ @Test void failedRealSourceUnlinkCannotPublishReceiptAndKeepsExactCharges()throws Exception{
+  var sourcePath=new AtomicReference<Path>();completeCleanup=path->{sourcePath.set(path);try{Files.setPosixFilePermissions(temporary,java.nio.file.attribute.PosixFilePermissions.fromString("r-x------"));Files.delete(path);}catch(IOException failure){throw new UncheckedIOException(failure);}};
+  var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));
+  try{failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"complete"));assertTrue(Files.exists(sourcePath.get()));assertTrue(store.uploads.receipts.isEmpty());assertTrue(store.uploads.evidence.isEmpty());assertEquals(2*bytes().length,store.uploads.global.transientBytes());}
+  finally{Files.setPosixFilePermissions(temporary,java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));}
+ }
+ @Test void blockedSourceCleanupRetainsLocalAdmissionAndCancellationCannotCreateLateReceipt()throws Exception{
+  var entered=new java.util.concurrent.CountDownLatch(1);var release=new java.util.concurrent.CountDownLatch(1);var returned=new java.util.concurrent.CountDownLatch(1);var failure=new AtomicReference<Throwable>();var sourcePath=new AtomicReference<Path>();
+  completeCleanup=path->{sourcePath.set(path);entered.countDown();while(release.getCount()>0)try{release.await();}catch(InterruptedException ignored){}try{Files.delete(path);}catch(IOException problem){throw new UncheckedIOException(problem);}};
+  var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));
+  var thread=Thread.ofVirtual().start(()->{try{app.complete(caller,slot,"blocked-cleanup");failure.set(new AssertionError("Must not publish after cancellation"));}catch(DmFailure expected){if(expected.status()!=503)failure.set(expected);}catch(Throwable unexpected){failure.set(unexpected);}finally{returned.countDown();}});
+  try{assertTrue(entered.await(2,java.util.concurrent.TimeUnit.SECONDS));thread.interrupt();assertTrue(returned.await(2,java.util.concurrent.TimeUnit.SECONDS));assertNull(failure.get());assertTrue(Files.exists(sourcePath.get()));failure(429,"QUOTA_EXCEEDED",()->app.complete(caller,slot,"cleanup-still-owned"));assertTrue(store.uploads.receipts.isEmpty());assertEquals(2*bytes().length,store.uploads.global.transientBytes());}
+  finally{release.countDown();}
+  assertTimeoutPreemptively(Duration.ofSeconds(2),()->{while(store.execute(r->r.uploads().pendingCleanup(caller.tenant(),slot).isEmpty()))Thread.onSpinWait();});assertFalse(Files.exists(sourcePath.get()));assertTrue(store.uploads.receipts.isEmpty());assertTrue(store.uploads.evidence.isEmpty());assertEquals(2*bytes().length,store.uploads.global.transientBytes());
+ }
+ @Test void cumulativeCompleteStorageBudgetIncludesInitialReadCopyAndReadbackWithoutReset(){
+  for(long copySeconds:new long[]{29,30}){
+   resetUploads();storage.onOpen=()->{};var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));
+   var opened=new AtomicInteger();storage.onOpen=()->clock.advance(opened.incrementAndGet()==1?30:0);storage.onCopy=()->clock.advance(copySeconds);
+   if(copySeconds==29)assertNotNull(app.complete(caller,slot,"complete").receiptId());
+   else {failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"complete"));assertTrue(store.uploads.receipts.isEmpty());assertTrue(store.uploads.evidence.isEmpty());assertEquals(2*bytes().length,store.uploads.global.transientBytes());}
+  }
+ }
+ @Test void scanAndInspectionCapsSuppressAllSubsequentPhasesAtExactDeadline(){
+  for(boolean scanExpires:List.of(true,false)){
+   resetUploads();var inspectionCalls=new AtomicInteger();scanner=source->{clock.advance(scanExpires?120:119);return new ScanEvidence(source.sha256(),source.sizeBytes(),"1.5.4","standard-main+daily",clock.instant().minusSeconds(30),"d".repeat(64),clock.instant());};
+   inspector=source->{inspectionCalls.incrementAndGet();clock.advance(60);return new InspectionEvidence(source.format(),source.format().mime(),source.sizeBytes(),source.sha256(),1,"1","f".repeat(64),"sha256:"+"a".repeat(64),clock.instant());};
+   var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));int copies=storage.copyCalls;
+   failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"complete"));assertEquals(scanExpires?0:1,inspectionCalls.get());assertEquals(copies,storage.copyCalls);assertTrue(store.uploads.receipts.isEmpty());
+  }
+ }
+ @Test void cancellingCallerNeverReleasesVerificationAdmissionBeforePossibleCopySettles()throws Exception{
+  var entered=new java.util.concurrent.CountDownLatch(1);var release=new java.util.concurrent.CountDownLatch(1);var returned=new java.util.concurrent.CountDownLatch(1);var failure=new AtomicReference<Throwable>();
+  var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));
+  storage.onCopy=()->{entered.countDown();while(release.getCount()>0)try{release.await();}catch(InterruptedException ignored){}};
+  var callerThread=Thread.ofVirtual().start(()->{try{app.complete(caller,slot,"cancelled");failure.set(new AssertionError("Must not issue receipt"));}catch(DmFailure expected){if(expected.status()!=503)failure.set(expected);}catch(Throwable unexpected){failure.set(unexpected);}finally{returned.countDown();}});
+  try {assertTrue(entered.await(2,java.util.concurrent.TimeUnit.SECONDS));callerThread.interrupt();assertTrue(returned.await(2,java.util.concurrent.TimeUnit.SECONDS));assertNull(failure.get());
+   failure(429,"QUOTA_EXCEEDED",()->app.complete(caller,slot,"still-running"));allowed.remove(Action.VERSION_APPEND);failure(403,"OPERATION_DENIED",()->app.complete(caller,slot,"revoked-busy"));allowed.add(Action.VERSION_APPEND);override=AuthorityDecision.UNAVAILABLE;failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"catalog-busy"));override=null;failure(404,"NOT_FOUND",()->app.complete(caller,UUID.randomUUID(),"unknown-busy"));assertEquals(2*bytes().length,store.uploads.global.transientBytes());assertTrue(store.uploads.receipts.isEmpty());assertNotNull(store.uploads.slot(caller.tenant(),slot).orElseThrow().possibleOriginal());
+  }finally{release.countDown();}
+  assertTimeoutPreemptively(Duration.ofSeconds(2),()->{while(store.execute(r->r.uploads().pendingCleanup(caller.tenant(),slot).isEmpty()))Thread.onSpinWait();});
+  assertTrue(store.uploads.receipts.isEmpty());assertEquals(2*bytes().length,store.uploads.global.transientBytes());
+ }
  @Test void successfulLifecycleRecordsFiniteAuditCodesAndReplayDoesNotDuplicateThem(){
   var app=uploads();var receipt=verified(app,UploadFormat.PDF);
   assertEquals(List.of("upload.initialize","upload.transfer","upload.complete"),store.uploads.audit.stream().map(a->a.operation()).toList());
@@ -334,8 +398,8 @@ class UploadLifecycleTest {
  @Test void lateVerificationCopySettlesOnlyItsExactOutcomeWithoutReceiptAndRecoversAfterFencedCleanup(){
   var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));storage.onCopy=()->{failure(409,"UPLOAD_STATE_CONFLICT",()->uploads().complete(caller,slot,"concurrent"));clock.advance(300);failure(503,"UNAVAILABLE",()->uploads().complete(caller,slot,"expired-concurrent"));};
   failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"late"));var current=store.uploads.slot(caller.tenant(),slot).orElseThrow();assertTrue(current.writerSettled());assertNotNull(current.original());assertTrue(store.uploads.receipts.isEmpty());assertTrue(store.uploads.evidence.isEmpty());assertEquals(2*bytes().length,current.transientReservation());
-  int copies=storage.copyCalls;failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"blocked"));assertEquals(copies,storage.copyCalls);
-  var work=store.uploads.pendingCleanup(caller.tenant(),slot).getFirst();assertTrue(cleanup().cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));storage.onCopy=()->{};assertNotNull(app.complete(caller,slot,"fresh").receiptId());
+  int copies=storage.copyCalls;failure(503,"UNAVAILABLE",()->uploads().complete(caller,slot,"blocked"));assertEquals(copies,storage.copyCalls);
+  var work=store.uploads.pendingCleanup(caller.tenant(),slot).getFirst();assertTrue(cleanup().cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));storage.onCopy=()->{};assertNotNull(uploads().complete(caller,slot,"fresh").receiptId());
  }
  @Test void unknownTransferWriterReturnsUnavailableWithoutRetryingOrFreeingCharges(){
   var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);storage.failPut=true;failure(503,"UNAVAILABLE",()->app.transfer(caller,slot,"unknown",new ByteArrayInputStream(bytes())));failure(503,"UNAVAILABLE",()->app.transfer(caller,slot,"retry",new ByteArrayInputStream(bytes())));assertEquals(2*bytes().length,store.uploads.global.transientBytes());assertFalse(store.uploads.slot(caller.tenant(),slot).orElseThrow().writerSettled());assertTrue(store.uploads.receipts.isEmpty());
@@ -350,9 +414,9 @@ class UploadLifecycleTest {
  }
  static class TestClock extends Clock {Instant now=Instant.parse("2026-10-31T20:00:00Z");void advance(long seconds){now=now.plusSeconds(seconds);}public ZoneId getZone(){return ZoneOffset.UTC;}public Clock withZone(ZoneId z){return this;}public Instant instant(){return now;}}
  static class BytesStorage implements UploadStoragePort, CleanupStoragePort {
-  final Map<ObjectIdentity,byte[]> objects=new HashMap<>();boolean failPut,failCopy,deleteUnknown,badDeleteBinding,discardLargePut;boolean deleteSuccess=true,corruptCopy;java.util.function.Function<DeletionFence,DeletionResult> deletion;int copyCalls,deleteCalls;Runnable onCopy=()->{},onDelete=()->{},onPut=()->{};
+  final Map<ObjectIdentity,byte[]> objects=new HashMap<>();boolean failPut,failCopy,deleteUnknown,badDeleteBinding,discardLargePut;boolean deleteSuccess=true,corruptCopy;java.util.function.Function<DeletionFence,DeletionResult> deletion;int copyCalls,deleteCalls;Runnable onCopy=()->{},onDelete=()->{},onPut=()->{},onOpen=()->{};
   public ObjectIdentity put(ObjectKey key,Path file,long size,String sha){if(failPut)throw new IllegalStateException();try{var id=new ObjectIdentity(key,UUID.randomUUID().toString());objects.put(id,discardLargePut&&size>1_000_000?new byte[0]:Files.readAllBytes(file));onPut.run();return id;}catch(IOException e){throw new IllegalStateException(e);}}
-  public InputStream open(ObjectIdentity object){byte[] bytes=objects.get(object);if(bytes==null)throw new IllegalStateException();return new ByteArrayInputStream(bytes);}
+  public InputStream open(ObjectIdentity object){onOpen.run();byte[] bytes=objects.get(object);if(bytes==null)throw new IllegalStateException();return new ByteArrayInputStream(bytes);}
   public ObjectIdentity copy(ObjectIdentity source,ObjectKey target){copyCalls++;if(failCopy)throw new IllegalStateException();var id=new ObjectIdentity(target,UUID.randomUUID().toString());byte[] copy=objects.get(source).clone();if(corruptCopy)copy[0]++;objects.put(id,copy);onCopy.run();return id;}
   public List<ObjectIdentity> versions(ObjectKey key){return objects.keySet().stream().filter(v->v.objectKey().equals(key)).toList();}
   public DeletionResult deleteOnce(DeletionFence fence){deleteCalls++;onDelete.run();if(deletion!=null)return deletion.apply(fence);if(deleteUnknown)throw new IllegalStateException();if(deleteSuccess)objects.remove(fence.object());return new DeletionResult(badDeleteBinding?UUID.randomUUID():fence.attemptId(),fence.object(),"request",true,true,deleteSuccess,deleteSuccess);}

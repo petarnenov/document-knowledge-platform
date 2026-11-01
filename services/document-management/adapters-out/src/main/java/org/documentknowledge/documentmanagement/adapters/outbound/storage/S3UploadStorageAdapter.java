@@ -21,6 +21,7 @@ import javax.net.ssl.TrustManagerFactory;
 import org.documentknowledge.authorization.TrustedAuthorityFiles;
 import org.documentknowledge.documentmanagement.application.DmFailure;
 import org.documentknowledge.documentmanagement.application.upload.UploadStoragePort;
+import org.documentknowledge.documentmanagement.application.upload.CompleteBudget;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.ObjectIdentity;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.ObjectKey;
@@ -143,7 +144,8 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
 
     @Override
-    public ObjectIdentity put(ObjectKey key, Path source, long sizeBytes, String sha256) {
+    public ObjectIdentity put(ObjectKey key, Path source, long sizeBytes, String sha256) {return put(key,source,sizeBytes,sha256,null);}
+    private ObjectIdentity put(ObjectKey key,Path source,long sizeBytes,String sha256,CompleteBudget.Phase phase) {
         try {
             UploadModels.size(sizeBytes);
             UploadModels.hash(sha256);
@@ -152,21 +154,23 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
                     || !Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) throw unavailable();
             Digest before;
             try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS)) {
-                before = digest(input);
+                before = digest(input,phase);
             }
             if (before.size() != sizeBytes || !before.sha256().equals(sha256)) throw unavailable();
-            var request = PutObjectRequest.builder().bucket(key.bucket()).key(key.key())
+            var builder = PutObjectRequest.builder().bucket(key.bucket()).key(key.key())
                 .ifNoneMatch("*").contentLength(sizeBytes).contentType("application/octet-stream")
                 .checksumAlgorithm(ChecksumAlgorithm.SHA256)
-                .checksumSHA256(Base64.getEncoder().encodeToString(HexFormat.of().parseHex(sha256))).build();
+                .checksumSHA256(Base64.getEncoder().encodeToString(HexFormat.of().parseHex(sha256)));
+            if(phase!=null){var remaining=phase.remaining();builder.overrideConfiguration(c->c.apiCallTimeout(remaining).apiCallAttemptTimeout(remaining));}
+            var request=builder.build();
             ObjectIdentity object;
             try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS)) {
                 var response = client.putObject(request, RequestBody.fromInputStream(input, sizeBytes));
                 object = identity(key, response.versionId());
             }
             // Stored checksums alone are insufficient: verify bytes of the exact returned version.
-            try (InputStream input = open(object)) {
-                Digest readback = digest(input);
+            try (InputStream input = open(object,phase)) {
+                Digest readback = digest(input,phase);
                 if (!before.equals(readback)) throw unavailable();
             }
             return object;
@@ -176,18 +180,20 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
 
     @Override
-    public InputStream open(ObjectIdentity object) {
+    public InputStream open(ObjectIdentity object) {return open(object,null);}
+    @Override public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase) {
         ResponseInputStream<GetObjectResponse> input = null;
         try {
             var key = object.objectKey();
-            input = client.getObject(GetObjectRequest.builder().bucket(key.bucket()).key(key.key())
-                .versionId(object.versionId()).checksumMode(ChecksumMode.ENABLED).build());
+            var builder=GetObjectRequest.builder().bucket(key.bucket()).key(key.key()).versionId(object.versionId()).checksumMode(ChecksumMode.ENABLED);
+            if(phase!=null){var remaining=phase.remaining();builder.overrideConfiguration(c->c.apiCallTimeout(remaining).apiCallAttemptTimeout(remaining));}
+            input=client.getObject(builder.build());
             var response = input.response();
             if (!object.versionId().equals(response.versionId()) || response.contentLength() == null
                     || response.contentLength() < 1 || response.contentLength() > UploadModels.MAX_BYTES) {
                 throw unavailable();
             }
-            return new ExactLengthStream(input, response.contentLength());
+            return new ExactLengthStream(input,response.contentLength(),phase);
         } catch (Exception failure) {
             if (input != null) input.abort();
             throw unavailable();
@@ -195,7 +201,9 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
 
     @Override
-    public ObjectIdentity copy(ObjectIdentity source, ObjectKey target) {
+    public ObjectIdentity copy(ObjectIdentity source, ObjectKey target) {return copy(source,target,null);}
+    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase) {
+        if(phase!=null)phase.check();
         if (!"dkp-quarantine".equals(source.objectKey().bucket()) || !"dkp-originals".equals(target.bucket())
                 || !source.objectKey().key().substring(0, 102).equals(target.key().substring(0, 102))) {
             throw unavailable();
@@ -204,7 +212,7 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
         Path temporary = null;
         try {
             temporary = Files.createTempFile(spoolRoot, "verified-copy-", ".bin");
-            try (InputStream input = open(source); var output = Files.newOutputStream(temporary)) {
+            try (InputStream input = open(source,phase); var output = Files.newOutputStream(temporary)) {
                 byte[] buffer = new byte[65536];
                 long count = 0;
                 int read;
@@ -216,10 +224,10 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
             }
             Digest hash;
             try (InputStream input = Files.newInputStream(temporary, LinkOption.NOFOLLOW_LINKS)) {
-                hash = digest(input);
+                hash = digest(input,phase);
             }
             // A conditional PUT is used instead of relying on vendor-specific destination CopyObject conditions.
-            return put(target, temporary, hash.size(), hash.sha256());
+            return put(target,temporary,hash.size(),hash.sha256(),phase);
         } catch (Exception failure) {
             throw unavailable();
         } finally {
@@ -263,12 +271,14 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
         return value;
     }
     private record Digest(long size, String sha256) { }
-    private static Digest digest(InputStream input) throws Exception {
+    private static Digest digest(InputStream input) throws Exception {return digest(input,null);}
+    private static Digest digest(InputStream input,CompleteBudget.Phase phase) throws Exception {
         var digest = MessageDigest.getInstance("SHA-256");
         long total = 0;
         byte[] buffer = new byte[65536];
         int count;
         while ((count = input.read(buffer)) != -1) {
+            if(phase!=null)phase.check();
             total = Math.addExact(total, count);
             if (total > UploadModels.MAX_BYTES) throw unavailable();
             digest.update(buffer, 0, count);
@@ -281,19 +291,24 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
 
     private static final class ExactLengthStream extends FilterInputStream {
         private final long expected;
+        private final CompleteBudget.Phase phase;private final CompleteBudget.Phase.Registration cancellation;
         private long read;
-        ExactLengthStream(InputStream input, long expected) { super(input); this.expected = expected; }
+        ExactLengthStream(ResponseInputStream<GetObjectResponse> input,long expected,CompleteBudget.Phase phase) {super(input);this.expected=expected;this.phase=phase;cancellation=phase==null?null:phase.onCancel(input::abort);}
+        @Override public void close()throws IOException {try{if(phase==null)super.close();else ((ResponseInputStream<?>)in).abort();}finally{if(cancellation!=null)cancellation.close();}}
         @Override public int read() throws IOException {
+            if(phase!=null)phase.check();
             int result = in.read();
             check(result == -1 ? -1 : 1);
             return result;
         }
         @Override public int read(byte[] bytes, int offset, int length) throws IOException {
+            if(phase!=null)phase.check();
             int result = in.read(bytes, offset, length);
             check(result);
             return result;
         }
         private void check(int count) throws IOException {
+            if(phase!=null)phase.check();
             if (count == -1 ? read != expected : (read += count) > expected) {
                 close();
                 throw new IOException("Invalid immutable object length");

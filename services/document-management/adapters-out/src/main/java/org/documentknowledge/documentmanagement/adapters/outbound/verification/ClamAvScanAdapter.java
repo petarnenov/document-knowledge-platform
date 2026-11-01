@@ -27,29 +27,33 @@ public final class ClamAvScanAdapter implements MalwareScanPort {
             return before.equals(definitions.snapshot());
         }catch(Exception unavailable){return false;}
     }
-    @Override public ScanEvidence scan(ArtifactSource source) {
+    @Override public ScanEvidence scan(ArtifactSource source) {return scan(source,null);}
+    @Override public ScanEvidence scan(ArtifactSource source,CompleteBudget.Phase phase) {
         try {
-            var before=definitions.snapshot();version(before.version());
+            if(phase!=null)phase.check();var before=definitions.snapshot();version(before.version(),bounded(phase,5),phase);
             if(Files.isSymbolicLink(source.path()) || !Files.isRegularFile(source.path(),LinkOption.NOFOLLOW_LINKS) || Files.size(source.path())!=source.sizeBytes())throw unavailable();
             var sha=StandardDefinitions.sha();long count=0;String response;
-            try(var socket=new ClamdConnection(endpoint,Duration.ofSeconds(120));var input=Files.newInputStream(source.path(),LinkOption.NOFOLLOW_LINKS)) {
+            try(var socket=new ClamdConnection(endpoint,bounded(phase,120));var registration=register(phase,socket);var input=Files.newInputStream(source.path(),LinkOption.NOFOLLOW_LINKS)) {
                 socket.write("zINSTREAM\0".getBytes(StandardCharsets.US_ASCII));byte[] bytes=new byte[65536];int n;
-                while((n=input.read(bytes))!=-1) {count+=n;if(count>100_000_000 || count>source.sizeBytes())throw unavailable();sha.update(bytes,0,n);socket.write(ByteBuffer.allocate(4).putInt(n).array());socket.write(Arrays.copyOf(bytes,n));}
+                while((n=input.read(bytes))!=-1) {if(phase!=null)phase.check();count+=n;if(count>100_000_000 || count>source.sizeBytes())throw unavailable();sha.update(bytes,0,n);socket.write(ByteBuffer.allocate(4).putInt(n).array());socket.write(Arrays.copyOf(bytes,n));}
                 socket.write(new byte[4]);response=socket.response();
             }
             String hash=StandardDefinitions.hex(sha.digest());if(count!=source.sizeBytes() || !hash.equals(source.sha256()))throw unavailable();
             if(response.startsWith("stream: ") && response.endsWith(" FOUND") && response.length()>14)throw new DmFailure(422,"MALWARE_DETECTED");
             if(!response.equals("stream: OK"))throw unavailable();
-            version(before.version());var after=definitions.snapshot();if(!before.equals(after))throw unavailable();
+            version(before.version(),bounded(phase,5),phase);var after=definitions.snapshot();if(phase!=null)phase.check();if(!before.equals(after))throw unavailable();
             return new ScanEvidence(hash,count,"1.5.4",before.version(),before.updatedAt(),before.digest(),clock.instant());
         }catch(DmFailure failure){throw failure;}catch(Exception invalid){throw unavailable();}
     }
     private void version(String expected) throws IOException {version(expected,Duration.ofSeconds(5));}
-    private void version(String expected,Duration timeout) throws IOException {
-        try(var socket=new ClamdConnection(endpoint,timeout)) {
+    private static Duration bounded(CompleteBudget.Phase phase,int seconds){return phase==null?Duration.ofSeconds(seconds):Duration.ofNanos(Math.min(Duration.ofSeconds(seconds).toNanos(),phase.remaining().toNanos()));}
+    private static AutoCloseable register(CompleteBudget.Phase phase,ClamdConnection socket){return phase==null?()->{}:phase.onCancel(()->{try{socket.close();}catch(IOException ignored){}});}
+    private void version(String expected,Duration timeout) throws IOException {version(expected,timeout,null);}
+    private void version(String expected,Duration timeout,CompleteBudget.Phase phase) throws IOException {
+        try(var socket=new ClamdConnection(endpoint,timeout);var registration=register(phase,socket)) {
             socket.write("zVERSION\0".getBytes(StandardCharsets.US_ASCII));String reply=socket.response();
             if(!reply.matches("ClamAV 1\\.5\\.4/"+expected+"/[^\\r\\n]{1,128}"))throw new IOException("Scanner version mismatch");
-        }
+        }catch(IOException|RuntimeException failure){throw failure;}catch(Exception failure){throw new IOException("Scanner unavailable");}
     }
     private static DmFailure unavailable() {return new DmFailure(503,"UNAVAILABLE");}
 }

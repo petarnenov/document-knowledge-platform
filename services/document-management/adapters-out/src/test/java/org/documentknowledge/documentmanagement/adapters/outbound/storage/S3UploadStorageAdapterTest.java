@@ -38,6 +38,20 @@ class S3UploadStorageAdapterTest {
     private static final ObjectKey ORIGINAL = new ObjectKey("dkp-originals", KEY);
     private static final ObjectIdentity OBJECT = new ObjectIdentity(QUARANTINE, "exact-version");
 
+    @Test void completeCopyPropagatesOneRemainingStorageBudgetAndAbortDoesNotCloseSharedClient()throws Exception {
+        var budget=new org.documentknowledge.documentmanagement.application.upload.CompleteBudget(java.time.Clock.systemUTC());var calls=new AtomicInteger();
+        var adapter=adapter((method,args)->{
+            calls.incrementAndGet();var request=(software.amazon.awssdk.awscore.AwsRequest)args[0];var remaining=request.overrideConfiguration().orElseThrow().apiCallTimeout().orElseThrow();
+            assertTrue(!remaining.isNegative()&&!remaining.isZero()&&remaining.compareTo(java.time.Duration.ofSeconds(60))<=0);
+            if(method.equals("putObject"))return PutObjectResponse.builder().versionId("exact-version").build();assertEquals("getObject",method);return body(BYTES,"exact-version",BYTES.length);
+        });
+        try(var phase=budget.phase(org.documentknowledge.documentmanagement.application.upload.CompleteBudget.Kind.STORAGE)){
+            assertEquals(new ObjectIdentity(ORIGINAL,"exact-version"),adapter.copy(OBJECT,ORIGINAL,phase));assertEquals(3,calls.get());
+            try(var input=adapter.open(OBJECT,phase)){assertArrayEquals(BYTES,input.readAllBytes());budget.cancel();assertThrows(DmFailure.class,input::read);}
+        }
+        assertArrayEquals(BYTES,adapter((m,a)->body(BYTES,"exact-version",BYTES.length)).open(OBJECT).readAllBytes());
+    }
+
     @Test void readinessRequiresBothBucketsVersionedAndFailsClosedWithoutWrites() {
         var buckets = new java.util.ArrayList<String>();
         var adapter = adapter((method, args) -> {

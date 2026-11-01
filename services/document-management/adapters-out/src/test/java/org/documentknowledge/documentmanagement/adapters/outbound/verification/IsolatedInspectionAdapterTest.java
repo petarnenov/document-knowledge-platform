@@ -37,7 +37,7 @@ class IsolatedInspectionAdapterTest {
     private IsolatedInspectionAdapter adapter(int port){return new IsolatedInspectionAdapter(endpoint(port),clientTls,new byte[32],StructureInspector.PROFILE_DIGEST,IMAGE,VerificationFixtures.CLOCK);}
     @Test void realIsolatedTlsInspectorIndependentlyBindsBytesProfileAndTime() throws Exception {
         try(var worker=new InspectorServer(new InetSocketAddress("127.0.0.1",0),serverTls,new byte[32],new StructureInspector(temp))) {
-            worker.start();try(var adapter=adapter(worker.port())){var evidence=adapter.inspect(source);assertEquals(source.format(),evidence.format());assertEquals(source.sha256(),evidence.sha256());assertEquals(source.sizeBytes(),evidence.sizeBytes());assertEquals(source.format().mime(),evidence.mimeType());assertNull(evidence.pageCount());assertEquals(IMAGE,evidence.imageDigest());assertEquals(StructureInspector.PROFILE_DIGEST,evidence.profileDigest());assertEquals(VerificationFixtures.CLOCK.instant(),evidence.inspectedAt());}
+            worker.start();try(var adapter=adapter(worker.port());var phase=new org.documentknowledge.documentmanagement.application.upload.CompleteBudget(VerificationFixtures.CLOCK).phase(org.documentknowledge.documentmanagement.application.upload.CompleteBudget.Kind.INSPECT)){var evidence=adapter.inspect(source,phase);assertEquals(source.format(),evidence.format());assertEquals(source.sha256(),evidence.sha256());assertEquals(source.sizeBytes(),evidence.sizeBytes());assertEquals(source.format().mime(),evidence.mimeType());assertNull(evidence.pageCount());assertEquals(IMAGE,evidence.imageDigest());assertEquals(StructureInspector.PROFILE_DIGEST,evidence.profileDigest());assertEquals(VerificationFixtures.CLOCK.instant(),evidence.inspectedAt());}
         }
     }
     @Test void wrongCaKeyProfileSourceAndUnavailableWorkerAreNotEvidence() throws Exception {
@@ -76,6 +76,18 @@ class IsolatedInspectionAdapterTest {
             long start=System.nanoTime();var failure=assertThrows(DmFailure.class,()->adapter.inspect(source));assertEquals(503,failure.status());assertEquals(0,sent.getCount(),"actual response headers and partial body were delivered before the deadline");assertTrue(java.time.Duration.ofNanos(System.nanoTime()-start).compareTo(java.time.Duration.ofSeconds(3))<0,"body timeout must not wait for the stalled peer");
         }finally{release.countDown();fake.stop(0);executor.shutdownNow();}
         for(var duration:List.of(java.time.Duration.ZERO,java.time.Duration.ofSeconds(-1),java.time.Duration.ofSeconds(61)))assertThrows(IllegalArgumentException.class,()->new IsolatedInspectionAdapter(endpoint(8443),clientTls,new byte[32],StructureInspector.PROFILE_DIGEST,IMAGE,VerificationFixtures.CLOCK,duration));
+    }
+
+    @Test void completeCancellationStopsPendingTlsResponseWithoutClosingSingletonClient()throws Exception {
+        var sent=new java.util.concurrent.CountDownLatch(1);var release=new java.util.concurrent.CountDownLatch(1);
+        HttpsServer fake=HttpsServer.create(new InetSocketAddress("127.0.0.1",0),1);fake.setHttpsConfigurator(new HttpsConfigurator(serverTls));var peers=java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();fake.setExecutor(peers);
+        var stalled=new java.util.concurrent.atomic.AtomicBoolean(true);
+        fake.createContext("/internal/v1/inspect",exchange->{try{exchange.getRequestBody().transferTo(OutputStream.nullOutputStream());exchange.getResponseHeaders().set("Content-Type","application/json");exchange.sendResponseHeaders(422,23);if(stalled.get()){sent.countDown();release.await();}exchange.getResponseBody().write("{\"code\":\"INVALID_FILE\"}".getBytes());}catch(Exception ignored){}finally{exchange.close();}});fake.start();
+        var budget=new org.documentknowledge.documentmanagement.application.upload.CompleteBudget(VerificationFixtures.CLOCK);
+        try(var adapter=adapter(fake.getAddress().getPort());var phase=budget.phase(org.documentknowledge.documentmanagement.application.upload.CompleteBudget.Kind.INSPECT);var callers=java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()){
+            var result=callers.submit(()->assertThrows(DmFailure.class,()->adapter.inspect(source,phase)));assertTrue(sent.await(2,java.util.concurrent.TimeUnit.SECONDS));budget.cancel();assertEquals(503,result.get(2,java.util.concurrent.TimeUnit.SECONDS).status());
+            stalled.set(false);release.countDown();assertEquals(422,assertThrows(DmFailure.class,()->adapter.inspect(source)).status());
+        }finally{release.countDown();fake.stop(0);peers.shutdownNow();}
     }
 
 }

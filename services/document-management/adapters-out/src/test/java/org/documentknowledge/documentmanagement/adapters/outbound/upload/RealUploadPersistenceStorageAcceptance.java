@@ -302,7 +302,7 @@ public final class RealUploadPersistenceStorageAcceptance {
         void reset(){at=Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);}
         public ZoneId getZone(){return ZoneOffset.UTC;}public Clock withZone(ZoneId zone){assertEquals(ZoneOffset.UTC,zone);return this;}public Instant instant(){return at;}
     }
-    private static final class Fixture implements AutoCloseable {
+    static final class Fixture implements AutoCloseable {
         final PostgreSQLContainer postgres=new PostgreSQLContainer(DockerImageName.parse("postgres:18.6@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4").asCompatibleSubstituteFor("postgres"))
                 .withDatabaseName("dm").withUsername("postgres").withPassword(UUID.randomUUID().toString())
                 .withCommand("postgres","-c","fsync=on","-c","synchronous_commit=on","-c","full_page_writes=on");

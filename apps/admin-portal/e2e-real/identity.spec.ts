@@ -11,6 +11,7 @@ import {
   type Response,
   type Route,
 } from '@playwright/test';
+import { nativeBoundaryBrowser } from './native-boundary-browser';
 import { confirmSingleCreate, replayUiCreate } from './ui-create-receipt';
 
 const uploadProfile = process.env.DKP_UPLOAD_E2E_ENABLED;
@@ -776,20 +777,22 @@ type BoundarySession = {
 };
 
 async function boundarySession(page: Page): Promise<BoundarySession> {
-  const response = await page.request.get('/api/v1/session');
+  const response = await page.request.get(
+    new URL('/api/v1/session', page.url()).href,
+  );
   expect(response.status()).toBe(200);
   return (await response.json()) as BoundarySession;
 }
 
 async function prepareBoundaryDraft(page: Page, origin: string) {
-  await page.goto('/identity');
+  await page.goto(`${origin}/identity`);
   await page.getByRole('link', { name: 'Sign in', exact: true }).click();
   await expect(page.locator('#username')).toBeVisible();
   await page.locator('#username').fill(process.env.DKP_IDENTITY_USERNAME!);
   await page.locator('#password').fill(process.env.DKP_IDENTITY_PASSWORD!);
   await page.locator('#kc-login').click();
   await page.waitForURL((url) => url.origin === origin && url.pathname === '/');
-  await page.goto('/identity');
+  await page.goto(`${origin}/identity`);
   const selector = page.getByRole('combobox', { name: 'Tenant' });
   const tenant = await selector.locator('option').nth(1).getAttribute('value');
   expect(tenant).toBeTruthy();
@@ -1244,164 +1247,190 @@ if (uploadProfile === 'true') {
     }
   });
   test('real HTTPS tenant change during pending binary upload aborts old scoped work without verify or append', async ({
-    page,
-    context,
     baseURL,
   }) => {
     test.setTimeout(120_000);
     const origin = new URL(baseURL!).origin;
-    const draft = await prepareBoundaryDraft(page, origin);
-    const other = draft.session.tenants.find(
-      (value) => value !== draft.session.selectedTenant,
+    const native = await nativeBoundaryBrowser(
+      process.env.DKP_IDENTITY_IDP_ADDRESS ?? '',
     );
-    expect(other).toBeTruthy();
-    // Keep Documents mounted: changing tenant in another real tab must trigger
-    // the first tab's current-session recheck/remount, not a navigation-only abort.
-    const identity = await context.newPage();
-    const identityResponses: Response[] = [];
-    const observeIdentity = (response: Response) =>
-      identityResponses.push(response);
-    identity.on('response', observeIdentity);
-    await identity.goto(`${origin}/identity`);
-    await expect(
-      identity.getByRole('heading', { name: /^Signed in as / }),
-    ).toBeVisible();
-    await page.bringToFront();
-    const upload = await observeThrottledUpload(
-      page,
-      context,
-      origin,
-      draft.root,
-      draft.session.csrfToken,
-    );
+    const { page, context } = native;
     try {
-      const failed = page
-        .waitForEvent('requestfailed', {
-          predicate: (request) => request === upload.request,
-          timeout: 15_000,
-        })
-        .then(
-          () => ({ failed: true as const }),
-          (error: unknown) => ({ error }),
-        );
-      await identity.bringToFront();
-      await expect
-        .poll(() => page.evaluate(() => document.visibilityState))
-        .toBe('hidden');
-      await identity
-        .getByRole('combobox', { name: 'Tenant' })
-        .selectOption(other!);
-      const beforeChange = identityResponses.length;
-      await identity
-        .getByRole('button', { name: 'Use tenant', exact: true })
-        .click();
-      await expect
-        .poll(() =>
-          identityResponses
-            .slice(beforeChange)
-            .find(
-              (response) =>
-                response.request().method() === 'POST' &&
-                new URL(response.url()).pathname === '/api/v1/session/tenant',
-            )
-            ?.status(),
-        )
-        .toBe(200);
-      const beforeSession = upload.responses.length;
-      await page.bringToFront();
-      await expect
-        .poll(() =>
-          upload.responses
-            .slice(beforeSession)
-            .find(
-              (response) =>
-                response.request().method() === 'GET' &&
-                new URL(response.url()).pathname === '/api/v1/session',
-            )
-            ?.status(),
-        )
-        .toBe(200);
-      const failure = await failed;
-      if ('error' in failure) throw failure.error;
-      await expect
-        .poll(() => upload.failure()?.canceled, { timeout: 10_000 })
-        .toBe(true);
-      expect(upload.request.failure()?.errorText).toContain('ERR_ABORTED');
-      expect(upload.finished()).toBe(false);
-      await expect(
-        page.getByRole('heading', { name: draft.title, exact: true }),
-      ).toHaveCount(0);
-      await expect(
-        page.getByRole('heading', {
-          name: 'Upload a verified version',
-          exact: true,
-        }),
-      ).toHaveCount(0);
-      await expect(page.getByLabel('Title', { exact: true })).toHaveValue('');
-      await expect(page.getByLabel('Description', { exact: true })).toHaveValue(
-        '',
-      );
-      const session = await boundarySession(page);
-      expect(session.selectedTenant).toBe(other);
+      // This fresh native browser must prove trust before it receives OIDC credentials.
+      expect((await page.goto(origin))?.status()).toBe(200);
+      const provider = new URL(process.env.DKP_IDENTITY_IDP_BASE_URL!);
+      expect(provider.protocol).toBe('https:');
       expect(
-        session.issuer === draft.session.issuer &&
-          session.subject === draft.session.subject,
-      ).toBe(true);
-      const hidden = await page.request.get(
-        `/api/v1/dm/documents/uploads/${upload.uploadId}/status`,
+        (
+          await page.goto(
+            new URL('/realms/dkp/.well-known/openid-configuration', provider)
+              .href,
+          )
+        )?.status(),
+      ).toBe(200);
+      const wrongName = new URL(origin);
+      wrongName.hostname = 'wrong-name.localhost';
+      await expect(page.goto(wrongName.href)).rejects.toThrow(
+        'ERR_CERT_COMMON_NAME_INVALID',
       );
-      expect(hidden.status()).toBe(404);
-      expect(await hidden.json()).toEqual({ code: 'NOT_FOUND' });
-      const hiddenDraft = await page.request.get(draft.root);
-      expect(hiddenDraft.status()).toBe(404);
-      // Switch back through the same genuine tenant UI; an aborted job never resurrects.
-      await identity.bringToFront();
-      await identity
-        .getByRole('combobox', { name: 'Tenant' })
-        .selectOption(draft.session.selectedTenant);
-      const beforeRestore = identityResponses.length;
-      await identity
-        .getByRole('button', { name: 'Use tenant', exact: true })
-        .click();
-      await expect
-        .poll(() =>
-          identityResponses
-            .slice(beforeRestore)
-            .find(
-              (response) =>
-                response.request().method() === 'POST' &&
-                new URL(response.url()).pathname === '/api/v1/session/tenant',
-            )
-            ?.status(),
-        )
-        .toBe(200);
-      await page.bringToFront();
-      const original = await page.request.get(draft.root);
-      expect(original.status()).toBe(200);
-      const unchanged = await original.json();
-      expect(unchanged.revision).toBe(0);
-      expect(unchanged.activeVersionId).toBeNull();
-      const status = await page.request.get(
-        `/api/v1/dm/documents/uploads/${upload.uploadId}/status`,
+      const draft = await prepareBoundaryDraft(page, origin);
+      const other = draft.session.tenants.find(
+        (value) => value !== draft.session.selectedTenant,
       );
-      expect(status.status()).toBe(200);
-      expect(['INITIALIZED', 'RECEIVING', 'QUARANTINED', 'REJECTED']).toContain(
-        (await status.json()).state,
-      );
-      expect(upload.initializations.length).toBe(1);
-      expect(upload.binary.length).toBe(1);
-      expect(upload.completes.length).toBe(0);
-      expect(upload.appends.length).toBe(0);
+      expect(other).toBeTruthy();
+      // Keep Documents mounted: changing tenant in another real tab must trigger
+      // the first tab's current-session recheck/remount, not a navigation-only abort.
+      const identity = await context.newPage();
+      const identityResponses: Response[] = [];
+      const observeIdentity = (response: Response) =>
+        identityResponses.push(response);
+      identity.on('response', observeIdentity);
+      await identity.goto(`${origin}/identity`);
       await expect(
-        page.getByRole('button', { name: 'Retry upload', exact: true }),
-      ).toHaveCount(0);
-    } finally {
+        identity.getByRole('heading', { name: /^Signed in as / }),
+      ).toBeVisible();
+      await page.bringToFront();
+      const upload = await observeThrottledUpload(
+        page,
+        context,
+        origin,
+        draft.root,
+        draft.session.csrfToken,
+      );
       try {
-        await upload.dispose();
+        const failed = page
+          .waitForEvent('requestfailed', {
+            predicate: (request) => request === upload.request,
+            timeout: 15_000,
+          })
+          .then(
+            () => ({ failed: true as const }),
+            (error: unknown) => ({ error }),
+          );
+        await identity.bringToFront();
+        await expect
+          .poll(() => page.evaluate(() => document.visibilityState))
+          .toBe('hidden');
+        await identity
+          .getByRole('combobox', { name: 'Tenant' })
+          .selectOption(other!);
+        const beforeChange = identityResponses.length;
+        await identity
+          .getByRole('button', { name: 'Use tenant', exact: true })
+          .click();
+        await expect
+          .poll(() =>
+            identityResponses
+              .slice(beforeChange)
+              .find(
+                (response) =>
+                  response.request().method() === 'POST' &&
+                  new URL(response.url()).pathname === '/api/v1/session/tenant',
+              )
+              ?.status(),
+          )
+          .toBe(200);
+        const beforeSession = upload.responses.length;
+        await page.bringToFront();
+        await expect
+          .poll(() =>
+            upload.responses
+              .slice(beforeSession)
+              .find(
+                (response) =>
+                  response.request().method() === 'GET' &&
+                  new URL(response.url()).pathname === '/api/v1/session',
+              )
+              ?.status(),
+          )
+          .toBe(200);
+        const failure = await failed;
+        if ('error' in failure) throw failure.error;
+        await expect
+          .poll(() => upload.failure()?.canceled, { timeout: 10_000 })
+          .toBe(true);
+        expect(upload.request.failure()?.errorText).toContain('ERR_ABORTED');
+        expect(upload.finished()).toBe(false);
+        await expect(
+          page.getByRole('heading', { name: draft.title, exact: true }),
+        ).toHaveCount(0);
+        await expect(
+          page.getByRole('heading', {
+            name: 'Upload a verified version',
+            exact: true,
+          }),
+        ).toHaveCount(0);
+        await expect(page.getByLabel('Title', { exact: true })).toHaveValue('');
+        await expect(
+          page.getByLabel('Description', { exact: true }),
+        ).toHaveValue('');
+        const session = await boundarySession(page);
+        expect(session.selectedTenant).toBe(other);
+        expect(
+          session.issuer === draft.session.issuer &&
+            session.subject === draft.session.subject,
+        ).toBe(true);
+        const hidden = await page.request.get(
+          `${origin}/api/v1/dm/documents/uploads/${upload.uploadId}/status`,
+        );
+        expect(hidden.status()).toBe(404);
+        expect(await hidden.json()).toEqual({ code: 'NOT_FOUND' });
+        const hiddenDraft = await page.request.get(origin + draft.root);
+        expect(hiddenDraft.status()).toBe(404);
+        // Switch back through the same genuine tenant UI; an aborted job never resurrects.
+        await identity.bringToFront();
+        await identity
+          .getByRole('combobox', { name: 'Tenant' })
+          .selectOption(draft.session.selectedTenant);
+        const beforeRestore = identityResponses.length;
+        await identity
+          .getByRole('button', { name: 'Use tenant', exact: true })
+          .click();
+        await expect
+          .poll(() =>
+            identityResponses
+              .slice(beforeRestore)
+              .find(
+                (response) =>
+                  response.request().method() === 'POST' &&
+                  new URL(response.url()).pathname === '/api/v1/session/tenant',
+              )
+              ?.status(),
+          )
+          .toBe(200);
+        await page.bringToFront();
+        const original = await page.request.get(origin + draft.root);
+        expect(original.status()).toBe(200);
+        const unchanged = await original.json();
+        expect(unchanged.revision).toBe(0);
+        expect(unchanged.activeVersionId).toBeNull();
+        const status = await page.request.get(
+          `${origin}/api/v1/dm/documents/uploads/${upload.uploadId}/status`,
+        );
+        expect(status.status()).toBe(200);
+        expect([
+          'INITIALIZED',
+          'RECEIVING',
+          'QUARANTINED',
+          'REJECTED',
+        ]).toContain((await status.json()).state);
+        expect(upload.initializations.length).toBe(1);
+        expect(upload.binary.length).toBe(1);
+        expect(upload.completes.length).toBe(0);
+        expect(upload.appends.length).toBe(0);
+        await expect(
+          page.getByRole('button', { name: 'Retry upload', exact: true }),
+        ).toHaveCount(0);
       } finally {
-        identity.off('response', observeIdentity);
-        await identity.close();
+        try {
+          await upload.dispose();
+        } finally {
+          identity.off('response', observeIdentity);
+          await identity.close();
+        }
       }
+    } finally {
+      await native.close();
     }
   });
 }

@@ -17,10 +17,17 @@ import static org.documentknowledge.documentmanagement.application.upload.Upload
 public final class UploadService {
  private final DocumentUnitOfWork transactions;private final UploadPolicy policy;private final UploadStoragePort storage;
  private final MalwareScanPort scanner;private final StructureInspectionPort inspector;private final Clock clock;private final Path temporary;
+ private final java.util.function.Consumer<Path> completeSpoolCleanup;
  private final Semaphore verification=new Semaphore(1),transfers=new Semaphore(10);
  private final Set<UUID> transferring=java.util.concurrent.ConcurrentHashMap.newKeySet();
  public UploadService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,
      MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path temporary){
+  this(transactions,grants,storage,scanner,inspector,clock,temporary,UploadSupport::remove);
+ }
+ // Java-only failure/timing seam; production always uses the real owned-file deletion above.
+ UploadService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,
+     MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path temporary,java.util.function.Consumer<Path> completeSpoolCleanup){
+  this.completeSpoolCleanup=Objects.requireNonNull(completeSpoolCleanup);
   this.transactions=Objects.requireNonNull(transactions);policy=new UploadPolicy(grants);this.storage=Objects.requireNonNull(storage);
   this.scanner=Objects.requireNonNull(scanner);this.inspector=Objects.requireNonNull(inspector);this.clock=Objects.requireNonNull(clock);this.temporary=Objects.requireNonNull(temporary);
  }
@@ -66,43 +73,63 @@ public final class UploadService {
  private record TransferPlan(UploadSlot slot,UploadOutcome previous) { }
  private void resetTransfer(UploadSlot claimed){transactions.execute(r->{var u=r.uploads();u.lockAccounts(claimed.tenant());r.find(claimed.tenant(),claimed.documentId()).orElseThrow(UploadPolicy::hidden);var current=u.slot(claimed.tenant(),claimed.uploadId()).orElseThrow(UploadPolicy::hidden);sameLeaseIdentity(current,claimed);u.updateSlot(current.transferReset(),current.revision());return null;});}
  public CompleteReceipt complete(DocumentCaller caller,UUID uploadId,String key){
+  var budget=new CompleteBudget(clock);
+  return budget.execute(()->completeBounded(caller,uploadId,key,budget));
+ }
+ private CompleteReceipt completeBounded(DocumentCaller caller,UUID uploadId,String key,CompleteBudget budget){
+  try(var preparation=budget.phase(CompleteBudget.Kind.STORAGE)){
   UUID document=locate(caller,uploadId,false);var command=UploadSupport.command(caller,"upload.complete",uploadId.toString(),key);String fingerprint=UploadSupport.fingerprint("complete");
-  if(!verification.tryAcquire())throw new DmFailure(429,"QUOTA_EXCEEDED");
-  Instant deadline=now().plusSeconds(240);UploadSlot claimed=null;
+  preparation.check();if(!verification.tryAcquire())throw new DmFailure(429,"QUOTA_EXCEEDED");
+  UploadSlot claimed=null;
   try {
-   claimed=transactions.execute(repository->{repository.lockCommand(command);var u=repository.uploads();u.lockAccounts(caller.tenant());policy.document(repository,caller,document,Action.VERSION_APPEND,false);
+   preparation.check();claimed=transactions.execute(repository->{preparation.check();repository.lockCommand(command);var u=repository.uploads();u.lockAccounts(caller.tenant());policy.document(repository,caller,document,Action.VERSION_APPEND,false);
     var slot=owned(u,caller,uploadId);live(slot);var previous=u.command(command);
     if(previous.isPresent()){same(previous.get(),fingerprint);if(u.consumption(caller.tenant(),previous.get().receiptId()).isPresent())throw new DmFailure(409,"RECEIPT_CONSUMED");policy.document(repository,caller,document,Action.VERSION_APPEND,false);return slot;}
     boolean unresolved=slot.possibleOriginal()!=null&&!(slot.writerSettled()&&slot.copyCleanupConfirmed());
     if(unresolved&&(slot.failureCode()!=null||slot.leaseUntil()!=null&&!now().isBefore(slot.leaseUntil())))throw UploadPolicy.unavailable();
     if(slot.state()!=UploadState.QUARANTINED||slot.verificationAttempts()>=3)throw conflict();
     if(unresolved)throw UploadPolicy.unavailable();
-    var next=slot.verifying(UUID.randomUUID(),lease(slot,300));u.updateSlot(next,slot.revision());return next;
+    var next=slot.verifying(UUID.randomUUID(),lease(slot,300));preparation.check();u.updateSlot(next,slot.revision());preparation.check();return next;
    });
-   if(claimed.state()==UploadState.VERIFIED){var receipt=transactions.execute(r->{policy.document(r,caller,document,Action.VERSION_APPEND,false);var u=r.uploads();var value=u.receiptForUpload(caller.tenant(),uploadId).orElseThrow(UploadPolicy::unavailable);if(u.consumption(caller.tenant(),value.receiptId()).isPresent())throw new DmFailure(409,"RECEIPT_CONSUMED");policy.document(r,caller,document,Action.VERSION_APPEND,false);return value;});return new CompleteReceipt(uploadId,receipt.receiptId());}
+   preparation.close();budget.check();
+   if(claimed.state()==UploadState.VERIFIED){try(var replay=budget.phase(CompleteBudget.Kind.STORAGE)){var receipt=transactions.execute(r->{replay.check();policy.document(r,caller,document,Action.VERSION_APPEND,false);var u=r.uploads();var value=u.receiptForUpload(caller.tenant(),uploadId).orElseThrow(UploadPolicy::unavailable);if(u.consumption(caller.tenant(),value.receiptId()).isPresent())throw new DmFailure(409,"RECEIPT_CONSUMED");policy.document(r,caller,document,Action.VERSION_APPEND,false);replay.check();return value;});replay.check();return new CompleteReceipt(uploadId,receipt.receiptId());}}
    UploadSlot lease=claimed;
-   try(var input=storage.open(claimed.quarantine());var source=UploadSupport.spool(input,temporary,claimed.declaredSize(),clock,60)) {
+   try(var source=completeSpool(claimed.quarantine(),claimed.declaredSize(),budget)) {
     if(!source.sha256().equals(claimed.bodySha256()))throw UploadPolicy.unavailable();ArtifactSource artifact=new ArtifactSource(source.file(),claimed.format(),source.size(),source.sha256());
-    ScanEvidence scan=scanner.scan(artifact);validateScan(scan,artifact);InspectionEvidence inspection=inspector.inspect(artifact);validateInspection(inspection,artifact);
-    if(now().isAfter(deadline))throw UploadPolicy.unavailable();
+    ScanEvidence scan;try(var phase=budget.phase(CompleteBudget.Kind.SCAN)){scan=scanner.scan(artifact,phase);phase.check();validateScan(scan,artifact);}
+    InspectionEvidence inspection;try(var phase=budget.phase(CompleteBudget.Kind.INSPECT)){inspection=inspector.inspect(artifact,phase);phase.check();validateInspection(inspection,artifact);}
+    budget.check();
+    try(var copying=budget.phase(CompleteBudget.Kind.STORAGE)){
     ObjectKey target=UploadSupport.key(caller.tenant(),document,UUID.randomUUID(),true);
-    transactions.execute(repository->{var u=repository.uploads();u.lockAccounts(caller.tenant());policy.document(repository,caller,document,Action.VERSION_APPEND,false);var current=owned(u,caller,uploadId);sameLease(current,lease);live(current);u.updateSlot(current.possibleCopy(target),current.revision());return null;});
-    ObjectIdentity original=storage.copy(claimed.quarantine(),target);if(original==null||!original.objectKey().equals(target))throw UploadPolicy.unavailable();
+    transactions.execute(repository->{copying.check();var u=repository.uploads();u.lockAccounts(caller.tenant());policy.document(repository,caller,document,Action.VERSION_APPEND,false);var current=owned(u,caller,uploadId);sameLease(current,lease);live(current);copying.check();u.updateSlot(current.possibleCopy(target),current.revision());copying.check();return null;});
+    ObjectIdentity original=storage.copy(claimed.quarantine(),target,copying);if(original==null||!original.objectKey().equals(target))throw UploadPolicy.unavailable();
     transactions.execute(repository->{var u=repository.uploads();u.lockAccounts(caller.tenant());repository.find(caller.tenant(),document).orElseThrow(UploadPolicy::hidden);var current=owned(u,caller,uploadId);sameLeaseIdentity(current,lease);u.updateSlot(current.copied(original),current.revision());return null;});
-    freshLease(lease);
-    try(var readback=storage.open(original);var checked=UploadSupport.spool(readback,temporary,claimed.declaredSize(),clock,60)){if(!checked.sha256().equals(source.sha256()))throw UploadPolicy.unavailable();}
-    return transactions.execute(repository->{repository.lockCommand(command);var u=repository.uploads();u.lockAccounts(caller.tenant());policy.document(repository,caller,document,Action.VERSION_APPEND,false);
-     var current=owned(u,caller,uploadId);sameLease(current,lease);live(current);Instant at=now();if(at.isAfter(deadline))throw UploadPolicy.unavailable();validateScan(scan,artifact);validateInspection(inspection,artifact);
+    copying.check();freshLease(lease);
+    try(var readback=storage.open(original,copying);var abort=copying.onCancel(()->closeStream(readback));var checked=UploadSupport.spool(readback,temporary,claimed.declaredSize(),clock,60)){copying.check();if(!checked.sha256().equals(source.sha256()))throw UploadPolicy.unavailable();}
+    // Remove owned source bytes before receipt publication, under the SAME storage allowance.
+    source.close(completeSpoolCleanup);copying.check();
+    copying.close();
+    try(var persistence=budget.phase(CompleteBudget.Kind.STORAGE)){
+    return transactions.execute(repository->{persistence.check();repository.lockCommand(command);var u=repository.uploads();u.lockAccounts(caller.tenant());policy.document(repository,caller,document,Action.VERSION_APPEND,false);
+     var current=owned(u,caller,uploadId);sameLease(current,lease);live(current);Instant at=now();persistence.check();validateScan(scan,artifact);validateInspection(inspection,artifact);
      var evidence=new VerificationEvidence(UUID.randomUUID(),caller.tenant(),uploadId,current.quarantine(),scan,inspection,at);
      var receipt=new UploadReceipt(UUID.randomUUID(),uploadId,caller.tenant(),document,caller.principal(),source.sha256(),source.size(),current.format(),original,evidence.evidenceId(),at,current.expiresAt());
      policy.document(repository,caller,document,Action.VERSION_APPEND,false);var next=current.verified();u.insertEvidence(evidence);u.insertReceipt(receipt);u.updateSlot(next,current.revision());
      u.record(new UploadOutcome(command,fingerprint,200,uploadId,receipt.receiptId()),audit(next,"upload.complete",null));
-     u.enqueueCleanup(cleanup(next,current.quarantine().objectKey(),current.quarantine(),CleanupReason.VERIFIED_QUARANTINE_COPY));return new CompleteReceipt(uploadId,receipt.receiptId());
-    });
+     u.enqueueCleanup(cleanup(next,current.quarantine().objectKey(),current.quarantine(),CleanupReason.VERIFIED_QUARANTINE_COPY));persistence.check();return new CompleteReceipt(uploadId,receipt.receiptId());
+    });}
+    }
    }catch(java.io.IOException failure){throw UploadPolicy.unavailable();}
   }catch(RuntimeException failure){if(claimed!=null&&claimed.state()==UploadState.VERIFYING)verificationFailure(claimed,failure);throw safe(failure);}
-  finally {verification.release();}
+  finally{verification.release();}
+  }
  }
+ private UploadSupport.Spool completeSpool(ObjectIdentity object,long size,CompleteBudget budget){
+  try(var phase=budget.phase(CompleteBudget.Kind.STORAGE);var input=storage.open(object,phase);var abort=phase.onCancel(()->closeStream(input))){
+   var spool=UploadSupport.spool(input,temporary,size,clock,60,path->{try(var cleanup=budget.phase(CompleteBudget.Kind.STORAGE)){completeSpoolCleanup.accept(path);cleanup.check();}});try{phase.check();return spool;}catch(RuntimeException failure){spool.close(completeSpoolCleanup);throw failure;}
+  }catch(java.io.IOException failure){throw UploadPolicy.unavailable();}
+ }
+ private static void closeStream(InputStream stream){try{stream.close();}catch(java.io.IOException ignored){}}
  public Status status(DocumentCaller caller,UUID uploadId){UUID document=locate(caller,uploadId,true);var slot=read(caller,document,uploadId,true);return new Status(slot.uploadId(),slot.state(),slot.expiresAt(),slot.failureCode());}
  public ConsumedVersion discover(DocumentCaller caller,UUID documentId,UUID receiptId){
   policy.route(caller,Action.CONTENT_REVIEW,documentId,true);

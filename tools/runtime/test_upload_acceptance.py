@@ -329,7 +329,7 @@ class AcceptanceTests(unittest.TestCase):
             return {'Config':{'Labels':m.authority_labels(record)},'State':{'ExitCode':0}}
         self.p('inspect',side_effect=metadata);self.p('capture',return_value=self.result_bytes())
         self.assertEqual(9,len(m.execute(self.directory,self.image)))
-        create=next(e for e in events if e[:2]==['docker','create']);self.assertIn('10001:0',create);self.assertIn(m.TASK,create)
+        create=next(e for e in events if e[:2]==['docker','create']);self.assertIn('10001:0',create);self.assertIn(m.TASK,create);self.assertNotIn('DKP_COMPLETE_DURATION_ACCEPTANCE=required',create)
         self.assertEqual(self.state['network'],create[create.index('--network')+1]);self.assertTrue(any(e[:3]==['docker','network','connect'] and e[3]==self.live['project']+'_upload-data' for e in events))
         joined=' '.join(create);self.assertNotIn('root-curl',joined);self.assertNotIn('/server',joined);self.assertNotIn('synthetic-service-key',joined)
         self.assertIn(',dst=/acceptance,readonly',joined);self.assertIn(',dst=/run/dkp/definitions,readonly',joined);self.assertIn('DKP_144_DENIED_STORAGE_AUTHORITY=/acceptance/denied',joined)
@@ -347,7 +347,7 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_actual_image_source_attestation_rejects_stale_missing_and_wrong_task_bytes_without_provider_access(self):
         record=self.arrange_prepared();calls=[]
-        paths=(m.JAVA_SOURCE,'services/document-management/adapters-out/build.gradle')
+        paths=m.IMAGE_SOURCES
         expected='\n'.join(record['sourceHashes'][p]+'  /workspace/'+p for p in paths)+'\n'
         self.p('command',side_effect=lambda args,**kwargs:(calls.append(args),expected.encode())[1])
         m.attest_image(self.image,record);args=calls[-1]
@@ -447,5 +447,89 @@ class AcceptanceTests(unittest.TestCase):
         with patch('sys.argv',['upload-acceptance.py','run','--directory',str(self.directory),'--image',self.image]),patch.object(m,'execute',return_value=[{'result':'PASS'}]),patch('builtins.print') as output:
             m.main();self.assertEqual(1,output.call_count)
 
+
+    def storage_row(self):
+        return {'requirement':'COMPLETE-SHARED-STORAGE-60','result':'PASS','elapsedMs':60002,
+                'realProviders':True,'artificialResultDelays':True,'lateRemoteCopy':False,'retainedCharges':True}
+
+    def test_storage_result_is_closed_actual_time_and_cannot_replace_eight_cases(self):
+        row=self.storage_row();encoded=json.dumps(row,separators=(',',':'))
+        self.assertEqual([row],m.storage_results('Gradle\n'+encoded))
+        for key,value in [('requirement','COPY-01'),('result','SKIP'),('elapsedMs',58999),('elapsedMs',90000),
+                          ('elapsedMs',True),('elapsedMs',60000.0),('realProviders',1),('artificialResultDelays',False),
+                          ('lateRemoteCopy',True),('retainedCharges',False),('untrusted','private-data')]:
+            bad=dict(row);bad[key]=value
+            with self.subTest(key=key,value=value),self.assertRaises(ValueError):m.storage_results(json.dumps(bad,separators=(',',':')))
+        for missing in row:
+            bad=dict(row);del bad[missing]
+            with self.assertRaises(ValueError):m.storage_results(json.dumps(bad,separators=(',',':')))
+        for output in ['',encoded+'\n'+encoded,self.result_bytes().decode(),encoded+'\n'+self.result_bytes().decode(),'{"requirement":invalid}',
+                       encoded.replace('"result":"PASS"','"result":"FAIL","result":"PASS"')]:
+            with self.assertRaises((ValueError,json.JSONDecodeError)):m.storage_results(output)
+        with self.assertRaises(ValueError):m.results(encoded)
+        for boundary in [59000,89999]:
+            row['elapsedMs']=boundary;self.assertEqual([row],m.storage_results(json.dumps(row,separators=(',',':'))))
+
+    def test_storage_profile_uses_same_immutable_authority_with_only_explicit_task_and_required_env(self):
+        record=self.arrange_prepared();events=[];self.p('attest_image');self.p('load',return_value=(record,self.state,self.live))
+        self.p('command',side_effect=lambda args,**kwargs:(events.append(args),b'')[1])
+        def metadata(kind,name):
+            if kind=='image':return {'Id':self.image}
+            if kind=='network':return {'Internal':True,'Labels':{'com.docker.compose.network':'upload-data'}}
+            return {'Config':{'Labels':m.authority_labels(record)},'State':{'ExitCode':0}}
+        self.p('inspect',side_effect=metadata)
+        self.p('capture',return_value=json.dumps(self.storage_row(),separators=(',',':')).encode())
+        self.assertEqual([self.storage_row()],m.execute(self.directory,self.image,profile='storage-budget'))
+        create=next(e for e in events if e[:2]==['docker','create'])
+        self.assertEqual(m.STORAGE_TASK,create[-1]);self.assertNotIn(m.TASK,create)
+        self.assertIn('DKP_COMPLETE_DURATION_ACCEPTANCE=required',create)
+        self.assertIn('type=volume,src='+record['authorityVolume']+',dst=/acceptance,readonly',create)
+        self.assertNotIn('/server',' '.join(create));self.assertNotIn('root-curl',' '.join(create))
+        self.assertTrue(any(e[:3]==['docker','rm','--force'] for e in events))
+        events.clear()
+        with self.assertRaises(ValueError):m.execute(self.directory,self.image,profile='arbitrary-task')
+        self.assertEqual([],events)
+        with patch.object(m,'capture',return_value=self.result_bytes()),self.assertRaises(ValueError):
+            m.execute(self.directory,self.image,profile='storage-budget')
+        self.assertTrue(any(e[:3]==['docker','rm','--force'] for e in events))
+
+    def test_every_reviewed_budget_source_is_bound_and_stale_image_rejected_before_provider_load(self):
+        record=self.arrange_prepared()
+        self.assertTrue(any(p.endswith('/CompleteBudget.java') for p in m.IMAGE_SOURCES))
+        self.assertTrue(any(p.endswith('/RealCompleteStorageBudgetAcceptance.java') for p in m.IMAGE_SOURCES))
+        expected=''.join(record['sourceHashes'][p]+'  /workspace/'+p+'\n' for p in m.IMAGE_SOURCES)
+        for path in m.BUDGET_SOURCES:
+            source=self.root/path;original=source.read_bytes();source.write_bytes(original+b'\n')
+            with self.assertRaisesRegex(ValueError,'source changed'):m.read_record(self.directory)
+            source.write_bytes(original)
+            wrong=expected.replace(record['sourceHashes'][path]+'  /workspace/'+path,'0'*64+'  /workspace/'+path)
+            with patch.object(m,'command',return_value=wrong.encode()),self.assertRaises(ValueError):m.attest_image(self.image,record)
+        self.assertEqual(record,m.read_record(self.directory))
+
+    def test_closed_storage_cli_disallows_foreign_selectors_and_unknown_profiles(self):
+        base=['upload-acceptance.py','run-storage-budget','--directory',str(self.directory),'--image',self.image]
+        with patch('sys.argv',base),patch.object(m,'execute',return_value=[self.storage_row()]) as execute,patch('builtins.print') as output:
+            m.main();execute.assert_called_once_with(self.directory,self.image,profile='storage-budget');self.assertEqual(1,output.call_count)
+        for args in [base+['--runtime-directory',self.live['directory']],base+['--fixture-directory',str(self.fixture)],
+                     ['upload-acceptance.py','prepare','--directory',str(self.directory),'--image',self.image]]:
+            with patch('sys.argv',args),patch.object(m,'execute') as execute,patch.object(m,'prepare') as prepare,self.assertRaises(SystemExit):m.main()
+            execute.assert_not_called();prepare.assert_not_called()
+        for arguments in [['upload-acceptance.py','run-unknown','--directory',str(self.directory)],
+                          ['upload-acceptance.py','run-storage-budget','--directory',str(self.directory),'--imag',self.image]]:
+            with patch('sys.argv',arguments),self.assertRaises(SystemExit):m.main()
+
+    def test_required_ci_storage_task_follows_eight_cases_without_skip_or_extra_authority(self):
+        workflow=(self.original/'.github/workflows/foundation.yml').read_text()
+        combined='python3 tools/runtime/upload-acceptance.py run --directory local-data/security/upload-acceptance-ci --image "$dkp_acceptance_image"'
+        storage='python3 tools/runtime/upload-acceptance.py run-storage-budget --directory local-data/security/upload-acceptance-ci --image "$dkp_acceptance_image"'
+        self.assertEqual(1,workflow.count(storage));self.assertIn(combined+'\n          '+storage,workflow)
+        build=(self.original/'services/document-management/adapters-out/build.gradle').read_text()
+        block=build.split("tasks.register('realCompleteStorageBudgetAcceptance', JavaExec) {",1)[1]
+        self.assertIn("System.getenv('DKP_COMPLETE_DURATION_ACCEPTANCE') != 'required'",block)
+        self.assertIn("throw new GradleException",block);self.assertNotIn('onlyIf',block)
+        self.assertIn("mainClass = 'org.documentknowledge.documentmanagement.adapters.outbound.upload.RealCompleteStorageBudgetAcceptance'",block)
+        self.assertIn("dependsOn tasks.named('testClasses')",block)
+        self.assertIn('classpath = sourceSets.test.runtimeClasspath',block)
+        self.assertNotIn("dependsOn 'realCompleteStorageBudgetAcceptance'",build)
 
 if __name__=='__main__':unittest.main()

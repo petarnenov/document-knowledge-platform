@@ -26,7 +26,31 @@ BUCKETS = ('dkp-quarantine', 'dkp-originals')
 CASES = ('COPY-01', 'COPY-02', 'COPY-03', 'FENCE-01', 'FENCE-02', 'FENCE-03', 'FENCE-04', 'FENCE-05')
 TASK = ':services:document-management:adapters-out:realUploadPersistenceStorageAcceptance'
 JAVA_SOURCE = 'services/document-management/adapters-out/src/test/java/org/documentknowledge/documentmanagement/adapters/outbound/upload/RealUploadPersistenceStorageAcceptance.java'
-BOUND_SOURCES = ('tools/runtime/upload-acceptance.py', JAVA_SOURCE, 'services/document-management/adapters-out/build.gradle')
+STORAGE_TASK = ':services:document-management:adapters-out:realCompleteStorageBudgetAcceptance'
+# Both closed profiles use the same prepared record and immutable image. The whole
+# reviewed budget dependency is attested, not merely the entry-point class.
+BUDGET_SOURCES = (
+    'services/document-management/adapters-out/src/main/java/org/documentknowledge/documentmanagement/adapters/outbound/storage/S3UploadStorageAdapter.java',
+    'services/document-management/adapters-out/src/main/java/org/documentknowledge/documentmanagement/adapters/outbound/verification/ClamAvScanAdapter.java',
+    'services/document-management/adapters-out/src/main/java/org/documentknowledge/documentmanagement/adapters/outbound/verification/IsolatedInspectionAdapter.java',
+    'services/document-management/adapters-out/src/test/java/org/documentknowledge/documentmanagement/adapters/outbound/storage/S3UploadStorageAdapterTest.java',
+    'services/document-management/adapters-out/src/test/java/org/documentknowledge/documentmanagement/adapters/outbound/upload/RealCompleteStorageBudgetAcceptance.java',
+    'services/document-management/adapters-out/src/test/java/org/documentknowledge/documentmanagement/adapters/outbound/upload/RealUploadPersistenceStorageAcceptance.java',
+    'services/document-management/adapters-out/src/test/java/org/documentknowledge/documentmanagement/adapters/outbound/verification/ClamAvScanAdapterTest.java',
+    'services/document-management/adapters-out/src/test/java/org/documentknowledge/documentmanagement/adapters/outbound/verification/IsolatedInspectionAdapterTest.java',
+    'services/document-management/application/src/main/java/org/documentknowledge/documentmanagement/application/upload/CompleteBudget.java',
+    'services/document-management/application/src/main/java/org/documentknowledge/documentmanagement/application/upload/MalwareScanPort.java',
+    'services/document-management/application/src/main/java/org/documentknowledge/documentmanagement/application/upload/StructureInspectionPort.java',
+    'services/document-management/application/src/main/java/org/documentknowledge/documentmanagement/application/upload/UploadService.java',
+    'services/document-management/application/src/main/java/org/documentknowledge/documentmanagement/application/upload/UploadStoragePort.java',
+    'services/document-management/application/src/main/java/org/documentknowledge/documentmanagement/application/upload/UploadSupport.java',
+    'services/document-management/application/src/test/java/org/documentknowledge/documentmanagement/application/UploadLifecycleTest.java',
+    'services/document-management/application/src/test/java/org/documentknowledge/documentmanagement/application/upload/CompleteBudgetDurationAcceptance.java',
+    'services/document-management/application/src/test/java/org/documentknowledge/documentmanagement/application/upload/CompleteBudgetTest.java',
+    'services/document-management/application/src/test/java/org/documentknowledge/documentmanagement/application/upload/UploadServiceTestFactory.java',
+)
+BOUND_SOURCES = tuple(dict.fromkeys(('tools/runtime/upload-acceptance.py', JAVA_SOURCE, 'services/document-management/adapters-out/build.gradle', *BUDGET_SOURCES)))
+IMAGE_SOURCES = tuple(path for path in BOUND_SOURCES if path != 'tools/runtime/upload-acceptance.py')
 FIELDS = {'schemaVersion', 'runId', 'fixture', 'runtime', 'fixtureContainer', 'runtimeProject', 'runtimeRunId', 'workerImage', 'authorityVolume', 'phase', 'files', 'sourceHashes'}
 
 
@@ -374,10 +398,35 @@ def results(output):
     return observations
 
 
+
+def storage_results(output):
+    def closed_object(pairs):
+        row = {}
+        for key, value in pairs:
+            if key in row:
+                raise ValueError('Duplicate storage result field refused')
+            row[key] = value
+        return row
+    observations = []
+    for line in output.splitlines():
+        if line.startswith('{"requirement":') or line.startswith('{"issue":'):
+            observations.append(json.loads(line, object_pairs_hook=closed_object))
+    fields = {'requirement', 'result', 'elapsedMs', 'realProviders', 'artificialResultDelays', 'lateRemoteCopy', 'retainedCharges'}
+    if len(observations) != 1 or not isinstance(observations[0], dict) or set(observations[0]) != fields:
+        raise ValueError('Exactly one closed genuine storage budget result is required')
+    row = observations[0]
+    if (row['requirement'] != 'COMPLETE-SHARED-STORAGE-60' or row['result'] != 'PASS'
+            or type(row['elapsedMs']) is not int or not 59000 <= row['elapsedMs'] < 90000
+            or row['realProviders'] is not True or row['artificialResultDelays'] is not True
+            or row['lateRemoteCopy'] is not False or row['retainedCharges'] is not True):
+        raise ValueError('Genuine production storage budget evidence failed')
+    return observations
+
+
 def attest_image(image,record):
     # No socket, credentials, source/provider mounts or network in this attestor.
     # Immutable image identity alone cannot prove it contains the reviewed tests.
-    paths = (JAVA_SOURCE,'services/document-management/adapters-out/build.gradle')
+    paths = IMAGE_SOURCES
     output = command(['docker','run','--rm','--pull=never','--network','none','--read-only','--user','10001:0',
                       '--cap-drop','ALL','--security-opt','no-new-privileges:true','--memory','64m','--pids-limit','16',
                       '--entrypoint','/usr/bin/sha256sum',image,*('/workspace/' + path for path in paths)]).decode().splitlines()
@@ -398,7 +447,9 @@ def capture(args, log):
     return log.read_bytes()
 
 
-def execute(directory, image):
+def execute(directory, image, *, profile='combined'):
+    if profile not in ('combined', 'storage-budget'):
+        raise ValueError('Unknown acceptance profile refused')
     directory = owned_directory(directory);record = read_record(directory)
     if not re.fullmatch('sha256:[a-f0-9]{64}',image) or inspect('image',image)['Id'] != image:raise ValueError('Explicit actual immutable test image required')
     attest_image(image,record)
@@ -416,6 +467,8 @@ def execute(directory, image):
            'DKP_144_INSPECTOR_CA':'/acceptance/inspector/ca.crt','DKP_144_INSPECTOR_KEY':'/acceptance/inspector/service.key',
            'DKP_144_INSPECTOR_PROFILE':runtime.PROFILE,'DKP_144_INSPECTOR_IMAGE':live['workerImage'],
            'GRADLE_USER_HOME':'/tmp/dkp-gradle','TESTCONTAINERS_HOST_OVERRIDE':'host.docker.internal','TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE':'/var/run/docker.sock'}
+    if profile == 'storage-budget':
+        env['DKP_COMPLETE_DURATION_ACCEPTANCE'] = 'required'
     args = ['docker','create','--name',name,*label_args,'--pull=never','--user','10001:0','--memory','4g','--cpus','4','--pids-limit','512',
             '--cap-drop','ALL','--security-opt','no-new-privileges:true','--network',state['network'],'--add-host','host.docker.internal:host-gateway',
             '--group-add',helper('rustfs-compat-harness').socket_group(image),
@@ -425,7 +478,7 @@ def execute(directory, image):
             '--mount','type=volume,src=dkp-bp02-gradle-cache,dst=/tmp/dkp-gradle',
             '--mount','type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock']
     for key,value in env.items():args += ['--env',key + '=' + value]
-    args += [image,'./gradlew','--no-daemon','--max-workers=2',TASK]
+    args += [image,'./gradlew','--no-daemon','--max-workers=2',TASK if profile == 'combined' else STORAGE_TASK]
     command(args)
     try:
         owned(inspect('container',name),record);command(['docker','network','connect',network,name])
@@ -433,7 +486,7 @@ def execute(directory, image):
         output = capture(['docker','start','--attach',name],directory / ('execution-' + uuid.uuid4().hex + '.private.log'))
         item = inspect('container',name);owned(item,record)
         if item['State']['ExitCode'] != 0:raise ValueError('Combined real-provider acceptance failed')
-        observed = results(output.decode('utf8'))
+        observed = (results if profile == 'combined' else storage_results)(output.decode('utf8'))
         private(directory / ('results-' + uuid.uuid4().hex + '.json'),json.dumps(observed) + '\n')
         return observed
     finally:
@@ -441,16 +494,18 @@ def execute(directory, image):
 
 
 def main():
-    parser = argparse.ArgumentParser();parser.add_argument('action',choices=['prepare','run']);parser.add_argument('--directory',type=Path,required=True)
+    parser = argparse.ArgumentParser(allow_abbrev=False);parser.add_argument('action',choices=['prepare','run','run-storage-budget']);parser.add_argument('--directory',type=Path,required=True)
     parser.add_argument('--fixture-directory',type=Path);parser.add_argument('--runtime-directory',type=Path);parser.add_argument('--image')
     args = parser.parse_args()
     try:
         if args.action == 'prepare':
+            if args.image is not None:raise ValueError('Prepare does not accept an image')
             if args.fixture_directory is None or args.runtime_directory is None:raise ValueError('Both owned fixture and ready runtime are required')
             prepare(args.directory,args.fixture_directory,args.runtime_directory);print('PASS151 native readonly403/nonmutating proof and app-only authority prepared')
         else:
+            if args.fixture_directory is not None or args.runtime_directory is not None:raise ValueError('Run accepts only its owned record and image')
             if not args.image:raise ValueError('Immutable acceptance test image required')
-            for result in execute(args.directory,args.image):print(json.dumps(result,separators=(',',':')))
+            for result in execute(args.directory,args.image,profile='storage-budget' if args.action == 'run-storage-budget' else 'combined'):print(json.dumps(result,separators=(',',':')))
     except Exception:
         raise SystemExit('Combined acceptance failed closed; private provider diagnostics suppressed') from None
 

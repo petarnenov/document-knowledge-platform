@@ -128,3 +128,21 @@ tasks.register('realUploadPersistenceStorageAcceptance', JavaExec) {
     systemProperty 'java.io.tmpdir', authorityTmp.get().asFile.absolutePath
     doFirst { authorityTmp.get().asFile.mkdirs() }
 }
+
+// Explicit opt-in genuine production-60s profile; never a routine test or skip.
+tasks.register('realCompleteStorageBudgetAcceptance', JavaExec) {
+    group = 'verification'
+    description = 'Runs actual shared60s COMPLETE against real PG/RustFS/Clam/inspection, with labeled artificial transport delays.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.documentknowledge.documentmanagement.adapters.outbound.upload.RealCompleteStorageBudgetAcceptance'
+    jvmArgs '-XX:ActiveProcessorCount=2'
+    def authorityTmp = layout.buildDirectory.dir('authority-test-tmp')
+    systemProperty 'java.io.tmpdir', authorityTmp.get().asFile.absolutePath
+    doFirst {
+        if (System.getenv('DKP_COMPLETE_DURATION_ACCEPTANCE') != 'required') {
+            throw new GradleException('Explicit genuine storage duration profile is required')
+        }
+        authorityTmp.get().asFile.mkdirs()
+    }
+}

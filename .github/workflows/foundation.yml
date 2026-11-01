@@ -64,9 +64,11 @@ jobs:
         run: >-
           pnpm --filter admin-portal exec vitest run
           src/upload-fault-contract.test.tsx src/ui-create-receipt.test.tsx
+          src/native-boundary-browser.test.tsx
           --coverage
           --coverage.include=e2e-real/upload-fault-contract.ts
           --coverage.include=e2e-real/ui-create-receipt.ts
+          --coverage.include=e2e-real/native-boundary-browser.ts
           --coverage.reportsDirectory=coverage/acceptance-helpers
           --coverage.thresholds.lines=75 --coverage.thresholds.branches=75
           --coverage.thresholds.functions=75 --coverage.thresholds.statements=75
@@ -276,6 +278,7 @@ jobs:
           python3 tools/runtime/upload-acceptance.py prepare --directory local-data/security/upload-acceptance-ci --fixture-directory local-data/security/bp03-ci-combined --runtime-directory local-data/security/bp03-upload/ci
           dkp_acceptance_image=$(docker image inspect --format '{{.Id}}' dkp-upload-ci-tests:local)
           python3 tools/runtime/upload-acceptance.py run --directory local-data/security/upload-acceptance-ci --image "$dkp_acceptance_image"
+          python3 tools/runtime/upload-acceptance.py run-storage-budget --directory local-data/security/upload-acceptance-ci --image "$dkp_acceptance_image"
       - name: Remove only the owned combined compatibility fixture
         if: always()
         run: |
