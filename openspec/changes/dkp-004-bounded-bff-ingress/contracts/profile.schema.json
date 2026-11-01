@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "profile",
+    "selectionState",
+    "micronautHttp",
+    "netty",
+    "frameworkQueueBytes",
+    "initialCreditBytes",
+    "receiveBytes",
+    "receiveMessages",
+    "decoderPieceBytes",
+    "bridgePieces",
+    "metadataBytes",
+    "binaryMaxBytes",
+    "transferMillis",
+    "idleMillis",
+    "internalProtocol",
+    "directTls",
+    "http2",
+    "http3",
+    "decompression"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "profile": {
+      "const": "bff-http1-ingress-v1"
+    },
+    "selectionState": {
+      "const": "PROPOSED"
+    },
+    "micronautHttp": {
+      "const": "5.2.20"
+    },
+    "netty": {
+      "const": "4.2.19.Final"
+    },
+    "frameworkQueueBytes": {
+      "const": 131072
+    },
+    "initialCreditBytes": {
+      "const": 65535
+    },
+    "receiveBytes": {
+      "const": 8192
+    },
+    "receiveMessages": {
+      "const": 1
+    },
+    "decoderPieceBytes": {
+      "const": 8192
+    },
+    "bridgePieces": {
+      "const": 2
+    },
+    "metadataBytes": {
+      "const": 16384
+    },
+    "binaryMaxBytes": {
+      "const": 100000000
+    },
+    "transferMillis": {
+      "const": 300000
+    },
+    "idleMillis": {
+      "const": 30000
+    },
+    "internalProtocol": {
+      "const": "HTTP_1_1"
+    },
+    "directTls": {
+      "const": false
+    },
+    "http2": {
+      "const": false
+    },
+    "http3": {
+      "const": false
+    },
+    "decompression": {
+      "const": false
+    }
+  }
+}
