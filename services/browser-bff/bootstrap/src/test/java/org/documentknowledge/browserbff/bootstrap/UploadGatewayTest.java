@@ -35,7 +35,15 @@ class UploadGatewayTest {
    status.set(429);error.set("QUOTA_EXCEEDED");assertEquals(429,gateway.transfer(TRANSFER,"key",new ByteArrayInputStream(new byte[]{1,2,3,4}),4,identity,"tenant-a",()->{}).status());status.set(201);assertEquals("UNAVAILABLE",assertThrows(BffFailure.class,()->gateway.transfer(TRANSFER,"key",new ByteArrayInputStream(new byte[]{1,2,3,4}),4,identity,"tenant-a",()->{})).code());status.set(200);
    assertEquals(401,assertThrows(BffFailure.class,()->gateway.transfer(TRANSFER,"key",new ByteArrayInputStream(new byte[]{1,2,3,4}),4,identity,"tenant-a",()->{throw new BffFailure(401,"UNAUTHENTICATED");})).status());
    assertEquals(422,assertThrows(BffFailure.class,()->gateway.transfer(TRANSFER,"key",new ByteArrayInputStream(new byte[]{1,2}),4,identity,"tenant-a",()->{})).status());
-   for(String mime:List.of("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.openxmlformats-officedocument.presentationml.presentation","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")){format.set(mime);try(var result=gateway.download(CONTENT,null,identity,"tenant-a")){assertEquals(200,result.status());assertEquals(4,result.length());assertArrayEquals(bytes.get(),result.body().readAllBytes());}}
+   for(String mime:List.of("application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.openxmlformats-officedocument.presentationml.presentation","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")){format.set(mime);try(var result=gateway.download(CONTENT,null,identity,"tenant-a")){assertEquals(200,result.status());assertEquals(4,result.length());
+    assertFalse(result.sourceSettlement().toCompletableFuture().isDone());
+    var forged=result.sourceSettlement().toCompletableFuture();assertTrue(forged.complete(null));
+    var cancelled=result.sourceSettlement().toCompletableFuture();assertTrue(cancelled.cancel(true));
+    var overwritten=result.sourceSettlement().toCompletableFuture();overwritten.obtrudeValue(null);
+    assertFalse(result.sourceSettlement().toCompletableFuture().isDone());
+    assertArrayEquals(bytes.get(),result.body().readAllBytes());
+    assertTrue(result.sourceSettlement().toCompletableFuture().isDone());
+    assertNull(result.sourceSettlement().toCompletableFuture().join());}}
    format.set("application/pdf");status.set(206);range.set("bytes 1-2/4");bytes.set(new byte[]{2,3});try(var result=gateway.download(CONTENT,"bytes=1-2",identity,"tenant-a")){assertEquals(206,result.status());assertEquals("bytes 1-2/4",result.contentRange());assertArrayEquals(new byte[]{2,3},result.body().readAllBytes());}
    assertEquals(503,assertThrows(BffFailure.class,()->gateway.download(CONTENT,null,identity,"tenant-a")).status());range.set("bytes 0-3/4");assertEquals(503,assertThrows(BffFailure.class,()->gateway.download(CONTENT,"bytes=1-2",identity,"tenant-a")).status());
    // Every accepted range form is correlated with the exact returned object bounds.
@@ -54,4 +62,23 @@ class UploadGatewayTest {
    for(String invalid:List.of("", "relative", "ftp://host", "http://user:secret@host", "http://host/path", "http://host?query", "http://host#fragment")){var broken=owned(new FixedUploadGateway(invalid,context.getBean(JsonMapper.class)));assertEquals(503,assertThrows(BffFailure.class,()->broken.download(CONTENT,null,identity,"tenant-a")).status());}
   }finally{upstream.stop(0);}
  }
+ @Test void legacyDownloadResultNeverInventsSourceSettlement(){
+  var closes=new AtomicInteger();
+  var body=new ByteArrayInputStream(new byte[0]){@Override public void close(){closes.incrementAndGet();}};
+  var result=new UploadGateway.StreamResult(200,"application/pdf","synthetic.pdf",1,null,body);
+  result.close();result.close();
+  assertEquals(2,closes.get());
+  assertFalse(result.sourceSettlement().toCompletableFuture().isDone());
+  assertThrows(NullPointerException.class,()->new UploadGateway.StreamResult(200,"application/pdf","x.pdf",1,null,null));
+  assertThrows(NullPointerException.class,()->new UploadGateway.StreamResult(200,"application/pdf","x.pdf",1,null,body,null));
+ }
+ @Test void explicitWitnessRetainsProducerAuthorityAndCloseFailureStaysUnproved(){
+  var authority=new java.util.concurrent.CompletableFuture<Void>();
+  var body=new ByteArrayInputStream(new byte[0]){@Override public void close()throws IOException{throw new IOException("synthetic close failure");}};
+  var result=new UploadGateway.StreamResult(200,"application/pdf","synthetic.pdf",1,null,body,authority);
+  result.sourceSettlement().toCompletableFuture().completeExceptionally(new IOException("consumer only"));
+  result.close();assertFalse(authority.isDone());assertFalse(result.sourceSettlement().toCompletableFuture().isDone());
+  authority.complete(null);assertNull(result.sourceSettlement().toCompletableFuture().join());
+ }
+
 }

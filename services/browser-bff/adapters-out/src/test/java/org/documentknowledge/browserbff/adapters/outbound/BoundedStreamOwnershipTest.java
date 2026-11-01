@@ -4,6 +4,7 @@ import java.io.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.documentknowledge.browserbff.application.UploadGateway;
 import static org.junit.jupiter.api.Assertions.*;
 
 class BoundedStreamOwnershipTest {
@@ -24,13 +25,16 @@ class BoundedStreamOwnershipTest {
         };
         var budget = new UploadReadAdmission();
         var lease = budget.tryRetain(source);
-        try (var stream = new BoundedStream(source, -1, () -> {}, 300_000, 30_000, lease::release);
+        var settled = new CompletableFuture<Void>();
+        try (var stream = new BoundedStream(source, -1, () -> {}, 300_000, 30_000, () -> { lease.release(); settled.complete(null); });
              var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var result = new UploadGateway.StreamResult(200, "application/pdf", "synthetic.pdf", 1, null, stream, settled);
             var task = executor.submit((Callable<Integer>) stream::read);
             try {
                 assertTrue(entered.await(1, TimeUnit.SECONDS));
                 stream.close();
                 assertEquals(1, budget.retained());
+                assertFalse(result.sourceSettlement().toCompletableFuture().isDone());
                 assertEquals(1, stream.ownershipSnapshot().activeReads());
                 assertTrue(stream.ownershipSnapshot().closeSucceeded());
                 assertFalse(stream.ownershipSnapshot().settled());
@@ -39,6 +43,7 @@ class BoundedStreamOwnershipTest {
             } finally { release.countDown(); }
             assertEquals(-1, task.get(2, TimeUnit.SECONDS));
             assertEquals(0, budget.retained());
+            assertTrue(result.sourceSettlement().toCompletableFuture().isDone());
             assertTrue(stream.ownershipSnapshot().settled());
             assertEquals(1, closes.get());
         } finally { release.countDown(); }
@@ -59,11 +64,16 @@ class BoundedStreamOwnershipTest {
             };
             var budget = new UploadReadAdmission();
             var lease = budget.tryRetain(source);
-            var stream = new BoundedStream(source, 0, () -> {}, 300_000, 30_000, lease::release);
+            var settled = new CompletableFuture<Void>();
+            var stream = new BoundedStream(source, 0, () -> {}, 300_000, 30_000, () -> { lease.release(); settled.complete(null); });
+            var result = new UploadGateway.StreamResult(200, "application/pdf", "synthetic.pdf", 1, null, stream, settled);
             try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
                 var task = executor.submit(() -> { stream.close(); return null; });
                 try {
                     assertTrue(closeEntered.await(1, TimeUnit.SECONDS));
+                    result.close(); // Duplicate wrapper close returns while the actual first close is blocked.
+                    assertFalse(result.sourceSettlement().toCompletableFuture().isDone());
+                    assertEquals(1, calls.get());
                     assertEquals(1, budget.retained());
                     assertFalse(stream.ownershipSnapshot().settled());
                     assertEquals(-1, stream.read());
@@ -74,6 +84,7 @@ class BoundedStreamOwnershipTest {
                 stream.close();
                 assertEquals(1, calls.get());
                 assertEquals(fail ? 1 : 0, budget.retained());
+                assertEquals(!fail, result.sourceSettlement().toCompletableFuture().isDone());
                 assertEquals(fail, stream.ownershipSnapshot().closeFailed());
             } finally { finish.countDown(); stream.close(); }
         }

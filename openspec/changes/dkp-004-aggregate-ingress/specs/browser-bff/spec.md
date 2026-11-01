@@ -119,3 +119,19 @@ Private bridge buffers SHALL use owned shared Java arenas through supported publ
 #### Scenario: Arena close fails on the current thread
 - **WHEN** actual arena close fails, even if ByteBuf deallocation returned normally
 - **THEN** the arena and charge remain strongly identified, capacity is not reused, and a later cleanup cannot convert uncertainty into success
+
+
+### Requirement: Read-only download source-settlement witness
+The internal download result SHALL expose a read-only source-settlement stage. The actual gateway SHALL complete it only after successful underlying close and exit of all admitted source reads. Missing legacy witnesses SHALL remain pending. The stage SHALL NOT attest worker, bridge allocation or JDK transport termination, or change HTTP/security/deadline contracts.
+
+#### Scenario: Duplicate close returns before actual source close
+- **WHEN** one underlying close remains pending and another wrapper close returns
+- **THEN** the stage remains pending until the real close succeeds and all admitted reads exit
+
+#### Scenario: Failed close or consumer completion attempt
+- **WHEN** underlying close fails or a consumer completes or cancels a derived future
+- **THEN** failed ownership remains unproved and the consumer cannot complete the authoritative stage
+
+#### Scenario: Genuine HTTP download reaches EOF
+- **WHEN** an actual trusted upstream download is consumed to normal EOF with successful underlying close
+- **THEN** its source stage completes without changing bytes, metadata, range or authorization behavior

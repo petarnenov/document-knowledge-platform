@@ -45,7 +45,9 @@ public final class FixedUploadGateway implements UploadGateway, AutoCloseable {
    String extension=switch(mime){case "application/pdf"->"pdf";case "application/vnd.openxmlformats-officedocument.wordprocessingml.document"->"docx";case "application/vnd.openxmlformats-officedocument.presentationml.presentation"->"pptx";case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"->"xlsx";default->throw unavailable();};
    String filename=version+"."+extension;if(!disposition.equals("attachment; filename=\""+filename+"\"")||!length.matches("[1-9][0-9]{0,8}"))throw unavailable();long size=Long.parseLong(length);if(size>100_000_000||headers.firstValue("Content-Encoding").isPresent()||!one(headers,"Cache-Control").equals("no-store")||!one(headers,"X-Content-Type-Options").equals("nosniff")||!one(headers,"Accept-Ranges").equals("bytes"))throw unavailable();
    String contentRange=null;if(response.statusCode()==206){contentRange=one(headers,"Content-Range");validateRange(contentRange,size,range);}else if(headers.firstValue("Content-Range").isPresent())throw unavailable();
-   return new StreamResult(response.statusCode(),mime,filename,size,contentRange,new BoundedStream(body,size,()->{},remaining(started),idleMillis));
+   var settled=new CompletableFuture<Void>();
+   var bounded=new BoundedStream(body,size,()->{},remaining(started),idleMillis,()->settled.complete(null));
+   return new StreamResult(response.statusCode(),mime,filename,size,contentRange,bounded,settled);
   }catch(BffFailure failure){close(body);throw failure;}catch(Exception failure){close(body);if(failure instanceof InterruptedException)Thread.currentThread().interrupt();throw unavailable();}
  }
  @SuppressWarnings("unchecked")private DocumentGateway.Result json(int status,HttpHeaders headers,byte[] bytes)throws IOException{
