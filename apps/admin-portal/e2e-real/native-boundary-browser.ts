@@ -117,7 +117,8 @@ function settlement(child: ChildProcess) {
         }),
       ]);
       // Never signal an exited PID, which might subsequently be reused.
-      if (child.exitCode === null && child.signalCode === null) child.kill(signal);
+      if (child.exitCode === null && child.signalCode === null)
+        child.kill(signal);
       if (await completed) {
         clearTimeout(timer);
         return;
