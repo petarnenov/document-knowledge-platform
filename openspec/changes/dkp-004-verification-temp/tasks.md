@@ -4,7 +4,7 @@
 - [x] 1.2 Draft proposed local workspace profile, closed metadata/ownership contract, capability deltas, recovery/budget rules and causal verification matrix before #296 production code.
 - [x] 1.3 Author strict OpenSpec13/13, strict JSON Schema2020 and closed-record fixtures, normative-paragraph bounds and diff checks pass; freeze exact artifact manifest. These are author checks, not approval.
 - [x] 1.4 Independent specification/security source review [#304](https://github.com/petarnenov/document-knowledge-platform/issues/304) PASS on frozen9-file8ee41c34 packet. Strict OpenSpec13/13 and schema4valid/14invalid independently verified; development approval and implementation remain pending.
-- [ ] 1.5 Record development-only approval after accepted review/checks. No approval is claimed by this draft and no production/CID/legal/security-control sign-off is delegated.
+- [x] 1.5 Development-only implementation approval recorded in [approval.md](approval.md) after independent304 PASS and exactffa0cc1 Foundation41269885883/hygiene41269885910 SUCCESS. Production/CID/legal/security-control sign-off and automatic merge are not granted.
 
 ## 2. Implementation — existing #296, not started by this draft
 
