@@ -902,6 +902,7 @@ async function observeThrottledUpload(
   context: BrowserContext,
   origin: string,
   root: string,
+  expectedCsrf: string,
 ) {
   const cdp = await context.newCDPSession(page);
   await cdp.send('Network.enable');
@@ -927,6 +928,14 @@ async function observeThrottledUpload(
   const requests: Request[] = [];
   const canceled = new Map<string, { canceled?: boolean; errorText: string }>();
   const conditions = new Map<string, string | undefined>();
+  const wireGuards = new Map<
+    string,
+    {
+      origin: string | undefined;
+      csrf: string | undefined;
+      key: string | undefined;
+    }
+  >();
   const finished = new Set<string>();
   let binaryId: string | undefined;
   const observe = (request: Request) => {
@@ -958,8 +967,22 @@ async function observeThrottledUpload(
   });
   cdp.on(
     'Network.requestWillBeSentExtraInfo',
-    ({ requestId, appliedNetworkConditionsId }) =>
-      conditions.set(requestId, appliedNetworkConditionsId),
+    ({ requestId, appliedNetworkConditionsId, headers }) => {
+      conditions.set(requestId, appliedNetworkConditionsId);
+      const selected = (name: string): string | undefined => {
+        const matches = Object.entries(headers).filter(
+          ([key]) => key.toLowerCase() === name,
+        );
+        return matches.length === 1 && typeof matches[0]![1] === 'string'
+          ? matches[0]![1]
+          : undefined;
+      };
+      wireGuards.set(requestId, {
+        origin: selected('origin'),
+        csrf: selected('x-csrf-token'),
+        key: selected('idempotency-key'),
+      });
+    },
   );
   cdp.on(
     'Network.loadingFailed',
@@ -1000,9 +1023,20 @@ async function observeThrottledUpload(
   const request = binary[0]!;
   const uploadId = new URL(request.url()).pathname.split('/')[6]!;
   expect(uploadId).toMatch(/^[0-9a-f-]{36}$/);
-  expect(request.headers().origin).toBe(origin);
-  expect(Boolean(request.headers()['x-csrf-token'])).toBe(true);
-  expect(Boolean(request.headers()['idempotency-key'])).toBe(true);
+  // Playwright request.headers() deliberately omits security-sensitive headers.
+  // Observe the full real request AND matching wire ExtraInfo; never synthesize guards.
+  const guards = await request.allHeaders();
+  const wire = wireGuards.get(binaryId!);
+  expect(guards.origin).toBe(origin);
+  expect(wire?.origin).toBe(origin);
+  expect(
+    guards['x-csrf-token'] === expectedCsrf && wire?.csrf === expectedCsrf,
+  ).toBe(true);
+  expect(
+    typeof guards['idempotency-key'] === 'string' &&
+      /^[0-9a-f-]{36}$/.test(guards['idempotency-key']) &&
+      wire?.key === guards['idempotency-key'],
+  ).toBe(true);
   expect(canceled.has(binaryId!)).toBe(false);
   expect(finished.has(binaryId!)).toBe(false);
   return {
@@ -1013,6 +1047,7 @@ async function observeThrottledUpload(
     initializations,
     requests,
     request,
+    guards,
     uploadId,
     failure: () => canceled.get(binaryId!),
     finished: () => finished.has(binaryId!),
@@ -1045,6 +1080,7 @@ if (uploadProfile === 'true') {
       context,
       origin,
       draft.root,
+      draft.session.csrfToken,
     );
     const route = page.url();
     const theme = page.getByRole('switch', { name: 'Light theme' });
@@ -1058,7 +1094,7 @@ if (uploadProfile === 'true') {
           ),
       ).length;
     const beforeReads = protectedReads();
-    const key = upload.request.headers()['idempotency-key'];
+    const key = upload.guards['idempotency-key'];
     try {
       for (const expected of [!startingLight, startingLight]) {
         await theme.focus();
@@ -1103,7 +1139,9 @@ if (uploadProfile === 'true') {
         expect(upload.appends.length).toBe(0);
         expect(protectedReads()).toBe(beforeReads);
         expect(upload.binary[0] === upload.request).toBe(true);
-        expect(upload.request.headers()['idempotency-key'] === key).toBe(true);
+        expect(
+          (await upload.request.allHeaders())['idempotency-key'] === key,
+        ).toBe(true);
         const session = await boundarySession(page);
         expect(
           session.issuer === draft.session.issuer &&
@@ -1188,6 +1226,7 @@ if (uploadProfile === 'true') {
       context,
       origin,
       draft.root,
+      draft.session.csrfToken,
     );
     try {
       const failed = page
