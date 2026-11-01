@@ -1,0 +1,44 @@
+// Isolated research ONLY. Copy to a private temporary project's build.gradle.
+plugins { id 'java' }
+repositories { mavenCentral() }
+configurations {
+ productionResearch { canBeResolved=true; canBeConsumed=false }
+ probeTooling { canBeResolved=true; canBeConsumed=false }
+}
+def configureCandidate = { String scope ->
+ dependencies.add(scope, dependencies.enforcedPlatform('com.fasterxml.jackson:jackson-bom:2.22.4'))
+ dependencies.add(scope, dependencies.enforcedPlatform('io.micrometer:micrometer-bom:1.17.2'))
+ dependencies.add(scope, 'io.temporal:temporal-sdk:1.40.0')
+ dependencies.add(scope, 'org.apache.kafka:kafka-clients:4.4.0')
+ dependencies.add(scope, 'io.github.erdtman:java-json-canonicalization:1.1')
+ dependencies.constraints.add(scope, 'com.google.guava:guava:33.7.2-jre') { version { strictly '33.7.2-jre' } }
+ dependencies.constraints.add(scope, 'at.yawk.lz4:lz4-java:1.12.1') { version { strictly '1.12.1' } }
+ dependencies.constraints.add(scope, 'org.xerial.snappy:snappy-java:1.1.10.12') { version { strictly '1.1.10.12' } }
+ dependencies.constraints.add(scope, 'net.minidev:json-smart:2.6.0') { version { strictly '2.6.0' } }
+}
+configureCandidate('implementation')
+configureCandidate('productionResearch')
+dependencies {
+ implementation 'io.temporal:temporal-testing:1.40.0'
+ probeTooling 'org.junit.jupiter:junit-jupiter-api:6.0.3'
+ probeTooling 'org.apiguardian:apiguardian-api:1.1.2'
+}
+tasks.register('researchGraph') {
+ doLast {
+  def export = { configuration -> configuration.resolvedConfiguration.resolvedArtifacts.collect { a ->
+   [coordinate:"${a.moduleVersion.id.group}:${a.name}:${a.moduleVersion.id.version}", sha256:java.security.MessageDigest.getInstance('SHA-256').digest(a.file.bytes).encodeHex().toString(), file:a.file.absolutePath]
+  }.sort {it.coordinate} }
+  file('resolved.json').text=groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(export(configurations.runtimeClasspath)))+'\n'
+  file('production.json').text=groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(export(configurations.productionResearch)))+'\n'
+  file('probe-tools.json').text=groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(export(configurations.probeTooling)))+'\n'
+  println 'ISOLATED_GRAPH_RESOLVED'
+ }
+}
+apply plugin: 'jacoco'
+jacoco { toolVersion = '0.8.16' }
+tasks.register('probeCoverage', JacocoReport) {
+ executionData.from(providers.gradleProperty('probeExec').map { it.split(File.pathSeparator) })
+ classDirectories.from(fileTree(providers.gradleProperty('probeClasses').get()) { include 'ConvergenceProbe*.class', 'PayloadCompatibilityProbe*.class' })
+ sourceDirectories.from(providers.gradleProperty('probeSource'))
+ reports { xml.required=true; xml.outputLocation=file('convergence-probe-coverage.xml') }
+}
