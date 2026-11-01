@@ -1,0 +1,42 @@
+{
+  "scope": "PUBLIC_RESEARCH_ONLY_NO_NEW_DEPENDENCY_SELECTION",
+  "hikariVersion": "7.1.0",
+  "javaVersion": "25.0.5+8",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/brettwooldridge/HikariCP/HikariCP-7.1.0/src/main/java/com/zaxxer/hikari/HikariConfig.java",
+      "sha256": "c0c7fe5fbbe8d2a17c607ed1630bee5b37e5906b5ed8cc58afd80008eb36eab0",
+      "bytes": 42674
+    },
+    {
+      "url": "https://raw.githubusercontent.com/brettwooldridge/HikariCP/HikariCP-7.1.0/src/main/java/com/zaxxer/hikari/HikariPoolMXBean.java",
+      "sha256": "b3fee5cfe9a3c44bb50d17d24f655b0fbe39728823009bfeea3b22e1c69d65b9",
+      "bytes": 3393
+    },
+    {
+      "url": "https://raw.githubusercontent.com/brettwooldridge/HikariCP/HikariCP-7.1.0/src/main/java/com/zaxxer/hikari/pool/HikariPool.java",
+      "sha256": "315214249aa03ff6dd9989bdf033d37ef8b17e15110958f6fc0afb2d923f36fc",
+      "bytes": 35658
+    },
+    {
+      "url": "https://raw.githubusercontent.com/brettwooldridge/HikariCP/HikariCP-7.1.0/src/main/java/com/zaxxer/hikari/pool/PoolBase.java",
+      "sha256": "78a2d8391f407f00e093a16dbd58027d7f8761987a8eed7c10068b4af93fbadb",
+      "bytes": 27850
+    },
+    {
+      "url": "https://raw.githubusercontent.com/brettwooldridge/HikariCP/HikariCP-7.1.0/src/main/java/com/zaxxer/hikari/HikariDataSource.java",
+      "sha256": "cb33630785fe3dea3e9339de12472c9465c940cda1d4570dfd95e193b7d6a45b",
+      "bytes": 11224
+    },
+    {
+      "url": "https://raw.githubusercontent.com/brettwooldridge/HikariCP/HikariCP-7.1.0/LICENSE",
+      "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68",
+      "bytes": 10273
+    },
+    {
+      "coordinate": "com.zaxxer:HikariCP:7.1.0",
+      "sha256": "2be45c641b841e81df87292e181f2c203500c5f0e9a1676f135927387f3cf40b",
+      "bytes": 172996
+    }
+  ]
+}

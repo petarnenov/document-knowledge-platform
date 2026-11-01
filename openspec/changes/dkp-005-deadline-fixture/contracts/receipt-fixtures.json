@@ -1,0 +1,401 @@
+[
+  {
+    "name": "observed-no-tx-not-borrow",
+    "valid": true,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "stronger-observation-scope-not-certified",
+    "valid": true,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "OBSERVATION_SCOPE",
+      "result": "INCOMPLETE",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "SAMPLED_ONLY",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "unknown-is-incomplete",
+    "valid": true,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "INCOMPLETE",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "UNKNOWN",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "failed-known-rollback",
+    "valid": true,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "FAIL",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_ROLLBACK",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "no-overall-pass",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "PASS",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "no-invented-case",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "OTHER",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "no-interval-certification",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "PASS",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "no-component-substitution",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "COMPONENT_PASS",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "no-unsafe-clock",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 9007199254740992,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "no-negative-time",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": -1
+    }
+  },
+  {
+    "name": "no-raw-path",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "OBSERVED",
+      "sourceDigest": "/private/run",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "no-private-message",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000,
+      "message": "private-token"
+    }
+  },
+  {
+    "name": "closed-issue",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 368,
+      "case": "NO_TX",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "no-arbitrary-settlement",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "CANCELLED_MEANS_ROLLBACK",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "stronger-scope-cannot-observe-continuous",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "OBSERVATION_SCOPE",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "unknown-cannot-observe-success",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "UNKNOWN",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "missing-binding",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "NO_TX",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "pool-observed-requires-sampled-evidence",
+    "valid": true,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "POOL_PENDING_WAIT",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "SAMPLED_ONLY",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "pool-unavailable-is-incomplete",
+    "valid": true,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "POOL_PENDING_WAIT",
+      "result": "INCOMPLETE",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "pool-unavailable-cannot-be-observed",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "POOL_PENDING_WAIT",
+      "result": "OBSERVED",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  },
+  {
+    "name": "pool-unavailable-must-be-incomplete-not-fail",
+    "valid": false,
+    "value": {
+      "schemaVersion": 1,
+      "issue": 422,
+      "case": "POOL_PENDING_WAIT",
+      "result": "FAIL",
+      "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageSetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "factSetBeforeDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "factSetAfterDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "settlement": "KNOWN_NO_WRITE",
+      "poolEvidence": "UNAVAILABLE",
+      "continuousBorrowClaim": "NOT_CLAIMED",
+      "elapsedNanos": 100000000,
+      "uncertaintyNanos": 1000000
+    }
+  }
+]

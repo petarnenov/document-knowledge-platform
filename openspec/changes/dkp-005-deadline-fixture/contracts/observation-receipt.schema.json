@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Issue422 bounded observation receipt; not business authority or readiness",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "issue",
+    "case",
+    "result",
+    "sourceDigest",
+    "imageSetDigest",
+    "factSetBeforeDigest",
+    "factSetAfterDigest",
+    "settlement",
+    "poolEvidence",
+    "continuousBorrowClaim",
+    "elapsedNanos",
+    "uncertaintyNanos"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "issue": {
+      "const": 422
+    },
+    "case": {
+      "enum": [
+        "OWNERSHIP",
+        "OIDC17",
+        "RELAY_STRICT",
+        "RELAY_ELIGIBILITY",
+        "DM_TIMEOUT",
+        "LOCAL_CUMULATIVE",
+        "FINAL_CUMULATIVE",
+        "ACTOR_ONE",
+        "GLOBAL_SIXTEEN",
+        "NO_TX",
+        "POOL_PENDING_WAIT",
+        "OBSERVATION_SCOPE",
+        "ABORT_LATE",
+        "UNKNOWN_COMMIT",
+        "AUTH_FINAL",
+        "CLEANUP"
+      ]
+    },
+    "result": {
+      "enum": [
+        "OBSERVED",
+        "INCOMPLETE",
+        "FAIL"
+      ]
+    },
+    "sourceDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "imageSetDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "factSetBeforeDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "factSetAfterDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "settlement": {
+      "enum": [
+        "KNOWN_ROLLBACK",
+        "KNOWN_COMMIT",
+        "KNOWN_NO_WRITE",
+        "UNKNOWN"
+      ]
+    },
+    "poolEvidence": {
+      "enum": [
+        "UNAVAILABLE",
+        "SAMPLED_ONLY"
+      ]
+    },
+    "continuousBorrowClaim": {
+      "const": "NOT_CLAIMED"
+    },
+    "elapsedNanos": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "uncertaintyNanos": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "case": {
+            "const": "OBSERVATION_SCOPE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "const": "INCOMPLETE"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "settlement": {
+            "const": "UNKNOWN"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "enum": [
+              "FAIL",
+              "INCOMPLETE"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "case": {
+            "const": "POOL_PENDING_WAIT"
+          },
+          "poolEvidence": {
+            "const": "UNAVAILABLE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "const": "INCOMPLETE"
+          }
+        }
+      }
+    }
+  ]
+}
