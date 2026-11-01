@@ -31,6 +31,79 @@ ARTIFACT_KEYS = {'documentId', 'uploadId', 'receiptId', 'versionId', 'completeKe
 UUID = re.compile(r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}')
 MARKER = 'DKP_UPLOAD_FAULT_RESULT '
 
+DIAGNOSTIC_MARKER = 'DKP_UPLOAD_FAULT_DIAGNOSTIC '
+CHECKPOINTS = {'preflight', 'seed-browser', 'seed-anchors', 'source-binding', 'readonly-baseline',
+               'fault-stop', 'fault-readiness', 'fault-browser', 'fault-restore', 'restore-health',
+               'readonly-browser', 'readonly-equality', 'candidate-browser', 'candidate-admission',
+               'candidate-facts', 'failure-delta', 'failure-accounting', 'recovery-baseline',
+               'recovery-browser', 'recovery-delta', 'recovery-equality', 'recovery-anchors',
+               'consume-baseline', 'consume-browser', 'consume-accounting'}
+CATEGORIES = {'OWNERSHIP_OR_SETUP', 'SOURCE_BINDING', 'PROVIDER_OR_HEALTH', 'IMMUTABLE_FACTS',
+              'ACCOUNTING_OR_STATE', 'BROWSER_FAILED', 'BROWSER_TIMEOUT', 'BROWSER_UNAVAILABLE',
+              'BROWSER_OUTPUT_BOUND', 'BROWSER_RESULT_INVALID', 'RESTORATION_UNPROVEN'}
+RESTORATIONS = {'not-attempted', 'restored', 'unknown'}
+PUBLIC_PHASES = {'preflight', 'seed', 'consume', *(service + '-' + phase for service in d.SERVICES
+                                               for phase in ('readonly', 'candidate', 'recover'))}
+LOCATION_FILES = ('apps/admin-portal/e2e-real/upload-faults.spec.ts',
+                  'apps/admin-portal/e2e-real/upload-fault-contract.ts')
+
+
+def locations(output):
+    """Only known source names and bounded numeric coordinates can leave private logs."""
+    selected = []
+    for name in LOCATION_FILES:
+        pattern = re.compile(r'(?<![A-Za-z0-9_.-])' + re.escape(name) + r':([0-9]{1,6}):([0-9]{1,6})(?![0-9])')
+        for match in pattern.finditer(output.decode('utf8', errors='replace')):
+            line, column = map(int, match.groups())
+            value = {'file': name, 'line': line, 'column': column}
+            if line > 0 and column > 0 and value not in selected:
+                selected.append(value)
+                if len(selected) == 3:
+                    return selected
+    return selected
+
+
+def choice(value, allowed, fallback):
+    return value if isinstance(value, str) and value in allowed else fallback
+
+
+def public_diagnostic(value=None):
+    value = value if isinstance(value, dict) else {}
+    safe = {'schemaVersion': 1, 'result': 'FAIL',
+            'phase': choice(value.get('phase'), PUBLIC_PHASES, 'preflight'),
+            'service': choice(value.get('service'), d.SERVICES, 'none'),
+            'checkpoint': choice(value.get('checkpoint'), CHECKPOINTS, 'preflight'),
+            'category': choice(value.get('category'), CATEGORIES, 'OWNERSHIP_OR_SETUP'),
+            'restoration': choice(value.get('restoration'), RESTORATIONS, 'unknown'),
+            'locations': []}
+    for item in value.get('locations', []) if isinstance(value.get('locations'), list) else []:
+        if (isinstance(item, dict) and set(item) == {'file', 'line', 'column'} and item['file'] in LOCATION_FILES
+                and type(item['line']) is int and 1 <= item['line'] <= 999999
+                and type(item['column']) is int and 1 <= item['column'] <= 999999
+                and item not in safe['locations']):
+            safe['locations'].append(dict(item))
+            if len(safe['locations']) == 3:
+                break
+    return safe
+
+
+class DiagnosticFailure(ValueError):
+    def __init__(self, message, diagnostic):
+        super().__init__(message)
+        self.diagnostic = public_diagnostic(diagnostic)
+
+
+def diagnosed(error, phase, service, checkpoint, restoration='not-attempted'):
+    previous = error.diagnostic if isinstance(error, DiagnosticFailure) else {}
+    if checkpoint == 'source-binding': category = 'SOURCE_BINDING'
+    elif checkpoint in ('fault-stop', 'fault-readiness', 'readonly-baseline'): category = 'PROVIDER_OR_HEALTH'
+    elif checkpoint in ('candidate-admission', 'failure-accounting', 'recovery-delta', 'consume-accounting'): category = 'ACCOUNTING_OR_STATE'
+    else: category = 'IMMUTABLE_FACTS'
+    return public_diagnostic({**previous, 'phase': phase, 'service': service,
+                              'checkpoint': previous.get('checkpoint', checkpoint),
+                              'category': previous.get('category', category),
+                              'restoration': previous.get('restoration') if previous.get('restoration') == 'restored' or previous.get('category') == 'RESTORATION_UNPROVEN' else restoration})
+
 
 def valid_fixture(value):
     if (not isinstance(value, dict) or set(value) != {'tenant', 'sha256', 'sizeBytes', 'consumed', 'unconsumed', 'candidate'}
@@ -73,6 +146,8 @@ def result(output, phase, previous):
 
 def browser(work, state, phase, fixture, service=None):
     if phase not in PHASES or service not in (None, *d.SERVICES):raise ValueError('Finite browser phase required')
+    browser_checkpoint = {'seed': 'seed-browser', 'verify': 'readonly-browser', 'candidate': 'candidate-browser',
+                          'recover': 'recovery-browser', 'consume': 'consume-browser'}.get(phase, 'fault-browser')
     nonce = uuid.uuid4().hex
     source = work / ('input-' + nonce + '.json');log = work / ('browser-' + nonce + '.private.log')
     d.runtime.private(source, json.dumps({'schemaVersion': 1, 'phase': phase, 'service': service, 'fixture': fixture}, separators=(',', ':')) + '\n')
@@ -84,9 +159,22 @@ def browser(work, state, phase, fixture, service=None):
         with log.open('wb') as stream:
             completed = subprocess.run(args, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT, timeout=900,
                                        env={k:v for k,v in os.environ.items() if k in ('PATH', 'HOME', 'JAVA_HOME')})
-    except (OSError, subprocess.TimeoutExpired):raise ValueError('Real browser phase unavailable; private log retained') from None
-    if completed.returncode or log.stat().st_size > 16 * 1024 * 1024:raise ValueError('Real browser phase failed; private log retained')
-    return result(log.read_bytes(), phase, fixture)
+    except (OSError, subprocess.TimeoutExpired) as failure:
+        category = 'BROWSER_TIMEOUT' if isinstance(failure, subprocess.TimeoutExpired) else 'BROWSER_UNAVAILABLE'
+        raise DiagnosticFailure('Real browser phase unavailable; private log retained',
+                                {'category': category, 'checkpoint': browser_checkpoint}) from None
+    if completed.returncode or log.stat().st_size > 16 * 1024 * 1024:
+        bounded = log.stat().st_size <= 16 * 1024 * 1024
+        raise DiagnosticFailure('Real browser phase failed; private log retained',
+                                {'category': 'BROWSER_FAILED' if bounded else 'BROWSER_OUTPUT_BOUND',
+                                 'checkpoint': browser_checkpoint, 'locations': locations(log.read_bytes()) if bounded else []})
+    output = log.read_bytes()
+    try:
+        return result(output, phase, fixture)
+    except Exception:
+        raise DiagnosticFailure('Real browser result invalid; private log retained',
+                                {'category': 'BROWSER_RESULT_INVALID', 'checkpoint': browser_checkpoint,
+                                 'locations': locations(output)}) from None
 
 
 def digest(state, tables=d.TABLES, filters=None, normalize=None):
@@ -205,20 +293,37 @@ def fault(work, state, fixture, service, phase):
     proof_path = work / ('fault-' + uuid.uuid4().hex + '.json')
     proof = {'project':state['project'],'runtimeRunId':state['runId'],'service':service,'containerId':target,'phase':phase,'restoreCommandSucceeded':None,'recoveredHealth':False,'verdict':'IN_PROGRESS'}
     d.runtime.private(proof_path, json.dumps(proof, separators=(',', ':')) + '\n')
+    failure = None
+    checkpoint = 'fault-stop'
     try:
         d.action(state, target, 'stop', d.SERVICES[service])
+        checkpoint = 'fault-readiness'
         if service != 'dm':d.wait_probe('readiness', 503);d.wait_probe('liveness', 200, seconds=5)
+        checkpoint = 'fault-browser'
         return browser(work, state, phase, fixture, service)
+    except Exception as error:
+        failure = error
+        raise
     finally:
         try:
+            checkpoint_restore = 'fault-restore'
             proof['restoreCommandSucceeded']=False
             d.action(state, target, 'start', d.SERVICES[service]);proof['restoreCommandSucceeded']=True
+            checkpoint_restore = 'restore-health'
             d.runtime.wait_inspector(state) if service == 'inspector' else d.runtime.wait_container(target, state, seconds=180)
             d.wait_probe('readiness', 200, seconds=180);d.wait_probe('liveness', 200, seconds=5)
             proof['recoveredHealth']=True
+        except Exception:
+            diagnostic = diagnosed(failure, 'preflight', service, checkpoint_restore, 'unknown')
+            diagnostic.update(checkpoint=checkpoint_restore, category='RESTORATION_UNPROVEN', restoration='unknown')
+            raise DiagnosticFailure('Owned restoration unproven; private evidence retained', diagnostic) from None
         finally:
             proof['verdict']='RESTORED' if proof['recoveredHealth'] else 'RESTORATION_UNPROVEN'
             pending=proof_path.with_suffix('.pending');d.runtime.private(pending,json.dumps(proof,separators=(',',':'))+'\n');pending.replace(proof_path)
+        if failure is not None:
+            diagnostic = diagnosed(failure, 'preflight', service, checkpoint, 'restored')
+            diagnostic['restoration'] = 'restored'
+            raise DiagnosticFailure('Real fault phase failed; owned restoration confirmed', diagnostic) from None
 
 
 def save(work, record):
@@ -240,63 +345,95 @@ def run(directory, runtime_directory):
               'sourceHashes':source_hashes(),
               'fixture':None,'phase':'seed','results':[],'verdict':'IN_PROGRESS'}
     save(work,record)
+    checkpoint = 'seed-browser'
+    service = None
+    restoration = 'not-attempted'
     try:
         fixture = browser(work,state,'seed',None);record['fixture']=fixture;save(work,record)
+        checkpoint = 'seed-anchors'
         quiet(state);anchors_valid(state,fixture);original_anchor = anchor(state, fixture);record['anchorSha256']=original_anchor;save(work,record)
         for service in d.SERVICES:
+            checkpoint = 'source-binding'
             if source_hashes()!=record['sourceHashes']:raise ValueError('Reviewed acceptance source changed')
             record['phase']=service + '-readonly';save(work,record)
+            checkpoint = 'readonly-baseline'
             before=quiet(state);record['currentBeforeSha256']=before;save(work,record)
+            checkpoint = 'fault-browser'
+            restoration = 'unknown'
             fixture=fault(work,state,fixture,service,'readonly-outage')
+            restoration = 'restored'
+            checkpoint = 'readonly-browser'
             fixture=browser(work,state,'verify',fixture)
+            checkpoint = 'readonly-equality'
             after=d.snapshot(state)
             if after!=before or anchor(state,fixture)!=original_anchor:raise ValueError('Read-only restart changed durable facts')
             record['results'].append({'service':service,'readOnly':'PASS','beforeFullStateSha256':before,'afterFullStateSha256':after})
             record['phase']=service + '-candidate';save(work,record)
+            checkpoint = 'candidate-admission'
             accounts_before=accounting(state)
+            checkpoint = 'candidate-browser'
             fixture=browser(work,state,'candidate',fixture);valid_fixture(fixture)
             quiet(state)
+            checkpoint = 'candidate-facts'
             before_facts=candidate_facts(state,fixture);before_guard=failure_guard(state,fixture);before_counts=counts(state)
             candidate_accounts=accounting(state)
             size=fixture['sizeBytes']
+            checkpoint = 'candidate-admission'
             if candidate_accounts!=[accounts_before[0]+1,accounts_before[1]+2*size,accounts_before[2]+size,accounts_before[3]] or before_facts[5]!=2*size:raise ValueError('Admission did not reserve exact slot and two-copy budgets')
             if audit_failures(state,fixture)!=0:raise ValueError('Fresh candidate has prior failure')
+            checkpoint = 'fault-browser'
+            restoration = 'unknown'
             fixture=fault(work,state,fixture,service,'candidate-outage')
+            restoration = 'restored'
             mutable=service not in ('pg','dm')
+            checkpoint = 'failure-delta'
             check_failure(before_facts,candidate_facts(state,fixture),mutable)
+            checkpoint = 'failure-accounting'
             if failure_guard(state,fixture)!=before_guard or accounting(state)!=candidate_accounts or counts(state)!=before_counts or audit_failures(state,fixture)!=(1 if mutable else 0):raise ValueError('Failed command altered forbidden facts/accounting')
+            checkpoint = 'recovery-baseline'
             unchanged_recovery=recovery_guard(state,fixture)
             record['phase']=service + '-recover';save(work,record)
+            checkpoint = 'recovery-browser'
             fixture=browser(work,state,'recover',fixture,service);quiet(state)
+            checkpoint = 'recovery-delta'
             check_recovered(state,fixture,accounts_before,before_counts,mutable)
+            checkpoint = 'recovery-equality'
             if recovery_guard(state,fixture)!=unchanged_recovery:raise ValueError('Recovery changed unrelated durable facts')
+            checkpoint = 'recovery-anchors'
             anchors_valid(state,fixture)
             if anchor(state,fixture)!=original_anchor:raise ValueError('Recovery changed persistent receipt evidence')
             record['results'][-1].update({'retry':'PASS','accountsBeforeCandidate':accounts_before,'accountsAfterFailure':candidate_accounts,'accountsAfterRecovery':accounting(state),'immutableCountsBefore':before_counts,'immutableCountsAfter':counts(state)})
             record['fixture']=fixture;save(work,record)
         record['phase']='consume';save(work,record)
+        service = None
+        checkpoint = 'consume-baseline'
         unchanged_consume=recovery_guard(state,fixture,'unconsumed')
         immutable=digest(state,('upload_receipts','upload_verification_facts'))
         before_counts=counts(state);before_accounts=accounting(state)
         reservation=d.sql(state,"SELECT transient_reservation FROM dm.upload_slots WHERE tenant_id='" + fixture['tenant'] + "' AND upload_id='" + fixture['unconsumed']['uploadId'] + "';")
         if not reservation.isdigit():raise ValueError('Invalid final reservation')
+        checkpoint = 'consume-browser'
         fixture=browser(work,state,'consume',fixture);quiet(state)
+        checkpoint = 'consume-accounting'
         expected=[before_accounts[0]-1,before_accounts[1]-int(reservation),before_accounts[2]-fixture['sizeBytes'],before_accounts[3]+fixture['sizeBytes']]
         if (accounting(state)!=expected or counts(state)!=[before_counts[0]+1,before_counts[1],before_counts[2],before_counts[3]+1]
                 or digest(state,('upload_receipts','upload_verification_facts'))!=immutable or recovery_guard(state,fixture,'unconsumed')!=unchanged_consume):
             raise ValueError('Final one-consumption/replay changed forbidden facts or balances')
         record['fixture']=fixture;record['phase']='complete';record['verdict']='PASS';save(work,record)
         return record
-    except Exception:
-        record['verdict']='FAIL';save(work,record)
-        raise ValueError('Authenticated upload acceptance failed at ' + record['phase'] + '; private evidence retained') from None
+    except Exception as failure:
+        diagnostic = diagnosed(failure, record['phase'], service, checkpoint, restoration)
+        record['verdict']='FAIL';record['diagnostic']=diagnostic;save(work,record)
+        raise DiagnosticFailure('Authenticated upload acceptance failed at ' + record['phase'] + '; private evidence retained', diagnostic) from None
 
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--directory',required=True);parser.add_argument('--runtime-directory',required=True)
     args=parser.parse_args(argv)
     try:run(args.directory,args.runtime_directory)
-    except Exception:
+    except Exception as failure:
+        value = failure.diagnostic if isinstance(failure, DiagnosticFailure) else None
+        print(DIAGNOSTIC_MARKER + json.dumps(public_diagnostic(value), separators=(',', ':')))
         print('Authenticated upload fault acceptance failed; private evidence retained; verify owned restoration.');return 1
     print('Authenticated upload faults PASS: all5providers, bothreceiptstates, exactbytes and explicitaccounting; zero skips.');return 0
 
