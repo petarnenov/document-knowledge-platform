@@ -109,6 +109,30 @@ class RuntimeTest(unittest.TestCase):
             (target / 'alias').symlink_to(source / 'public')
             with self.assertRaises(ValueError): kb.source_digest(target)
 
+    def test_snapshot_digest_uses_relative_filename_bytes_across_directory_boundaries(self):
+        source, git = self.git_fixture()
+        for name in ['nested/child', 'nested-file', 'nested.file']:
+            path = source / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('public fixture: ' + name)
+        git('add', '.'); git('commit', '--quiet', '-m', 'directory ordering fixture')
+        self.run.mkdir()
+        with patch.object(kb, 'ROOT', source):
+            expected = kb.source_digest()
+            names = kb.source_paths()
+            target = kb.snapshot(self.run)
+            snapshot_names = [os.fsencode(str(p.relative_to(target)))
+                              for p in sorted(target.rglob('*')) if p.is_file()]
+            self.assertNotEqual(snapshot_names, names)
+            canonical = hashlib.sha256()
+            for name in names:
+                canonical.update(name + b'\0' + (source / os.fsdecode(name)).read_bytes() + b'\0')
+            self.assertEqual(expected, canonical.hexdigest())
+            self.assertEqual(kb.source_digest(target), expected)
+            (target / 'nested/child').chmod(0o600)
+            (target / 'nested/child').write_text('modified snapshot')
+            self.assertNotEqual(kb.source_digest(target), expected)
+
     def test_dirty_tracked_or_new_commit_rejected_before_docker_mutation(self):
         source, git = self.git_fixture()
         with patch.object(kb, 'ROOT', source), patch.object(kb, 'execute') as execute, patch.object(kb, 'preflight_ports') as ports:

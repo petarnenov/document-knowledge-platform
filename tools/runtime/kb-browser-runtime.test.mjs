@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync, symlinkSync, copyFileSync, existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { loadKbBrowserState, validateKbBrowserContainers } from './kb-browser-runtime.mjs';
 import { kbCliArguments, main, runtimeArguments } from './identity-e2e.mjs';
 
@@ -87,8 +89,8 @@ test('KB command line rejects duplicate, incomplete, unknown and mixed-profile f
     [...args, '--kb-runtime-state', '/other'], args.slice(1), args.slice(0, -1), ['--kb-runtime']]) assert.throws(() => kbCliArguments(invalid));
 });
 
-test('KB main verifies owned inspection before building and forwards only exact knowledge scenario', () => {
-  const root = resolve(new URL('../..', import.meta.url).pathname); const f = fixture(root); const calls = [];
+function exerciseMain(root, main) {
+  const f = fixture(root); const calls = [];
   try {
     const execute = args => {
       calls.push(args);
@@ -104,4 +106,30 @@ test('KB main verifies owned inspection before building and forwards only exact 
     assert.throws(() => main({ kbRuntime: true, kbRuntimeState: f.file, securityDirectory: f.options.securityDirectory, runtimeEnvironmentFile: f.options.runtimeEnvironmentFile, execute, log() {} }));
     assert.equal(calls.some(x => x[0] === 'build' || x[0] === 'run'), false);
   } finally { rmSync(f.run, { recursive: true, force: true }); }
+}
+
+test('KB main verifies owned inspection in an isolated checkout without baseline pollution', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'dkp-kb-main-test-')));
+  try {
+    const tools = join(root, 'tools/runtime');
+    mkdirSync(tools, { recursive: true, mode: 0o700 });
+    for (const name of ['identity-e2e.mjs', 'kb-browser-runtime.mjs']) {
+      copyFileSync(fileURLToPath(new URL(name, import.meta.url)), join(tools, name));
+    }
+    const script = `import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { main } from ${JSON.stringify(pathToFileURL(join(tools, 'identity-e2e.mjs')).href)};
+${fixture.toString()}
+${exerciseMain.toString()}
+exerciseMain(${JSON.stringify(root)}, main);`;
+    // Run the unmodified runner from a disposable checkout so its real module-root
+    // lookup is tested without creating authority in the source checkout.
+    const child = spawnSync(process.execPath, ['--input-type=module'], {
+      input: script, encoding: 'utf8', timeout: 10_000,
+    });
+    assert.equal(child.status, 0, 'Isolated real-root runner fixture failed');
+    assert.equal(existsSync(join(root, 'local-data/security')), true);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+  assert.equal(existsSync(root), false);
 });

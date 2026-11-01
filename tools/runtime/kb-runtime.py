@@ -87,7 +87,9 @@ def source_digest(root=None):
             if not path.is_file():
                 raise ValueError('Public snapshot contains a special file')
             values.append((os.fsencode(str(path.relative_to(root))), path.read_bytes()))
-    for name, data in values:
+    # Path ordering compares components; Git orders complete relative-name bytes.
+    # Use the same canonical order for committed blobs and the copied snapshot.
+    for name, data in sorted(values, key=lambda value: value[0]):
         relative = Path(os.fsdecode(name))
         if relative.is_absolute() or '..' in relative.parts or relative.parts[0] in ('local-data', '.git'):
             raise ValueError('Private material cannot be a build input')

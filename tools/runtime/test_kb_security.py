@@ -6,10 +6,12 @@ from pathlib import Path
 import secrets
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
+SOURCE_ROOT = Path(__file__).resolve().parents[2]
 PATH = Path(__file__).with_name('kb-security.py')
 SPEC = importlib.util.spec_from_file_location('kb_security', PATH)
 kb = importlib.util.module_from_spec(SPEC)
@@ -18,10 +20,19 @@ SPEC.loader.exec_module(kb)
 
 class KnowledgeSecurityTest(unittest.TestCase):
     def setUp(self):
-        parent = kb.ROOT / 'local-data/security'
+        # Keep authority fixtures inside a disposable checkout, never the real
+        # checkout's local-data/security namespace. A trusted build ancestor keeps
+        # the production safe_path checks active (system /tmp is intentionally unsafe).
+        parent = SOURCE_ROOT / 'build/kb-security-tests'
         parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self.temporary = tempfile.TemporaryDirectory(prefix='kb-unit-', dir=parent)
-        self.root = Path(self.temporary.name)
+        self.temporary = tempfile.TemporaryDirectory(prefix='kb-unit-', dir=parent.resolve())
+        self.checkout = Path(self.temporary.name)
+        self.addCleanup(self.temporary.cleanup)
+        self.root_patch = patch.object(kb, 'ROOT', self.checkout)
+        self.root_patch.start()
+        self.addCleanup(self.root_patch.stop)
+        self.root = self.checkout / 'local-data/security/unit'
+        self.root.mkdir(parents=True, mode=0o700)
         self.destination = self.root / 'fresh'
         self.baseline = patch.object(kb, 'baseline', side_effect=self.identity)
         self.tools = patch.object(kb, 'tool', side_effect=self.tool)
@@ -31,12 +42,11 @@ class KnowledgeSecurityTest(unittest.TestCase):
     def tearDown(self):
         self.tools.stop()
         self.baseline.stop()
-        self.temporary.cleanup()
 
     def identity(self, destination):
         destination.mkdir(mode=0o700)
         (destination / 'authority').mkdir(mode=0o700)
-        template = json.loads((kb.ROOT / 'infra/docker-compose/realm-template.json').read_text())
+        template = json.loads((SOURCE_ROOT / 'infra/docker-compose/realm-template.json').read_text())
         (destination / 'dkp-realm.json').write_text(json.dumps(template))
         actor = template['users'][0]['id']
         grants = {'schemaVersion': 1, 'entries': [
@@ -226,6 +236,32 @@ class KnowledgeSecurityTest(unittest.TestCase):
                     kb.tool('safe-tool')
         finally:
             self.tools.start()
+
+    def test_suite_in_fresh_checkout_does_not_create_baseline_authority(self):
+        checkout = self.checkout / 'fresh-checkout'
+        for relative in ('tools/runtime/test_kb_security.py', 'tools/runtime/kb-security.py',
+                         'infra/docker-compose/realm-template.json'):
+            target = checkout / relative
+            target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            shutil.copyfile(SOURCE_ROOT / relative, target)
+        baseline = checkout / 'local-data/security'
+        self.assertFalse(baseline.exists())
+        # Execute every other test in a separate fresh checkout. Excluding only
+        # this regression prevents recursive subprocess creation, not guard coverage.
+        script = """import sys, unittest
+sys.path.insert(0, 'tools/runtime')
+import test_kb_security as tests
+names = unittest.defaultTestLoader.getTestCaseNames(tests.KnowledgeSecurityTest)
+selected = [tests.KnowledgeSecurityTest(name) for name in names
+            if name != 'test_suite_in_fresh_checkout_does_not_create_baseline_authority']
+result = unittest.TextTestRunner().run(unittest.TestSuite(selected))
+sys.exit(0 if result.wasSuccessful() and result.testsRun == 10 else 1)
+"""
+        result = subprocess.run([sys.executable, '-c', script], cwd=checkout,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                timeout=30, check=False)
+        self.assertEqual(0, result.returncode, 'Isolated security suite failed')
+        self.assertFalse(baseline.exists(), 'Unit fixtures polluted baseline authority')
 
     def test_cli_reports_only_finite_status(self):
         with patch('sys.argv', ['kb-security.py', 'prepare', '--directory', str(self.destination)]), patch('builtins.print') as output:
