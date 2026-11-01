@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://documentknowledge.example/contracts/local-verification-ownership-v1.schema.json",
+  "title": "Proposed private local verification reservation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "operationId",
+    "ownerEpoch",
+    "tenantDigest",
+    "actorDigest",
+    "documentId",
+    "uploadId",
+    "declaredSize",
+    "source",
+    "scratch"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "operationId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "ownerEpoch": {
+      "$ref": "#/$defs/uuid"
+    },
+    "tenantDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "actorDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "documentId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "uploadId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "declaredSize": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000000
+    },
+    "source": {
+      "$ref": "#/$defs/state"
+    },
+    "scratch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "state",
+        "reservationId"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "NONE",
+            "COPY",
+            "READBACK"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/state"
+        },
+        "reservationId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "state": {
+      "enum": [
+        "RESERVED",
+        "MAY_EXIST",
+        "DELETE_PENDING",
+        "ABSENT"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scratch": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "const": "NONE"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "scratch": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "RESERVED",
+                  "ABSENT"
+                ]
+              },
+              "reservationId": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "scratch": {
+            "type": "object",
+            "properties": {
+              "reservationId": {
+                "$ref": "#/$defs/uuid"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "source": {
+            "const": "ABSENT"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "scratch": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "const": "ABSENT"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
