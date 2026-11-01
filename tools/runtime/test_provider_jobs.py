@@ -16,6 +16,41 @@ m = importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 
 
 class JobsTests(unittest.TestCase):
+    def test_failure_stages_are_closed_and_never_expose_exception_or_caller_data(self):
+        private = 'private-path credential provider-output exception-detail'
+        for stage in m.AcceptanceStage:
+            for failure in [ValueError(private), OSError(private), RuntimeError(private)]:
+                with self.assertRaises(m.AcceptanceFailure) as caught:
+                    with m.checkpoint(stage):raise failure
+                expected = {'schemaVersion': 1, 'issue': 305, 'result': 'FAIL', 'stage': stage.value, 'cause': 'UNDETERMINED'}
+                self.assertEqual(expected, m.failure_receipt(caught.exception))
+                self.assertNotIn(private, str(caught.exception))
+                self.assertNotIn(private, json.dumps(m.failure_receipt(caught.exception)))
+        for invalid in [private, None, 1]:
+            with self.assertRaises(ValueError):m.AcceptanceFailure(invalid)
+            with self.assertRaises(ValueError):
+                with m.checkpoint(invalid):self.fail('Invalid stage must not enter work')
+        tampered = m.AcceptanceFailure(m.AcceptanceStage.SCANNER);tampered.stage = private
+        self.assertEqual('LAUNCH', m.failure_receipt(tampered)['stage'])
+        self.assertEqual('LAUNCH', m.failure_receipt(ValueError(private))['stage'])
+        with self.assertRaises(m.AcceptanceFailure) as caught:
+            with m.checkpoint(m.AcceptanceStage.LAUNCH):
+                with m.checkpoint(m.AcceptanceStage.PRIVATE_CONTROL):raise ValueError(private)
+        self.assertEqual('PRIVATE_CONTROL', m.failure_receipt(caught.exception)['stage'])
+        with m.checkpoint(m.AcceptanceStage.LAUNCH):self.assertTrue(True)
+
+    def test_cli_reports_only_finite_stage_without_traceback_or_private_failure(self):
+        for failure, stage in [(ValueError('private-detail'), 'LAUNCH'),
+                               (m.AcceptanceFailure(m.AcceptanceStage.SCANNER), 'SCANNER')]:
+            output, errors = io.StringIO(), io.StringIO()
+            with patch.object(m, 'run', side_effect=failure) as run, patch.object(m.sys, 'argv', ['provider-jobs.py', '--directory', 'fresh', '--runtime-directory', 'owned']), patch.object(m.sys, 'stdout', output), patch.object(m.sys, 'stderr', errors), self.assertRaises(SystemExit) as caught:
+                m.main()
+            run.assert_called_once_with(Path('fresh'), Path('owned'))
+            self.assertEqual('', output.getvalue())
+            self.assertEqual({'schemaVersion': 1, 'issue': 305, 'result': 'FAIL', 'stage': stage, 'cause': 'UNDETERMINED'}, json.loads(errors.getvalue()))
+            self.assertNotIn('private-detail', errors.getvalue())
+            self.assertNotIn('private-detail', str(caught.exception))
+
     def setUp(self):
         self.state = {'directory': '/private/owned', 'project': 'dkp-bp03-'+'a'*12, 'definitions': '/private/generation', 'sources': {'infra/docker-compose/clamd.conf': 'f'*64}}
         self.value = {'tenant': 'tenant-a', 'sizeBytes': 1000, 'sha256': 'f'*64, 'first': {'documentId': 'a'*8+'-aaaa-aaaa-aaaa-'+'a'*12, 'uploadId': 'b'*8+'-bbbb-bbbb-bbbb-'+'b'*12, 'completeKey': 'c'*8+'-cccc-cccc-cccc-'+'c'*12}, 'second': {'documentId': 'd'*8+'-dddd-dddd-dddd-'+'d'*12, 'uploadId': 'e'*8+'-eeee-eeee-eeee-'+'e'*12, 'completeKey': 'f'*8+'-ffff-ffff-ffff-'+'f'*12}}
@@ -138,6 +173,54 @@ class JobsTests(unittest.TestCase):
             result=m.run(work,'runtime');self.assertEqual((3,0),(result['passed'],result['skipped']));self.assertEqual(2,probe.call_count)
             with self.assertRaises(ValueError):m.run(work,'runtime')
         with patch.object(m.os,'getuid',return_value=0),self.assertRaises(ValueError):m.run('x','x')
+
+    def test_orchestration_reports_first_failed_boundary_and_stops_dispatch(self):
+        stages = [stage for stage in m.AcceptanceStage if stage != m.AcceptanceStage.LAUNCH]
+        for failed in stages:
+            with self.subTest(stage=failed.value), tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+                work = Path(tmp) / 'fresh'
+                reached = []
+
+                def boundary(stage, value=None):
+                    reached.append(stage)
+                    if stage == failed:raise OSError('private provider detail')
+                    return value
+
+                stack.enter_context(patch.object(m.os, 'getuid', return_value=1000))
+                stack.enter_context(patch.object(m.runtime, 'local_daemon', side_effect=lambda: boundary(m.AcceptanceStage.OPERATOR)))
+                stack.enter_context(patch.object(m.runtime, 'confined', side_effect=lambda _: boundary(m.AcceptanceStage.DIRECTORY, work)))
+                stack.enter_context(patch.object(m.runtime, 'load', side_effect=lambda _: boundary(m.AcceptanceStage.RUNTIME, self.state)))
+                stack.enter_context(patch.object(m, 'bound'))
+                verify = stack.enter_context(patch.object(m.runtime, 'verify', side_effect=[self.state, self.state]))
+                stack.enter_context(patch.object(m, 'free_admissions', side_effect=lambda _: boundary(m.AcceptanceStage.CAPACITY)))
+                stack.enter_context(patch.object(m.runtime, 'digest', return_value='f' * 64))
+
+                def private(path, content):
+                    stage = {'sources.json': m.AcceptanceStage.SOURCE_BINDING,
+                             'control-proof.json': m.AcceptanceStage.PRIVATE_CONTROL,
+                             'result.json': m.AcceptanceStage.RESULT}[path.name]
+                    boundary(stage)
+                    if stage == m.AcceptanceStage.RESULT:
+                        self.assertEqual('PASS', json.loads(content)['result'])
+
+                stack.enter_context(patch.object(m.runtime, 'private', side_effect=private))
+                stack.enter_context(patch.object(m, 'module', return_value=SimpleNamespace(run=lambda: {'result': 'PASS'})))
+                probe = stack.enter_context(patch.object(m, 'probe', side_effect=lambda _state, _work, phase: boundary(m.AcceptanceStage.SCANNER if phase == 'scanner' else m.AcceptanceStage.INSPECTOR, self.result(phase))))
+                dm = stack.enter_context(patch.object(m, 'dm_boundary', side_effect=lambda *_: boundary(m.AcceptanceStage.DM_BOUNDARY, {'result': 'PASS'})))
+                # The second verification is the final boundary; initial verification stays valid.
+                calls = 0
+                def verify_runtime(_):
+                    nonlocal calls
+                    calls += 1
+                    return self.state if calls == 1 else boundary(m.AcceptanceStage.FINAL_VERIFY, self.state)
+                verify.side_effect = verify_runtime
+                with self.assertRaises(m.AcceptanceFailure) as caught:
+                    m.run(work, 'owned-runtime')
+                self.assertEqual(failed.value, m.failure_receipt(caught.exception)['stage'])
+                self.assertEqual(stages[:stages.index(failed) + 1], reached)
+                self.assertEqual(min(2, max(0, stages.index(failed) - stages.index(m.AcceptanceStage.SCANNER) + 1)), probe.call_count)
+                if stages.index(failed) < stages.index(m.AcceptanceStage.DM_BOUNDARY):dm.assert_not_called()
+                self.assertNotIn('private provider detail', json.dumps(m.failure_receipt(caught.exception)))
 
     def test_probe_gate_and_cleanup_lifecycle_never_relaxes_real_results(self):
         for phase in ('scanner','inspector'):

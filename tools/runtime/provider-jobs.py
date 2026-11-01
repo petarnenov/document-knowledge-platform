@@ -8,6 +8,8 @@ reserve the runtime before invoking. All outputs are finite; private files retai
 synthetic IDs/hashes only. Standard definitions and provider security stay intact.
 """
 import argparse
+from contextlib import contextmanager
+from enum import Enum
 import hashlib
 import importlib.util
 import json
@@ -16,6 +18,7 @@ from pathlib import Path
 import re
 import selectors
 import subprocess
+import sys
 import time
 import uuid
 
@@ -36,6 +39,45 @@ SOURCES = ('tools/runtime/provider-jobs.py', 'tools/runtime/provider-job-probe.m
            'tools/runtime/upload-durability.py', 'apps/admin-portal/e2e-real/upload-job-fixture.ts',
            'tools/runtime/provider-job-control-acceptance.py')
 UUID = re.compile('[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}')
+
+
+class AcceptanceStage(Enum):
+    LAUNCH = 'LAUNCH'
+    OPERATOR = 'OPERATOR'
+    DIRECTORY = 'DIRECTORY'
+    RUNTIME = 'RUNTIME'
+    CAPACITY = 'CAPACITY'
+    SOURCE_BINDING = 'SOURCE_BINDING'
+    PRIVATE_CONTROL = 'PRIVATE_CONTROL'
+    SCANNER = 'SCANNER'
+    INSPECTOR = 'INSPECTOR'
+    DM_BOUNDARY = 'DM_BOUNDARY'
+    FINAL_VERIFY = 'FINAL_VERIFY'
+    RESULT = 'RESULT'
+
+
+class AcceptanceFailure(ValueError):
+    def __init__(self, stage):
+        if not isinstance(stage, AcceptanceStage):raise ValueError('Closed acceptance stage required')
+        self.stage = stage
+        super().__init__('Owned provider acceptance failed')
+
+
+@contextmanager
+def checkpoint(stage):
+    if not isinstance(stage, AcceptanceStage):raise ValueError('Closed acceptance stage required')
+    try:
+        yield
+    except AcceptanceFailure:
+        raise
+    except Exception:
+        raise AcceptanceFailure(stage) from None
+
+
+def failure_receipt(failure):
+    stage = failure.stage if isinstance(failure, AcceptanceFailure) else None
+    if not isinstance(stage, AcceptanceStage):stage = AcceptanceStage.LAUNCH
+    return {'schemaVersion': 1, 'issue': 305, 'result': 'FAIL', 'stage': stage.value, 'cause': 'UNDETERMINED'}
 
 
 def closed(value, keys):
@@ -349,36 +391,50 @@ def dm_boundary(state, work):
 
 
 def run(directory, runtime_directory):
-    if os.getuid() == 0:raise ValueError('Nonroot trusted operator required')
-    runtime.local_daemon();work = runtime.confined(directory)
-    if work.exists():raise ValueError('Fresh acceptance directory required')
-    state = runtime.load(runtime_directory)
-    bound(state)
-    if runtime.verify(runtime_directory) != state:raise ValueError('Original runtime changed')
-    free_admissions(state)
-    work.mkdir(mode=0o700);(work / 'control').mkdir(mode=0o700)
-    hashes = {p: runtime.digest(ROOT / p) for p in SOURCES}
-    runtime.private(work / 'sources.json', json.dumps(hashes))
-    control_proof = module('provider-job-control-acceptance').run()
-    runtime.private(work / 'control-proof.json', json.dumps(control_proof))
+    with checkpoint(AcceptanceStage.OPERATOR):
+        if os.getuid() == 0:raise ValueError('Nonroot trusted operator required')
+        runtime.local_daemon()
+    with checkpoint(AcceptanceStage.DIRECTORY):
+        work = runtime.confined(directory)
+        if work.exists():raise ValueError('Fresh acceptance directory required')
+    with checkpoint(AcceptanceStage.RUNTIME):
+        state = runtime.load(runtime_directory)
+        bound(state)
+        if runtime.verify(runtime_directory) != state:raise ValueError('Original runtime changed')
+    with checkpoint(AcceptanceStage.CAPACITY):
+        free_admissions(state)
+    with checkpoint(AcceptanceStage.SOURCE_BINDING):
+        work.mkdir(mode=0o700);(work / 'control').mkdir(mode=0o700)
+        hashes = {p: runtime.digest(ROOT / p) for p in SOURCES}
+        runtime.private(work / 'sources.json', json.dumps(hashes))
+    with checkpoint(AcceptanceStage.PRIVATE_CONTROL):
+        control_proof = module('provider-job-control-acceptance').run()
+        runtime.private(work / 'control-proof.json', json.dumps(control_proof))
     results = []
     for phase in ('scanner', 'inspector'):
+        with checkpoint(AcceptanceStage.SCANNER if phase == 'scanner' else AcceptanceStage.INSPECTOR):
+            if hashes != {p: runtime.digest(ROOT / p) for p in SOURCES}:raise ValueError('Acceptance source changed')
+            results.append(probe(state, work, phase))
+    with checkpoint(AcceptanceStage.DM_BOUNDARY):
         if hashes != {p: runtime.digest(ROOT / p) for p in SOURCES}:raise ValueError('Acceptance source changed')
-        results.append(probe(state, work, phase))
-    if hashes != {p: runtime.digest(ROOT / p) for p in SOURCES}:raise ValueError('Acceptance source changed')
-    results.append(dm_boundary(state, work))
-    if hashes != {p: runtime.digest(ROOT / p) for p in SOURCES}:raise ValueError('Acceptance source changed')
-    bound(state)
-    if runtime.verify(runtime_directory) != state:raise ValueError('Original runtime changed')
-    runtime.private(work / 'result.json', json.dumps({'schemaVersion': 1, 'result': 'PASS', 'phases': results, 'directEngineEntryExitObserved': False, 'dispatchProof': DISPATCH_PROOF}))
+        results.append(dm_boundary(state, work))
+    with checkpoint(AcceptanceStage.FINAL_VERIFY):
+        if hashes != {p: runtime.digest(ROOT / p) for p in SOURCES}:raise ValueError('Acceptance source changed')
+        bound(state)
+        if runtime.verify(runtime_directory) != state:raise ValueError('Original runtime changed')
+    with checkpoint(AcceptanceStage.RESULT):
+        runtime.private(work / 'result.json', json.dumps({'schemaVersion': 1, 'result': 'PASS', 'phases': results, 'directEngineEntryExitObserved': False, 'dispatchProof': DISPATCH_PROOF}))
     return {'schemaVersion': 1, 'result': 'PASS', 'required': 3, 'passed': 3, 'skipped': 0, 'directEngineEntryExitObserved': False}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__);parser.add_argument('--directory', required=True, type=Path);parser.add_argument('--runtime-directory', required=True, type=Path)
     args = parser.parse_args()
-    try:print(json.dumps(run(args.directory, args.runtime_directory)))
-    except Exception:raise SystemExit('Owned provider job acceptance failed closed; private evidence retained') from None
+    try:
+        with checkpoint(AcceptanceStage.LAUNCH):print(json.dumps(run(args.directory, args.runtime_directory)))
+    except Exception as failure:
+        print(json.dumps(failure_receipt(failure), separators=(',', ':')), file=sys.stderr)
+        raise SystemExit('Owned provider job acceptance failed closed; private evidence retained') from None
 
 
 if __name__ == '__main__':main()
