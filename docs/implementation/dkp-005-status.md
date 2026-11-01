@@ -1,3 +1,9 @@
+## Current evidence checkpoint — #312 — 2026-11-01 03:52 UTC
+
+Package OPEN; draft PR247 current `1916c9a` includes independently reviewed BFF typed-size correction295/298 and fixture/diagnostics288/289/292. Nine core CI jobs PASS (41269360521); native provider combined step PASS and fresh quota stage running. Fresh owned runtime started/verified, but actual local browser acceptance returned **3 FAIL**. Both theme journeys observed member deactivation PATCH200 then reactivation PATCH503 UNAVAILABLE in17–32ms, followed by members transport failure and absent selection/settings.100-member journey expected422 but received503. New310 tracks causal diagnosis;311 separately tracks the deterministic101-document lock-plan rejection before the existing LIMIT_EXCEEDED response. No production correction or causal portal diagnosis is claimed yet.
+
+Private runtime/data/logs are retained. No browser, full-package or dev integration PASS follows from core CI or prior provider proof. Strict authorization, SQL/BFF deadlines and current-authority handling remain required. Latest owner AGENTS prohibits automatic merging; historical authorizations below are superseded.
+
 ## 2026-10-31 23:13 UTC latest authorization185
 
 Owner renewed automatic dev merges after green tests and CI, superseding the prior prohibition. PR184 is open at4437a96; governance-only185 update will receive independent review and final-head CI before authorized integration. All normative development/runtime and production gates remain intact; earlier no-merge notes below are historical.

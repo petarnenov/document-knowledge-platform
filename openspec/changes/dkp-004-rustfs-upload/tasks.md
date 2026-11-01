@@ -194,3 +194,16 @@ The historical PR146 genuine hour remains PASS for its recorded source; no fresh
 - [ ] [#296](https://github.com/petarnenov/document-knowledge-platform/issues/296) retained verification-temp files lack durable ownership through remote cleanup/re-admission/restart; content249 proof and S3 quota do not cover this namespace.
 - [ ] [#299](https://github.com/petarnenov/document-knowledge-platform/issues/299) explicit bounded verification-temp ownership/recovery technical OpenSpec amendment; development proposal/review before new lifecycle code, no invented architecture/security/production approval.
 - [ ] [#300](https://github.com/petarnenov/document-knowledge-platform/issues/300) independent delivery bookkeeping/protocol review; latest owner AGENTS prohibits automatic merge. Implementation and integration tasks stay open.
+
+## Evidence refresh — 2026-11-01 03:52 UTC
+
+- [ ] [#312](https://github.com/petarnenov/document-knowledge-platform/issues/312) refresh actual delivery evidence; independent metadata review and final publication pending. No live CI restart for metadata.
+- [x] [#301](https://github.com/petarnenov/document-knowledge-platform/issues/301) independent283 config/source-binding review PASS; actual provider cancellation/restart remains305.
+- [x] [#303](https://github.com/petarnenov/document-knowledge-platform/issues/303) independent302 isolated wrong-host TLS probe review PASS; actual current87296 local4browser cases PASS31s.
+- [x] [#304](https://github.com/petarnenov/document-knowledge-platform/issues/304) independent299 specification source review PASS; PR306 checks/development approval remain pending.
+- [x] [#307](https://github.com/petarnenov/document-knowledge-platform/issues/307) scoped TRANSFER/preappend audit complete after independent309:4 diagnostics PASS; proven defects remain unresolved in308. Real files/concurrency with synthetic SQL/S3/expiry, no process/Linux/provider acceptance inferred.
+- [x] [#309](https://github.com/petarnenov/document-knowledge-platform/issues/309) independent307 source/contract review and fresh4test execution PASS.
+- [ ] [#308](https://github.com/petarnenov/document-knowledge-platform/issues/308) separate proposed durable TRANSFER/preappend technical profile; independent review/development approval and implementation remain pending.
+- [ ] [#305](https://github.com/petarnenov/document-knowledge-platform/issues/305) real bounded provider job cancellation/restart harness authoring; no runtime execution claimed.
+
+Current41269335770 combined COPY/fence step, including required real60-second storage acceptance, is PASS; freshquota stage and exact terminal-log retention are pending.294 stays open for final-source acceptance/reviewed integration. Historical statements above about unperformed real60 execution precede this checkpoint. No fresh60-minute expiry is running;296/308 unresolved local ownership and remaining resource gates prevent package closure.
