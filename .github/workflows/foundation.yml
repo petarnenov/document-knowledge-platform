@@ -10,6 +10,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  linux-python-parity:
+    name: Pinned Linux Python runtime checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Shared local and CI Python runtime command
+        run: >-
+          python3 tools/ci/verify.py python-runtime --source "$PWD"
+          --evidence "$RUNNER_TEMP/dkp-python-runtime"
+      - name: Revalidate exact source, index and pinned environment evidence
+        run: >-
+          python3 tools/ci/verify.py validate-evidence --source "$PWD"
+          --evidence "$RUNNER_TEMP/dkp-python-runtime"
+
+      - name: Retain finite pinned Linux parity receipt
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: linux-python-parity-receipt
+          path: ${{ runner.temp }}/dkp-python-runtime/receipt.json
+          if-no-files-found: warn
+
   java:
     name: Java / ${{ matrix.service }}
     runs-on: ubuntu-latest
