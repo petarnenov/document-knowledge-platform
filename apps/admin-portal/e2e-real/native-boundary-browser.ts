@@ -92,28 +92,39 @@ function endpoint(child: ChildProcess): Promise<string> {
   });
 }
 
-async function stop(child: ChildProcess) {
-  if (child.pid === undefined) return;
-  for (const [signal, timeout] of [
-    ['SIGTERM', 3000],
-    ['SIGKILL', 2000],
-  ] as const) {
-    if (child.exitCode !== null || child.signalCode !== null) return;
-    const exited = new Promise<boolean>((resolve) => {
-      const done = () => {
-        clearTimeout(timer);
-        resolve(true);
-      };
-      const timer = setTimeout(() => {
-        child.off('exit', done);
-        resolve(false);
-      }, timeout);
-      child.once('exit', done);
+function settlement(child: ChildProcess) {
+  // Register at spawn: exit can precede inherited stdio closing, and close may
+  // already have happened by the time a failed attachment enters cleanup.
+  let settled = false;
+  const closed = new Promise<void>((resolve) => {
+    child.once('close', () => {
+      settled = true;
+      resolve();
     });
-    child.kill(signal);
-    if (await exited) return;
-  }
-  throw new Error('Owned native browser process did not settle');
+  });
+  return async () => {
+    if (child.pid === undefined) return;
+    for (const [signal, timeout] of [
+      ['SIGTERM', 3000],
+      ['SIGKILL', 2000],
+    ] as const) {
+      if (settled) return;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const completed = Promise.race([
+        closed.then(() => true),
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(() => resolve(false), timeout);
+        }),
+      ]);
+      // Never signal an exited PID, which might subsequently be reused.
+      if (child.exitCode === null && child.signalCode === null) child.kill(signal);
+      if (await completed) {
+        clearTimeout(timer);
+        return;
+      }
+    }
+    throw new Error('Owned native browser process did not settle');
+  };
 }
 
 /** No defaults restores native tab visibility; it never dispatches fabricated visibility or query events.
@@ -123,10 +134,11 @@ export async function nativeBoundaryBrowser(address: string) {
   const profile = await mkdtemp(join(tmpdir(), 'dkp-native-boundary-'));
   let child: ChildProcess | undefined, browser: Browser | undefined;
   let closed = false;
+  let stop: (() => Promise<void>) | undefined;
   const close = async () => {
     if (closed) return;
     // Stop the actual owned process first, including on attach/test failures. Never kill by executable/name.
-    if (child) await stop(child);
+    if (stop) await stop();
     if (browser) {
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
@@ -151,6 +163,7 @@ export async function nativeBoundaryBrowser(address: string) {
     const executable = chromium.executablePath();
     const args = nativeArguments(executable, profile, address);
     child = spawn(executable, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    stop = settlement(child);
     const url = await endpoint(child);
     browser = await chromium.connectOverCDP(url, {
       noDefaults: true,

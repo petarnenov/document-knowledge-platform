@@ -30,11 +30,13 @@ class Child extends EventEmitter {
   stderr = new EventEmitter();
   signals: string[] = [];
   ignore = false;
+  delayClose = false;
   kill(signal: string) {
     this.signals.push(signal);
     if (!this.ignore) {
       this.signalCode = signal;
       this.emit('exit');
+      if (!this.delayClose) this.emit('close');
     }
     return true;
   }
@@ -175,6 +177,7 @@ describe('native browser lifecycle without Playwright focus emulation', () => {
         child.stderr.emit('data', Buffer.from(`DevTools listening on ${url}`));
         child.exitCode = 1;
         child.emit('exit');
+        child.emit('close');
       });
       return child;
     });
@@ -205,6 +208,17 @@ describe('native browser lifecycle without Playwright focus emulation', () => {
     expect(disconnect.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.remove.mock.invocationCallOrder[0]!,
     );
+  });
+  it('does not remove the profile while inherited browser stdio remains open after exit', async () => {
+    const native = await nativeBoundaryBrowser('1.2.3.4');
+    child.delayClose = true;
+    const closing = native.close();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(child.signalCode).toBe('SIGTERM');
+    expect(mocks.remove).not.toHaveBeenCalled();
+    child.emit('close');
+    await closing;
+    expect(mocks.remove).toHaveBeenCalledOnce();
   });
   it('removes unused private profile on invalid options without spawning any process', async () => {
     await expect(nativeBoundaryBrowser('bad')).rejects.toThrow();
@@ -252,6 +266,7 @@ describe('native browser lifecycle without Playwright focus emulation', () => {
           } else {
             child.exitCode = 1;
             child.emit('exit');
+            child.emit('close');
           }
         });
         return child;
@@ -298,9 +313,33 @@ describe('native browser lifecycle without Playwright focus emulation', () => {
     expect(mocks.remove).not.toHaveBeenCalled();
     expect(disconnect).not.toHaveBeenCalled();
   });
+  it('retains the profile when exit occurs but inherited stdio never closes, without signaling an exited PID', async () => {
+    const native = await nativeBoundaryBrowser('1.2.3.4');
+    child.delayClose = true;
+    vi.useFakeTimers();
+    const closing = native.close();
+    const rejected = expect(closing).rejects.toThrow('did not settle');
+    await vi.advanceTimersByTimeAsync(5000);
+    await rejected;
+    expect(child.signals).toEqual(['SIGTERM']);
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(disconnect).not.toHaveBeenCalled();
+  });
+  it('surfaces profile removal failure without force, retry or claiming successful closure', async () => {
+    const native = await nativeBoundaryBrowser('1.2.3.4');
+    const failure = Object.assign(new Error('synthetic removal failure'), {
+      code: 'ENOTEMPTY',
+    });
+    mocks.remove.mockRejectedValueOnce(failure);
+    await expect(native.close()).rejects.toBe(failure);
+    expect(mocks.remove).toHaveBeenCalledExactlyOnceWith(profile, {
+      recursive: true,
+    });
+  });
   it('bounds CDP disconnect even after child process has already exited', async () => {
     const native = await nativeBoundaryBrowser('1.2.3.4');
     child.exitCode = 0;
+    child.emit('close');
     disconnect.mockReturnValue(new Promise(() => {}));
     vi.useFakeTimers();
     const closing = native.close();
