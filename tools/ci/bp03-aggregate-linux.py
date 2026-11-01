@@ -17,6 +17,8 @@ COMMAND = ['bash', 'tools/ci/bp03-aggregate-check.sh']
 LAYERS = ('bootstrap', 'adapters-out', 'application')
 FLOORS = (
     ('bootstrap', 'IngressAdmission'), ('bootstrap', 'PinnedIngressSettlement'),
+    ('bootstrap', 'OutboundAdmission'), ('bootstrap', 'OwnedWriteBuffer'),
+    ('bootstrap', 'OutboundWrites'),
     ('bootstrap', 'ingress'), ('bootstrap', 'liveReadback'),
     ('bootstrap', 'metadataBody'), ('adapters-out', 'transferLength'))
 

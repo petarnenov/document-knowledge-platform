@@ -59,7 +59,11 @@ public final class IngressLinuxAcceptance {
         var settlement = new PinnedIngressSettlementTest();
         run("aggregate-offloop-forced-delay-cleanup", settlement::queuedOffLoopAndForcedDelaySplitCleanupNeedsTheOrderedBarrier);
         run("aggregate-queued-discard-failure-retains", settlement::thrownQueuedDiscardCannotReleaseTheStillRetainedRoot);
-        if(passed!=32)throw new IllegalStateException("INCOMPLETE_PROFILE");
-        System.out.println("{\"profile\":\"dkp338-linux-ingress-component\",\"passed\":32,\"failed\":0,\"skipped\":0}");
+        var outbound = new OutboundWriteIntegrationTest();
+        run("outbound-real-slow-reader-and-disconnect", outbound::realSlowReaderRetainsFiniteWritesAndDisconnectActuallySettles);
+        run("outbound-large-closed-metadata", outbound::actualLargeClosedMetadataResponseExceedsIncomingChunkWithoutTruncation);
+        run("outbound-mutated-watermark-rejected", outbound::changedActualWriteWatermarkFailsClosedBeforeDispatch);
+        if(passed!=35)throw new IllegalStateException("INCOMPLETE_PROFILE");
+        System.out.println("{\"profile\":\"dkp338-linux-ingress-component\",\"passed\":35,\"failed\":0,\"skipped\":0}");
     }
 }

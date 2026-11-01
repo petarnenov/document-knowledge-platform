@@ -49,7 +49,7 @@ class AggregateLinuxTest(unittest.TestCase):
         result = m.results(self.source, self.fixture)
         self.assertEqual(3, result['counts']['tests'])
         self.assertEqual(self.cases, result['linuxCases'])
-        self.assertEqual(6, len(result['coverage']))
+        self.assertEqual(9, len(result['coverage']))
         path = next((self.fixture / 'reports').rglob('*CoverageReport.xml'))
         original = path.read_text()
         for bad in [original.replace('covered="75"', 'covered="74"'),
