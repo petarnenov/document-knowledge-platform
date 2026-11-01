@@ -144,6 +144,12 @@ jobs:
           /tmp/dkp-runtime-checks/bin/coverage run --branch -m unittest discover -s tools/runtime -p 'test_*.py'
           /tmp/dkp-runtime-checks/bin/coverage run --branch --append -m unittest discover -s infra/docker-compose -p 'test_*.py'
           /tmp/dkp-runtime-checks/bin/coverage report --include='*/smoke.py,*/bootstrap-security.py,*/identity-provider-check.py,*/document-database-check.py' --fail-under=75
+      - name: Public SYSTEM Linux verification workspace
+        run: |
+          /tmp/dkp-runtime-checks/bin/coverage json --include='*/verification-workspace-system.py' -o /tmp/dkp-system-workspace-coverage.json
+          python3 -c "import json; t=json.load(open('/tmp/dkp-system-workspace-coverage.json'))['totals']; assert t['num_statements'] > 0 and t['num_branches'] > 0; assert t['covered_lines']/t['num_statements'] >= 0.75 and t['covered_branches']/t['num_branches'] >= 0.75"
+          docker pull eclipse-temurin:25.0.5_8-jdk@sha256:83f4a7fc27df94dcc7b8de04d14cbbba8da14406f921e966969c3b09000aa507
+          python3 tools/runtime/verification-workspace-system.py
       - run: python3 infra/docker-compose/bootstrap-security.py
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml config --quiet
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml up --build --wait --wait-timeout 240
