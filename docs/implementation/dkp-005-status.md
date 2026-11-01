@@ -1,3 +1,13 @@
+## Current evidence checkpoint — #312 — 2026-11-01 06:04 UTC
+
+BP04 remains OPEN; draft PR247 published source `2fec732` adds independently reviewed per-layer Java test/coverage artifact collection and the real PostgreSQL checksum-tamper regression (#373/#374). Root standalone test and independent full21-test persistence class pass with zero skipped tests; exact checksum restoration is verified without repair. Current Foundation41279098291 is running; hygiene41279098307 passed. Earlier exact-source6ab7385 Foundation41275086768 passed all10 jobs and hygiene passed.
+
+Actual strict HTTPS/OIDC on6ab7385 passed3 journeys in41.7s, covering both themes, current-authority/reactivation,100-member pagination,101st-member422 and sharing-policy denial/invalidation. Owned runtime post-verification/stop passed. These results are historical-source runtime evidence and do not prove all package gates or new-source execution.
+
+Independent acceptance audit #354 maps all34 verification IDs plus25 protocol/numeric requirements. Strong existing real PostgreSQL restart/rollback/CAS/quota, TLS adapter and HTTP cancellation evidence remains valid. Missing whole-runtime combinations are tracked before execution: #367 real cross-service current-authority barriers; #368 cumulative deadlines/admission/SQL release; #369 deployed outage/recovery; #371 complete persisted scope/audience/hidden eligibility; #372 keyboard/mobile/zoom/pending-session/theme failure; #373 evidence retention/checksum regression. #367 has an isolated implementation worktree; no new acceptance runtime has been started. No missing acceptance proof is labeled a production defect.
+
+Final applicable CI/acceptance, consolidated independent review and dev integration remain open. Latest owner-provided AGENTS prohibits automatic merging. Full BP00–BP17 goal remains active; no architecture/security/CID/production signoff is granted. Earlier checkpoints below are historical.
+
 ## Current evidence checkpoint — #312 — 2026-11-01 05:11 UTC
 
 BP04 remains OPEN. Draft PR247 source `6ab7385` includes independently reviewed portal command/read coordination #321/#323, knowledge-only compression correction #322/#324,101-document capacity planning #311 and the exact approved eleventh share-action BFF mirror #336/#339. Fresh owned runtime0455 completed all three actual strict-HTTPS/OIDC browser journeys:3 PASS in41.7s, including both themes, member reactivation/current authority,100-member pagination,101st-member422 and share-policy denial/invalidation. Post-run lifecycle verification and owned stop passed; private evidence/data are retained. Finite evidence: local cache `bp04-6ab7385-browser-3-PASS.json`.

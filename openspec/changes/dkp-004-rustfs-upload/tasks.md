@@ -215,3 +215,11 @@ The historical PR146 genuine hour remains PASS for its recorded source; no fresh
 - [ ] [#305](https://github.com/petarnenov/document-knowledge-platform/issues/305) real bounded provider job cancellation/restart harness authoring; no runtime execution claimed.
 
 Current41269335770 combined COPY/fence step, including required real60-second storage acceptance, is PASS; freshquota stage and exact terminal-log retention are pending.294 stays open for final-source acceptance/reviewed integration. Historical statements above about unperformed real60 execution precede this checkpoint. No fresh60-minute expiry is running;296/308 unresolved local ownership and remaining resource gates prevent package closure.
+
+## Scoped acceptance checkpoint — #312 — 2026-11-01 06:04 UTC
+
+- [x] #363: independently accept exact final #360 launcher source, units and historical executed-source provenance; final exact-helper CI remains required.
+- [x] #370: independently accept #361/#364 COMPLETE phase/current ACL correction and positive #362 recovery regression;125application/19workspace plus8targeted tests pass, changed19/19lines and12/16branches.
+- [ ] #360/#361/#362/#364: reviewed local source5e2ce26, root integrated125application/66outbound/three separate75% floors/architecture PASS; applicable exact-source CI and reviewed dev integration pending.
+- [ ] #338/#365: selected bounded-ingress and typed chunked max+1 normalization; #366 proposed attestation mechanism amendment remains unapproved pending independent #375 and checks.
+- [ ] Final provider/resource #222, final-source genuine60-minute expiry, consolidated review and dev integration; no real-hour test running, no automatic merge, no production approval.
