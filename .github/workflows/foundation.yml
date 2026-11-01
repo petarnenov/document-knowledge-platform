@@ -329,6 +329,8 @@ jobs:
           --runtime-env-file local-data/security/bp03-upload/ci-quota/runtime.env
       - name: Release quota runtime before dedicated provider job acceptance
         run: python3 tools/runtime/upload-runtime.py stop --directory local-data/security/bp03-upload/ci-quota
+      - name: Prepare exact private-control engine images
+        run: python3 tools/runtime/provider-job-control-acceptance.py --prepare-images
       - name: Start dedicated fresh provider job runtime
         run: python3 tools/runtime/upload-runtime.py start --directory local-data/security/bp03-upload/ci-jobs
       - name: Verify dedicated fresh provider job runtime

@@ -30,6 +30,64 @@ class ControlTests(unittest.TestCase):
         self.diagnostics=io.StringIO();stack.enter_context(patch.object(m.sys,'stderr',self.diagnostics))
         stack.enter_context(patch.object(m.r,'local_daemon'));stack.enter_context(patch.object(m.r,'image',return_value=self.image));stack.enter_context(patch.object(m,'owned',return_value=self.item))
         return stack.enter_context(patch.object(m.r,'command',side_effect=outputs))
+    def test_explicit_preparation_makes_cold_engine_same_unchanged_fixture_guard_succeed(self):
+        cached=set();pulls=[];fixture_commands=[]
+        outputs=iter([b'1001',self.target.encode(),b'',b'',b'{"schemaVersion":1}',b'{"written":true}',b'PRIVATE',b'DENIED',b''])
+        def docker(*args):
+            if args[:2]==('image','inspect'):
+                reference=args[2]
+                if reference not in cached:raise m.r.CommandFailure('command-failed')
+                return [{'Id':self.image,'Os':'linux','Architecture':'amd64','RepoDigests':['exact@'+reference.split('@')[1]]}]
+            self.assertEqual(('inspect',self.target),args)
+            return [self.item]
+        def command(args,*,timeout=60):
+            if args[:2]==['docker','pull']:
+                self.assertIn(args[2],(m.jobs.NODE_IMAGE,m.BROWSER_IMAGE));self.assertEqual(180,timeout)
+                pulls.append(args[2]);cached.add(args[2]);return b''
+            fixture_commands.append(args);return next(outputs)
+        capture=io.StringIO()
+        with patch.object(m.r,'local_daemon'),patch.object(m.r,'docker',side_effect=docker),patch.object(m.r,'command',side_effect=command),patch.object(m.sys,'stderr',capture),patch.object(m.uuid,'uuid4',return_value=type('Run',(),{'hex':self.run})()):
+            with self.assertRaises(m.ControlFailure) as failed:m.run()
+            self.assertEqual(m.Stage.IMAGE,failed.exception.stage)
+            self.assertEqual([],fixture_commands);self.assertEqual([],pulls)
+            self.assertEqual({'schemaVersion':1,'issue':426,'result':'PREPARED','images':2},m.prepare_images())
+            self.assertEqual('PASS',m.run()['result'])
+        self.assertEqual([m.jobs.NODE_IMAGE,m.BROWSER_IMAGE],pulls)
+        self.assertIn('--pull=never',fixture_commands[0]);self.assertIn('--pull=never',fixture_commands[1])
+        self.assertEqual(['docker','rm','--force',self.target],fixture_commands[-1])
+
+    def test_preparation_fails_closed_on_pull_failure_without_retry_or_fixture(self):
+        with patch.object(m.r,'local_daemon'),patch.object(m.r,'command',side_effect=m.r.CommandFailure('command-failed')) as command,patch.object(m.r,'docker') as docker:
+            with self.assertRaises(m.r.CommandFailure):m.prepare_images()
+            command.assert_called_once_with(['docker','pull',m.jobs.NODE_IMAGE],timeout=180);docker.assert_not_called()
+        with patch.object(m.r,'local_daemon',side_effect=ValueError('foreign context')),patch.object(m.r,'command') as command:
+            with self.assertRaises(ValueError):m.prepare_images()
+            command.assert_not_called()
+
+    def test_preparation_requires_exact_single_native_immutable_image_identity(self):
+        good={'Id':self.image,'Os':'linux','Architecture':'amd64','RepoDigests':['exact@'+m.jobs.NODE_IMAGE.split('@')[1]]}
+        bad=[[],[good,good],{},[None],[dict(good,Id='sha256:'+'d'*64)],[dict(good,Os='windows')],[dict(good,Architecture='arm64')],[dict(good,RepoDigests=None)],[dict(good,RepoDigests=[])],[dict(good,RepoDigests=[None,'exact@sha256:'+'e'*64])]]
+        for rows in bad:
+            with self.subTest(rows=rows),patch.object(m.r,'local_daemon'),patch.object(m.r,'command') as command,patch.object(m.r,'docker',return_value=rows),patch.object(m.r,'image',return_value=self.image):
+                with self.assertRaises(ValueError):m.prepare_images()
+                self.assertEqual(1,command.call_count)
+
+    def test_cli_selects_only_preparation_or_original_acceptance_and_workflow_orders_it(self):
+        with patch.object(m.sys,'argv',['control','--prepare-images']),patch.object(m,'prepare_images',return_value={'result':'PREPARED'}) as prepare,patch.object(m,'run') as run,patch('builtins.print'):
+            m.main();prepare.assert_called_once_with();run.assert_not_called()
+        with patch.object(m.sys,'argv',['control']),patch.object(m,'prepare_images') as prepare,patch.object(m,'run',return_value={'result':'PASS'}) as run,patch('builtins.print'):
+            m.main();run.assert_called_once_with();prepare.assert_not_called()
+        for args in [['--prepare-images','--image','untrusted'],['--prepare-i'],['--prepare-images','extra']]:
+            with patch.object(m.sys,'argv',['control']+args),patch.object(m.sys,'stderr',io.StringIO()),patch.object(m,'prepare_images') as prepare:
+                with self.assertRaises(SystemExit):m.main()
+                prepare.assert_not_called()
+        workflow=Path(__file__).resolve().parents[2]/'.github/workflows/foundation.yml'
+        source=workflow.read_text();preparation='python3 tools/runtime/provider-job-control-acceptance.py --prepare-images'
+        self.assertEqual(1,source.count(preparation))
+        self.assertLess(source.index('Release quota runtime before dedicated provider job acceptance'),source.index(preparation))
+        self.assertLess(source.index(preparation),source.index('Start dedicated fresh provider job runtime'))
+        self.assertLess(source.index(preparation),source.index('Real owned scanner and inspector concurrency'))
+
     def test_actual_pinned_browser_uid_must_match_before_fixture_creation(self):
         from contextlib import ExitStack
         with ExitStack() as stack:

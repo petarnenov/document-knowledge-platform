@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Real isolated cross-UID private control regression. No provider/network access."""
+"""Isolated cross-UID control proof; optional exact image preparation uses registries only."""
 import importlib.util
+import argparse
 from enum import Enum
 import sys
 import json
@@ -12,6 +13,30 @@ spec=importlib.util.spec_from_file_location('control_jobs',Path(__file__).with_n
 jobs=importlib.util.module_from_spec(spec);spec.loader.exec_module(jobs)
 r=jobs.runtime
 BROWSER_IMAGE="mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea"
+
+
+def prepare_images():
+    """Explicit engine prerequisites; BuildKit FROM cache is not engine visibility."""
+    r.local_daemon()
+    for reference in (jobs.NODE_IMAGE,BROWSER_IMAGE):
+        r.command(['docker','pull',reference],timeout=180)
+        items=r.docker('image','inspect',reference)
+        if not isinstance(items,list) or len(items)!=1:raise ValueError('One exact prepared image required')
+        item=items[0]
+        if not isinstance(item,dict):raise ValueError('Exact prepared image record required')
+        image=r.image(reference)
+        digests=item.get('RepoDigests')
+        if (item.get('Id')!=image or item.get('Os')!='linux' or item.get('Architecture')!='amd64'
+                or not isinstance(digests,list) or not any(isinstance(value,str) and value.endswith('@'+reference.split('@')[1]) for value in digests)):
+            raise ValueError('Exact pinned native image identity required')
+    return {'schemaVersion':1,'issue':426,'result':'PREPARED','images':2}
+
+
+def main():
+    parser=argparse.ArgumentParser(description='Exact isolated private-control acceptance',allow_abbrev=False)
+    parser.add_argument('--prepare-images',action='store_true')
+    options=parser.parse_args()
+    print(json.dumps(prepare_images() if options.prepare_images else run()))
 
 
 def owned(identifier,image,run_id):
@@ -143,5 +168,5 @@ def execute_fixture(progress):
 
 
 if __name__=='__main__':
-    try:print(json.dumps(run()))
+    try:main()
     except Exception:raise SystemExit('Isolated private control acceptance failed closed') from None
