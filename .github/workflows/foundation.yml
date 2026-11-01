@@ -105,6 +105,14 @@ jobs:
           --coverage.thresholds.functions=75 --coverage.thresholds.statements=75
       - run: pnpm --filter admin-portal exec playwright install --with-deps chromium
       - run: pnpm --filter admin-portal test:e2e
+      - name: Bounded browser event diagnostics coverage
+        run: >-
+          pnpm --filter admin-portal exec vitest run
+          src/boundary-event-observer.test.tsx --coverage
+          --coverage.include=e2e-real/boundary-event-observer.ts
+          --coverage.reportsDirectory=coverage/boundary-observer
+          --coverage.thresholds.lines=75 --coverage.thresholds.branches=75
+          --coverage.thresholds.functions=75 --coverage.thresholds.statements=75
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

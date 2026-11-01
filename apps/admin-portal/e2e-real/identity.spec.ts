@@ -14,6 +14,14 @@ import {
 import { nativeBoundaryBrowser } from './native-boundary-browser';
 import { confirmSingleCreate, replayUiCreate } from './ui-create-receipt';
 
+/* DKP270_OBSERVER_BEGIN */
+import {
+  startBoundaryObserver,
+  markBoundaryObserver,
+  flushBoundaryObserver,
+} from './boundary-event-observer';
+
+/* DKP270_OBSERVER_END */
 const uploadProfile = process.env.DKP_UPLOAD_E2E_ENABLED;
 if (
   uploadProfile !== undefined &&
@@ -909,6 +917,9 @@ async function observeThrottledUpload(
   expectedCsrf: string,
 ) {
   const cdp = await context.newCDPSession(page);
+  /* DKP270_OBSERVER_BEGIN */
+  startBoundaryObserver(cdp, page, origin, root);
+  /* DKP270_OBSERVER_END */
   let removeListeners = () => {};
   const release = () =>
     cdp.send('Network.emulateNetworkConditionsByRule', {
@@ -916,6 +927,9 @@ async function observeThrottledUpload(
       matchedNetworkConditions: [],
     });
   const dispose = async () => {
+    /* DKP270_OBSERVER_BEGIN */
+    flushBoundaryObserver(page);
+    /* DKP270_OBSERVER_END */
     removeListeners();
     try {
       await release();
@@ -1179,6 +1193,9 @@ if (uploadProfile === 'true') {
             session.csrfToken === draft.session.csrfToken,
         ).toBe(true);
       }
+      /* DKP270_OBSERVER_BEGIN */
+      markBoundaryObserver(page, 'before-release');
+      /* DKP270_OBSERVER_END */
       await upload.release();
       await expect
         .poll(
@@ -1190,6 +1207,9 @@ if (uploadProfile === 'true') {
         )
         .toBe(200);
       // Completed requests expose full Playwright headers without blocking the boundary.
+      /* DKP270_OBSERVER_BEGIN */
+      markBoundaryObserver(page, 'binary-200-observed');
+      /* DKP270_OBSERVER_END */
       const guards = await upload.request.allHeaders();
       expect(guards.origin).toBe(origin);
       expect(guards['x-csrf-token'] === draft.session.csrfToken).toBe(true);
@@ -1207,17 +1227,26 @@ if (uploadProfile === 'true') {
           { timeout: 30_000 },
         )
         .toBe(201);
+      /* DKP270_OBSERVER_BEGIN */
+      markBoundaryObserver(page, 'append-observed');
+      /* DKP270_OBSERVER_END */
       await expect(
         page.getByRole('button', {
           name: 'Download verified content',
           exact: true,
         }),
       ).toBeVisible({ timeout: 120_000 });
+      /* DKP270_OBSERVER_BEGIN */
+      markBoundaryObserver(page, 'before-download');
+      /* DKP270_OBSERVER_END */
       const downloaded = page.waitForEvent('download');
       await page
         .getByRole('button', { name: 'Download verified content', exact: true })
         .click();
       const result = await downloaded;
+      /* DKP270_OBSERVER_BEGIN */
+      markBoundaryObserver(page, 'download-event');
+      /* DKP270_OBSERVER_END */
       const hash = createHash('sha256');
       for await (const chunk of await result.createReadStream())
         hash.update(chunk);
@@ -1226,6 +1255,9 @@ if (uploadProfile === 'true') {
           .update(await readFile(draft.fixture))
           .digest('hex'),
       );
+      /* DKP270_OBSERVER_BEGIN */
+      markBoundaryObserver(page, 'download-hash-checked');
+      /* DKP270_OBSERVER_END */
       expect(result.suggestedFilename()).toMatch(/^[0-9a-f-]{36}\.pdf$/);
       expect(upload.initializations.length).toBe(1);
       expect(upload.binary.length).toBe(1);
