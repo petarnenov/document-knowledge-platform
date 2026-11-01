@@ -64,10 +64,13 @@ jobs:
         run: >-
           pnpm --filter admin-portal exec vitest run
           src/upload-fault-contract.test.tsx src/ui-create-receipt.test.tsx src/knowledge-acceptance.test.tsx
+          src/knowledge-dm-fixture.test.tsx src/knowledge-diagnostics.test.tsx
           --coverage
           --coverage.include=e2e-real/upload-fault-contract.ts
           --coverage.include=e2e-real/ui-create-receipt.ts
           --coverage.include=e2e-real/knowledge-acceptance.ts
+          --coverage.include=e2e-real/knowledge-dm-fixture.ts
+          --coverage.include=e2e-real/knowledge-diagnostics.ts
           --coverage.reportsDirectory=coverage/acceptance-helpers
           --coverage.thresholds.lines=75 --coverage.thresholds.branches=75
           --coverage.thresholds.functions=75 --coverage.thresholds.statements=75

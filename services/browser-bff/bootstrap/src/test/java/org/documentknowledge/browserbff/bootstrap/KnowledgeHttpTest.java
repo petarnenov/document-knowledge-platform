@@ -63,6 +63,22 @@ class KnowledgeHttpTest {
    assertEquals(before,calls.get());assertEquals(403,send(server,"GET","/api/v1/kb/collections",seed(server,"foreign",Instant.now().plusSeconds(120)),null,true).statusCode());assertEquals(401,send(server,"GET","/api/v1/kb/collections",seed(server,"tenant-a",Instant.now().minusSeconds(1)),null,true).statusCode());
   }finally{upstream.stop(0);}
  }
+ @Test void declaredAndChunkedOversizeRejectWithoutUpstreamAndExactLimitStillSucceeds()throws Exception{
+  var calls=new AtomicInteger();var upstream=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+  upstream.createContext("/",exchange->{calls.incrementAndGet();byte[] bytes=("{\"collectionId\":\""+ID+"\",\"revision\":1}").getBytes(java.nio.charset.StandardCharsets.UTF_8);exchange.getResponseHeaders().set("Content-Type","application/json");exchange.getResponseHeaders().set("Cache-Control","no-store");exchange.sendResponseHeaders(201,bytes.length);try(var out=exchange.getResponseBody()){out.write(bytes);}});upstream.start();
+  try(var server=ApplicationContext.run(EmbeddedServer.class,Map.of("micronaut.server.port",-1,"micronaut.server.host","127.0.0.1","dkp.bff.portal-origin",ORIGIN,"dkp.bff.upstreams.kb","http://127.0.0.1:"+upstream.getAddress().getPort()))){
+   String cookie=seed(server,"tenant-a",Instant.now().plusSeconds(120));
+   String valid="{\"title\":\"Synthetic\",\"description\":\"\"}";
+   for(boolean chunked:new boolean[]{false,true}){
+    String oversized=valid+" ".repeat(17000-valid.length());
+    var publisher=chunked?HttpRequest.BodyPublishers.ofInputStream(()->new java.io.ByteArrayInputStream(oversized.getBytes(java.nio.charset.StandardCharsets.US_ASCII))):HttpRequest.BodyPublishers.ofString(oversized);
+    var request=HttpRequest.newBuilder(server.getURI().resolve("/api/v1/kb/collections")).header("Cookie",cookie).header("Origin",ORIGIN).header("X-CSRF-TOKEN",".fixture-csrf").header("Idempotency-Key","synthetic-key").header("Content-Type","application/json").POST(publisher);
+    var response=client.send(request.build(),HttpResponse.BodyHandlers.ofString());
+    assertEquals(413,response.statusCode(),"chunked="+chunked);assertEquals("{\"code\":\"PAYLOAD_TOO_LARGE\"}",response.body());assertEquals(List.of("no-store"),response.headers().allValues("Cache-Control"));assertTrue(response.headers().allValues("Content-Encoding").isEmpty());assertEquals(0,calls.get());
+   }
+   assertEquals(201,send(server,"POST","/api/v1/kb/collections",cookie,valid+" ".repeat(16384-valid.length()),true).statusCode());assertEquals(1,calls.get());
+  }finally{upstream.stop(0);}
+ }
  @Test void incompleteBrowserBodyCannotOutliveNineSecondOwnerOrDispatchLate()throws Exception{
   var calls=new AtomicInteger();var upstream=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);upstream.createContext("/",exchange->{calls.incrementAndGet();exchange.close();});upstream.start();
   try(var server=ApplicationContext.run(EmbeddedServer.class,Map.of("micronaut.server.port",-1,"micronaut.server.host","127.0.0.1","dkp.bff.portal-origin",ORIGIN,"dkp.bff.upstreams.kb","http://127.0.0.1:"+upstream.getAddress().getPort()));var socket=new java.net.Socket("127.0.0.1",server.getPort())){

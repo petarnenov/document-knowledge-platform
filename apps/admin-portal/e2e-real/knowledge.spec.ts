@@ -1,6 +1,23 @@
 import { randomUUID } from 'node:crypto';
-import { expect, test, type APIResponse } from '@playwright/test';
+import {
+  expect,
+  test,
+  type APIResponse,
+  type Page,
+  type Request,
+  type Response,
+} from '@playwright/test';
+import {
+  KnowledgeDiagnostics,
+  KnowledgeBodyObservations,
+  type KnowledgeUiState,
+} from './knowledge-diagnostics';
 import { ExactMembershipTraversal } from './knowledge-acceptance';
+import {
+  dmFixtureBody,
+  dmFixtureReceipt,
+  requireKbMirrorPath,
+} from './knowledge-dm-fixture';
 import {
   collectionSchema,
   collectionReceiptSchema,
@@ -9,6 +26,133 @@ import {
   policySnapshotSchema,
   errorSchema,
 } from '../src/knowledge-schema';
+const diagnostics = new WeakMap<
+  Page,
+  { ring: KnowledgeDiagnostics; dispose: () => void }
+>();
+test.beforeEach(({ page }) => {
+  const ring = new KnowledgeDiagnostics();
+  const starts = new WeakMap<Request, number>();
+  const bodies = new KnowledgeBodyObservations();
+  const request = (value: Request) => {
+    starts.set(value, performance.now());
+  };
+  const elapsed = (value: Request) => {
+    const at = starts.get(value);
+    return at === undefined ? null : performance.now() - at;
+  };
+  const failed = (value: Request) => {
+    ring.observe(value.method(), value.url(), 'FAILED', elapsed(value));
+  };
+  const response = (value: Response) => {
+    const entry = ring.observe(
+      value.request().method(),
+      value.url(),
+      value.status(),
+      elapsed(value.request()),
+    );
+    // Observe only tiny, declared error responses. Never await diagnostics in
+    // a business assertion or retain/print the received bytes.
+    const responseHeaders = value.headers();
+    const length = responseHeaders['content-length'];
+    if (
+      !entry ||
+      value.status() < 400 ||
+      responseHeaders['content-encoding'] ||
+      responseHeaders['content-type']?.split(';')[0]?.trim().toLowerCase() !==
+        'application/json' ||
+      !length ||
+      !/^[0-9]{1,4}$/.test(length) ||
+      Number(length) > 1024
+    )
+      return;
+    bodies.observe(() => value.body(), entry);
+  };
+  page.on('request', request);
+  page.on('requestfailed', failed);
+  page.on('response', response);
+  diagnostics.set(page, {
+    ring,
+    dispose: () => {
+      bodies.dispose();
+      page.off('request', request);
+      page.off('requestfailed', failed);
+      page.off('response', response);
+    },
+  });
+});
+test.afterEach(async ({ page }, info) => {
+  const observed = diagnostics.get(page);
+  if (!observed) return;
+  try {
+    observed.dispose();
+  } catch {
+    /* Diagnostics never replace the test outcome. */
+  }
+  if (info.status === info.expectedStatus) return;
+  let ui: KnowledgeUiState = {
+    selection: 'unobserved',
+    settings: 'unobserved',
+    alert: 'unobserved',
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const snapshot = async (): Promise<KnowledgeUiState> => {
+      const selection = await page
+        .getByRole('region', { name: 'Selected collection', exact: true })
+        .count();
+      const settings = await page
+        .getByRole('button', { name: 'Collection settings', exact: true })
+        .count();
+      const alert = page.getByRole('alert');
+      const categories = [
+        ['session', 'Your session has expired. Sign in again.'],
+        ['forbidden', 'This knowledge action is not permitted.'],
+        [
+          'not-found',
+          'This collection or policy is unavailable or you do not have access.',
+        ],
+        [
+          'conflict',
+          'The knowledge state changed. Refresh before trying again.',
+        ],
+        ['busy', 'Knowledge services are busy. Try again later.'],
+        [
+          'rejected',
+          'The request was rejected. Check the fields and current permissions.',
+        ],
+        ['unavailable', 'Knowledge services are unavailable. Try again.'],
+      ] as const;
+      let category: KnowledgeUiState['alert'] = (await alert.count())
+        ? 'other'
+        : 'none';
+      for (const [name, text] of categories)
+        if (await alert.filter({ hasText: text }).count()) {
+          category = name;
+          break;
+        }
+      return {
+        selection: selection ? 'present' : 'absent',
+        settings: settings ? 'present' : 'absent',
+        alert: category,
+      };
+    };
+    ui = await Promise.race([
+      snapshot(),
+      new Promise<KnowledgeUiState>((resolve) => {
+        timer = setTimeout(() => resolve(ui), 200);
+      }),
+    ]);
+  } catch {
+    /* Preserve the original failure even when the page already closed. */
+  } finally {
+    clearTimeout(timer);
+    console.error(JSON.stringify(observed.ring.failure(ui)));
+  }
+});
+function phase(page: Page, value: Parameters<KnowledgeDiagnostics['mark']>[0]) {
+  diagnostics.get(page)?.ring.mark(value);
+}
 const enabled = process.env.DKP_KB_E2E_ENABLED;
 if (enabled !== undefined && enabled !== 'true')
   throw new Error('Knowledge acceptance requires explicit true profile.');
@@ -29,6 +173,7 @@ if (enabled === 'true')
         },
         { theme: scheme, portal: origin },
       );
+      phase(page, 'login');
       await page.goto('/identity');
       await page.getByRole('link', { name: 'Sign in', exact: true }).click();
       await expect(page.locator('#username')).toBeVisible();
@@ -89,6 +234,7 @@ if (enabled === 'true')
         revision: number;
       };
       expect(Object.keys(draft).sort()).toEqual(['documentId', 'revision']);
+      phase(page, 'open-knowledge');
       await page.getByRole('link', { name: 'Knowledge', exact: true }).click();
       await expect(
         page
@@ -98,6 +244,7 @@ if (enabled === 'true')
       await expect(
         page.getByRole('switch', { name: 'Light theme' }),
       ).toBeChecked({ checked: scheme === 'light' });
+      phase(page, 'create-collection');
       const title = `Synthetic ${scheme} collection ${randomUUID()}`;
       await page.getByLabel('New collection title').fill(title);
       await page
@@ -199,6 +346,7 @@ if (enabled === 'true')
           /\/memberships\/[0-9a-f-]+$/.test(new URL(r.url()).pathname) &&
           r.request().method() === 'PATCH',
       );
+      phase(page, 'deactivate-member');
       await page
         .getByRole('button', {
           name: `Deactivate membership ${draft.documentId}`,
@@ -210,6 +358,7 @@ if (enabled === 'true')
           name: `Activate membership ${draft.documentId}`,
         }),
       ).toBeVisible();
+      phase(page, 'reactivate-member');
       await page
         .getByRole('button', {
           name: `Activate membership ${draft.documentId}`,
@@ -220,9 +369,11 @@ if (enabled === 'true')
           name: `Deactivate membership ${draft.documentId}`,
         }),
       ).toBeVisible();
+      phase(page, 'open-settings');
       await page
         .getByRole('button', { name: 'Collection settings', exact: true })
         .click();
+      phase(page, 'archive');
       await page.getByRole('button', { name: 'Archive collection' }).click();
       await expect(
         page.getByRole('button', { name: 'Unarchive collection' }),
@@ -363,6 +514,7 @@ if (enabled === 'true')
       data?: object,
       key?: string,
     ) {
+      requireKbMirrorPath(path);
       const started = performance.now();
       const response = await page.request.fetch(path, {
         method,
@@ -383,6 +535,25 @@ if (enabled === 'true')
       );
       expect(bytes.length).toBeLessThanOrEqual(2 * 1024 * 1024);
       return JSON.parse(bytes.toString()) as unknown;
+    }
+    async function dmFixture(
+      method: 'POST' | 'PATCH',
+      path: string,
+      data: object,
+    ) {
+      const body = dmFixtureBody(method, path, data);
+      const response = await page.request.fetch(path, {
+        method,
+        headers: { ...headers(), 'Content-Type': 'application/json' },
+        data: body,
+        timeout: 10_000,
+      });
+      return dmFixtureReceipt(
+        response.status(),
+        method === 'POST' ? 201 : 200,
+        response.headers(),
+        await response.body(),
+      );
     }
     async function rejected(
       method: 'GET' | 'POST' | 'PATCH',
@@ -418,7 +589,7 @@ if (enabled === 'true')
     expect(collection.revision).toBe(activeReceipt.revision);
     const documents: { documentId: string; revision: number }[] = [];
     for (let index = 0; index < 101; index++) {
-      const draft = (await request('POST', '/api/v1/dm/documents', 201, {
+      const draft = (await dmFixture('POST', '/api/v1/dm/documents', {
         metadata: {
           title: `Synthetic maximum member ${index} ${randomUUID()}`,
           description: 'Metadata only; no content trust claim.',
@@ -548,10 +719,9 @@ if (enabled === 'true')
     );
     expect(beforeAuthorityChange.nextCursor).not.toBeNull();
     // Deny only sharing: metadata inspection stays allowed, so no hidden resource status is guessed.
-    const denied = (await request(
+    const denied = (await dmFixture(
       'PATCH',
       `/api/v1/dm/documents/${target.documentId}/acl`,
-      200,
       {
         expectedRevision: target.revision,
         mode: 'RESTRICT',

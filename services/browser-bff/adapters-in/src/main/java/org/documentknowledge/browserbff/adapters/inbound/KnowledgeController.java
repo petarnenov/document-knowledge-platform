@@ -1,5 +1,7 @@
 package org.documentknowledge.browserbff.adapters.inbound;
 import io.micronaut.http.*;
+import io.micronaut.http.exceptions.BufferLengthExceededException;
+import io.micronaut.http.exceptions.ContentLengthExceededException;
 import io.micronaut.http.annotation.*;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
@@ -51,9 +53,10 @@ public final class KnowledgeController {
             Map<String,Object> body=null;
             if(!method.equals("GET")){
                 if(!request.getContentType().map(t->t.getName().equals("application/json")).orElse(false))throw new BffFailure(415,"UNSUPPORTED_MEDIA_TYPE");
+                if(request.getHeaders().contentLength().orElse(-1)>16384)throw new BffFailure(413,"PAYLOAD_TOO_LARGE");
                 if(input==null)throw new BffFailure(400,"BAD_REQUEST");
                 Future<byte[]> pending=READERS.submit(()->input.readNBytes(16385));deadline.own(pending);byte[] bytes;
-                try{bytes=pending.get(deadline.remainingNanos(),TimeUnit.NANOSECONDS);}catch(Exception failure){pending.cancel(true);throw failure;}
+                try{bytes=pending.get(deadline.remainingNanos(),TimeUnit.NANOSECONDS);}catch(ExecutionException failure){pending.cancel(true);Throwable cause=failure.getCause();for(int depth=0;depth<8 && cause instanceof IOException;depth++){if(cause.getCause()==null)break;cause=cause.getCause();}if(cause instanceof BufferLengthExceededException || cause instanceof ContentLengthExceededException)throw new BffFailure(413,"PAYLOAD_TOO_LARGE");throw failure;}catch(Exception failure){pending.cancel(true);throw failure;}
                 deadline.check();if(bytes.length>16384)throw new BffFailure(413,"PAYLOAD_TOO_LARGE");
                 body=JSON.readValue(bytes,Map.class);
             }else if(request.getContentLength()>0||request.getHeaders().contains("Transfer-Encoding"))throw new BffFailure(400,"BAD_REQUEST");
