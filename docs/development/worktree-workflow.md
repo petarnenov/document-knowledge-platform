@@ -113,3 +113,23 @@ Promotion from `dev` to `main` uses a separate reviewed PR with a compatibility 
 6. Local pinned-environment verification and independent review precede push; CI confirmation binds the published commit. No unrelated cleanup or confidential files. Automatic development-specification approval remains authorized after independent review and passing checks. Always open PRs; do not automatically merge. All applicable acceptance, coverage, security and production gates remain mandatory.
 
 This workflow documents commands; **it does not create a worktree on a developer's machine**.
+
+
+## Mandatory application to frontend workstreams
+
+Owner clarification (2026-11-01), tracked by [#434](https://github.com/petarnenov/document-knowledge-platform/issues/434): the full implementation protocol applies to every frontend stream, including design system/application shell, document UX, collections/access UX, contract adapters and quality/integration. Parallel execution does not waive or postpone gates.
+
+1. Create a prioritized issue before independent work; link the approved OpenSpec scope, acceptance criteria and verification plan. Assign exclusive file ownership and isolated branches/worktrees; coordinate shared routing, dependency, theme and client files through the integration owner.
+2. Before publication, run applicable checks locally using the same pinned runtime versions, Linux/container images, commands and settings as CI through shared scripts. Host-only checks are supplemental and do not establish CI-environment parity. Include typecheck, lint/format, meaningful unit/component tests, the project coverage floor (minimum 75%), and affected contract, accessibility, authorization/tenant-isolation and real E2E checks.
+3. On CI failure, preserve the failing evidence and reproduce the concrete failure locally before fixing it. Preserve successful evidence after the fix, then run the full affected suite and applicable coverage checks. Do not use sequential pushes as the primary diagnostic method. A runner-only diagnostic CI run requires a documented environment difference, concrete hypothesis and bounded scope beforehand.
+4. Record commit/source fingerprint, environment and versions, command, result and evidence location. Subsequent changes invalidate affected results and require rechecking. Keep tests isolated from manual acceptance and other active stacks; never restart or modify another task's stack.
+5. Obtain independent review after local verification, then push/open the PR and confirm checks against the published source. Never weaken assertions, security controls, deadlines or coverage thresholds, or replace real integration tests with mocks to pass a gate. Separate long acceptance scenarios remain mandatory before merge where applicable; fast tests cannot replace them.
+6. Report **locally verified**, **CI verified** and **integrated** as distinct states. Rendering against mocks, documentation updates, host-only green tests or an open PR do not prove integration. Close an implementation issue only when its acceptance and integration criteria are met, then save the handoff and follow the compaction checkpoint above.
+
+Frontend server state must use TanStack React Query as required by AGENTS.md and the approved UI/UX implementation inputs. This library choice does not waive contract-first development or any verification gate.
+
+Integration requires exact published-source CI, independent review and every applicable real acceptance gate. The latest owner AGENTS prohibits automatic merging. Keep the current implementation assessment, contract matrix, OpenSpec tasks and implementation queue synchronized with the main UI/UX Blueprint and underlying architecture packages. The development scope does not permit changes to domain/security invariants, breaking contracts, production release, or interference with active BP-04 work.
+
+### Interactive Design v0.5 frontend acceptance
+
+The same implementation protocol applies to every frontend stream. Render and inspect the approved prototype, share reference captures and measured Mantine tokens, implement, compare matching themes/viewports and comparable fixtures, and correct unintended differences. Preserve references, React captures and meaningful measured/pixel differences with source-bound verification evidence. Do not approve new screenshots or raise tolerances merely to pass. Material intentional visual deviations require explicit product approval. Functional/mock tests alone do not establish visual or real backend acceptance. The latest owner AGENTS instruction requires PR review and prohibits automatic merging, superseding earlier standing merge permissions.

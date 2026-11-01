@@ -88,3 +88,14 @@ When an external resource or a production-only owner decision blocks a criterion
 ## BP03 development sequencing — #87/#88
 
 The reviewed BP03 development specification uses separate verified-upload completion and existing explicit version append201. It must not expose processing readiness. BP05 retains atomic version/run/intent/outbox creation with202ACCEPTED_PENDING_DISPATCH and must explicitly reconcile legacy append compatibility and pre-processing versions. Independent security89/architecture90 accepted this sequencing and development approval is recorded in DKP-004. It does not change final project acceptance or grant production approval.
+
+
+## Parallel frontend modernization — #434
+
+Execute the approved UI/UX Blueprint v0.7.0 and Frontend Rework Instructions v1.0.0 alongside the architecture queue. This does not complete BP-14 or alter backend package acceptance. Preserve ongoing BP-04 ownership and runtime.
+
+- #435: application shell/shared states; #436: supported document/draft/upload presentation; #437: contract compatibility/adapters.
+- #438: independent specification/implementation review; #439: shared pinned Linux local/CI checks; #440: isolated real manual acceptance URL.
+- #441: remaining TanStack identity-command mutation migration; server-state requirement is not fulfilled merely by documenting it.
+
+See [current Blueprint mapping, verification state and dependencies](uiux-modernization-status.md), UX001 OpenSpec and the contract compatibility matrix. Local, CI and integrated states remain distinct. Collections follow coordinated supported BP-04 contracts; missing processing/review/publication/search/graph capabilities remain unavailable until their authoritative packages deliver them. Frontend PRs require independent review and all applicable checks/real acceptance; do not automatically merge.
