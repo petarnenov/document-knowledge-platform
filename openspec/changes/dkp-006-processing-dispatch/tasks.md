@@ -28,3 +28,6 @@ Review253 passed all three issue259 protocol corrections. Root development speci
 - [ ] [#379](https://github.com/petarnenov/document-knowledge-platform/issues/379): resolve runtime candidate selection before production dependency or provider implementation; published research379 alone is not selection approval.
 - [ ] [#392](https://github.com/petarnenov/document-knowledge-platform/issues/392): reviewed advisory convergence research (#397) establishes a proposed graph and bounded Java25/payload checks only; production pin compatibility/security selection remains pending.
 - [ ] [#393](https://github.com/petarnenov/document-knowledge-platform/issues/393): establish maintained full raw-input RFC8785 conformance; no canonicalizer or polyglot runtime is selected by research.
+
+- [ ] [#402](https://github.com/petarnenov/document-knowledge-platform/issues/402): deliver corrected #393 artifact provenance; independently reviewed source retains all 56 artifacts and distinct JS POMs. Published source does not complete current-head CI or dev integration.
+- [ ] [#406](https://github.com/petarnenov/document-knowledge-platform/issues/406): deliver lossless explicit path/hash provenance and final unmodified secret scans, reviewed under #407; publication/integration gates remain separate from source review and no library is selected.

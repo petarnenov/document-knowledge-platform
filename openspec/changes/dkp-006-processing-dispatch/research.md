@@ -24,3 +24,10 @@ Fingerprint proposal259 uses [RFC8785 JSON Canonicalization Scheme](https://www.
 ## Advisory convergence follow-up — #392
 
 [Research packet](research-392/README.md), independently reviewed under [#397](https://github.com/petarnenov/document-knowledge-platform/issues/397), records a proposed54-artifact/43-production graph and a zero-match OSV snapshot after triaging all24 original matches. It does not approve production pins or prove server/history/platform interoperability. Canonicalizer selection [#393](https://github.com/petarnenov/document-knowledge-platform/issues/393), actual all-service/vendor Java25/PostgreSQL18.6 compatibility, image provenance/security and the remaining BP05 gates remain open.
+
+
+## Full raw-input conformance research (#393)
+
+[The published research packet](research-393/README.md), independently reviewed under [#400](https://github.com/petarnenov/document-knowledge-platform/issues/400) and [#407](https://github.com/petarnenov/document-knowledge-platform/issues/407), preserves all 83 inputs and 249 candidate observations. Neither tested pure-Java composition meets the full raw-input requirement. The strict GraalJS composition passes 83/83 as an experimental research candidate; it is not selected and does not resolve resource, platform, maintenance, security or production approval gates.
+
+[#402](https://github.com/petarnenov/document-knowledge-platform/issues/402) retains all 56 artifacts in coordinate-qualified paths, including both distinct same-basename JS POMs. [#406](https://github.com/petarnenov/document-knowledge-platform/issues/406) represents all 68 file/hash bindings explicitly and losslessly; the final full candidate and commit-history secret scans pass without exclusions. The earlier unpublished scanner failure and correction are retained in the issue/PR record. Current-head CI and dev integration remain separate from source review; canonicalizer selection and every existing BP05 prerequisite remain open.
