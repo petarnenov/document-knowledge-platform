@@ -107,3 +107,13 @@ The exact4519f2bf611c committed integration source passes the combined unprivile
 - [ ] [#281](https://github.com/petarnenov/document-knowledge-platform/issues/281) independent280 source/regression PASS, actual5Nginxscenarios rerun, originalidentitylegacyandnear-prefix unchanged; pendingfullruntimeexcluded.
 
 - [ ] [#285](https://github.com/petarnenov/document-knowledge-platform/issues/285) reviewed strictnative readiness/writehealth gate backported without changing existingBP04fixtureIAM/credential behavior. CoreceCI9PASS, nativebootstrap503retained and exactcauseUNKNOWN; pinnedsource provespriorlivenessreadinessgap. Independent290 accepts readinessalgorithm/3regressions, actualpinnednativefinalsourcefixturePASS; noPUTretry. CurrentfullCI/integration stillrequired.
+
+## Current acceptance corrections — 2026-11-01 03:21 UTC
+
+- [ ] [#285](https://github.com/petarnenov/document-knowledge-platform/issues/285) strict paired RustFS readiness probes backported2216a8d; full196Python tests/helper100%lines+branches and independent290 PASS. Historical native503 exact cause remains unknown; fullCI/integration required.
+- [ ] [#288](https://github.com/petarnenov/document-knowledge-platform/issues/288) closed legacy DM fixture operations use existing16KiB/1MiB/10s/noncache semantics; KB mirror assertions remain strict and canonical-path guarded.
+- [ ] [#289](https://github.com/petarnenov/document-knowledge-platform/issues/289) finite safe KB failure diagnostics,32-event ring/four actual body reads/200ms observation window; no business assertion/network changes. Actual fresh both-theme/max100-member journeys required.
+- [x] [#292](https://github.com/petarnenov/document-knowledge-platform/issues/292) independent corrected288/289 source and root CI coverage wiring PASS;11 helper tests100%lines/branches/functions, pending-read and path traversal findings resolved.
+- [ ] [#295](https://github.com/petarnenov/document-knowledge-platform/issues/295) actual2216a8d CI BFF expected413/actual400; controlled typed framework size exception defect corrected, exact original CI scheduling not claimed reproduced. Native/Linux86tests0skip/all floors PASS; currentCI/HTTPS/integration required.
+- [x] [#298](https://github.com/petarnenov/document-knowledge-platform/issues/298) independent295 source review PASS, root reran four realHTTP/controller tests; declared/chunked oversize413, exact16KiB201 and auth/CSRF-before-read remain enforced.
+- [ ] [#300](https://github.com/petarnenov/document-knowledge-platform/issues/300) independent current bookkeeping and no-automatic-merge protocol review.
