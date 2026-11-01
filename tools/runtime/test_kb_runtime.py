@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 SPEC = importlib.util.spec_from_file_location('kb_runtime', Path(__file__).with_name('kb-runtime.py'))
 kb = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(kb)
+REAL_NETWORKING = kb.networking()
 
 
 class RuntimeTest(unittest.TestCase):
@@ -23,11 +24,19 @@ class RuntimeTest(unittest.TestCase):
         self.material.safe_path.side_effect = lambda value: Path(value)
         self.security = patch.object(kb, 'security', return_value=self.material)
         self.security.start()
+        self.addresses = Mock(spec=['allocate', 'docker_subnets', 'host_routes', 'validate_plan', 'assert_available', 'attest'])
+        self.ipam = {'driver': 'default', 'config': [{'subnet': '10.240.0.0/28', 'gateway': '10.240.0.1'}]}
+        self.addresses.allocate.return_value = {'kb-data': self.ipam}
+        self.addresses.docker_subnets.return_value = []
+        self.addresses.host_routes.return_value = []
+        self.networking = patch.object(kb, 'networking', return_value=self.addresses)
+        self.networking.start()
         self.state = {'version': 1, 'project': 'dkp-bp04-' + 'a' * 12, 'owner': 'b' * 32,
                       'phase': 'running', 'source': 'c' * 64, 'images': {}, 'overlay': '',
                       'resources': {'container': [], 'network': [], 'volume': []}, 'commit': 'a' * 40}
 
     def tearDown(self):
+        self.networking.stop()
         self.security.stop()
         self.tmp.cleanup()
 
@@ -201,8 +210,8 @@ class RuntimeTest(unittest.TestCase):
         with self.assertRaises(ValueError): kb.compose(self.run, self.state)
 
     def test_inventory_requires_exact_owner_profile_and_project(self):
-        labels = self.labels()
-        with patch.object(kb, 'execute', return_value='1' * 64) as execute, patch.object(kb, 'inspect') as inspect:
+        labels = self.labels(**{'com.docker.compose.network': 'data'})
+        with patch.object(kb, 'network_plan', return_value={'data': self.ipam}), patch.object(kb, 'execute', return_value='1' * 64) as execute, patch.object(kb, 'inspect') as inspect:
             inspect.return_value = {'Id': '1' * 64, 'Name': self.state['project'] + '_data', 'Labels': labels, 'Config': {'Labels': labels}}
             self.assertEqual(len(kb.inventory(self.run, self.state)['container']), 1)
             self.assertIn('-a', execute.call_args_list[0].args[1])
@@ -288,12 +297,74 @@ class RuntimeTest(unittest.TestCase):
             state = kb.load(self.run)[1]; self.assertEqual(state['phase'], 'running')
             overlay = json.loads((self.run / 'ownership.json').read_text())
             self.assertEqual(overlay['services']['kb-postgres'], {'labels': {kb.LABEL: state['owner'], 'dkp.profile': 'dkp-bp04'}})
+            self.assertEqual(overlay['networks']['kb-data']['ipam'], self.ipam)
+            self.assertEqual(self.addresses.docker_subnets.call_count, 2)
+            self.assertEqual(self.addresses.host_routes.call_count, 2)
+            self.addresses.assert_available.assert_called_once()
             with self.assertRaises(ValueError): kb.start(self.run)
         failed = self.root / 'failed'
         with patch.object(kb, 'source_identity', return_value='a' * 40), patch.object(kb, 'snapshot'), patch.object(kb, 'preflight_ports'), patch.object(kb, 'source_digest', return_value='c' * 64), patch.object(kb, 'inventory', return_value=empty), patch.object(kb, 'execute', side_effect=ValueError('synthetic build failure')):
             with self.assertRaises(ValueError): kb.start(failed)
             self.assertEqual(kb.load(failed)[1]['phase'], 'failed')
             self.assertTrue((failed / 'runtime-state.json').exists())
+
+    def test_closed_network_overlay_rejects_hash_labels_or_extra_addressing_fields(self):
+        self.record()
+        value = {'services': {}, 'networks': {'kb-data': {'labels': {kb.LABEL: self.state['owner'], 'dkp.profile': 'dkp-bp04'}, 'ipam': self.ipam}}, 'volumes': {}}
+        def save():
+            kb.write(self.run / 'ownership.json', value)
+            self.state['overlay'] = hashlib.sha256((self.run / 'ownership.json').read_bytes()).hexdigest()
+        save()
+        self.assertEqual(kb.network_plan(self.run, self.state), {'kb-data': self.ipam})
+        value['networks']['kb-data']['external'] = True; save()
+        with self.assertRaises(ValueError): kb.network_plan(self.run, self.state)
+        del value['networks']['kb-data']['external']
+        value['networks']['kb-data']['labels'][kb.LABEL] = 'foreign'; save()
+        with self.assertRaises(ValueError): kb.network_plan(self.run, self.state)
+        value['networks']['kb-data']['labels'][kb.LABEL] = self.state['owner']; save()
+        self.state['overlay'] = 'f' * 64
+        with self.assertRaises(ValueError): kb.network_plan(self.run, self.state)
+        value['unknown'] = {}; save()
+        with self.assertRaises(ValueError): kb.network_plan(self.run, self.state)
+
+    def test_real_ipam_attestation_blocks_stop_before_any_removal_on_network_drift(self):
+        identity = '4' * 64
+        self.state['resources']['network'] = [identity]
+        self.record()
+        overlay = {'services': {}, 'networks': {'kb-data': {'labels': {kb.LABEL: self.state['owner'], 'dkp.profile': 'dkp-bp04'}, 'ipam': self.ipam}}, 'volumes': {}}
+        kb.write(self.run / 'ownership.json', overlay)
+        self.state['overlay'] = hashlib.sha256((self.run / 'ownership.json').read_bytes()).hexdigest()
+        self.record()
+        network = {'Id': identity, 'Name': self.state['project'] + '_kb-data',
+                   'Labels': self.labels(**{'com.docker.compose.network': 'kb-data'}),
+                   'Driver': 'bridge', 'EnableIPv6': False,
+                   'IPAM': {'Driver': 'default', 'Config': [{'Subnet': '10.240.0.0/28', 'Gateway': '10.240.0.1'}]}}
+        commands = []
+        def execute(directory, arguments, **kwargs):
+            commands.append(arguments)
+            return identity if arguments[1:3] == ['network', 'ls'] else ''
+        with patch.object(kb, 'networking', return_value=REAL_NETWORKING), patch.object(kb, 'execute', side_effect=execute), patch.object(kb, 'inspect', return_value=network):
+            self.assertEqual(kb.inventory(self.run, self.state)['network'][identity], network)
+            for changed in [{'Subnet': '10.240.1.0/28', 'Gateway': '10.240.1.1'}, {'Subnet': '10.240.0.0/28', 'Gateway': '10.240.0.2'}, {'Subnet': '10.240.0.0/28', 'Gateway': '10.240.0.1', 'IPRange': '10.240.0.0/29'}]:
+                network['IPAM']['Config'] = [changed]
+                with self.assertRaises(ValueError): kb.stop(self.run)
+            network['Labels']['com.docker.compose.network'] = 'foreign'
+            with self.assertRaises(ValueError): kb.stop(self.run)
+        self.assertFalse(any('rm' in args for args in commands))
+        self.assertEqual(kb.load(self.run)[1]['phase'], 'running')
+
+    def test_late_conflict_is_checked_after_build_before_any_up_without_cleanup(self):
+        config = {'services': {'kb-postgres': {'image': 'pinned:example'}}, 'networks': {'kb-data': {}}, 'volumes': {}}
+        commands = []
+        def command(directory, args, **kwargs):
+            commands.append(args)
+            return json.dumps(config) if 'config' in args and '--format' in args else ''
+        self.addresses.assert_available.side_effect = ValueError('late conflict')
+        with patch.object(kb, 'source_identity', return_value='a' * 40), patch.object(kb, 'source_digest', return_value='c' * 64), patch.object(kb, 'snapshot'), patch.object(kb, 'preflight_ports'), patch.object(kb, 'inventory', return_value={'container': {}, 'network': {}, 'volume': {}}), patch.object(kb, 'execute', side_effect=command), patch.object(kb, 'inspect', return_value={'Id': 'sha256:' + 'd' * 64}):
+            with self.assertRaisesRegex(ValueError, 'late conflict'): kb.start(self.run)
+        self.assertTrue(any('build' in args for args in commands))
+        self.assertFalse(any('up' in args or 'rm' in args for args in commands))
+        self.assertEqual(kb.load(self.run)[1]['phase'], 'failed')
 
     def test_port_preflight_closes_all_sockets_even_on_conflict(self):
         socket = Mock(); socket.bind.side_effect = OSError('occupied')

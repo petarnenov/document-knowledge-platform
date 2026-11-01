@@ -26,6 +26,31 @@ def security():
     return module
 
 
+def networking():
+    spec = importlib.util.spec_from_file_location('kb_network', ROOT / 'tools/runtime/kb-network.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def network_plan(directory, state):
+    overlay = directory / 'ownership.json'
+    private_file(overlay)
+    if hashlib.sha256(overlay.read_bytes()).hexdigest() != state['overlay']:
+        raise ValueError('Owned overlay differs')
+    value = json.loads(overlay.read_text())
+    if set(value) != {'services', 'networks', 'volumes'} or not isinstance(value['networks'], dict):
+        raise ValueError('Invalid owned addressing overlay')
+    plan = {}
+    for name, config in value['networks'].items():
+        if (not isinstance(config, dict) or set(config) != {'labels', 'ipam'}
+                or config['labels'] != {LABEL: state['owner'], 'dkp.profile': 'dkp-bp04'}):
+            raise ValueError('Invalid owned addressing metadata')
+        plan[name] = config['ipam']
+    networking().validate_plan(plan)
+    return plan
+
+
 def private_file(path):
     info = path.lstat()
     if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077 or info.st_size > 1048576:
@@ -163,6 +188,11 @@ def inventory(directory, state):
             if (labels.get(LABEL) != state['owner'] or labels.get('dkp.profile') != 'dkp-bp04'
                     or labels.get('com.docker.compose.project') != state['project']):
                 raise ValueError('Foreign or unrecorded project resource')
+            if kind == 'network':
+                logical = labels.get('com.docker.compose.network')
+                if not isinstance(logical, str) or item.get('Name') != state['project'] + '_' + logical:
+                    raise ValueError('Unexpected owned network name')
+                networking().attest(network_plan(directory, state), logical, item)
             identity = item.get('Id') if kind != 'volume' else item.get('Name')
             if not identity:
                 raise ValueError('Missing immutable resource identity')
@@ -274,11 +304,17 @@ def start(directory):
             raise ValueError('Project already exists')
         security().prepare(directory / 'security')
         snapshot(directory, state['commit'])
-        # Resolve reviewed configuration privately before adding ownership metadata only.
+        # Resolve reviewed configuration privately; preserve all service/network isolation.
+        # Only owned labels and explicit conflict-checked development IPAM are overlaid.
         base = compose(directory, state)[:-2]
         config = json.loads(execute(directory, base + ['config', '--format', 'json']))
         overlay = {kind: {name: {'labels': {LABEL: state['owner'], 'dkp.profile': 'dkp-bp04'}} for name in config.get(kind, {})}
                    for kind in ('services', 'networks', 'volumes')}
+        addresses = networking()
+        planned = addresses.allocate(config.get('networks', {}), state['project'],
+                                     addresses.docker_subnets() + addresses.host_routes())
+        for name, ipam in planned.items():
+            overlay['networks'][name]['ipam'] = ipam
         write(directory / 'ownership.json', overlay)
         state['overlay'] = hashlib.sha256((directory / 'ownership.json').read_bytes()).hexdigest()
         write(directory / 'runtime-state.json', state)
@@ -293,6 +329,9 @@ def start(directory):
             state['images'][name] = inspect(directory, 'image', image)['Id']
         state['phase'] = 'built'
         write(directory / 'runtime-state.json', state)
+        # Builds can be long: a different project or host route may have appeared.
+        addresses.assert_available(network_plan(directory, state),
+                                   addresses.docker_subnets() + addresses.host_routes())
         execute(directory, compose(directory, state) + ['up', '-d', '--no-build'], timeout=180)
         state['resources'] = resource_ids(inventory(directory, state))
         write(directory / 'runtime-state.json', state)

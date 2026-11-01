@@ -127,7 +127,9 @@ nor hashed, including nonignored local sensitive files. Tracked index-versus-HEA
 separately, so opposing staged/working edits cannot cancel; either causes refusal; the runner never stages or commits user files. The
 root must first consolidate reviewed packets into a committed branch. The
 recorded commit identity and public input hashes, exact built image IDs and exact labeled resource
-IDs bind the run. The generated overlay adds ownership labels only. Private
+IDs bind the run. The generated overlay adds ownership labels and the bounded
+development IPAM described below; it preserves all service memberships and
+internal network separation. Private
 command logs and lifecycle/browser records remain outside immutable authority;
 all are owner-only. Runtime verification rejects changed sources, images,
 authority, resource sets, failed migrations or unhealthy services. It executes
@@ -156,3 +158,37 @@ complete100-document sets; current catalog, ACL and classification races;
 admission, stalled dependency and final-phase cancellation; and actual
 process/database restart and outage durability. No two-journey result substitutes
 for those gates or grants production/security approval.
+
+## Scoped development addresses (issue260)
+
+The runner allocates one distinct IPv4 `/28` for each composed logical network
+from the fixed development pool `10.240.0.0/16`. It derives a stable scan offset
+from the fresh project identifier, checks every candidate against every current
+Docker IPv4 subnet and every specific host IPv4 route, and refuses a conflict
+or exhausted candidate pool. Default routes alone are excluded. This is a
+local development profile, not production addressing approval.
+
+Host inventory uses bounded `netstat -rn -f inet` on macOS or `ip -j -4 route
+show table all` on Linux. Missing tools, unsupported platforms, malformed or
+incomplete inventories fail closed. No environment override selects a subnet.
+The address plan is written into the owner-only, hash-bound ownership overlay
+with an explicit first-host gateway. A fresh Docker and host-route inventory is
+checked again immediately before Compose `up`, after the potentially long
+build. Docker still arbitrates a concurrent allocation race; failure preserves
+the failed run and its resources instead of retrying with broader authority.
+
+Inventory for startup, verify, browser handoff and stop attests each network's
+exact project/logical labels, name, bridge driver, IPv4-only configuration,
+single subnet and gateway. Extra ranges or changed addressing cause refusal
+before removal. The overlay never makes networks external, joins them together,
+changes firewall policy, prunes resources, or changes daemon defaults. Service
+DNS names remain the endpoint contract. See the official
+[Compose network/IPAM reference](https://docs.docker.com/reference/compose-file/networks/).
+
+A failed run remains failed. Preserve its private record/logs; cleanup may use
+only its exact recorded resources through its matching reviewed lifecycle.
+Older label-only overlays require their original lifecycle implementation;
+the new addressing runner does not adopt them. Do not edit a failed record or
+address plan into a successful run, and do not prune unrelated networks to make
+space. Unit tests and read-only candidate selection do not constitute a real
+fresh runtime or HTTPS acceptance pass.

@@ -191,7 +191,7 @@ jobs:
           python3 - <<'PY'
           import json
           report = json.load(open('/tmp/dkp-upload-helper-coverage.json'))
-          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py', 'upload-durability.py', 'upload-accounting-acceptance.py', 'upload-acceptance.py', 'upload-faults.py', 'kb-security.py', 'kb-runtime.py'):
+          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py', 'upload-durability.py', 'upload-accounting-acceptance.py', 'upload-acceptance.py', 'upload-faults.py', 'kb-security.py', 'kb-runtime.py', 'kb-network.py'):
               matches = [v['summary'] for p, v in report['files'].items() if p.endswith('/' + name)]
               if len(matches) != 1:
                   raise SystemExit('Missing source coverage for ' + name)
