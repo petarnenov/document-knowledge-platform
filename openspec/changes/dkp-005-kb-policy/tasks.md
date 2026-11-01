@@ -124,3 +124,5 @@ The exact4519f2bf611c committed integration source passes the combined unprivile
 - [ ] [#382](https://github.com/petarnenov/document-knowledge-platform/issues/382) P1: acceptance fixture must prove exact owning PostgreSQL backend absence independently; local psql exit cannot establish settlement. Source review #386 and76 related tooling tests pass; unknown backend settlement retains original command and prevents PASS. Actual PostgreSQL execution and dev integration remain pending.
 
 - [ ] [#403](https://github.com/petarnenov/document-knowledge-platform/issues/403) P1: add independently reviewed finite upstream DM sharing status diagnostics to diagnose #399; preserve all status mappings, budgets, response bounds and authority checks. Runtime diagnosis and full acceptance remain separate.
+
+- [ ] [#408](https://github.com/petarnenov/document-knowledge-platform/issues/408) P1: independently review finite DM sharing controller/deadline diagnostics and repeat exact-owned #399 denial; preserve required404, original deadlines, cancellation and all authority controls.

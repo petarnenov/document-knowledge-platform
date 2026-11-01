@@ -65,7 +65,7 @@ public final class DocumentShareController {
         try{
             byte[] bytes=JSON.writeValueAsBytes(work.get());if(bytes.length>32768)throw new DmFailure(503,"UNAVAILABLE");deadline(request).check();
             return HttpResponse.ok(bytes).contentType(MediaType.APPLICATION_JSON_TYPE).header("Cache-Control","no-store");
-        }catch(DmFailure failure){return error(failure.status(),failure.code());}catch(RuntimeException failure){return error(503,"UNAVAILABLE");}
+        }catch(DmFailure failure){SharingDiagnostics.controller(failure);return error(failure.status(),failure.code());}catch(RuntimeException failure){SharingDiagnostics.unexpected();return error(503,"UNAVAILABLE");}
         finally{if(body!=null)try{body.close();}catch(java.io.IOException|RuntimeException ignored){/* Cleanup cannot replace the finite response. */}}
     }
     private static HttpResponse<?> error(int status,String code){return HttpResponse.status(HttpStatus.valueOf(status)).contentType(MediaType.APPLICATION_JSON_TYPE).header("Cache-Control","no-store").body(Map.of("code",code));}

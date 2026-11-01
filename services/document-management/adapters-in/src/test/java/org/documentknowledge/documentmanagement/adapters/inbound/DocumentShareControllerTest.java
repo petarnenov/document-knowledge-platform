@@ -20,10 +20,12 @@ class DocumentShareControllerTest {
     final Actor actor=new Actor("https://issuer.example","user");
     final Authentication authentication=Authentication.build("user",Map.of("iss",actor.issuer(),"sub",actor.subject(),"dkp_tenants",List.of("t")));
     final AtomicInteger calls=new AtomicInteger();
+    DmFailure storeFailure;
+    boolean unexpectedStoreFailure;
     final JsonMapper json=JsonMapper.builder().build();
     DocumentShareController controller(){
         var config=new TrustConfiguration();config.setMode("resource");config.setProfile("standalone");config.setIssuer(actor.issuer());config.setStandaloneIssuer(actor.issuer());config.setAudience("dkp-dm");config.setJwksUrl(actor.issuer()+"/keys");config.setAuthorizedParties(List.of("dkp-bff"));
-        var service=new DocumentShareService(new DocumentShareStore(){public<T>T locked(String tenant,List<UUID> ids,SharingDeadline deadline,java.util.function.Function<List<SharingModels.Document>,T> work){calls.incrementAndGet();return work.apply(ids.stream().map(id->new SharingModels.Document(id,tenant,0,"development-restricted",1,Set.of(new AclRule(new Principal(actor.issuer(),actor.subject()),Action.SHARE_TO_COLLECTION,AclRule.Effect.ALLOW)))).toList());}},(a,t,action,resources)->new RequestScopedResourceAuthorityPort.Snapshot(a,t,action,resources,AuthorityDecision.ALLOW,resources.stream().collect(java.util.stream.Collectors.toMap(x->x,x->AuthorityDecision.ALLOW)),"a".repeat(64)),new SharingAdmission());
+        var service=new DocumentShareService(new DocumentShareStore(){public<T>T locked(String tenant,List<UUID> ids,SharingDeadline deadline,java.util.function.Function<List<SharingModels.Document>,T> work){calls.incrementAndGet();if(storeFailure!=null)throw storeFailure;if(unexpectedStoreFailure)throw new IllegalStateException(SharingDiagnosticsTest.PRIVATE);return work.apply(ids.stream().map(id->new SharingModels.Document(id,tenant,0,"development-restricted",1,Set.of(new AclRule(new Principal(actor.issuer(),actor.subject()),Action.SHARE_TO_COLLECTION,AclRule.Effect.ALLOW)))).toList());}},(a,t,action,resources)->new RequestScopedResourceAuthorityPort.Snapshot(a,t,action,resources,AuthorityDecision.ALLOW,resources.stream().collect(java.util.stream.Collectors.toMap(x->x,x->AuthorityDecision.ALLOW)),"a".repeat(64)),new SharingAdmission());
         return new DocumentShareController(service,new DocumentController(null,new TrustedTenantResolver(config)));
     }
     MutableHttpRequest<?> request(){var request=HttpRequest.POST("/api/v1/documents/knowledge-share-assessments","").header("X-DKP-Tenant","t").contentType(MediaType.APPLICATION_JSON_TYPE);request.setAttribute(SharingRequestDeadlineFilter.ATTRIBUTE,SharingDeadline.request());return request;}
@@ -35,4 +37,14 @@ class DocumentShareControllerTest {
     @Test void contentTypeEncodingAcceptQueryHeadersAndByteBounds(){var c=controller();status(415,c.assess(request().contentType(MediaType.TEXT_PLAIN_TYPE),authentication,bytes(strict())));status(415,c.assess(request().header("Content-Encoding","gzip"),authentication,bytes(strict())));status(406,c.assess(request().header("Accept","text/html"),authentication,bytes(strict())));status(200,c.assess(request().header("Accept","*/*"),authentication,bytes(strict())));status(400,c.assess(request().header("Accept","application/json").header("Accept","*/*"),authentication,bytes(strict())));status(400,c.assess(request().uri(java.net.URI.create("/api/v1/documents/knowledge-share-assessments?actor=x")),authentication,bytes(strict())));status(400,c.assess(request().header("X-DKP-Tenant","other"),authentication,bytes(strict())));status(413,c.assess(request(),authentication,bytes(" ".repeat(16385))));status(413,c.assess(request().header("Content-Length","16385"),authentication,bytes(strict())));}
     @Test void safeFailureAndStreamCloseCannotOverrideResponse(){var c=controller();AtomicInteger closes=new AtomicInteger();InputStream stream=new ByteArrayInputStream(strict().getBytes(java.nio.charset.StandardCharsets.UTF_8)){@Override public void close(){if(closes.incrementAndGet()>1)throw new IllegalStateException("not exposed");}};status(200,c.assess(request(),authentication,stream));status(400,c.assess(request(),authentication,null));var request=request();request.removeAttribute(SharingRequestDeadlineFilter.ATTRIBUTE,SharingDeadline.class);status(503,c.assess(request,authentication,bytes(strict())));}
     @Test void explicitUnsupportedMethodsAreFiniteWithoutSql(){var c=controller();for(var response:List.of(c.get(),c.patch(),c.put(),c.delete(),c.options()))status(405,response);assertEquals(0,calls.get());}
+    @Test void actualControllerDiagnosticDoesNotChangeControlledOrUnexpectedFailure(){
+        try(var capture=new SharingDiagnosticsTest.Capture()){
+            var c=controller();storeFailure=new DmFailure(404,"NOT_FOUND");status(404,c.assess(request(),authentication,bytes(strict())));
+            storeFailure=new DmFailure(503,"UNAVAILABLE");status(503,c.assess(request(),authentication,bytes(strict())));
+            storeFailure=null;unexpectedStoreFailure=true;status(503,c.assess(request(),authentication,bytes(strict())));
+            assertEquals(List.of("dm_sharing stage=CONTROLLER_FAILURE category=NOT_FOUND","dm_sharing stage=CONTROLLER_FAILURE category=UNAVAILABLE","dm_sharing stage=CONTROLLER_FAILURE category=UNEXPECTED"),capture.lines);
+            assertTrue(capture.thrown.stream().allMatch(Objects::isNull));
+        }
+    }
+
 }

@@ -19,8 +19,8 @@ public final class SharingRequestDeadlineFilter implements HttpServerFilter {
         SharingDeadline deadline=SharingDeadline.request();request.setAttribute(ATTRIBUTE,deadline);
         return Mono.<MutableHttpResponse<?>>defer(()->Mono.from(chain.proceed(request)))
             .timeout(Duration.ofNanos(deadline.remainingNanos()))
-            . <MutableHttpResponse<?>>map(response->{deadline.check();return response;})
-            .onErrorResume(failure->{deadline.cancel();return Mono.just(HttpResponse.status(HttpStatus.SERVICE_UNAVAILABLE).contentType(MediaType.APPLICATION_JSON_TYPE).header("Cache-Control","no-store").body(Map.of("code","UNAVAILABLE")));})
+            . <MutableHttpResponse<?>>map(response->{SharingDiagnostics.response(response.code());deadline.check();return response;})
+            .onErrorResume(failure->{SharingDiagnostics.failure(failure);deadline.cancel();return Mono.just(HttpResponse.status(HttpStatus.SERVICE_UNAVAILABLE).contentType(MediaType.APPLICATION_JSON_TYPE).header("Cache-Control","no-store").body(Map.of("code","UNAVAILABLE")));})
             .doOnCancel(deadline::cancel);
     }
 }

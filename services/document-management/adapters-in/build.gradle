@@ -8,6 +8,7 @@ tasks.register('sharingCoverageReport', JacocoReport) {
     classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
             include 'org/documentknowledge/documentmanagement/adapters/inbound/DocumentShareController*'
             include 'org/documentknowledge/documentmanagement/adapters/inbound/SharingRequestDeadlineFilter*'
+            include 'org/documentknowledge/documentmanagement/adapters/inbound/SharingDiagnostics*'
     }
     reports { xml.required = true; html.required = true }
 }
@@ -18,6 +19,7 @@ tasks.register('sharingCoverageVerification', JacocoCoverageVerification) {
     classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
             include 'org/documentknowledge/documentmanagement/adapters/inbound/DocumentShareController*'
             include 'org/documentknowledge/documentmanagement/adapters/inbound/SharingRequestDeadlineFilter*'
+            include 'org/documentknowledge/documentmanagement/adapters/inbound/SharingDiagnostics*'
     }
     violationRules { rule {
         limit { counter = 'LINE'; minimum = 0.75 }
