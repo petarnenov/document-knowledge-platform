@@ -69,10 +69,14 @@ final class UploadRuntime implements UploadStoragePort,MalwareScanPort,Structure
     private SSLContext tls(Path ca)throws Exception{var certificates=CertificateFactory.getInstance("X.509").generateCertificates(new ByteArrayInputStream(files.read(ca,65536,false)));if(certificates.isEmpty())throw unavailable();var store=KeyStore.getInstance(KeyStore.getDefaultType());store.load(null,null);int count=0;for(var certificate:certificates){if(!(certificate instanceof java.security.cert.X509Certificate x509)||x509.getBasicConstraints()<0)throw unavailable();x509.checkValidity();store.setCertificateEntry("inspector-ca-"+count++,certificate);}var factory=TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());factory.init(store);var tls=SSLContext.getInstance("TLS");tls.init(null,factory.getTrustManagers(),null);return tls;}
     @Override public ObjectIdentity put(ObjectKey key,Path source,long size,String hash){return storage().port().put(key,source,size,hash);}
     @Override public InputStream open(ObjectIdentity object){return storage().port().open(object);}
+    @Override public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase){phase.check();var port=storage().port();phase.check();return port.open(object,phase);}
     @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target){return storage().port().copy(source,target);}
+    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase){phase.check();var port=storage().port();phase.check();return port.copy(source,target,phase);}
     @Override public List<ObjectIdentity> versions(ObjectKey key){return storage().port().versions(key);}
     @Override public ScanEvidence scan(ArtifactSource source){return scanner().port().scan(source);}
+    @Override public ScanEvidence scan(ArtifactSource source,CompleteBudget.Phase phase){phase.check();var port=scanner().port();phase.check();return port.scan(source,phase);}
     @Override public InspectionEvidence inspect(ArtifactSource source){return inspector().port().inspect(source);}
+    @Override public InspectionEvidence inspect(ArtifactSource source,CompleteBudget.Phase phase){phase.check();var port=inspector().port();phase.check();return port.inspect(source,phase);}
     boolean ready(){if(!enabled())return true;try{return storage().ready().getAsBoolean() && cleanupConnection().ready().getAsBoolean() && scanner().ready().getAsBoolean() && inspectorReady();}catch(Exception unavailable){return false;}}
     private boolean inspectorReady()throws Exception{
         inspector();URI origin=URI.create(required("dkp.dm.inspector.endpoint"));
