@@ -13,6 +13,8 @@ Every change must include an approved OpenSpec change when it affects runtime be
 
 ## Mandatory GitHub issue lifecycle
 
+Owner delivery-order clarification (2026-11-01), tracked in #5: the immediate priority is verified BP-03 closure. Thereafter keep one active delivery task, completing implementation, local CI-environment verification, independent review, PR/CI, authorized dev integration and verified issue closure with handoff/compaction before starting the next task. Bring the frontend up to currently implemented backend capabilities before starting a subsequent backend package; preserve existing frontend work and supply verified manual-test links. Independent review within that task remains mandatory. Coordinate existing external work; this instruction does not authorize interrupting another session or changing its stack.
+
 Owner requirement adopted on 2026-10-31: **have a suitable GitHub issue with an explicit priority before starting every task, and close it after verified completion**. This applies to specifications, implementation, bug fixes, tests, reviews, infrastructure, delivery and protocol changes. A task checklist in a spec or chat does not replace its GitHub issue.
 
 1. Before task execution or delegation, search for and reuse a suitable existing issue. Create a new issue only after the duplicate check below; an existing suitable issue satisfies issue-before-work. Include the concrete problem/outcome, scope, acceptance criteria, verification plan, dependencies, delivery package and an explicit `priority:P0`, `priority:P1`, `priority:P2` or `priority:P3` label. Record the priority reason; do not leave it implicit in the title.

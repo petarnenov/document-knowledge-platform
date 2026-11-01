@@ -1,0 +1,68 @@
+{
+  "observedDate": "2026-11-01",
+  "evidence": [
+    {
+      "module": "com.google.guava:guava",
+      "tag": "v33.7.2",
+      "htmlUrl": "https://github.com/google/guava/releases/tag/v33.7.2",
+      "apiUrl": "https://api.github.com/repos/google/guava/releases/tags/v33.7.2",
+      "publishedAt": "2026-09-29T14:53:52Z",
+      "targetCommitish": "master",
+      "responseSha256": "0a3c4dc9ece6175fda2aeb6916d96514549a0a3d74d44d613eace1a3cfd36601",
+      "draft": false,
+      "prerelease": false
+    },
+    {
+      "module": "io.micrometer:micrometer-bom",
+      "tag": "v1.17.2",
+      "htmlUrl": "https://github.com/micrometer-metrics/micrometer/releases/tag/v1.17.2",
+      "apiUrl": "https://api.github.com/repos/micrometer-metrics/micrometer/releases/tags/v1.17.2",
+      "publishedAt": "2026-10-23T03:46:44Z",
+      "targetCommitish": "main",
+      "responseSha256": "ac15c899f4298968840fa33ea4ddcede883d31d59a5f0a885c2c9ee0c85e99f1",
+      "draft": false,
+      "prerelease": false
+    },
+    {
+      "module": "at.yawk.lz4:lz4-java",
+      "tag": "v1.12.1",
+      "htmlUrl": "https://github.com/yawkat/lz4-java/releases/tag/v1.12.1",
+      "apiUrl": "https://api.github.com/repos/yawkat/lz4-java/releases/tags/v1.12.1",
+      "publishedAt": "2026-10-22T09:12:16Z",
+      "targetCommitish": "3245a84ec149d93767808e14fd142eb6740b5e4d",
+      "responseSha256": "854b21978089382591f4bf3292c3ba210027f8f47bbffeb841f389f2a412daa8",
+      "draft": false,
+      "prerelease": false
+    },
+    {
+      "module": "org.xerial.snappy:snappy-java",
+      "tag": "v1.1.10.12",
+      "htmlUrl": "https://github.com/xerial/snappy-java/releases/tag/v1.1.10.12",
+      "apiUrl": "https://api.github.com/repos/xerial/snappy-java/releases/tags/v1.1.10.12",
+      "publishedAt": "2026-10-10T14:46:34Z",
+      "targetCommitish": "main",
+      "responseSha256": "b49c8c92d9aecb4cea6bacdd2338cb0c5546d876d1ca342fefd3153811fff3d8",
+      "draft": false,
+      "prerelease": false
+    },
+    {
+      "module": "net.minidev:json-smart",
+      "tag": "v2.6.0",
+      "htmlUrl": "https://github.com/netplex/json-smart-v2/releases/tag/v2.6.0",
+      "apiUrl": "https://api.github.com/repos/netplex/json-smart-v2/releases/tags/v2.6.0",
+      "publishedAt": "2025-08-06T13:16:41Z",
+      "targetCommitish": "master",
+      "responseSha256": "583c140cb39d5eeecfe2d2a4ee49d2d9bb1f7ff9b1c923bbf44524f401eaf188",
+      "draft": false,
+      "prerelease": false
+    },
+    {
+      "module": "com.fasterxml.jackson:jackson-bom",
+      "version": "2.22.4",
+      "url": "https://github.com/FasterXML/jackson/wiki/Jackson-Release-2.22",
+      "responseSha256": "7be149044c3657d34acc17ef087cabc6432345c80eb6eb7f4c6979f39f6434df",
+      "releaseVersionAppears": true
+    }
+  ],
+  "qualification": "Official non-prerelease releases and published Central artifacts establish current release activity, not vendor certification of this convergence or a support SLA. Micrometer metadata latest is prerelease1.18.0-RC1; stable1.17.2 chosen deliberately."
+}

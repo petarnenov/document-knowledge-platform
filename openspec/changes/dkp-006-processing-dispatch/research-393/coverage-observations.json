@@ -1,0 +1,46 @@
+{
+  "javaResearchHarness": {
+    "StrictCompositionProbe": {
+      "BRANCH": {
+        "covered": 34,
+        "missed": 0
+      },
+      "LINE": {
+        "covered": 41,
+        "missed": 0
+      }
+    },
+    "PolyglotCompositionProbe": {
+      "BRANCH": {
+        "covered": 7,
+        "missed": 1
+      },
+      "LINE": {
+        "covered": 25,
+        "missed": 1
+      }
+    }
+  },
+  "pythonReproducer": {
+    "covered_lines": 63,
+    "num_statements": 66,
+    "percent_covered": 93.18181818181819,
+    "percent_covered_display": "93",
+    "missing_lines": 3,
+    "excluded_lines": 0,
+    "percent_statements_covered": 95.45454545454545,
+    "percent_statements_covered_display": "95",
+    "num_branches": 22,
+    "num_partial_branches": 3,
+    "covered_branches": 19,
+    "missing_branches": 3,
+    "percent_branches_covered": 86.36363636363636,
+    "percent_branches_covered_display": "86"
+  },
+  "nodeAssessor": {
+    "linePercent": 100,
+    "branchPercent": 100,
+    "functionPercent": 100,
+    "tests": 2
+  }
+}

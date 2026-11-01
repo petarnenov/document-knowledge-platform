@@ -1,0 +1,1423 @@
+{
+  "issue": 392,
+  "status": "ISOLATED_CANDIDATE_NOT_SELECTED",
+  "directCoordinates": [
+    "io.temporal:temporal-sdk:1.40.0",
+    "io.temporal:temporal-testing:1.40.0",
+    "org.apache.kafka:kafka-clients:4.4.0",
+    "io.github.erdtman:java-json-canonicalization:1.1"
+  ],
+  "combinedCount": 54,
+  "productionCount": 43,
+  "graph": [
+    {
+      "coordinate": "at.yawk.lz4:lz4-java:1.12.1",
+      "jarSha256": "c75bfbc6980e8b90ee76c75ec5b67058b6b9bfa1e19af6a3cf75dccde533e750",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/at/yawk/lz4/lz4-java/1.12.1/lz4-java-1.12.1.pom",
+          "sha256": "527eb2ef5bf860ea23d9b405869eaee4be3212daede8ceb662f3b302199bab9f"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.cronutils:cron-utils:9.2.1",
+      "jarSha256": "02af0e8b2fe93c9fa6eecf97b53b39faae14c5b996356edb132e9fe620013744",
+      "scope": "test-only-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/cronutils/cron-utils/9.2.1/cron-utils-9.2.1.pom",
+          "sha256": "d206c437893df3700ae7c1378e73300758d23858ec4345bbd34ac485391c63b5"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.fasterxml.jackson.core:jackson-annotations:2.22",
+      "jarSha256": "21ddb598807d3a51a876704eb979d9296e1c6a6f47ab1826ff88c6d6a127a2d0",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.22/jackson-annotations-2.22.pom",
+          "sha256": "38c3ba52a0eade3e3eacc5b13499d56e1038ccbad8ec4bb79426dc21432b46d0"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.fasterxml.jackson.core:jackson-core:2.22.4",
+      "jarSha256": "2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-core/2.22.4/jackson-core-2.22.4.pom",
+          "sha256": "371b6859b58c3fc1c0823fe66e1e6d6ab251ba99b26f7dce883bbb7c43906c21"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "jarSha256": "d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.22.4/jackson-databind-2.22.4.pom",
+          "sha256": "81867c3c99c0e014d133554f2d30cdad78ec58cf1b56087088204e1e5eb34baa"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.22.4",
+      "jarSha256": "2dea0c4f0a5dafaf1bd8b5e694090fe0043c29ba04367dbd38ec0869aca2bce9",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jdk8/2.22.4/jackson-datatype-jdk8-2.22.4.pom",
+          "sha256": "1f5a264adc752da74990cf86b0ff315c644679f0aafc958a5bdb7c5fe94bf027"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/module/jackson-modules-java8/2.22.4/jackson-modules-java8-2.22.4.pom",
+          "sha256": "20cdf333d224a91e6a4b548f8f4515790e34efc19cadc41f06173f51d97ac70d"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/jackson-base/2.22.4/jackson-base-2.22.4.pom",
+          "sha256": "51b5cc57df78f50a43210e577075f68399e31dde7150455e179d249e637582a1"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22.4",
+      "jarSha256": "ec961697cbd631935b6fb6f673406861c75243521fb67fec10b59f1412ac50f7",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.22.4/jackson-datatype-jsr310-2.22.4.pom",
+          "sha256": "26a10290995bdba53b864a058a1ec17eb5145da88d64fb373fd88de9b344309e"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/module/jackson-modules-java8/2.22.4/jackson-modules-java8-2.22.4.pom",
+          "sha256": "20cdf333d224a91e6a4b548f8f4515790e34efc19cadc41f06173f51d97ac70d"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/jackson-base/2.22.4/jackson-base-2.22.4.pom",
+          "sha256": "51b5cc57df78f50a43210e577075f68399e31dde7150455e179d249e637582a1"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.github.luben:zstd-jni:1.5.7-17",
+      "jarSha256": "c9043e2da8a16c13b6cd7661a5cb56685a573c3546ef4bd0ead67b0b67c2e107",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/github/luben/zstd-jni/1.5.7-17/zstd-jni-1.5.7-17.pom",
+          "sha256": "69386a1527d763b6e578afae22cf0ceb8aa71c4bab88c60746170004edf151ec"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "BSD 2-Clause License",
+          "url": "https://opensource.org/licenses/BSD-2-Clause"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.google.android:annotations:4.1.1.4",
+      "jarSha256": "ba734e1e84c09d615af6a09d33034b4f0442f8772dec120efb376d86a565ae15",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/android/annotations/4.1.1.4/annotations-4.1.1.4.pom",
+          "sha256": "e4bb54753c36a27a0e5d70154a5034fedd8feac4282295034bfd483d6c7aae78"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.google.api.grpc:proto-google-common-protos:2.59.2",
+      "jarSha256": "9407f50aef5d1cb12675c170fa64ee216023eefca49f8f5eac45124f23a6cb29",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/api/grpc/proto-google-common-protos/2.59.2/proto-google-common-protos-2.59.2.pom",
+          "sha256": "8e4f0a02edeb8ed8ad065602e3dedc520afa6d23c2c3db1c230381cb681d82db"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.google.code.findbugs:jsr305:3.0.2",
+      "jarSha256": "766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2.pom",
+          "sha256": "19889dbdf1b254b2601a5ee645b8147a974644882297684c798afe5d63d78dfe"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.google.code.gson:gson:2.11.0",
+      "jarSha256": "57928d6e5a6edeb2abd3770a8f95ba44dce45f3b23b7a9dc2b309c581552a78b",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/code/gson/gson/2.11.0/gson-2.11.0.pom",
+          "sha256": "c0e547bea998888e6e25c5886a90e762272bc88b5275343dd2c05ded6ca2e360"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.google.errorprone:error_prone_annotations:2.50.0",
+      "jarSha256": "4667724877f1d37a689202da191e23efa7657c62eef93ccdac406eccfe5cdd0a",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotations/2.50.0/error_prone_annotations-2.50.0.pom",
+          "sha256": "71a0680d277324bab46bec4b00f6f111c1b794a931d0d8cda79bcb9246982f92"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.google.guava:failureaccess:1.0.3",
+      "jarSha256": "cbfc3906b19b8f55dd7cfd6dfe0aa4532e834250d7f080bd8d211a3e246b59cb",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/guava/failureaccess/1.0.3/failureaccess-1.0.3.pom",
+          "sha256": "c54beff37f6d42d43e14722d54a522c9ad51ef97fc5b79277e62a3ebf882f3bb"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/guava/guava-parent/33.4.0-android/guava-parent-33.4.0-android.pom",
+          "sha256": "7220ede61026596fbc720ee4b93246fa2d14f328058532b59ef053de397c7d83"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.google.guava:guava:33.7.2-jre",
+      "jarSha256": "b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/guava/guava/33.7.2-jre/guava-33.7.2-jre.pom",
+          "sha256": "5d1501a97230f90df54ea33164831a61c6714a8b2a4c6a04e90bb729581bbabc"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/guava/guava-parent/33.7.2-jre/guava-parent-33.7.2-jre.pom",
+          "sha256": "a81570d53c8710355e0216a4405afa93834b17c4cdd0ed9aa8beede3a132bbbe"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava",
+      "jarSha256": "b372a037d4230aa57fbeffdef30fd6123f9c0c2db85d0aced00c91b974f33f99",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/guava/listenablefuture/9999.0-empty-to-avoid-conflict-with-guava/listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.pom",
+          "sha256": "18d4b1db26153d4e55079ce1f76bb1fe05cdb862ef9954a88cbcc4ff38b8679b"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/guava/guava-parent/26.0-android/guava-parent-26.0-android.pom",
+          "sha256": "f8698ab46ca996ce889c1afc8ca4f25eb8ac6b034dc898d4583742360016cc04"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.google.j2objc:j2objc-annotations:3.1",
+      "jarSha256": "84d3a150518485f8140ea99b8a985656749629f6433c92b80c75b36aba3b099b",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/j2objc/j2objc-annotations/3.1/j2objc-annotations-3.1.pom",
+          "sha256": "14570838500034fc1b47c8205ce1c9d6b255c1ccdd2d1afdcdcbf75e89b24a33"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.google.protobuf:protobuf-java-util:3.25.8",
+      "jarSha256": "e7196eaefc3f81afa1571821635c7aefe2933f4be4a9df9e601fb59214b50269",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-java-util/3.25.8/protobuf-java-util-3.25.8.pom",
+          "sha256": "76a8ea59159c18f9a1235bfcd3914d56c233b338b2b59cb28e92fa5f249ef27c"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-parent/3.25.8/protobuf-parent-3.25.8.pom",
+          "sha256": "c2e325e90c92738b7d110325b528f8a65ebf17a202bf65f6fc7380ce9ce65868"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "BSD-3-Clause",
+          "url": "https://opensource.org/licenses/BSD-3-Clause"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.google.protobuf:protobuf-java:3.25.8",
+      "jarSha256": "72bdb32eb38cafb7dcd288262c29a34d57cba2e19101af9685155ba8c0a56008",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-java/3.25.8/protobuf-java-3.25.8.pom",
+          "sha256": "67371c5eb54bcaca85ec44c52504e38b3de05123ee98d3b1ed9dd5355fe9f08d"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-parent/3.25.8/protobuf-parent-3.25.8.pom",
+          "sha256": "c2e325e90c92738b7d110325b528f8a65ebf17a202bf65f6fc7380ce9ce65868"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "BSD-3-Clause",
+          "url": "https://opensource.org/licenses/BSD-3-Clause"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.jayway.jsonpath:json-path:2.9.0",
+      "jarSha256": "11a9ee6f88bb31f1450108d1cf6441377dec84aca075eb6bb2343be157575bea",
+      "scope": "test-only-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/jayway/jsonpath/json-path/2.9.0/json-path-2.9.0.pom",
+          "sha256": "0c2537dde9bf9dc2a2c7967300fc13bc5229d192677fcb88b6fd89966936643f"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "com.uber.m3:tally-core:0.13.0",
+      "jarSha256": "b3ccc572be36be91c47447c7778bc141a74591279cdb40224882e8ac8271b58b",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/com/uber/m3/tally-core/0.13.0/tally-core-0.13.0.pom",
+          "sha256": "0d829a35c87243a0e744ecd04c780e48bfe2b9c15f4aaaffd22874cf02abd115"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The MIT License (MIT)",
+          "url": "https://github.com/uber-java/tally/blob/master/LICENSE.md"
+        }
+      ]
+    },
+    {
+      "coordinate": "commons-codec:commons-codec:1.19.0",
+      "jarSha256": "5c3881e4f556855e9c532927ee0c9dfde94cc66760d5805c031a59887070af5f",
+      "scope": "test-only-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/commons-codec/commons-codec/1.19.0/commons-codec-1.19.0.pom",
+          "sha256": "e0f3269fa23de0c83130c5659f5f9514cc5422c0bcdf45f2eae004a78b9fca34"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-parent/85/commons-parent-85.pom",
+          "sha256": "d189ff2c0027e96bb65d31e6f227ed2af966169b36af1e973dd5ba08926dc7b5"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/apache/apache/35/apache-35.pom",
+          "sha256": "ea297dcd114136e8b8e8b630230d52a76c2fc69f6c5db25d672b1857000728b8"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "commons-io:commons-io:2.20.0",
+      "jarSha256": "df90bba0fe3cb586b7f164e78fe8f8f4da3f2dd5c27fa645f888100ccc25dd72",
+      "scope": "test-only-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/commons-io/commons-io/2.20.0/commons-io-2.20.0.pom",
+          "sha256": "bdbdf81072c190ee9a8b181a5c58f5bd917a750fb13a256debbf53f5dbd33a2a"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-parent/85/commons-parent-85.pom",
+          "sha256": "d189ff2c0027e96bb65d31e6f227ed2af966169b36af1e973dd5ba08926dc7b5"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/apache/apache/35/apache-35.pom",
+          "sha256": "ea297dcd114136e8b8e8b630230d52a76c2fc69f6c5db25d672b1857000728b8"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.github.erdtman:java-json-canonicalization:1.1",
+      "jarSha256": "ed12a01f28d147898312963a1f704e90290b67a61f34fa3a761f41c134f4e691",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/github/erdtman/java-json-canonicalization/1.1/java-json-canonicalization-1.1.pom",
+          "sha256": "37114938a89def00596ff5541b794abc6be626b4c73e988d5a5bd457a3f38477"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.grpc:grpc-api:1.76.0",
+      "jarSha256": "13ce42c59871a04a7340f01e1dbd879fefa04811878cfd68864596321f555ed3",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/grpc/grpc-api/1.76.0/grpc-api-1.76.0.pom",
+          "sha256": "b1cac581d3bf7b0acce8602d0db5c5a6332bded4147358a2da9cf55324df89d7"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "https://opensource.org/licenses/Apache-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.grpc:grpc-context:1.76.0",
+      "jarSha256": "3b4eb9ca65fe5cd98b2665f9b355158fac5a048708626b5b68dc66c43fb820d3",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/grpc/grpc-context/1.76.0/grpc-context-1.76.0.pom",
+          "sha256": "c39549ca82653e45bf79ea7da426140ecaf569bcff18aff282d97127369dcd8f"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "https://opensource.org/licenses/Apache-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.grpc:grpc-core:1.76.0",
+      "jarSha256": "00926861e7dcd9ce993a3ed3cb6f55b104c0a3ad0dad2cdde8680d1bcbd100b6",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/grpc/grpc-core/1.76.0/grpc-core-1.76.0.pom",
+          "sha256": "ab0db844a729b1ae6820a7cd60a451f586967ff003f565c99ed2477ff2d95551"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "https://opensource.org/licenses/Apache-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.grpc:grpc-inprocess:1.76.0",
+      "jarSha256": "cb1f0095ab7f2603508433554ec7bd9602bbe0e3340ade262c58e911cb8ccc63",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/grpc/grpc-inprocess/1.76.0/grpc-inprocess-1.76.0.pom",
+          "sha256": "b55e9121ace984aebc7702bce7f7ee7bbbd54499db9acb236f1f326d81aaaf4f"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "https://opensource.org/licenses/Apache-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.grpc:grpc-netty-shaded:1.76.0",
+      "jarSha256": "196ef71498808fbd81555af0c5b00e0f6e8263d8e6d2bc115d36239088876328",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/grpc/grpc-netty-shaded/1.76.0/grpc-netty-shaded-1.76.0.pom",
+          "sha256": "13cdf78bbf0774f52227ca758c2eb199f64e009b313547d89b23cd17bf8b402e"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "https://opensource.org/licenses/Apache-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.grpc:grpc-protobuf-lite:1.76.0",
+      "jarSha256": "5fb276bfc4974182888e11c1c0115d9d01cb970a39fc75c8c73695d3da13d878",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/grpc/grpc-protobuf-lite/1.76.0/grpc-protobuf-lite-1.76.0.pom",
+          "sha256": "d6217bc131c3fec0c1e5d0b09f1506a4af5be79994e0a012f845f540a4e17d72"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "https://opensource.org/licenses/Apache-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.grpc:grpc-protobuf:1.76.0",
+      "jarSha256": "52a004da0065d39601257ded13c40e0e4dfcf74db1c55a9bf7932a88fc384809",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/grpc/grpc-protobuf/1.76.0/grpc-protobuf-1.76.0.pom",
+          "sha256": "7a891dcd958e0329a4192849353f2104e230a4be6020b66f9167e39c22abd799"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "https://opensource.org/licenses/Apache-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.grpc:grpc-services:1.76.0",
+      "jarSha256": "64ed014542d83664b401faed38d6b32cbd624234481c71a7277c777937c0e902",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/grpc/grpc-services/1.76.0/grpc-services-1.76.0.pom",
+          "sha256": "3aa13b2fba0ef5b2b35b5d3117d1569c23f8d86105c1396285871791c24e4d30"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "https://opensource.org/licenses/Apache-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.grpc:grpc-stub:1.76.0",
+      "jarSha256": "e8d2fb3f6a75c8052c16173072111cb5140c8a0ad054a0c43188e0d1da162de6",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/grpc/grpc-stub/1.76.0/grpc-stub-1.76.0.pom",
+          "sha256": "e07194b4a678d681e93cf363c33832994038ecd9c04a968466e1e56c5b6d4526"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "https://opensource.org/licenses/Apache-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.grpc:grpc-util:1.76.0",
+      "jarSha256": "f342c19c9dc3ac9235a0b5d564834b326b375831373d5a9f87b2b5362553b17e",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/grpc/grpc-util/1.76.0/grpc-util-1.76.0.pom",
+          "sha256": "9f053be1d906499cda912fa884ea02e4e1d7981c09cf4d67864c99bef408bf01"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "https://opensource.org/licenses/Apache-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.micrometer:micrometer-commons:1.17.2",
+      "jarSha256": "af8c85e879025ce30c381e6810e14c4f52b4150894e36c815860d14763271348",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/micrometer/micrometer-commons/1.17.2/micrometer-commons-1.17.2.pom",
+          "sha256": "977aeeff5157d233cac605125d8db52f5f687376ea01789624a5d7f7369b43d0"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.micrometer:micrometer-core:1.17.2",
+      "jarSha256": "e28ddecbd27477cc7020defd1c2061a3d8b6b2e543d90856186711fe7f346532",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/micrometer/micrometer-core/1.17.2/micrometer-core-1.17.2.pom",
+          "sha256": "3c5d11ac103533ff9baf1530fabbe6a40f54bd0dd63203b253c7930ae2eb4822"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.micrometer:micrometer-observation:1.17.2",
+      "jarSha256": "d3ff53cfa0532dc1af0de349073f9aeb985e01f4b88c1d904350178805859695",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/micrometer/micrometer-observation/1.17.2/micrometer-observation-1.17.2.pom",
+          "sha256": "55f13a820250f4a7f237276e261775bb4a8f41789e9158ae6d6df112ec0c15b5"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.nexusrpc:nexus-sdk:0.6.0-alpha",
+      "jarSha256": "72bbed1edcbc658dc86ff4ba3a305c6d1aa1039cff2a41a384551c1e496f2c95",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/nexusrpc/nexus-sdk/0.6.0-alpha/nexus-sdk-0.6.0-alpha.pom",
+          "sha256": "7abfa7586881b0a176782d30ee41e557d74c00eba7671b799af06c5db86cea02"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "MIT License",
+          "url": "https://opensource.org/license/mit"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.perfmark:perfmark-api:0.27.0",
+      "jarSha256": "c7b478503ec524e55df19b424d46d27c8a68aeb801664fadd4f069b71f52d0f6",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/perfmark/perfmark-api/0.27.0/perfmark-api-0.27.0.pom",
+          "sha256": "22c175c2c1823667630c84e73225767f5970492d8e6cbffb81a6575dba472d26"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache 2.0",
+          "url": "https://opensource.org/licenses/Apache-2.0"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.temporal:temporal-sdk:1.40.0",
+      "jarSha256": "ccac1d69457543bd3190ccceca954a3ec95604f930024b73a7306714b2c8e8bf",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/temporal/temporal-sdk/1.40.0/temporal-sdk-1.40.0.pom",
+          "sha256": "40cbad4b172e2fce197972d5b74d48c4ec6aa80c2125a4b38817889648aa510d"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.temporal:temporal-serviceclient:1.40.0",
+      "jarSha256": "d75f6294a4a06004a042a0e6fb3fcd5db8915dca768c59abb724574c2ebe6685",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/temporal/temporal-serviceclient/1.40.0/temporal-serviceclient-1.40.0.pom",
+          "sha256": "faa170aa239b7cd787abffcc3827d30ad5a8700d53666eb3734c8743a07d7483"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.temporal:temporal-test-server:1.40.0",
+      "jarSha256": "2435938c4e852345c0ba05c48e9b258b39137e5b4061d4a85a796f89b7a3d15e",
+      "scope": "test-only-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/temporal/temporal-test-server/1.40.0/temporal-test-server-1.40.0.pom",
+          "sha256": "b40392a98bdf92892f51aea456276d658c9a68be7d622bb872f2088b8fd55946"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "io.temporal:temporal-testing:1.40.0",
+      "jarSha256": "53406185507b2781705f32819ac4d9393a5187cbc314966fff8187c417467e26",
+      "scope": "test-only-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/io/temporal/temporal-testing/1.40.0/temporal-testing-1.40.0.pom",
+          "sha256": "ee5a4e71dae5f08ec316b5bd4924ec84700421ea675855c5a2b54a9df9da2b23"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "net.minidev:accessors-smart:2.6.0",
+      "jarSha256": "222c9f547bb20a99fc486403a398352d1306fb671b38abd7ecab6401df170e61",
+      "scope": "test-only-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/net/minidev/accessors-smart/2.6.0/accessors-smart-2.6.0.pom",
+          "sha256": "268315791ec661e28614f461212c06181c06a042733428d8ba711f0aad56e9f9"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "net.minidev:json-smart:2.6.0",
+      "jarSha256": "1ae4b561458afb540be8ec5c6dbb4f2e715a319a7ae64854998aaf924770d61b",
+      "scope": "test-only-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/net/minidev/json-smart/2.6.0/json-smart-2.6.0.pom",
+          "sha256": "83f193cfaef334ee79a249453042ed5f084db8cd9c916a2387b436e9a8fb73a7"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache Software License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.apache.commons:commons-compress:1.28.0",
+      "jarSha256": "e1522945218456f3649a39bc4afd70ce4bd466221519dba7d378f2141a4642ca",
+      "scope": "test-only-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-compress/1.28.0/commons-compress-1.28.0.pom",
+          "sha256": "033f4c78d632da88d0eb8ead974fc14a264392cebf12ab6c68d6cea7adf0c64a"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-parent/85/commons-parent-85.pom",
+          "sha256": "d189ff2c0027e96bb65d31e6f227ed2af966169b36af1e973dd5ba08926dc7b5"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/apache/apache/35/apache-35.pom",
+          "sha256": "ea297dcd114136e8b8e8b630230d52a76c2fc69f6c5db25d672b1857000728b8"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.apache.commons:commons-lang3:3.18.0",
+      "jarSha256": "4eeeae8d20c078abb64b015ec158add383ac581571cddc45c68f0c9ae0230720",
+      "scope": "test-only-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-lang3/3.18.0/commons-lang3-3.18.0.pom",
+          "sha256": "aa254b373b6f6d46bc9dca86331b072a8ab86eb25ea9921fd439618392e98a16"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-parent/85/commons-parent-85.pom",
+          "sha256": "d189ff2c0027e96bb65d31e6f227ed2af966169b36af1e973dd5ba08926dc7b5"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/apache/apache/35/apache-35.pom",
+          "sha256": "ea297dcd114136e8b8e8b630230d52a76c2fc69f6c5db25d672b1857000728b8"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.apache.kafka:kafka-clients:4.4.0",
+      "jarSha256": "1ab07317eb6633241392449d329dbdc5d9251e6ffc4926860f42dd966e88bdf9",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/apache/kafka/kafka-clients/4.4.0/kafka-clients-4.4.0.pom",
+          "sha256": "498b1e979686631fddda3baba1f19322cb59e4f1664c875c05342ac16d61d016"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.codehaus.mojo:animal-sniffer-annotations:1.24",
+      "jarSha256": "c720e6e5bcbe6b2f48ded75a47bccdb763eede79d14330102e0d352e3d89ed92",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/codehaus/mojo/animal-sniffer-annotations/1.24/animal-sniffer-annotations-1.24.pom",
+          "sha256": "88484f60a6ad4238a97febacf2b333e9e08c178b8f180a05a3edbff4a38a836e"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/codehaus/mojo/animal-sniffer-parent/1.24/animal-sniffer-parent-1.24.pom",
+          "sha256": "49ddab43c8361dc2ef0c1ff87cb590fa7231702ab9f62e26d512dc18a1f1cd04"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "MIT license",
+          "url": "https://spdx.org/licenses/MIT.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.hdrhistogram:HdrHistogram:2.2.2",
+      "jarSha256": "22d1d4316c4ec13a68b559e98c8256d69071593731da96136640f864fa14fad8",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/hdrhistogram/HdrHistogram/2.2.2/HdrHistogram-2.2.2.pom",
+          "sha256": "2623346537f706f22059b9117209cb0681b0241145b35c75d2c5e3ec41826766"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Public Domain, per Creative Commons CC0",
+          "url": "http://creativecommons.org/publicdomain/zero/1.0/"
+        },
+        {
+          "name": "BSD-2-Clause",
+          "url": "https://opensource.org/licenses/BSD-2-Clause"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.jspecify:jspecify:1.0.1",
+      "jarSha256": "070d75f261fe4c5b8202508366715f7f2d4660f88c8ef7e6d3575e48c9683b66",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/jspecify/jspecify/1.0.1/jspecify-1.0.1.pom",
+          "sha256": "55b38bf1a7b1d8ea518cf2f4f3ae9aaa236e61bbf0b6bd31ffb49753a059dd5e"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "The Apache License, Version 2.0",
+          "url": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.ow2.asm:asm:9.7.1",
+      "jarSha256": "8cadd43ac5eb6d09de05faecca38b917a040bb9139c7edeb4cc81c740b713281",
+      "scope": "test-only-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/ow2/asm/asm/9.7.1/asm-9.7.1.pom",
+          "sha256": "7229b03b30a73ee91008072d9e4569a51d8547fae8c50f527841aef4c1b0baa8"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "BSD-3-Clause",
+          "url": "https://asm.ow2.io/license.html"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.slf4j:slf4j-api:1.7.36",
+      "jarSha256": "d3ef575e3e4979678dc01bf1dcce51021493b4d11fb7f1be8ad982877c16a1c0",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/1.7.36/slf4j-api-1.7.36.pom",
+          "sha256": "fb046a9c229437928bb11c2d27c8b5d773eb8a25e60cbd253d985210dedc2684"
+        },
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/slf4j/slf4j-parent/1.7.36/slf4j-parent-1.7.36.pom",
+          "sha256": "bb388d37fbcdd3cde64c3cede21838693218dc451f04040c5df360a78ed7e812"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "MIT License",
+          "url": "http://www.opensource.org/licenses/mit-license.php"
+        }
+      ]
+    },
+    {
+      "coordinate": "org.xerial.snappy:snappy-java:1.1.10.12",
+      "jarSha256": "1c03ce77b3f2e926c25a952612e372404d80bc88c6c8052bede964804fabd732",
+      "scope": "production-candidate",
+      "pomLicenseChain": [
+        {
+          "url": "https://repo.maven.apache.org/maven2/org/xerial/snappy/snappy-java/1.1.10.12/snappy-java-1.1.10.12.pom",
+          "sha256": "a7de2e8f79201ac427a360d9583dd5c1c07a6d000d5f131f4ba7e61afab70774"
+        }
+      ],
+      "effectiveDeclaredLicenses": [
+        {
+          "name": "Apache-2.0",
+          "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+        }
+      ]
+    }
+  ],
+  "changedSourceArtifacts": [
+    {
+      "coordinate": "at.yawk.lz4:lz4-java:1.12.1",
+      "url": "https://repo.maven.apache.org/maven2/at/yawk/lz4/lz4-java/1.12.1/lz4-java-1.12.1-sources.jar",
+      "sha256": "66dfb7d543993f3f7d5e85c4c48a58a24e87f3ef8237344e005e9b876e19e1db",
+      "size": 113394
+    },
+    {
+      "coordinate": "com.fasterxml.jackson.core:jackson-annotations:2.22",
+      "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.22/jackson-annotations-2.22-sources.jar",
+      "sha256": "f5375c756ee3c585808f9937eb087d074743fd3f05f6aeff9b183cf19230c9f7",
+      "size": 91807
+    },
+    {
+      "coordinate": "com.fasterxml.jackson.core:jackson-core:2.22.4",
+      "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-core/2.22.4/jackson-core-2.22.4-sources.jar",
+      "sha256": "470b0c061f786de32a48391a716656e14f73a7439466ca4ad17c1f4607982761",
+      "size": 510436
+    },
+    {
+      "coordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.22.4/jackson-databind-2.22.4-sources.jar",
+      "sha256": "ffbe06fe73b9e3c3cd9b15ec9049711c91808cbbee133057bf13d3f9b43d7776",
+      "size": 1270435
+    },
+    {
+      "coordinate": "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.22.4",
+      "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jdk8/2.22.4/jackson-datatype-jdk8-2.22.4-sources.jar",
+      "sha256": "17c1b03b0e965affb7094802f6e360de34b48a74acd00bbdc5620b6c64ac87f9",
+      "size": 24004
+    },
+    {
+      "coordinate": "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22.4",
+      "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.22.4/jackson-datatype-jsr310-2.22.4-sources.jar",
+      "sha256": "8486f269386390a782cedc1a0a2e36101e9dfc70944638df66cd6e34660e1526",
+      "size": 93702
+    },
+    {
+      "coordinate": "com.google.errorprone:error_prone_annotations:2.50.0",
+      "url": "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotations/2.50.0/error_prone_annotations-2.50.0-sources.jar",
+      "sha256": "f7f5b870d5f18bcdcd9d8dc44d6ae3593cc299d32f888aeb29fefe87661473d7",
+      "size": 40014
+    },
+    {
+      "coordinate": "com.google.guava:guava:33.7.2-jre",
+      "url": "https://repo.maven.apache.org/maven2/com/google/guava/guava/33.7.2-jre/guava-33.7.2-jre-sources.jar",
+      "sha256": "ab6a8934d352629e6d87087a79808b827b64ed18cff6c6b551be99cd8e03244c",
+      "size": 1899515
+    },
+    {
+      "coordinate": "com.google.j2objc:j2objc-annotations:3.1",
+      "url": "https://repo.maven.apache.org/maven2/com/google/j2objc/j2objc-annotations/3.1/j2objc-annotations-3.1-sources.jar",
+      "sha256": "295938307f4016b3f128f7347101b236ada1394808104519c9e93cd61b64602b",
+      "size": 23580
+    },
+    {
+      "coordinate": "io.micrometer:micrometer-commons:1.17.2",
+      "url": "https://repo.maven.apache.org/maven2/io/micrometer/micrometer-commons/1.17.2/micrometer-commons-1.17.2-sources.jar",
+      "sha256": "1cd17ca8da3d26a1c8c6abeb65f017bc4e2c8f539bebbf1ec01b6ab43ec10172",
+      "size": 49192
+    },
+    {
+      "coordinate": "io.micrometer:micrometer-core:1.17.2",
+      "url": "https://repo.maven.apache.org/maven2/io/micrometer/micrometer-core/1.17.2/micrometer-core-1.17.2-sources.jar",
+      "sha256": "b732e7a2411b89f89b174f9455aef717e58a6b82984fe8d3693e2b60b6f19da8",
+      "size": 568473
+    },
+    {
+      "coordinate": "io.micrometer:micrometer-observation:1.17.2",
+      "url": "https://repo.maven.apache.org/maven2/io/micrometer/micrometer-observation/1.17.2/micrometer-observation-1.17.2-sources.jar",
+      "sha256": "0e67f2590227626480813c9d6247604b89ae8a3ba3713d1fc6922c3756311f18",
+      "size": 59262
+    },
+    {
+      "coordinate": "net.minidev:accessors-smart:2.6.0",
+      "url": "https://repo.maven.apache.org/maven2/net/minidev/accessors-smart/2.6.0/accessors-smart-2.6.0-sources.jar",
+      "sha256": "10880e44ed732de27ae424a9698a041c398102098b5b1bae3cc597ec62dac43e",
+      "size": 22880
+    },
+    {
+      "coordinate": "net.minidev:json-smart:2.6.0",
+      "url": "https://repo.maven.apache.org/maven2/net/minidev/json-smart/2.6.0/json-smart-2.6.0-sources.jar",
+      "sha256": "a4af3f3773286fe3f76f94d38d977611fd2493685f589466b76dd25cf70b400c",
+      "size": 62674
+    },
+    {
+      "coordinate": "org.hdrhistogram:HdrHistogram:2.2.2",
+      "url": "https://repo.maven.apache.org/maven2/org/hdrhistogram/HdrHistogram/2.2.2/HdrHistogram-2.2.2-sources.jar",
+      "sha256": "d3933c83a764994930f4477d4199539eaf413b42e32127ec2b68c61d711ac1a9",
+      "size": 168274
+    },
+    {
+      "coordinate": "org.jspecify:jspecify:1.0.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jspecify/jspecify/1.0.1/jspecify-1.0.1-sources.jar",
+      "sha256": "230c491aac6d2a2b7e66b68d4331b1d2626f1bf3a372c33bbe2b077297e46c45",
+      "size": 12012
+    },
+    {
+      "coordinate": "org.ow2.asm:asm:9.7.1",
+      "url": "https://repo.maven.apache.org/maven2/org/ow2/asm/asm/9.7.1/asm-9.7.1-sources.jar",
+      "sha256": "22e9507b0c494daaedb33b8148c30cd618c6dacc3992be8b50eaaafeb6a8ba8d",
+      "size": 184800
+    },
+    {
+      "coordinate": "org.xerial.snappy:snappy-java:1.1.10.12",
+      "url": "https://repo.maven.apache.org/maven2/org/xerial/snappy/snappy-java/1.1.10.12/snappy-java-1.1.10.12-sources.jar",
+      "sha256": "e1824abac0dd76c849b8b67291d6e465cd02306a211d562a34e73c83cc0b5ef2",
+      "size": 2437782
+    }
+  ],
+  "metadata": [
+    {
+      "coordinate": "com.google.guava:guava",
+      "url": "https://repo.maven.apache.org/maven2/com/google/guava/guava/maven-metadata.xml",
+      "sha256": "172318acca78f1a791245884668aa9ee2903d93f5dbc81352247891305f5f6f4",
+      "latestReported": "33.7.2-jre",
+      "releaseReported": "33.7.2-jre"
+    },
+    {
+      "coordinate": "com.fasterxml.jackson:jackson-bom",
+      "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/jackson-bom/maven-metadata.xml",
+      "sha256": "05b3b6276d06b1076ba5a8bf67d17dc8563328dd625b9f6ae67a3639144ad9f7",
+      "latestReported": "2.22.4",
+      "releaseReported": "2.22.4"
+    },
+    {
+      "coordinate": "net.minidev:json-smart",
+      "url": "https://repo.maven.apache.org/maven2/net/minidev/json-smart/maven-metadata.xml",
+      "sha256": "d0f3653aa1706c6a97655110fe1565bc249a05cf94738489543ff421f52be068",
+      "latestReported": "2.6.0",
+      "releaseReported": "2.6.0"
+    },
+    {
+      "coordinate": "at.yawk.lz4:lz4-java",
+      "url": "https://repo.maven.apache.org/maven2/at/yawk/lz4/lz4-java/maven-metadata.xml",
+      "sha256": "7ac84cd7dcbce585bd1787e1e10a1d9d2d0a73c0d8f8c8ab237c1f7562748517",
+      "latestReported": "1.12.1",
+      "releaseReported": "1.12.1"
+    },
+    {
+      "coordinate": "io.micrometer:micrometer-bom",
+      "url": "https://repo.maven.apache.org/maven2/io/micrometer/micrometer-bom/maven-metadata.xml",
+      "sha256": "39eab7a4d4afc6d1f8ae70f393179ac6a49225c28a4dba2e68ea34bcbf4de277",
+      "latestReported": "1.18.0-RC1",
+      "releaseReported": "1.18.0-RC1"
+    },
+    {
+      "coordinate": "org.xerial.snappy:snappy-java",
+      "url": "https://repo.maven.apache.org/maven2/org/xerial/snappy/snappy-java/maven-metadata.xml",
+      "sha256": "30dd87558648b2f81348b1ac2c1dbe26554aad310654943e4e8d70e8ba0d6945",
+      "latestReported": "1.1.10.12",
+      "releaseReported": "1.1.10.12"
+    }
+  ],
+  "osvQuery": {
+    "url": "https://api.osv.dev/v1/querybatch",
+    "observedDate": "2026-11-01",
+    "requestSha256": "aaa4cf5a97a8acff32941465b7b2afe235f81000459f20369b9bc24fbfcfb077",
+    "responseSha256": "d8d937d147f3ab2d581e4cd7c267cc1ea92d0c7780cdcf32f57294812ff5e4f5",
+    "matches": [
+      {
+        "coordinate": "at.yawk.lz4:lz4-java:1.12.1",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.cronutils:cron-utils:9.2.1",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.fasterxml.jackson.core:jackson-annotations:2.22",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.fasterxml.jackson.core:jackson-core:2.22.4",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.22.4",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22.4",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.github.luben:zstd-jni:1.5.7-17",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.google.android:annotations:4.1.1.4",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.google.api.grpc:proto-google-common-protos:2.59.2",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.google.code.findbugs:jsr305:3.0.2",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.google.code.gson:gson:2.11.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.google.errorprone:error_prone_annotations:2.50.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.google.guava:failureaccess:1.0.3",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.google.guava:guava:33.7.2-jre",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.google.j2objc:j2objc-annotations:3.1",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.google.protobuf:protobuf-java-util:3.25.8",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.google.protobuf:protobuf-java:3.25.8",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.jayway.jsonpath:json-path:2.9.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "com.uber.m3:tally-core:0.13.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "commons-codec:commons-codec:1.19.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "commons-io:commons-io:2.20.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.github.erdtman:java-json-canonicalization:1.1",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.grpc:grpc-api:1.76.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.grpc:grpc-context:1.76.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.grpc:grpc-core:1.76.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.grpc:grpc-inprocess:1.76.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.grpc:grpc-netty-shaded:1.76.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.grpc:grpc-protobuf-lite:1.76.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.grpc:grpc-protobuf:1.76.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.grpc:grpc-services:1.76.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.grpc:grpc-stub:1.76.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.grpc:grpc-util:1.76.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.micrometer:micrometer-commons:1.17.2",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.micrometer:micrometer-core:1.17.2",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.micrometer:micrometer-observation:1.17.2",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.nexusrpc:nexus-sdk:0.6.0-alpha",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.perfmark:perfmark-api:0.27.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.temporal:temporal-sdk:1.40.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.temporal:temporal-serviceclient:1.40.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.temporal:temporal-test-server:1.40.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "io.temporal:temporal-testing:1.40.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "net.minidev:accessors-smart:2.6.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "net.minidev:json-smart:2.6.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "org.apache.commons:commons-compress:1.28.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "org.apache.commons:commons-lang3:3.18.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "org.apache.kafka:kafka-clients:4.4.0",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "org.codehaus.mojo:animal-sniffer-annotations:1.24",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "org.hdrhistogram:HdrHistogram:2.2.2",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "org.jspecify:jspecify:1.0.1",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "org.ow2.asm:asm:9.7.1",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "org.slf4j:slf4j-api:1.7.36",
+        "vulnerabilities": []
+      },
+      {
+        "coordinate": "org.xerial.snappy:snappy-java:1.1.10.12",
+        "vulnerabilities": []
+      }
+    ],
+    "qualification": "Package/version feed snapshot only; no image/shaded/native/reachability or complete vulnerability-free claim."
+  },
+  "platforms": [
+    {
+      "coordinate": "com.fasterxml.jackson:jackson-bom:2.22.4",
+      "url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/jackson-bom/2.22.4/jackson-bom-2.22.4.pom",
+      "sha256": "a3c00688a7bf8e128451137b68f90d9137957a372756083d74555a47241d1636",
+      "researchMode": "enforcedPlatform"
+    },
+    {
+      "coordinate": "io.micrometer:micrometer-bom:1.17.2",
+      "url": "https://repo.maven.apache.org/maven2/io/micrometer/micrometer-bom/1.17.2/micrometer-bom-1.17.2.pom",
+      "sha256": "34c57536c851cc435911f3505467c65c12ba19878102c8be68b578d18948b7a5",
+      "researchMode": "enforcedPlatform"
+    }
+  ],
+  "probeOnlyTooling": [
+    {
+      "coordinate": "org.apiguardian:apiguardian-api:1.1.2",
+      "sha256": "b509448ac506d607319f182537f0b35d71007582ec741832a1f111e5b5b70b38"
+    },
+    {
+      "coordinate": "org.junit.jupiter:junit-jupiter-api:6.0.3",
+      "sha256": "d655d7e6f0c7ae07f10a2f3bbaaebb6d30e9b26204a068ad9e9b3950aa28792c"
+    },
+    {
+      "coordinate": "org.junit.platform:junit-platform-commons:6.0.3",
+      "sha256": "39f262d09c3d52719fe0b77f080e90a3695e285d779a41b232e17963ae5da200"
+    },
+    {
+      "coordinate": "org.opentest4j:opentest4j:1.3.0",
+      "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b"
+    }
+  ]
+}
