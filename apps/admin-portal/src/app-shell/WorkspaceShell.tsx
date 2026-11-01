@@ -12,6 +12,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { getSession, IdentityRequestError } from '../identity-api';
 import { sessionKey } from '../session-key';
+import { useIdentityCommands } from '../features/identity/useIdentityCommands';
+import { useSessionAuthority } from '../features/identity/authority';
 
 const navigation = [
   { to: '/', label: 'Home', icon: '⌂' },
@@ -41,6 +43,8 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
     queryFn: ({ signal }) => getSession(signal),
   });
   const authenticated = session.data && !session.error ? session.data : null;
+  const commands = useIdentityCommands();
+  const authority = useSessionAuthority(authenticated);
   const issuer = authenticated?.issuer;
   const subject = authenticated?.subject;
   const tenant = authenticated?.selectedTenant;
@@ -158,14 +162,34 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           <Text component="span" className="workspace-field-label">
             Workspace (verified membership)
           </Text>
-          <Link
+          <Box
+            component="select"
             className="workspace-field"
-            to="/identity"
-            aria-label="Manage workspace selection"
+            aria-label="Workspace (verified membership)"
+            value={authenticated?.selectedTenant ?? ''}
+            disabled={!authenticated?.tenants.length || commands.busy}
+            aria-busy={commands.busy}
+            onChange={(event) => {
+              const tenant = event.currentTarget.value;
+              if (
+                authenticated &&
+                tenant !== authenticated.selectedTenant &&
+                authenticated.tenants.includes(tenant)
+              )
+                commands.execute(authenticated, { kind: 'tenant', tenant });
+            }}
           >
-            <span title={workspace}>{workspace}</span>
-            <span aria-hidden="true">⌄</span>
-          </Link>
+            {!authenticated?.selectedTenant && (
+              <option value="" disabled>
+                {workspace}
+              </option>
+            )}
+            {authenticated?.tenants.map((tenant) => (
+              <option key={tenant} value={tenant}>
+                {tenant}
+              </option>
+            ))}
+          </Box>
         </div>
         <div>
           <Text component="span" className="workspace-field-label">
@@ -184,6 +208,13 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           </Box>
         </div>
       </div>
+      {commands.error && !authority.uncertain && (
+        <p role="alert">
+          {commands.error.status === 401
+            ? 'Your session has expired. Sign in again to continue.'
+            : 'Workspace selection was denied. Your workspace has not changed.'}
+        </p>
+      )}
       <AppShell.Main component="div" className="workspace-layout layout">
         <Box component="aside" className="sidebar">
           <nav aria-label="Main navigation">
@@ -195,7 +226,29 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           </nav>
         </Box>
         <main id="main-content" tabIndex={-1}>
-          {children}
+          {authority.blocked &&
+            (authority.uncertain ? (
+              <section role="alert">
+                <h1>Verify your workspace access</h1>
+                <p>
+                  The workspace change could not be confirmed. Protected content
+                  remains unavailable until your session is verified. You may
+                  need to sign in again.
+                </p>
+                <Button onClick={() => void authority.recover()}>
+                  Retry session verification
+                </Button>{' '}
+                <a href="/oauth/login/keycloak">Sign in again</a>
+              </section>
+            ) : (
+              <p role="status">Updating workspace access…</p>
+            ))}
+          <div
+            style={{ display: authority.blocked ? 'none' : 'contents' }}
+            aria-hidden={authority.blocked || undefined}
+          >
+            {children}
+          </div>
         </main>
       </AppShell.Main>
       <footer className="foot">

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import {
   useMutation,
+  useIsMutating,
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
@@ -11,6 +12,14 @@ import {
   type SessionView,
 } from '../../identity-api';
 import { sessionKey } from '../../session-key';
+import {
+  beginTransition,
+  finishTransition,
+  isTransitionUncertain,
+  ownsTransition,
+  uncertainTransition,
+  useSessionAuthority,
+} from './authority';
 
 type Command =
   { kind: 'tenant'; tenant: string } | { kind: 'logout' } | { kind: 'expire' };
@@ -50,6 +59,8 @@ export async function replaceSession(
 
 export function useIdentityCommands() {
   const client = useQueryClient();
+  const authority = useSessionAuthority();
+  const pending = useIsMutating({ mutationKey: ['identity-command'] });
   const id = useId();
   const mounted = useRef(false);
   const active = useRef<Request | null>(null);
@@ -75,6 +86,7 @@ export function useIdentityCommands() {
         mounted.current &&
         active.current === request &&
         !request.controller.signal.aborted &&
+        ownsTransition(client, request) &&
         current(client, request.session);
       try {
         if (!valid()) return;
@@ -103,8 +115,11 @@ export function useIdentityCommands() {
             : new IdentityRequestError(503);
         if (failure.status === 401)
           await replaceSession(client, request.session, null, valid, commit);
+        else if (failure.status !== 403 && failure.status !== 400)
+          uncertainTransition(client, request);
         throw failure;
       } finally {
+        finishTransition(client, request);
         if (active.current === request) active.current = null;
       }
     },
@@ -127,6 +142,8 @@ export function useIdentityCommands() {
         return;
       const request = active.current;
       if (request && current(client, request.session)) return;
+      if (!request && isTransitionUncertain(client)) return;
+      if (request) uncertainTransition(client, request);
       request?.controller.abort();
       active.current = null;
       reset();
@@ -135,6 +152,7 @@ export function useIdentityCommands() {
     return () => {
       mounted.current = false;
       unsubscribe();
+      if (active.current) uncertainTransition(client, active.current);
       active.current?.controller.abort();
       active.current = null;
       reset();
@@ -144,16 +162,18 @@ export function useIdentityCommands() {
   function execute(session: SessionView, command: Command) {
     if (active.current || !current(client, session)) return;
     const invocationId = ++nextInvocationId.current;
-    active.current = {
+    const request = {
       invocationId,
       session,
       command,
       controller: new AbortController(),
     };
+    if (!beginTransition(client, session, request)) return;
+    active.current = request;
     mutation.mutate(invocationId);
   }
   return {
-    busy: mutation.isPending,
+    busy: authority.blocked || pending > 0 || mutation.isPending,
     error: mutation.error,
     reset,
     execute,

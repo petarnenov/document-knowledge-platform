@@ -1,3 +1,4 @@
+import { withAuthority, type RequestSignal } from './request-authority';
 import { z } from 'zod';
 import type { CommandReceipt } from '../../../generated-clients/typescript/types/models/CommandReceipt';
 import type { AclChange } from '../../../generated-clients/typescript/types/models/AclChange';
@@ -116,7 +117,7 @@ export class DocumentRequestError extends Error {
 async function request<T>(
   path: string,
   schema: z.ZodType<T>,
-  signal: AbortSignal,
+  signal: RequestSignal,
   mutation?: {
     method: string;
     session: SessionView;
@@ -124,77 +125,79 @@ async function request<T>(
     key?: string;
   },
 ): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(`/api/v1/dm/documents${path}`, {
-      method: mutation?.method ?? 'GET',
-      credentials: 'same-origin',
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
-      headers: mutation
-        ? {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': mutation.session.csrfToken,
-            'Idempotency-Key': mutation.key ?? crypto.randomUUID(),
-            Accept: 'application/json',
-          }
-        : { Accept: 'application/json' },
-      ...(mutation ? { body: JSON.stringify(mutation.body) } : {}),
-    });
-  } catch {
-    throw new DocumentRequestError(503);
-  }
-  if (!response.ok) {
-    let code = 'REQUEST_FAILED';
+  return withAuthority(signal, async (signal) => {
+    let response: Response;
     try {
-      const error = z
-        .object({ code: z.string().regex(/^[A-Z][A-Z0-9_]{0,63}$/) })
-        .strict()
-        .parse(await response.json());
-      code = error.code;
+      response = await fetch(`/api/v1/dm/documents${path}`, {
+        method: mutation?.method ?? 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
+        headers: mutation
+          ? {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': mutation.session.csrfToken,
+              'Idempotency-Key': mutation.key ?? crypto.randomUUID(),
+              Accept: 'application/json',
+            }
+          : { Accept: 'application/json' },
+        ...(mutation ? { body: JSON.stringify(mutation.body) } : {}),
+      });
     } catch {
-      /* Do not expose upstream diagnostics. */
+      throw new DocumentRequestError(503);
     }
-    throw new DocumentRequestError(response.status, code);
-  }
-  const expectedStatus = mutation?.method === 'POST' ? 201 : 200;
-  if (
-    response.status !== expectedStatus ||
-    response.headers
-      .get('content-type')
-      ?.split(';')[0]
-      ?.trim()
-      .toLowerCase() !== 'application/json'
-  )
-    throw new DocumentRequestError(503, 'INVALID_RESPONSE');
-  try {
-    const length = response.headers.get('content-length');
-    if (length && Number(length) > 1_048_576) throw new Error('Oversize');
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('Missing body');
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    for (;;) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      total += chunk.value.byteLength;
-      if (total > 1_048_576) {
-        await reader.cancel();
-        throw new Error('Oversize');
+    if (!response.ok) {
+      let code = 'REQUEST_FAILED';
+      try {
+        const error = z
+          .object({ code: z.string().regex(/^[A-Z][A-Z0-9_]{0,63}$/) })
+          .strict()
+          .parse(await response.json());
+        code = error.code;
+      } catch {
+        /* Do not expose upstream diagnostics. */
       }
-      chunks.push(chunk.value);
+      throw new DocumentRequestError(response.status, code);
     }
-    const bytes = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
+    const expectedStatus = mutation?.method === 'POST' ? 201 : 200;
+    if (
+      response.status !== expectedStatus ||
+      response.headers
+        .get('content-type')
+        ?.split(';')[0]
+        ?.trim()
+        .toLowerCase() !== 'application/json'
+    )
+      throw new DocumentRequestError(503, 'INVALID_RESPONSE');
+    try {
+      const length = response.headers.get('content-length');
+      if (length && Number(length) > 1_048_576) throw new Error('Oversize');
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Missing body');
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        total += chunk.value.byteLength;
+        if (total > 1_048_576) {
+          await reader.cancel();
+          throw new Error('Oversize');
+        }
+        chunks.push(chunk.value);
+      }
+      const bytes = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return schema.parse(JSON.parse(new TextDecoder().decode(bytes)));
+    } catch {
+      throw new DocumentRequestError(503, 'INVALID_RESPONSE');
     }
-    return schema.parse(JSON.parse(new TextDecoder().decode(bytes)));
-  } catch {
-    throw new DocumentRequestError(503, 'INVALID_RESPONSE');
-  }
+  });
 }
 function id(value: string) {
   if (!z.uuid().safeParse(value).success) throw new DocumentRequestError(400);
@@ -202,7 +205,7 @@ function id(value: string) {
 }
 export async function listDrafts(
   session: SessionView,
-  signal: AbortSignal,
+  signal: RequestSignal,
   cursor?: string,
 ) {
   const result = await request(
@@ -217,7 +220,7 @@ export async function listDrafts(
 export async function inspectDraft(
   documentId: string,
   session: SessionView,
-  signal: AbortSignal,
+  signal: RequestSignal,
 ) {
   const draft = await request(`/${id(documentId)}`, documentSchema, signal);
   if (
@@ -227,12 +230,12 @@ export async function inspectDraft(
     throw new DocumentRequestError(503);
   return draft;
 }
-export async function inspectAcl(documentId: string, signal: AbortSignal) {
+export async function inspectAcl(documentId: string, signal: RequestSignal) {
   const result = await request(`/${id(documentId)}/acl`, aclSchema, signal);
   if (result.documentId !== documentId) throw new DocumentRequestError(503);
   return result;
 }
-export async function inspectHolds(documentId: string, signal: AbortSignal) {
+export async function inspectHolds(documentId: string, signal: RequestSignal) {
   const result = await request(
     `/${id(documentId)}/legal-holds`,
     holdsSchema,
@@ -244,7 +247,7 @@ export async function inspectHolds(documentId: string, signal: AbortSignal) {
 }
 export async function command(
   session: SessionView,
-  signal: AbortSignal,
+  signal: RequestSignal,
   kind: 'create' | 'metadata' | 'acl' | 'hold',
   body: object,
   documentId?: string,

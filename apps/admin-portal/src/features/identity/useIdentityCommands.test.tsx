@@ -36,6 +36,36 @@ function setup() {
 }
 afterEach(() => vi.restoreAllMocks());
 
+it('arbitrates competing commands from separate mounted surfaces in the same turn', async () => {
+  const pending = deferred<api.SessionView>();
+  const select = vi.spyOn(api, 'selectTenant').mockReturnValue(pending.promise);
+  const logout = vi.spyOn(api, 'logout').mockResolvedValue();
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  client.setQueryData(sessionKey, session);
+  const { result } = renderHook(
+    () => ({ shell: useIdentityCommands(), identity: useIdentityCommands() }),
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    },
+  );
+  act(() => {
+    result.current.shell.execute(session, { kind: 'tenant', tenant: 'b' });
+    result.current.identity.execute(session, { kind: 'logout' });
+  });
+  await waitFor(() => expect(select).toHaveBeenCalledOnce());
+  expect(logout).not.toHaveBeenCalled();
+  expect(result.current.shell.busy).toBe(true);
+  expect(result.current.identity.busy).toBe(true);
+  expect(client.getMutationCache().getAll()).toHaveLength(1);
+  await act(async () => pending.resolve(next));
+  await waitFor(() => expect(result.current.identity.busy).toBe(false));
+  expect(client.getQueryData(sessionKey)).toEqual(next);
+});
+
 it('uses a typed mutation without protected variables/data and commits only after purging captured queries', async () => {
   const pending = deferred<api.SessionView>();
   const select = vi.spyOn(api, 'selectTenant').mockReturnValue(pending.promise);
@@ -78,9 +108,8 @@ it.each([401, 403, 503])(
     expect(client.getQueryData(sessionKey)).toEqual(
       status === 401 ? null : session,
     );
-    expect(client.getQueryData(['documents', 'old'])).toEqual(
-      status === 401 ? undefined : { title: 'protected' },
-    );
+    // Starting any identity transition fences and purges old protected state.
+    expect(client.getQueryData(['documents', 'old'])).toBeUndefined();
   },
 );
 
@@ -97,6 +126,7 @@ it('normalizes unexpected errors without retaining their private text', async ()
 it.each(['tenant', 'logout'] as const)(
   'aborts %s on unmount, removes its mutation and ignores a late response',
   async (kind) => {
+    vi.spyOn(api, 'getSession').mockResolvedValue(session);
     const pending = deferred<api.SessionView>();
     const select = vi
       .spyOn(api, 'selectTenant')
@@ -116,10 +146,18 @@ it.each(['tenant', 'logout'] as const)(
       kind === 'tenant' ? select.mock.calls[0]![2] : logout.mock.calls[0]![1];
     unmount();
     expect(signal.aborted).toBe(true);
-    expect(client.getMutationCache().getAll()).toHaveLength(0);
+    expect(
+      client.getMutationCache().findAll({ mutationKey: ['identity-command'] }),
+    ).toHaveLength(0);
+    for (const entry of client.getMutationCache().getAll()) {
+      expect(typeof entry.state.variables).toBe('number');
+      expect(entry.state.data).toBeUndefined();
+    }
     await act(async () => pending.resolve(next));
     expect(client.getQueryData(sessionKey)).toEqual(session);
-    expect(client.getMutationCache().getAll()).toHaveLength(0);
+    await waitFor(() =>
+      expect(client.getMutationCache().getAll()).toHaveLength(0),
+    );
   },
 );
 

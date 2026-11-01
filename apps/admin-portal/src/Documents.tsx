@@ -21,6 +21,7 @@ import {
   type SessionView,
 } from './identity-api';
 import { sessionKey } from './session-key';
+import { useSessionAuthority } from './features/identity/authority';
 import {
   actions,
   command,
@@ -102,6 +103,7 @@ function DraftWorkspace({
   initialCreate: boolean;
 }) {
   const client = useQueryClient();
+  const authority = useSessionAuthority(session);
   const scope = [
     'documents',
     session.issuer,
@@ -146,22 +148,27 @@ function DraftWorkspace({
   const pendingKey = useRef<{ body: string; key: string } | null>(null);
   const page = useQuery({
     queryKey: [...scope, 'list', cursor ?? ''],
-    queryFn: ({ signal }) => listDrafts(session, signal, cursor),
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) => listDrafts(session, guard, cursor)),
+    enabled: !authority.blocked,
   });
   const detail = useQuery({
     queryKey: [...scope, 'detail', selected],
-    queryFn: ({ signal }) => inspectDraft(selected!, session, signal),
-    enabled: selected !== null,
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) => inspectDraft(selected!, session, guard)),
+    enabled: selected !== null && !authority.blocked,
   });
   const acl = useQuery({
     queryKey: [...scope, 'acl', selected],
-    queryFn: ({ signal }) => inspectAcl(selected!, signal),
-    enabled: selected !== null && showAcl,
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) => inspectAcl(selected!, guard)),
+    enabled: selected !== null && showAcl && !authority.blocked,
   });
   const holds = useQuery({
     queryKey: [...scope, 'holds', selected],
-    queryFn: ({ signal }) => inspectHolds(selected!, signal),
-    enabled: selected !== null && showHolds,
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) => inspectHolds(selected!, guard)),
+    enabled: selected !== null && showHolds && !authority.blocked,
   });
   const mutation = useMutation({
     mutationFn: async ({
@@ -171,6 +178,8 @@ function DraftWorkspace({
       kind: 'create' | 'metadata' | 'acl' | 'hold';
       body: object;
     }) => {
+      const guard = authority.request(new AbortController().signal);
+      guard.assertCurrent();
       const canonical = JSON.stringify({
         kind,
         selected: kind === 'create' ? null : selected,
@@ -180,7 +189,7 @@ function DraftWorkspace({
         pendingKey.current = { body: canonical, key: crypto.randomUUID() };
       return command(
         session,
-        new AbortController().signal,
+        guard,
         kind,
         body,
         kind === 'create' ? undefined : (selected ?? undefined),
@@ -188,6 +197,7 @@ function DraftWorkspace({
       );
     },
     onSuccess: async (result, variables) => {
+      authority.request(new AbortController().signal).assertCurrent();
       if (variables.kind === 'create') {
         setView('library');
         setFilter('');

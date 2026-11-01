@@ -5,6 +5,7 @@ import { getSession } from '../../identity-api';
 import { useEffect } from 'react';
 import { DocumentRequestError, listDrafts } from '../../document-api';
 import { sessionKey } from '../../session-key';
+import { useSessionAuthority } from '../identity/authority';
 
 /** Dashboard layout follows v0.5; aggregate metrics require an authoritative API. */
 export function HomeWorkspace() {
@@ -14,6 +15,7 @@ export function HomeWorkspace() {
     queryFn: ({ signal }) => getSession(signal),
   });
   const actor = session.error ? null : session.data;
+  const authority = useSessionAuthority(actor);
   const recent = useQuery({
     queryKey: [
       'documents',
@@ -24,8 +26,9 @@ export function HomeWorkspace() {
       'list',
       '',
     ],
-    queryFn: ({ signal }) => listDrafts(actor!, signal),
-    enabled: Boolean(actor?.selectedTenant),
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) => listDrafts(actor!, guard)),
+    enabled: Boolean(actor?.selectedTenant) && !authority.blocked,
   });
   const expired =
     recent.error instanceof DocumentRequestError && recent.error.status === 401;

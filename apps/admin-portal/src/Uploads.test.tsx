@@ -4,6 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { PortalTheme } from './theme';
 import { Uploads } from './Uploads';
+import { sessionKey } from './session-key';
+import * as uploadApi from './upload-api';
+import { beginTransition } from './features/identity/authority';
 const id = '11111111-1111-4111-8111-111111111111',
   version = '22222222-2222-4222-8222-222222222222';
 const session = {
@@ -19,23 +22,20 @@ const json = (value: unknown, status = 200) =>
     status,
     headers: { 'Content-Type': 'application/json' },
   });
-const mount = () =>
-  render(
+const mount = () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  client.setQueryData(sessionKey, session);
+  const view = render(
     <PortalTheme>
-      <QueryClientProvider
-        client={
-          new QueryClient({
-            defaultOptions: {
-              queries: { retry: false },
-              mutations: { retry: false },
-            },
-          })
-        }
-      >
+      <QueryClientProvider client={client}>
         <Uploads documentId={id} revision={0} session={session} />
       </QueryClientProvider>
     </PortalTheme>,
   );
+  return { ...view, client };
+};
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -52,6 +52,62 @@ it('offers visible real file selection before initiating any upload', () => {
     screen.getByRole('button', { name: 'Upload and append' }),
   ).toHaveProperty('disabled', true);
   expect(fetcher).not.toHaveBeenCalled();
+});
+it('never creates a download URL from a response that completes after a workspace transition', async () => {
+  vi.spyOn(uploadApi, 'initializeUpload').mockResolvedValue({ uploadId: id });
+  vi.spyOn(uploadApi, 'transferUpload').mockResolvedValue({ uploadId: id });
+  vi.spyOn(uploadApi, 'completeUpload').mockResolvedValue({
+    uploadId: id,
+    receiptId: id,
+  });
+  vi.spyOn(uploadApi, 'appendUpload').mockResolvedValue({
+    documentId: id,
+    revision: 1,
+  });
+  vi.spyOn(uploadApi, 'discoverVersion').mockResolvedValue({
+    documentId: id,
+    versionId: version,
+  });
+  vi.spyOn(uploadApi, 'inspectUpload').mockResolvedValue({
+    uploadId: id,
+    state: 'CONSUMED',
+    expiresAt: '2026-11-01T00:00:00Z',
+    failureCode: null,
+  });
+  let finish!: (value: Blob) => void;
+  const download = vi.spyOn(uploadApi, 'downloadVersion').mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const create = vi.fn(() => 'blob:private');
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: create,
+  });
+  const { client } = mount();
+  const user = userEvent.setup();
+  await user.upload(
+    document.querySelector('input[type=file]') as HTMLInputElement,
+    new File(['data'], 'synthetic.pdf', { type: 'application/pdf' }),
+  );
+  await user.click(screen.getByRole('button', { name: 'Upload and append' }));
+  await user.click(
+    await screen.findByRole('button', { name: 'Download verified content' }),
+  );
+  await waitFor(() => expect(download).toHaveBeenCalledOnce());
+  act(() => {
+    beginTransition(client, session, {});
+  });
+  await act(async () => finish(new Blob(['obsolete protected bytes'])));
+  expect(create).not.toHaveBeenCalled();
+  await screen.findByRole('alert');
+  expect(
+    screen
+      .getAllByRole('alert')
+      .some((alert) => alert.textContent?.includes('unavailable')),
+  ).toBe(true);
 });
 it('shows each verified stage and downloads through current-authority endpoint without persistent links', async () => {
   const fetcher = vi.fn(async (path: string, init?: RequestInit) => {

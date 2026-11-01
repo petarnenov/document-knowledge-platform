@@ -17,6 +17,7 @@ import {
 } from './identity-api';
 
 import { useIdentityCommands } from './features/identity/useIdentityCommands';
+import { useSessionAuthority } from './features/identity/authority';
 
 const services: { id: Service; label: string }[] = [
   { id: 'dm', label: 'Document Management' },
@@ -37,6 +38,7 @@ export function Identity() {
     service: Service | null;
   }>({ scope: null, tenant: null, service: null });
   const session = sessionQuery.data;
+  const authority = useSessionAuthority(session);
   const tenantChoice = selection.scope === session ? selection.tenant : null;
   const activeService =
     selection.scope === session && !sessionQuery.error
@@ -66,8 +68,11 @@ export function Identity() {
       session?.csrfToken,
       activeService,
     ],
-    queryFn: ({ signal }) => getContext(activeService!, session!, signal),
-    enabled: !!activeService && !!session,
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) =>
+        getContext(activeService!, session!, guard),
+      ),
+    enabled: !!activeService && !!session && !authority.blocked,
   });
   const context =
     activeService && !contextQuery.error ? contextQuery.data : null;

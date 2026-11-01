@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { PortalTheme } from '../theme';
 import { sessionKey } from '../session-key';
 import { WorkspaceShell } from './WorkspaceShell';
+import * as api from '../identity-api';
 
 const session = {
   issuer: 'https://identity.test',
@@ -15,7 +16,10 @@ const session = {
   selectedTenant: 'workspace-a',
   csrfToken: 'not-a-real-token',
 };
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 function renderShell(data: unknown = session) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -47,7 +51,13 @@ it('uses current session context and removes old account/workspace on session tr
   await waitFor(() =>
     expect(within(context).getByText('workspace-b')).toBeTruthy(),
   );
-  expect(within(context).queryByText('workspace-a')).toBeNull();
+  expect(
+    (
+      within(context).getByRole('combobox', {
+        name: 'Workspace (verified membership)',
+      }) as HTMLSelectElement
+    ).value,
+  ).toBe('workspace-b');
   client.setQueryData(sessionKey, { ...session, selectedTenant: null });
   await waitFor(() =>
     expect(within(context).getByText('No workspace selected')).toBeTruthy(),
@@ -82,6 +92,119 @@ it('shows only the actual account in a disabled native context control without i
   expect(client.getQueryData(sessionKey)).toEqual(accountSession);
   expect(screen.queryByRole('option', { name: /^Administrator$/ })).toBeNull();
 });
+
+it('selects only real memberships without optimistic authority and withholds protected content until rotation', async () => {
+  let finish!: (value: api.SessionView) => void;
+  const select = vi.spyOn(api, 'selectTenant').mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const client = renderShell();
+  const control = screen.getByRole('combobox', {
+    name: 'Workspace (verified membership)',
+  }) as HTMLSelectElement;
+  expect(Array.from(control.options, (option) => option.value)).toEqual(
+    session.tenants,
+  );
+  await userEvent.setup().selectOptions(control, 'workspace-a');
+  expect(select).not.toHaveBeenCalled();
+  await userEvent.setup().selectOptions(control, 'workspace-b');
+  await waitFor(() => expect(select).toHaveBeenCalledOnce());
+  expect(control.disabled).toBe(true);
+  expect(control.value).toBe('workspace-a');
+  expect(client.getQueryData(sessionKey)).toEqual(session);
+  expect(
+    screen.queryByRole('heading', { name: 'Workspace content' }),
+  ).toBeNull();
+  expect(screen.getByRole('status').textContent).toContain(
+    'Updating workspace access',
+  );
+  expect(select).toHaveBeenCalledWith(
+    session,
+    'workspace-b',
+    expect.any(AbortSignal),
+  );
+  await act(async () =>
+    finish({
+      ...session,
+      selectedTenant: 'workspace-b',
+      csrfToken: 'rotated-synthetic',
+    }),
+  );
+  await waitFor(() => expect(control.value).toBe('workspace-b'));
+  expect(control.disabled).toBe(false);
+  expect(
+    screen.getByRole('heading', { name: 'Workspace content' }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole('link', { name: 'Home' }).getAttribute('aria-current'),
+  ).toBe('page');
+});
+
+it('retains the real selected workspace and exposes a bounded denied state', async () => {
+  vi.spyOn(api, 'selectTenant').mockRejectedValue(
+    new api.IdentityRequestError(403),
+  );
+  renderShell();
+  const control = screen.getByRole('combobox', {
+    name: 'Workspace (verified membership)',
+  }) as HTMLSelectElement;
+  await userEvent.setup().selectOptions(control, 'workspace-b');
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    'Workspace selection was denied',
+  );
+  expect(control.value).toBe('workspace-a');
+  expect(control.disabled).toBe(false);
+  expect(
+    screen.getByRole('heading', { name: 'Workspace content' }),
+  ).toBeTruthy();
+});
+
+it('offers explicit existing sign-in recovery after an uncertain response instead of restoring protected content from an unchanged session', async () => {
+  vi.spyOn(api, 'selectTenant').mockRejectedValue(
+    new api.IdentityRequestError(503),
+  );
+  vi.spyOn(api, 'getSession').mockResolvedValue(session);
+  renderShell();
+  await userEvent
+    .setup()
+    .selectOptions(
+      screen.getByRole('combobox', { name: 'Workspace (verified membership)' }),
+      'workspace-b',
+    );
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    'workspace change could not be confirmed',
+  );
+  await waitFor(() => expect(api.getSession).toHaveBeenCalledOnce());
+  expect(
+    screen.queryByRole('heading', { name: 'Workspace content' }),
+  ).toBeNull();
+  expect(
+    screen.getByRole('link', { name: 'Sign in again' }).getAttribute('href'),
+  ).toBe('/oauth/login/keycloak');
+  await userEvent
+    .setup()
+    .click(screen.getByRole('button', { name: 'Retry session verification' }));
+  await waitFor(() => expect(api.getSession).toHaveBeenCalledTimes(2));
+  expect(
+    screen.queryByRole('heading', { name: 'Workspace content' }),
+  ).toBeNull();
+});
+
+it.each([null, { ...session, tenants: [], selectedTenant: null }])(
+  'disables inline selection without authenticated membership (%j)',
+  (data) => {
+    renderShell(data);
+    const control = screen.getByRole('combobox', {
+      name: 'Workspace (verified membership)',
+    }) as HTMLSelectElement;
+    expect(control.disabled).toBe(true);
+    expect(control.options).toHaveLength(1);
+    expect(control.value).toBe('');
+  },
+);
 
 it('provides all eight reference navigation destinations and separate access/support links', () => {
   renderShell();

@@ -17,3 +17,6 @@
 - [ ] #449 Correct the independently observed detail Governance affordance, visible real-file chooser and status-value emphasis; retain contract/unavailable states and verify keyboard chooser plus matched reference captures. Host/component evidence does not close real-provider, Linux, CI or integration gates.
 
 - [ ] #450 Preserve native advanced-controls expansion through successful document reauthorization, retain controlled reset on document/verified-scope changes, and rerun the genuine ACL/hold/upload acceptance after the recorded real timeout.
+
+- [x] #448 Independently review `workspace-selector-448.md` before implementing shared identity-command ownership for the inline authenticated workspace selector.
+- [ ] #448 Implement and verify real inline selection, competing-control arbitration, authority/cache cancellation and accessible states; retain host-versus-pinned-Linux evidence limits and complete PR/CI/acceptance gates before closure.

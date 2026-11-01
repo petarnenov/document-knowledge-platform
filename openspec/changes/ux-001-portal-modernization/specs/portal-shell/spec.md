@@ -48,3 +48,22 @@ The portal SHALL reproduce Interactive Design v0.5 visual composition and demons
 #### Scenario: Capability unavailable
 - **WHEN** a demonstrated prototype operation has no implemented trusted contract
 - **THEN** its visual structure remains identifiable with an explicit unavailable state and no fabricated content, permission or operation result
+
+### Requirement: Inline authenticated workspace selection
+The shell SHALL offer the prototype's native inline workspace selector using only authenticated session memberships and the existing typed BFF tenant-selection mutation. The current tenant SHALL remain authoritative until a validated replacement session arrives. Concurrent identity command surfaces SHALL coordinate through shared TanStack mutation state, preserving cancellation, CSRF rotation, fail-closed authority checks and protected-cache clearing described in `workspace-selector-448.md`.
+
+#### Scenario: Competing identity controls
+- **WHEN** the shell and Workspace access attempt identity commands in the same turn
+- **THEN** at most one command starts, both controls reflect pending state, and no queued invocation adopts another command's request
+
+#### Scenario: Workspace transition loses authority
+- **WHEN** the session changes or the originating control unmounts before tenant selection completes
+- **THEN** the request is aborted or ignored and its late result cannot restore old protected state or overwrite the fresh session
+
+#### Scenario: Membership does not imply content access
+- **WHEN** a real membership is selected or selection is denied
+- **THEN** existing BFF authority determines the outcome, the current route is preserved, and the UI neither infers content permission nor fabricates a successful transition
+
+#### Scenario: Tenant mutation outcome is uncertain
+- **WHEN** a tenant command is aborted, loses its response or its initiating control unmounts after the server may have committed
+- **THEN** a shared reconciliation fence prevents usable old-scope protected results and further commands until authoritative session revalidation establishes fresh authority; an unchanged pre-transition session snapshot alone cannot release that fence
