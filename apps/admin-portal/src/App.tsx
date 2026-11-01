@@ -6,6 +6,7 @@ import { Documents } from './Documents';
 import { ServerState } from './query';
 import { HomeWorkspace } from './features/home/HomeWorkspace';
 import { CapabilityPage } from './features/home/CapabilityPage';
+import { CollectionsWorkspace } from './features/collections/CollectionsWorkspace';
 import { WorkspaceShell } from './app-shell/WorkspaceShell';
 
 export function App() {
@@ -26,20 +27,16 @@ function Shell() {
         <Route path="/foundation" element={<Foundation />} />
         <Route path="/identity" element={<Identity />} />
         <Route path="/documents" element={<Documents />} />
-        {[
-          'collections',
-          'reviews',
-          'search',
-          'operations',
-          'governance',
-          'audit',
-        ].map((capability) => (
-          <Route
-            key={capability}
-            path={`/${capability}`}
-            element={<CapabilityPage capability={capability} />}
-          />
-        ))}
+        <Route path="/collections" element={<CollectionsWorkspace />} />
+        {['reviews', 'search', 'operations', 'governance', 'audit'].map(
+          (capability) => (
+            <Route
+              key={capability}
+              path={`/${capability}`}
+              element={<CapabilityPage capability={capability} />}
+            />
+          ),
+        )}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </WorkspaceShell>

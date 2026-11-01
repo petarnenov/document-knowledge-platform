@@ -20,3 +20,4 @@
 
 - [x] #448 Independently review `workspace-selector-448.md` before implementing shared identity-command ownership for the inline authenticated workspace selector.
 - [ ] #448 Implement and verify real inline selection, competing-control arbitration, authority/cache cancellation and accessible states; retain host-versus-pinned-Linux evidence limits and complete PR/CI/acceptance gates before closure.
+- [ ] #446 Integrate the reviewed Collections unavailable workspace using shared shell tokens; preserve unknown/denied/conflict and no implied content authority. Existing metadata presentation is not an operational collection adapter; real supported-contract integration remains separately pending.

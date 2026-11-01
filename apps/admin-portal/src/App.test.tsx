@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+
+afterEach(() => vi.unstubAllGlobals());
 
 function renderShell(path = '/') {
   return render(
@@ -101,5 +103,109 @@ describe('foundation shell', () => {
         .getByRole('link', { name: 'Skip to content' })
         .getAttribute('href'),
     ).toBe('#main-content');
+  });
+
+  it.each([200, 401, 503])(
+    'opens the Collections deep link with safe unavailable structure and no KB requests when session verification returns %s',
+    async (status) => {
+      const fetcher = vi.fn(async (path: string, init?: RequestInit) => {
+        expect(path).toBe('/api/v1/session');
+        expect(init?.method).toBe('GET');
+        return new Response(
+          JSON.stringify(
+            status === 200
+              ? {
+                  issuer: 'https://identity.example',
+                  subject: 'test-subject',
+                  displayName: 'Test account',
+                  selectedTenant: 'tenant-a',
+                  tenants: ['tenant-a'],
+                  csrfToken: 'test-csrf',
+                }
+              : { code: 'UNAVAILABLE' },
+          ),
+          { status },
+        );
+      });
+      vi.stubGlobal('fetch', fetcher);
+      renderShell('/collections');
+      const workspace = screen.getByRole('region', {
+        name: 'Collections workspace',
+      });
+      expect(
+        within(workspace).getByRole('heading', {
+          name: 'Knowledge Collections',
+          level: 1,
+        }),
+      ).toBeTruthy();
+      for (const name of [
+        'Accessible collections',
+        'Collection details',
+        'Collection memberships',
+        'Create collection',
+        'Audience and policy',
+      ])
+        expect(within(workspace).getByRole('region', { name })).toBeTruthy();
+      expect(
+        screen
+          .getByRole('link', { name: 'Collections' })
+          .getAttribute('aria-current'),
+      ).toBe('page');
+      for (const button of within(workspace).getAllByRole('button'))
+        expect((button as HTMLButtonElement).disabled).toBe(true);
+      expect(within(workspace).queryByRole('link')).toBeNull();
+      expect(
+        within(workspace).queryByRole('button', { name: /Select collection/ }),
+      ).toBeNull();
+      expect(
+        within(workspace).getByText('Content access').nextElementSibling
+          ?.textContent,
+      ).toBe('Not evaluated');
+      await screen.findByText(
+        status === 200
+          ? 'Test account'
+          : status === 401
+            ? 'Sign in to select a workspace'
+            : 'Workspace unavailable',
+      );
+      await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    },
+  );
+
+  it('opens Collections through the shared navigation and preserves every other unavailable capability route', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(new Response('{}', { status: 401 })),
+        ),
+    );
+    const user = userEvent.setup();
+    renderShell('/foundation');
+    await user.click(screen.getByRole('link', { name: 'Collections' }));
+    expect(
+      screen.getByRole('region', { name: 'Collection memberships' }),
+    ).toBeTruthy();
+    for (const [name, heading] of [
+      ['Reviews', 'Review & Publication'],
+      ['Search', 'Knowledge Search'],
+      ['Operations', 'Processing operations'],
+      ['Governance', 'Governance & Compliance'],
+      ['Audit', 'Audit History'],
+    ] as const) {
+      await user.click(screen.getByRole('link', { name }));
+      expect(
+        screen.getByRole('heading', { name: heading, level: 1 }),
+      ).toBeTruthy();
+      expect(
+        screen.queryByRole('region', { name: 'Collections workspace' }),
+      ).toBeNull();
+      expect(
+        screen.getByText(
+          'This capability is unavailable in the current integration. No records or successful operations are simulated.',
+        ),
+      ).toBeTruthy();
+    }
   });
 });
