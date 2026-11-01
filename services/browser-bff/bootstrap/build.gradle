@@ -6,6 +6,31 @@ dependencies {
     implementation 'io.projectreactor:reactor-core'
 }
 
+// The same explicit Linux component entrypoint is used locally and by #222 CI.
+tasks.register('ingressLinuxAcceptance', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.documentknowledge.browserbff.bootstrap.IngressLinuxAcceptance'
+    maxHeapSize = '768m'
+    jvmArgs '-XX:ActiveProcessorCount=2'
+}
+
+def aggregateLayers = ['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap']
+    .collect { project(":services:browser-bff:${it}") }
+aggregateLayers.each { layer ->
+    layer.tasks.register('resolveAggregateVerificationInputs') {
+        dependsOn layer.tasks.named('testClasses')
+        doLast {
+            ['testRuntimeClasspath', 'jacocoAgent', 'jacocoAnt'].each { name ->
+                layer.configurations.getByName(name).resolve()
+            }
+        }
+    }
+}
+tasks.register('prepareAggregateVerification') {
+    dependsOn aggregateLayers.collect { it.tasks.named('resolveAggregateVerificationInputs') }
+}
+
 def ingressClassFiles = files(sourceSets.main.output.classesDirs.collect {
     fileTree(it) { include '**/BoundedIngressPolicy*.class'; include '**/PinnedIngressReadback*.class' }
 })

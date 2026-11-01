@@ -1,4 +1,14 @@
-## Current execution checkpoint — #312 — 2026-11-01 05:11 UTC
+## Current delivery checkpoint — #141 / #222 / #224 — 2026-11-01 18:03 UTC
+
+PR267 is merged into dev as `0d63008c774fd5a8d2f9e3c0f023270472e970a4`, after independent review and all13 terminal-success checks on published `2a443823c85c40b66115010c575c3f4b28c5ab2c`. Foundation41329695245 passed all11 jobs, including the entire genuine-provider/browser/COPY-FENCE/quota/scanner/inspector/DM sequence. Post-dev Foundation41332195752 FAILED at provider step17 consumed append replay before the DM read-only fault; actual HTTP status/cause is unknown and original failure evidence remains under166/237. Final INTEGRATED status is not established.
+
+Partial222 timer-retention correction is locally verified in the pinned Linux/JDK environment:71 affected BFF tests/26 ingress cases pass; all floors and original deadlines/assertions remain. Original-default timer control1001retained tasks becomes1; changed factory has100% line coverage. The common targeted command serializes test JVMs at unchanged2GB/256PID limits. Source fingerprint/log evidence and retained runner failures are recorded in docs/implementation/dkp-004-status.md. Publication, scoped CI and integration remain pending; global admission/aggregate readiness is not implemented by this timer correction. The owner requires only222 affected checks, with no new whole Foundation/provider/hour run.
+
+BP03 remains OPEN. Final audit222/224 must reconcile the original28requirements/63scenarios and supplementary26requirements/33scenarios. In particular, bounded-ingress contract clauses4–5 require separately accounted overhead/transport/edge buffers and aggregate retained-request/connection accounting. The147456-byte allowance is per request; ten domain slots do not bound pre-auth connections. Per-namespace or per-request proofs alone cannot close this aggregate development gate. Reviewed archive141 follows successful acceptance and integration, not merely green CI.
+
+The original77d genuine3618.382035-second expiry proof remains source-labelled77d. Independent224 verified unchanged runtime/acceptance/expiry inputs through2a; this is not a new2a-hour run. Broader parity427 and retained-log completeness430 remain explicit open follow-ups. Preserve BP05 legacy append compatibility and architecture/security/CID/production gates. Historical checklists below retain their recorded states and do not override this checkpoint.
+
+## Historical execution checkpoint — #312 — 2026-11-01 05:11 UTC
 
 - [ ] #344: repair actual Linux OS-lock exclusion after failed same-JVM contention; retain causal baseline failure and independently verify corrected public SYSTEM constructors. Earlier14-case #335/#337 proof is narrower.
 - [ ] #328: complete approved generic temporary-file roles, physical ownership/fault evidence, coverage and independent review before integration.
@@ -33,7 +43,7 @@ Runtime issues91–99 were created before execution. Development specification a
 
 - [ ] 3.1 [issues #110/#111; created before review, in progress] Independent implementation security/architecture review; resolve issues before PR merge dev, require applicable checks green and actual evidence.
 - [ ] 3.2 [issue #141; created before delivery, in progress] Reviewed PR into dev, integration checks and verified issue closures, resumable handoff plus actual current-session /compact or honest pending marker.
-- [ ] 3.3 [issue UNCREATED; unstarted] Requirement audit and reviewed archive after integration; retain BP05 legacy-version/append compatibility obligation, next BP04 queue and open CID07/CID15/production gates.
+- [ ] 3.3 [existing issues #222/#224 for final audit; #141 for reviewed archive] Requirement audit and reviewed archive after integration; retain BP05 legacy-version/append compatibility obligation, owner-directed frontend catch-up before subsequent backend work, and open CID07/CID15/production gates. Reuse these existing tasks rather than creating another audit issue.
 
 ## 4. Consolidated specification review corrections — #88
 

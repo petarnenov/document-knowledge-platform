@@ -4,7 +4,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 /** Streaming transport deadline includes blocked reads; no whole-file buffer and no retryable supplier. */
 final class BoundedStream extends FilterInputStream {
- private static final ScheduledExecutorService TIMER=Executors.newSingleThreadScheduledExecutor(r->{var t=new Thread(r,"dkp-bff-stream-deadlines");t.setDaemon(true);return t;});
+ private static final ScheduledExecutorService TIMER=StreamDeadlineTimer.create();
  private final long expected;private final Runnable firstByte;private final AtomicBoolean closed=new AtomicBoolean();private boolean started;private volatile boolean timedOut;private volatile org.documentknowledge.browserbff.application.BffFailure rejection;private long count;
  private final ScheduledFuture<?> total;private ScheduledFuture<?> idle;
  BoundedStream(InputStream source,long expected,Runnable firstByte){this(source,expected,firstByte,300_000,30_000);}
