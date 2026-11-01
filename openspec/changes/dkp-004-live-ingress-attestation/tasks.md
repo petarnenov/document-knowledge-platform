@@ -3,7 +3,7 @@
 - [x] 1.1 Independently inspect pinned primary source/API and reproduce same-instance public-config/identity blind spots without reading private state or sending a body.
 - [x] 1.2 Draft option B read-only technical amendment, exact closed descriptor, alternatives, proof limits and prospective tests. This is not approval.
 - [x] 1.3 Strict all OpenSpec16/16, descriptor28 tests (100% lines/branches), strictAjv2020 one positive/40 negatives and real public API probe3/3 pass; exact candidate frozen for independent root review.
-- [ ] 1.4 Resolve independent findings and record any standing development-specification approval separately. No formal architecture/security/CID/production approval is implied.
+- [x] 1.4 Independent source review375 and written-gate audit398 accepted; exact9beb1d0 development technique approval is recorded separately in approval.md under standing owner authorization. No formal architecture/security/CID/production approval, full CI or runtime acceptance is implied.
 - [ ] 1.5 Publish reviewed PR; applicable exact-head CI and review remain required. Do not automatically merge.
 
 ## 2. Implementation and acceptance — NOT STARTED by this change
