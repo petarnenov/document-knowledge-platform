@@ -1,0 +1,25 @@
+import { isDeepStrictEqual } from 'node:util';
+
+const artifact = {
+  coordinate: 'io.micronaut:micronaut-http-server-netty:5.2.20',
+  binarySha256: '379303cc7367769872506e85a7d4fce9692b2d04c6aae8bdc9f008f3c51836b4',
+  sourceJarSha256: 'a7c7ba7a4819af57b5911ccfa4b0dd51364352397ad0b10a512fafc27d19686c',
+  handlerSourceSha256: '0e0be488901d9a721f7e4e5bcacff12dc1b453f3e180d71592ad2f0640721659',
+};
+const fields = [
+  { name: 'bodySizeLimits', type: 'io.micronaut.http.body.stream.BodySizeLimits', modifiers: ['private'], expectedMaxBodySize: 100000000, expectedMaxBufferSize: 131072 },
+  { name: 'requestDecompressionEnabled', type: 'boolean', modifiers: ['private'], expectedValue: false },
+];
+const expected = {
+  schemaVersion: 1, profile: 'bff-http1-ingress-v1', readbackAdapter: 'micronaut-pipelining-readback-v1', selectionState: 'PROPOSED',
+  artifact, declaringClass: 'io.micronaut.http.server.netty.handler.PipeliningServerHandler', classFinal: true, runtimeLayout: 'unnamed-classpath-unshaded-jvm', fields,
+  allowedReflectionOperations: ['getDeclaredField', 'getDeclaringClass', 'getType', 'getModifiers', 'trySetAccessible', 'get', 'getBoolean'],
+  privateWrites: false, fallback: false, jvmOpensOverride: false,
+  callbacks: ['channelRead', 'channelReadComplete', 'exceptionCaught'], eventLoopOnly: true, adjacentToActualHandler: true, latchUnavailable: true,
+};
+
+/** Specification descriptor check only; never introspects production classes or repairs values. */
+export function validateProfile(value) {
+  if (!isDeepStrictEqual(value, expected)) throw new Error('Exact proposed read-only pinned descriptor required');
+  return true;
+}
