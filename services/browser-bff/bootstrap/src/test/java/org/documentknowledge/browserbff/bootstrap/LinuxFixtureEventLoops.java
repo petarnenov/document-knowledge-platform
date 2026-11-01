@@ -11,7 +11,7 @@ import java.time.Duration;
 import java.util.IdentityHashMap;
 import java.util.concurrent.TimeUnit;
 
-/** Test-only actual fixture exit witness; never changes a group's shutdown policy. */
+/** Exit witness for synchronous test fixtures; never changes a group's shutdown policy. */
 @Singleton
 final class LinuxFixtureEventLoops implements BeanCreatedEventListener<NettyEmbeddedServer> {
     private static volatile Scope current;
@@ -61,7 +61,9 @@ final class LinuxFixtureEventLoops implements BeanCreatedEventListener<NettyEmbe
                 long remaining = deadline - System.nanoTime();
                 if (remaining <= 0 || !group.terminationFuture().await(remaining, TimeUnit.NANOSECONDS)
                     || !group.terminationFuture().isSuccess() || !group.isTerminated())
-                    throw new AssertionError("Previous fixture event-loop group has not actually terminated");
+                    throw new AssertionError("Previous fixture event-loop group has not actually terminated: "
+                        + group.getClass().getName() + " shuttingDown=" + group.isShuttingDown()
+                        + " shutdown=" + group.isShutdown() + " terminated=" + group.isTerminated());
             }
         }
 

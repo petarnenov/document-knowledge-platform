@@ -30,9 +30,21 @@ class LinuxFixtureEventLoopsTest {
             assertThrows(AssertionError.class, () -> scope.await(Duration.ofMillis(25)));
             assertEquals(1, scope.size(), "unproved owner must stay identified after the wait fails");
             assertFalse(group.isTerminated());
-        } finally { release.countDown(); }
+        } finally {
+            release.countDown();
+            group.shutdownGracefully(0, 1, TimeUnit.SECONDS);
+            assertTrue(group.terminationFuture().await(3, TimeUnit.SECONDS), "owned test group cleanup must finish");
+        }
         scope.await(Duration.ofSeconds(3));
         assertTrue(group.isTerminated());
+    }
+
+    @Test void rejectedStartupStillClosesEveryCreatedFixtureGroup() throws Exception {
+        try (var scope = LinuxFixtureEventLoops.observe()) {
+            new BoundedIngressPolicyTest().actualServerCannotStartWithUnselectedWindowOrProtocol();
+            assertTrue(scope.size() > 0, "real rejected startup must exercise actual group ownership");
+            scope.await(Duration.ofSeconds(15));
+        }
     }
 
     @Test void actualServerCapturesDirectAcceptorAndRegistryWorkerGroupsAndWaitsAfterClose() throws Exception {

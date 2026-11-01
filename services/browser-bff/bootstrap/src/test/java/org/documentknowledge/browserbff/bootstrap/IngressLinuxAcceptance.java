@@ -5,7 +5,9 @@ public final class IngressLinuxAcceptance {
     @FunctionalInterface interface Case { void run() throws Exception; }
     private static int passed;
     static void run(String name, Case body)throws Exception {
-        try (var fixtureLoops = LinuxFixtureEventLoops.observe()) { body.run(); }
+        var fixtureLoops = LinuxFixtureEventLoops.observe();
+        try (fixtureLoops) { body.run(); }
+        System.out.println("{\"fixture\":\""+name+"\",\"terminatedEventLoopGroups\":"+fixtureLoops.size()+"}");
         passed++;System.out.println("{\"case\":\""+name+"\",\"result\":\"PASS\"}");
     }
     static String json(java.util.Map<String,Long> values) {
