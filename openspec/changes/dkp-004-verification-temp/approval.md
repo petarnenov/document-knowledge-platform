@@ -1,0 +1,11 @@
+# Development implementation approval — #299 / #296
+
+Recorded 2026-11-01T04:01:07.936182+00:00 under the owner's standing authorization for automatic specification approval after independent review and passing applicable checks.
+
+Approved specification source: `ffa0cc17451b45651ca879ae4a4abe98fe6deb07`, PR [#306](https://github.com/petarnenov/document-knowledge-platform/pull/306). Public nine-file manifest SHA256: `c9c4c40aa297bcf133c077e063d2333470494f61fcfda85af57b9a05cbc69a20`. Independent specification/security source review [#304](https://github.com/petarnenov/document-knowledge-platform/issues/304) accepted original normative packet `8ee41c34fe0f20113d43c20f74896bc819b1de1eed75614bd4e6f689c14960bb`; only source-review/status metadata changed before the public source commit.
+
+Applicable source checks: [Foundation41269885883](https://github.com/petarnenov/document-knowledge-platform/actions/runs/41269885883) SUCCESS, all ten jobs including native providers/HTTPS/quota; [Repository hygiene41269885910](https://github.com/petarnenov/document-knowledge-platform/actions/runs/41269885910) SUCCESS on the exact source commit. Root strict OpenSpec13/13, contracts/SDK drift and secrets checks PASS; independent strict schema checks PASS.
+
+The selected development profile is one verification operation per DM instance, SOURCE100000000 plus reusable SCRATCH100000000 bytes, with distinct durable capability/ownership/recovery and strict existing COMPLETE240/shared-STORAGE60 budgets. [#296](https://github.com/petarnenov/document-knowledge-platform/issues/296) may implement and test this reviewed technical specification in its isolated worktree. No domain database, public API, S3 privilege, remote fence or whole-DM resource profile is changed by approval.
+
+This is development implementation approval only. Actual unprivileged Linux/files/physical-byte/process-restart/cancellation/stale-owner/factory/native-provider/HTTPS/coverage/currentCI and independent implementation review remain mandatory. Full BP03 resource acceptance, separate TRANSFER/preappend #308, final-source60-minute expiry and reviewed dev integration remain open. No formal architecture/security-control/CID/retention-law/production-release sign-off or automatic merge is granted. Latest owner AGENTS requires PR review and prohibits automatic merging.

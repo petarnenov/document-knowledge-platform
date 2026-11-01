@@ -4,13 +4,13 @@ Audit #307 baseline87296c7f6c4504864ba77acfae5d969ffcc7704a uses unchanged produ
 
 Approved System Design §§7.5,8.1,12.1 requires untrusted-resource bounds/admission. Frozen BP03 content-and-limits preserves1..100000000byte sources, ten global/five tenant active slots,300s transfer/30s idle, COMPLETE240/SCAN120/INSPECT60/shared-STORAGE60, current authority and exact original/receipt semantics.
 
-## Decisions — unapproved development candidates
+## Decisions — approved development selection
 
 ### 1. Numeric scope
 
 TRANSFER retains its existing maximum ten executing application calls. The NEW local physical-payload selection is ten durable lanes, each bounded by trusted declaredSize<=100000000bytes:1000000000payload bytes per DM instance. Retained files continue occupying their lanes after execution ends; remote quota is not their reservation.
 
-PREAPPEND proposes a NEW independent two-global-lane profile, each bounded by the trusted receipt size<=100000000bytes:200000000payload bytes per instance. Two is a development availability/resource choice awaiting review, not an existing approved numeric guarantee. No extra actor quota is introduced; all records still bind exact actor/tenant/resource identity.
+PREAPPEND proposes a NEW independent two-global-lane profile, each bounded by the trusted receipt size<=100000000bytes:200000000payload bytes per instance. Two is the reviewed development availability/resource selection recorded in approval.md; actual physical capacity and lifecycle acceptance remain required. No extra actor quota is introduced; all records still bind exact actor/tenant/resource identity.
 
 The two generic roles together permit at most1200000000payload bytes. Filesystem metadata/marker/lock overhead is separately fixed and bounded by the closed namespace. This arithmetic is not proof of an implemented whole-DM disk budget. Verification #299's proposed200MB and content #249's200MB remain separate; no shared quota release or namespace adoption follows.
 
@@ -76,4 +76,4 @@ Fresh initialization refuses ambiguous legacy dkp-bytes/verified-copy remnants. 
 
 No domain DB/public contract migration is proposed. A future separately tracked implementation must preserve legacy-mode behavior when uploads are disabled and pass diagnostics/RED-GREEN, unprivileged Linux/file/process, source/branch floors, native providers, strict HTTPS, CI and reviewed integration. Reverting to path-only logic with retained records is forbidden; retain safe ownership or fail closed.
 
-This draft is not implementation or resource/production readiness. Audit #307 and independent review #309 are complete; independent #308 specification/security source review #315 PASS. Development approval remains PENDING applicable PR checks and separately pending #299; no production implementation is authorized yet. The aggregate BP03 gate stays OPEN; no other lifecycle's successful test is substituted.
+This specification has development implementation approval recorded in approval.md after independent review #315 and exact-source green checks. Dependency #299 has separate recorded development approval. This is not implementation or resource/production readiness. The aggregate BP03 gate stays OPEN; no other lifecycle's successful test is substituted.

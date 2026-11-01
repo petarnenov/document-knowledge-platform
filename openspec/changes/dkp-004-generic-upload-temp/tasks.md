@@ -4,11 +4,11 @@
 - [x] 1.2 Draft new explicit TRANSFER/PREAPPEND profile, application capabilities, closed records/namespace, publication, time/admission/replay/recovery/lifecycle contracts and causal test plan.
 - [x] 1.3 Author strict OpenSpec14/14, strict JSON Schema2020 with8valid/33invalid fixtures, maximum canonical567<2048bytes, normative paragraph and whitespace checks PASS; freeze exact source. These are author validation, not approval.
 - [x] 1.4 Independent specification/security source review [#315](https://github.com/petarnenov/document-knowledge-platform/issues/315) PASS; root independently reran strict OpenSpec14/14 and strict schema8valid/33invalid, max567<2048bytes. Frozen299/296 owner work unchanged; development approval remains pending applicable PR checks.
-- [ ] 1.5 Record development-only selection after accepted review and applicable PR checks; no architecture/security-control/CID/production/retention-law approval inferred.
+- [x] 1.5 Development-only selection recorded in approval.md after accepted #315 review and exact-source green Foundation/hygiene checks; no architecture/security-control/CID/production/retention-law approval inferred.
 
-## 2. Separate implementation — issue first, not started
+## 2. Separate implementation — [#328](https://github.com/petarnenov/document-knowledge-platform/issues/328)
 
-- [ ] 2.1 Create scoped implementation issue before new production work and preserve unchanged pre-fix #307 physical characterization/RED evidence honestly.
+- [x] 2.1 Created scoped implementation #328 before production work; unchanged pre-fix #307 physical characterization/RED evidence remains required and must be preserved honestly.
 - [ ] 2.2 Implement shared generic application ports and outbound bounded durable private manager, exact TRANSFER/PREAPPEND identities/roles/lanes, strict current-authority-before-admission and no Path fallback.
 - [ ] 2.3 Bind real TRANSFER and ReceiptArtifactAuthority preflight allocation/cleanup/replay/factory paths, preserve current remote writer/fence/lease/accounting and receipt/version/command/audit atomicity.
 - [ ] 2.4 Implement remaining-budget I/O/settlement, strict cleanup-before-success boundary, metadata durability, safe recovery/readiness/shutdown/legacy/rollback; no unknown-COMMIT rollback claim.
