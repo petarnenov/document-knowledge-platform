@@ -397,12 +397,27 @@ class UploadLifecycleTest {
   var current=store.uploads.slot(caller.tenant(),slot).orElseThrow();assertEquals(UploadState.RECEIVING,current.state());assertTrue(current.writerSettled());assertTrue(store.uploads.outcomes.isEmpty()||store.uploads.outcomes.values().stream().noneMatch(o->o.key().operation().equals("upload.transfer")));
   assertEquals(2*bytes().length,store.uploads.global.transientBytes());var work=store.uploads.pendingCleanup(caller.tenant(),slot).getFirst();assertNotNull(work.object());assertTrue(cleanup().cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));assertEquals(UploadState.INITIALIZED,app.status(caller,slot).state());storage.onPut=()->{};assertNotNull(app.transfer(caller,slot,"fresh",new ByteArrayInputStream(bytes())));
  }
- @Test void lateVerificationCopySettlesOnlyItsExactOutcomeWithoutReceiptAndRecoversAfterFencedCleanup(){
-  var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));storage.onCopy=()->{failure(409,"UPLOAD_STATE_CONFLICT",()->uploads().complete(caller,slot,"concurrent"));clock.advance(300);failure(503,"UNAVAILABLE",()->uploads().complete(caller,slot,"expired-concurrent"));};
-  failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"late"));var current=store.uploads.slot(caller.tenant(),slot).orElseThrow();assertTrue(current.writerSettled());assertNotNull(current.original());assertTrue(store.uploads.receipts.isEmpty());assertTrue(store.uploads.evidence.isEmpty());assertEquals(2*bytes().length,current.transientReservation());
+ @Test void lateVerificationCopySettlesOnlyItsExactOutcomeWithoutReceiptAndRecoversAfterFencedCleanup()throws Exception{
+  var worker=new AtomicReference<Thread>();
+  var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));storage.onCopy=()->{worker.set(Thread.currentThread());failure(409,"UPLOAD_STATE_CONFLICT",()->uploads().complete(caller,slot,"concurrent"));clock.advance(300);failure(503,"UNAVAILABLE",()->uploads().complete(caller,slot,"expired-concurrent"));};
+  failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"late"));assertNotNull(worker.get());assertTrue(worker.get().join(Duration.ofSeconds(2)),"Caller timeout is not provider settlement; await the exact owned worker before terminal assertions");var current=store.uploads.slot(caller.tenant(),slot).orElseThrow();assertTrue(current.writerSettled());assertNotNull(current.original());assertTrue(store.uploads.receipts.isEmpty());assertTrue(store.uploads.evidence.isEmpty());assertEquals(2*bytes().length,current.transientReservation());
   int copies=storage.copyCalls;failure(503,"UNAVAILABLE",()->uploads().complete(caller,slot,"blocked"));assertEquals(copies,storage.copyCalls);
   var work=store.uploads.pendingCleanup(caller.tenant(),slot).getFirst();assertTrue(cleanup().cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));storage.onCopy=()->{};assertNotNull(uploads().complete(caller,slot,"fresh").receiptId());
  }
+ @Test void callerCancellationKeepsDispatchedCopyUnsettledAndChargedUntilExactWorkerActuallyReturns()throws Exception{
+  var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));
+  var entered=new java.util.concurrent.CountDownLatch(1);var release=new java.util.concurrent.CountDownLatch(1);var returned=new java.util.concurrent.CountDownLatch(1);var worker=new AtomicReference<Thread>();var problem=new AtomicReference<Throwable>();
+  storage.onCopy=()->{worker.set(Thread.currentThread());entered.countDown();while(release.getCount()>0)try{release.await();}catch(InterruptedException ignored){}};
+  var callerThread=Thread.ofVirtual().start(()->{try{failure(503,"UNAVAILABLE",()->app.complete(caller,slot,"cancelled-copy"));}catch(Throwable failure){problem.set(failure);}finally{returned.countDown();}});
+  try{
+   assertTrue(entered.await(2,java.util.concurrent.TimeUnit.SECONDS));callerThread.interrupt();assertTrue(returned.await(2,java.util.concurrent.TimeUnit.SECONDS));assertNull(problem.get());
+   store.execute(r->{var current=r.uploads().slot(caller.tenant(),slot).orElseThrow();assertFalse(current.writerSettled());assertNull(current.original());assertNotNull(current.possibleOriginal());assertEquals(2*bytes().length,current.transientReservation());assertTrue(store.uploads.receipts.isEmpty());assertTrue(store.uploads.evidence.isEmpty());return null;});
+  }finally{release.countDown();assertTrue(callerThread.join(Duration.ofSeconds(2)));if(worker.get()!=null)assertTrue(worker.get().join(Duration.ofSeconds(2)));}
+  var current=store.uploads.slot(caller.tenant(),slot).orElseThrow();assertTrue(current.writerSettled());assertNotNull(current.original());assertTrue(store.uploads.receipts.isEmpty());assertTrue(store.uploads.evidence.isEmpty());assertEquals(2*bytes().length,current.transientReservation());
+  int copies=storage.copyCalls;failure(503,"UNAVAILABLE",()->uploads().complete(caller,slot,"blocked"));assertEquals(copies,storage.copyCalls);
+  var work=store.uploads.pendingCleanup(caller.tenant(),slot).getFirst();assertEquals(current.original(),work.object());assertTrue(cleanup().cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));storage.onCopy=()->{};assertNotNull(uploads().complete(caller,slot,"fresh").receiptId());
+ }
+
  @Test void unknownTransferWriterReturnsUnavailableWithoutRetryingOrFreeingCharges(){
   var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);storage.failPut=true;failure(503,"UNAVAILABLE",()->app.transfer(caller,slot,"unknown",new ByteArrayInputStream(bytes())));failure(503,"UNAVAILABLE",()->app.transfer(caller,slot,"retry",new ByteArrayInputStream(bytes())));assertEquals(2*bytes().length,store.uploads.global.transientBytes());assertFalse(store.uploads.slot(caller.tenant(),slot).orElseThrow().writerSettled());assertTrue(store.uploads.receipts.isEmpty());
  }
