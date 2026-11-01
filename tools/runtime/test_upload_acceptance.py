@@ -66,7 +66,7 @@ class AcceptanceTests(unittest.TestCase):
     def arrange_prepared(self):
         self.directory.mkdir(mode=0o700)
         for part in ('app','app/denied','app/inspector'):(self.directory/part).mkdir(mode=0o700)
-        for name in ('app/denied/access-key','app/denied/secret-key','app/denied/access-key.role','app/inspector/ca.crt','app/inspector/service.key'):m.private(self.directory/name,'synthetic')
+        for name,value in {'app/denied/access-key':'1'*32,'app/denied/secret-key':'2'*64,'app/denied/access-key.role':'dkp-storage-cleanup-v1\n'+hashlib.sha256(('1'*32).encode()).hexdigest()+'\n'+hashlib.sha256(('2'*64).encode()).hexdigest()+'\n','app/inspector/ca.crt':'public-inspector-ca','app/inspector/service.key':'synthetic-service-key'}.items():m.private(self.directory/name,value)
         record=self.record();record['files']={str(p.relative_to(self.directory)):m.sha(p) for p in (self.directory/'app').rglob('*') if p.is_file()}
         m.save(self.directory,record);return record
     def replace_record(self,record):m.save(self.directory,record)
@@ -126,7 +126,7 @@ class AcceptanceTests(unittest.TestCase):
             Path(args[args.index('--dump-header')+1]).write_text('HTTP/1.1 200 OK\r\nx-amz-version-id: exact\r\n')
             return b'200'
         self.p('command',side_effect=curl)
-        for authority in ('root','app','denied'):
+        for authority in ('normal','cleanup','denied'):
             status,body,headers=m.request(self.directory,self.fixture,self.state,authority,'PUT','/private-selector',b'body')
             self.assertEqual((200,b'public',{'x-amz-version-id':'exact'}),(status,body,headers))
         m.request(self.directory,self.fixture,self.state,'denied','HEAD','/private-selector')
@@ -166,7 +166,7 @@ class AcceptanceTests(unittest.TestCase):
             def curl(args,**kwargs):
                 Path(args[args.index('--output')+1]).write_bytes(body);Path(args[args.index('--dump-header')+1]).write_text(headers);return status
             with patch.object(m,'command',side_effect=curl):
-                with self.assertRaises(ValueError):m.request(self.directory,self.fixture,self.state,'root','GET','/')
+                with self.assertRaises(ValueError):m.request(self.directory,self.fixture,self.state,'normal','GET','/')
         with patch.object(subprocess,'run',side_effect=subprocess.TimeoutExpired('curl',20)):
             with self.assertRaises(ValueError):m.command(['curl'])
         with patch.object(subprocess,'run',return_value=SimpleNamespace(returncode=1,stdout=b'secret',stderr=b'secret')):
@@ -177,7 +177,7 @@ class AcceptanceTests(unittest.TestCase):
     def matrix_request(self,work,fixture,state,authority,method,path,body=None):
         if path.endswith('?versioning'):return 200,b'<VersioningConfiguration><Status>Enabled</Status></VersioningConfiguration>',{}
         if method=='PUT':return 200,b'',{'x-amz-version-id':'exact-version'}
-        if method=='HEAD':return 200,b'',{}
+        if method=='HEAD':return (404 if authority=='normal' else 200),b'',{}
         if method=='GET':return 200,b'Public synthetic issue151 non-mutating exact-version proof.\n',{}
         if authority=='denied':return 403,b'<Error><Code>AccessDenied</Code></Error>',{}
         self.assertIn('?versionId=exact-version',path);self.assertTrue(path.startswith('/dkp-'));return 204,b'',{}
@@ -188,7 +188,70 @@ class AcceptanceTests(unittest.TestCase):
         with patch.object(m,'request',side_effect=send):m.matrix(self.directory,self.fixture,self.state)
         ledger=json.loads((self.directory/'matrix-ledger.private').read_text());self.assertEqual(2,len(ledger));self.assertTrue(all(row['deleted'] for row in ledger))
         self.assertTrue(all(row['key'].startswith(self.state['prefix']) and row['version']=='exact-version' for row in ledger))
-        self.assertEqual(2,sum(e[0]=='denied' and e[1]=='DELETE' for e in events));self.assertEqual(2,sum(e[0]=='app' and e[1]=='DELETE' for e in events))
+        self.assertEqual(2,sum(e[0]=='denied' and e[1]=='DELETE' for e in events));self.assertEqual(2,sum(e[0]=='cleanup' and e[1]=='DELETE' for e in events))
+
+    def test_cleanup_uses_dedicated_role_and_object_selector_never_falls_back(self):
+        self.arrange_prepared()
+        captured=[]
+        def curl(args,**kwargs):
+            config=Path(args[args.index('--config')+1]).read_text().splitlines()
+            captured.append(next(line for line in config if line.startswith('user = ')))
+            Path(args[args.index('--output')+1]).write_bytes(b'')
+            Path(args[args.index('--dump-header')+1]).write_text('')
+            return b'204'
+        with patch.object(m,'command',side_effect=curl):
+            for authority,access,secret in [('normal','c'*32,'d'*64),('cleanup','e'*32,'f'*64)]:
+                m.request(self.directory,self.fixture,self.state,authority,'DELETE','/dkp-quarantine/exact?versionId=synthetic')
+                self.assertEqual('user = '+json.dumps(access+':'+secret),captured[-1])
+            before=len(captured)
+            for unknown in ['app','root','administrator','CLEANUP','',None]:
+                with self.subTest(authority=unknown),self.assertRaises(ValueError):
+                    m.request(self.directory,self.fixture,self.state,unknown,'GET','/dkp-quarantine/exact')
+            self.assertEqual(before,len(captured))
+
+    def test_scoped_role_hash_swap_invalid_bytes_or_missing_file_reject_before_transport(self):
+        self.arrange_prepared()
+        for authority,path in [('normal',self.fixture/'app/access-key.role'),('cleanup',self.fixture/'app/cleanup-access-key.role'),('denied',self.directory/'app/denied/access-key.role')]:
+            original=path.read_bytes();path.write_text('dkp-storage-normal-v1\n'+'0'*64+'\n'+'0'*64+'\n')
+            with patch.object(m,'command') as command,self.assertRaisesRegex(ValueError,'role mismatch'):
+                m.request(self.directory,self.fixture,self.state,authority,'GET','/synthetic')
+            command.assert_not_called();path.write_bytes(original)
+        path=self.fixture/'app/cleanup-access-key';original=path.read_bytes();path.write_text('not-credential')
+        with patch.object(m,'command') as command,self.assertRaises(ValueError):m.request(self.directory,self.fixture,self.state,'cleanup','DELETE','/synthetic')
+        command.assert_not_called();path.write_bytes(original)
+        path=self.fixture/'app/cleanup-access-key.role';original=path.read_bytes();path.unlink()
+        with patch.object(m,'command') as command,self.assertRaises(ValueError):m.request(self.directory,self.fixture,self.state,'cleanup','DELETE','/synthetic')
+        command.assert_not_called();path.write_bytes(original);path.chmod(0o600)
+
+    def test_root_bootstrap_is_finite_exact_readonly_iam_and_never_object_transport(self):
+        self.arrange_prepared();calls=[];run='3'*32
+        with patch.object(m,'_request',side_effect=lambda *args:(calls.append(args),(200,b'',{}))[1]):
+            m.bootstrap_readonly(self.directory,self.fixture,self.state,run)
+        self.assertEqual(3,len(calls));self.assertTrue(all(c[4]=='PUT' and c[5].startswith('/rustfs/admin/v3/') for c in calls))
+        self.assertEqual(['/add-canned-policy','/add-user','/set-user-or-group-policy'],[c[5].split('?')[0].removeprefix('/rustfs/admin/v3') for c in calls])
+        self.assertEqual(m.readonly_policy(self.state['prefix']),json.loads(calls[0][6]));self.assertIn('dkp151-readonly-'+run,calls[0][5])
+        self.assertTrue(all(c[3]=='user = '+json.dumps('a'*32+':'+'b'*64) for c in calls))
+        with patch.object(m,'_request') as transport:
+            for invalid in ['root','',None,'3'*31]:
+                with self.assertRaises(ValueError):m.bootstrap_readonly(self.directory,self.fixture,self.state,invalid)
+            transport.assert_not_called()
+        path=self.fixture/'root-curl.private';before=path.read_bytes();path.write_text('user = "wrong"\n')
+        with patch.object(m,'_request') as transport,self.assertRaisesRegex(ValueError,'binding differs'):m.bootstrap_readonly(self.directory,self.fixture,self.state,run)
+        transport.assert_not_called();path.write_bytes(before)
+        path=self.fixture/'server/root-access';before=path.read_bytes();path.write_text('invalid')
+        with patch.object(m,'_request') as transport,self.assertRaises(ValueError):m.bootstrap_readonly(self.directory,self.fixture,self.state,run)
+        transport.assert_not_called();path.write_bytes(before)
+        with patch.object(m,'_request',return_value=(403,b'',{})),self.assertRaisesRegex(ValueError,'bootstrap failed'):m.bootstrap_readonly(self.directory,self.fixture,self.state,run)
+
+    def test_matrix_final_cleanup_never_selects_normal_or_root(self):
+        self.arrange_prepared();events=[]
+        def send(*args,**kwargs):
+            events.append(args[3:6])
+            if args[4]=='DELETE' and args[3]!='denied':self.assertEqual('cleanup',args[3])
+            return self.matrix_request(*args,**kwargs)
+        with patch.object(m,'request',side_effect=send):m.matrix(self.directory,self.fixture,self.state)
+        self.assertEqual(2,sum(role=='cleanup' and method=='DELETE' for role,method,_ in events))
+        self.assertEqual(2,sum(role=='denied' and method=='DELETE' for role,method,_ in events))
 
     def test_matrix_denial_readback_version_and_privacy_errors_never_cleanup_unproven_versions(self):
         self.arrange_prepared()
@@ -200,20 +263,20 @@ class AcceptanceTests(unittest.TestCase):
                 if failure=='head' and method=='HEAD':return 403,b'',{}
                 if failure=='delete' and method=='DELETE' and authority=='denied':return 204,b'',{}
                 if failure=='readback' and method=='GET' and not path.endswith('?versioning'):return 200,b'changed',{}
-                if failure=='cleanup' and method=='DELETE' and authority=='app':return 403,b'',{}
+                if failure=='cleanup' and method=='DELETE' and authority=='cleanup':return 403,b'',{}
                 return result
             with patch.object(m,'request',side_effect=send):
                 with self.assertRaises(ValueError):m.matrix(self.directory,self.fixture,self.state)
 
     def test_prepare_requires_fresh_ready_owned_providers_and_never_gives_root_authority_to_volume(self):
-        events=[];self.p('request',side_effect=lambda *a,**k:(events.append(('native',a[3],a[5])),(200,b'',{}))[1])
+        events=[];self.p('_request',side_effect=lambda *a,**k:(events.append(('native','operator',a[5])),(200,b'',{}))[1])
         self.p('matrix',side_effect=lambda *a:events.append(('matrix',)))
         self.p('attest_volume')
         self.p('volume',side_effect=lambda directory,record:events.append(('volume',sorted(str(p.relative_to(directory/'app')) for p in (directory/'app').rglob('*') if p.is_file()))))
         record=m.prepare(self.directory,self.fixture,self.live['directory'])
         self.assertEqual('prepared',record['phase']);self.assertEqual(5,len(record['files']));self.assertLess(events.index(('matrix',)),next(i for i,e in enumerate(events) if e[0]=='volume'))
         self.assertEqual(sorted(m.AUTHORITY_FILES),events[-1][1])
-        self.assertEqual(3,len([e for e in events if e[0]=='native']));self.assertTrue(all(e[1]=='root' for e in events if e[0]=='native'))
+        self.assertEqual(3,len([e for e in events if e[0]=='native']));self.assertTrue(all(e[1]=='operator' for e in events if e[0]=='native'))
         with self.assertRaises(ValueError):m.prepare(self.directory,self.fixture,self.live['directory'])
         other=self.directory.with_name('notready');self.runtime.verify=lambda p:(_ for _ in ()).throw(ValueError('unready'))
         with self.assertRaises(ValueError):m.prepare(other,self.fixture,self.live['directory'])

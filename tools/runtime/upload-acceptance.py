@@ -138,16 +138,60 @@ def readonly_policy(prefix):
         {'Effect':'Deny','Action':['s3:DeleteObjectVersion'],'Resource':resources}]}
 
 
+def scoped_credentials(work, fixture, authority):
+    # Names select fixed files and exact technical role bindings, never a fallback.
+    choices = {'normal': (fixture / 'app', '', 'normal'),
+               'cleanup': (fixture / 'app', 'cleanup-', 'cleanup'),
+               # The denied native-IAM fixture intentionally has the cleanup
+               # adapter's technical role, while its real policy denies DELETE.
+               'denied': (work / 'app/denied', '', 'cleanup')}
+    if not isinstance(authority, str) or authority not in choices:
+        raise ValueError('Unknown closed object authority')
+    directory,prefix,role = choices[authority]
+    owned_directory(directory)
+    values = [bounded(directory / (prefix + name),128).decode().strip() for name in ('access-key','secret-key')]
+    if not re.fullmatch('[a-f0-9]{32}',values[0]) or not re.fullmatch('[a-f0-9]{64}',values[1]):
+        raise ValueError('Invalid scoped object credentials')
+    binding = 'dkp-storage-' + role + '-v1\n' + ''.join(hashlib.sha256(value.encode()).hexdigest() + '\n' for value in values)
+    if bounded(directory / (prefix + 'access-key.role'),256).decode() != binding:
+        raise ValueError('Scoped object authority role mismatch')
+    return values
+
+
 def request(work, fixture, state, authority, method, path, body=None):
+    values = scoped_credentials(work,fixture,authority)
+    credentials = 'user = ' + json.dumps(':'.join(values))
+    return _request(work,fixture,state,credentials,method,path,body)
+
+
+def bootstrap_readonly(work, fixture, state, run_id):
+    # The only root entry point creates this run's finite readonly IAM fixture.
+    # Root cannot be selected for an object request or supplied an arbitrary path.
+    if not isinstance(run_id,str) or not re.fullmatch('[a-f0-9]{32}',run_id):
+        raise ValueError('Exact readonly bootstrap run required')
+    access,secret = scoped_credentials(work,fixture,'denied')
+    root = [bounded(fixture / 'server' / name,128).decode().strip() for name in ('root-access','root-secret')]
+    if (not re.fullmatch('[a-f0-9]{32}',root[0]) or not re.fullmatch('[a-f0-9]{64}',root[1])
+            or len(set([*root,access,secret])) != 4):
+        raise ValueError('Independent original bootstrap authority required')
+    expected = 'user = ' + json.dumps(':'.join(root)) + '\n'
+    if bounded(fixture / 'root-curl.private',1024).decode() != expected:
+        raise ValueError('Original root bootstrap binding differs')
+    policy_name = 'dkp151-readonly-' + run_id
+    operations = [('/add-canned-policy?name=' + policy_name,json.dumps(readonly_policy(state['prefix']))),
+                  ('/add-user?accessKey=' + access,json.dumps({'secretKey':secret,'status':'enabled'})),
+                  ('/set-user-or-group-policy?policyName=' + policy_name + '&userOrGroup=' + access + '&isGroup=false',None)]
+    for path,body in operations:
+        status,_,_ = _request(work,fixture,state,expected.strip(),'PUT','/rustfs/admin/v3' + path,body)
+        if status != 200:raise ValueError('Native readonly IAM bootstrap failed')
+
+
+def _request(work, fixture, state, credentials, method, path, body=None):
     # Every URL/signature identifier/body and response stays in private files.
     # curl --disable prevents ambient .curlrc from changing TLS/redirect policy.
     with tempfile.TemporaryDirectory(prefix='.request-', dir=work) as temporary:
         folder = Path(temporary);config,response,headers = [folder / name for name in ('curl.conf','response','headers')]
         private(response,b'');private(headers,b'')
-        if authority == 'root': credentials = (fixture / 'root-curl.private').read_text().strip()
-        else:
-            app = fixture / 'app' if authority == 'app' else work / 'app/denied'
-            credentials = 'user = ' + json.dumps(':'.join(bounded(app / name,128).decode().strip() for name in ('access-key','secret-key')))
         lines = ['url = ' + json.dumps(state['endpoint'] + path),'request = ' + json.dumps(method),credentials]
         if method == 'HEAD':lines.append('head')
         if body is not None:
@@ -182,7 +226,7 @@ def matrix(work, fixture, state):
         if status != 200 or not any(item.tag.split('}')[-1] == 'Status' and item.text == 'Enabled' for item in xml(body)):raise ValueError('Readonly principal cannot verify enabled versioning')
         key = state['prefix'] + str(uuid.uuid4());path = '/' + bucket + '/' + key
         ledger.append({'bucket':bucket,'key':key,'version':None,'deleted':False});record()
-        status,_,headers = request(work,fixture,state,'app','PUT',path,proof)
+        status,_,headers = request(work,fixture,state,'normal','PUT',path,proof)
         version = headers.get('x-amz-version-id','')
         if status != 200 or not version or version == 'null' or len(version.encode()) > 1024:raise ValueError('Synthetic exact version was not confirmed')
         ledger[-1]['version'] = version;record()
@@ -195,8 +239,10 @@ def matrix(work, fixture, state):
         if status != 403 or xml(body).findtext('Code') != 'AccessDenied':raise ValueError('Exact-version delete must return native403AccessDenied')
         status,body,_ = request(work,fixture,state,'denied','GET',exact)
         if status != 200 or body != proof:raise ValueError('Denied deletion mutated exact object')
-        status,_,_ = request(work,fixture,state,'app','DELETE',exact)
+        status,_,_ = request(work,fixture,state,'cleanup','DELETE',exact)
         if status != 204:raise ValueError('Recorded synthetic exact-version cleanup failed')
+        status,_,_ = request(work,fixture,state,'normal','HEAD',exact)
+        if status != 404:raise ValueError('Cleaned synthetic exact version still visible')
         ledger[-1]['deleted'] = True;record()
 
 
@@ -288,13 +334,7 @@ def prepare(directory, fixture_directory, runtime_directory):
     private(directory / 'app/denied/access-key.role','dkp-storage-cleanup-v1\n' + hashlib.sha256(access.encode()).hexdigest() + '\n' + hashlib.sha256(secret.encode()).hexdigest() + '\n')
     for name in ('ca.crt','service.key'):
         private(directory / 'app/inspector' / name,bounded(Path(live['directory']) / 'inspector/app' / name))
-    policy_name = 'dkp151-readonly-' + run_id
-    operations = [('/add-canned-policy?name=' + policy_name,json.dumps(readonly_policy(state['prefix']))),
-                  ('/add-user?accessKey=' + access,json.dumps({'secretKey':secret,'status':'enabled'})),
-                  ('/set-user-or-group-policy?policyName=' + policy_name + '&userOrGroup=' + access + '&isGroup=false',None)]
-    for path,body in operations:
-        status,_,_ = request(directory,fixture,state,'root','PUT','/rustfs/admin/v3' + path,body)
-        if status != 200:raise ValueError('Native readonly IAM bootstrap failed')
+    bootstrap_readonly(directory,fixture,state,run_id)
     matrix(directory,fixture,state);volume(directory,record)
     record['files'] = {str(p.relative_to(directory)):sha(p) for p in (directory / 'app').rglob('*') if p.is_file()}
     attest_volume(record);record['phase'] = 'prepared';save(directory,record)
