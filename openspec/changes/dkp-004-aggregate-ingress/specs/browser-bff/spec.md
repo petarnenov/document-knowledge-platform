@@ -135,3 +135,40 @@ The internal download result SHALL expose a read-only source-settlement stage. T
 #### Scenario: Genuine HTTP download reaches EOF
 - **WHEN** an actual trusted upstream download is consumed to normal EOF with successful underlying close
 - **THEN** its source stage completes without changing bytes, metadata, range or authorization behavior
+
+
+### Requirement: Finite production download delivery
+The production content route SHALL reserve at most64 presentation producers before upstream dispatch. It SHALL use eight read and two close workers, bounded queues64 each, at most one task of each kind and one delivery callback per producer, and one8192-byte scratch array per attached source. Ordinary exhaustion SHALL return503 before dispatch without poisoning readiness. Existing HTTP, authority, size and deadline contracts SHALL remain unchanged.
+
+#### Scenario: Concurrent blocked downloads exhaust delivery admission
+- **WHEN**64 presentation producers remain queued, active or unproved
+- **THEN** another source is not dispatched, and only witnessed settlement permits producer reuse
+
+### Requirement: Production bridge uses actual item and task ownership
+The delivery bridge SHALL use the approved arena-backed allocation pool and actual source-settlement stage. Producer settlement SHALL require successful source settlement, zero admitted tasks/callbacks and zero live private allocations, plus terminal delivery or cancellation. Unknown ownership SHALL remain charged and fail bridge readiness/admission closed.
+
+#### Scenario: Consumer retains a strict copy while close completes
+- **WHEN** source close succeeds but a queued task, callback or copied arena item remains
+- **THEN** the producer cannot be reused until every independent witness is satisfied
+
+### Requirement: Download cancellation before subscription or source attachment
+Request disposal, channel disconnect and framework discard SHALL prevent future source reads and request close asynchronously. They SHALL NOT imply successful cleanup. An upstream-pending producer SHALL remain owned until attachment or explicit controller certification that no source was acquired. Missing legacy source witnesses and failed close SHALL remain unproved.
+
+#### Scenario: Client disconnects before upstream returns
+- **WHEN** cancellation precedes source attachment or body subscription
+- **THEN** a later source is still attached to the retained owner, asynchronously closed and settled only by actual witnesses
+
+### Requirement: Pinned delivery writer compatibility
+The writer SHALL use the public ByteBodyFactory discard-aware overload with an explicitly pinned value-only BodySizeLimits exception. It SHALL validate the loaded HTTP/HTTP-Netty artifacts and actual factory/request profile, use approved size values and owned ReadBuffers, and never subclass internal framework types. Unsupported profiles SHALL fail closed without silent fallback to an unbounded producer.
+
+#### Scenario: Factory profile changes or discard occurs before subscribe
+- **WHEN** the loaded factory is unsupported or an unclaimed adapted body is closed
+- **THEN** unsupported writing is refused and the owned producer is cancelled without reporting false settlement or dispatch success
+
+
+### Requirement: Actual IO exit and serialized delivery callbacks
+All data/error/completion callbacks SHALL be serialized on the captured channel loop from inception with no nested emission. IO task ownership SHALL persist through actual Runnable return, rather than queued cancellation or future flags.
+
+#### Scenario: A blocked read is cancelled
+- **WHEN** cancellation is requested while a queued or active read still owns execution
+- **THEN** its task charge remains until actual exit and no off-loop terminal callback bypasses the delivery owner

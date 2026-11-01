@@ -19,6 +19,7 @@ FLOORS = (
     ('bootstrap', 'IngressAdmission'), ('bootstrap', 'PinnedIngressSettlement'),
     ('bootstrap', 'OutboundAdmission'), ('bootstrap', 'OwnedWriteBuffer'),
     ('bootstrap', 'OutboundWrites'), ('bootstrap', 'BridgeAllocationPool'),
+    ('bootstrap', 'DownloadBridge'), ('bootstrap', 'DownloadBodyWriter'),
     ('bootstrap', 'ingress'), ('bootstrap', 'liveReadback'),
     ('bootstrap', 'metadataBody'), ('adapters-out', 'transferLength'),
     ('adapters-out', 'StreamReadLifecycle'), ('adapters-out', 'UploadReadAdmission'))

@@ -23,11 +23,12 @@ public final class BridgeBufferCopyAcceptance {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         if (!System.getProperty("os.name").equals("Linux") || args.length != 1
             || !args[0].equals(System.getProperty("io.micronaut.buffer.netty.NettyReadBuffer.STRICT_REFCNT")))
             throw new IllegalArgumentException("Explicit fresh Linux copy profile required");
         BridgeAllocationPoolTest.assertActualMicronautConsumption();
+        new DownloadBridgeTest().retainedActualItemBlocksNextReadAndProducerSettlement();
         System.out.println("Bridge actual arena/copy profile PASS strict=" + args[0]);
     }
 }

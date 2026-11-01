@@ -64,7 +64,13 @@ public final class IngressLinuxAcceptance {
         run("outbound-real-slow-reader-and-disconnect", outbound::realSlowReaderRetainsFiniteWritesAndDisconnectActuallySettles);
         run("outbound-large-closed-metadata", outbound::actualLargeClosedMetadataResponseExceedsIncomingChunkWithoutTruncation);
         run("outbound-mutated-watermark-rejected", outbound::changedActualWriteWatermarkFailsClosedBeforeDispatch);
-        if(passed!=36)throw new IllegalStateException("INCOMPLETE_PROFILE");
-        System.out.println("{\"profile\":\"dkp338-linux-ingress-component\",\"passed\":36,\"failed\":0,\"skipped\":0}");
+        var delivery = new DownloadBridgeIntegrationTest();
+        run("download-production-exact-large-and-settlement", delivery::authenticatedProductionWriterDeliversExactLargeBytesAndSettlesAllOwners);
+        run("download-production-slow-reader-abort", delivery::slowAuthenticatedReaderBackpressuresAndAbortSettlesActualOwners);
+        run("download-disconnect-before-upstream-return", delivery::disconnectBeforeUpstreamHeadersRetainsReservationUntilLateSourceCloses);
+        run("download-current-session-revoked-after-dispatch", delivery::sessionRevokedDuringUpstreamDispatchDeniesContentAndClosesAttachedSource);
+        run("download-production-shared-capacity-refusal-and-reuse", delivery::realRouteRefusesFullSharedProducerBudgetBeforeUpstreamAndRecovers);
+        if(passed!=41)throw new IllegalStateException("INCOMPLETE_PROFILE");
+        System.out.println("{\"profile\":\"dkp338-linux-ingress-component\",\"passed\":41,\"failed\":0,\"skipped\":0}");
     }
 }

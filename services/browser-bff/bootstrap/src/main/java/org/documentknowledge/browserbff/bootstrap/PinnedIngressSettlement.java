@@ -54,7 +54,7 @@ final class PinnedIngressSettlement {
             || !field.trySetAccessible()) throw new IllegalAccessException();
     }
 
-    private static boolean artifactMatches(Class<?> type, String expected) throws Exception {
+    static boolean artifactMatches(Class<?> type, String expected) throws Exception {
         if (type.getClassLoader() != PinnedIngressSettlement.class.getClassLoader() || type.getModule().isNamed()) return false;
         var source = type.getProtectionDomain().getCodeSource();
         if (source == null || source.getLocation() == null || !source.getLocation().getProtocol().equals("file")) return false;
