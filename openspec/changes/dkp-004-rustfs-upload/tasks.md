@@ -1,3 +1,11 @@
+## Current execution checkpoint — #312 — 2026-11-01 05:11 UTC
+
+- [ ] #344: repair actual Linux OS-lock exclusion after failed same-JVM contention; retain causal baseline failure and independently verify corrected public SYSTEM constructors. Earlier14-case #335/#337 proof is narrower.
+- [ ] #328: complete approved generic temporary-file roles, physical ownership/fault evidence, coverage and independent review before integration.
+- [ ] #340/#343: resolve versioned Linux launcher source/bundle/canonical-ancestry review findings and rerun isolated proof.
+- [ ] #341 / PR345 / independent #346: review bounded BFF ingress technical selection; proposed source `dd7f47f` remains unapproved. #338 production correction follows only after specification gates.
+- [ ] Final current-source provider/resource/CI/genuine60-minute expiry and reviewed integration remain required. Local `d6902be` four-format browser4 PASS36.8s is scoped evidence; remote PR267 CI failure is retained. No new real-hour test is running; #222 aggregate resource audit remains open.
+
 ## 1. Specification — issue #88, parent #35
 
 - [x] 1.1 Read canonical BP01/BP02, System Design §§7.4/7.5/8.1/14 and existing runtime-unavailable receipt port; review public research #86.

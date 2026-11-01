@@ -14,6 +14,12 @@ After every verified task closure, save the resumable handoff and run `/compact`
 
 While work is active, publish a structured status at least every 15 minutes with completed, in-progress and blocked tasks, executed verification/results and next actions. Brief findings between these reports do not replace the periodic task/execution status. Resume the full queue after interruptions; package completion is a milestone, not the end of the project goal.
 
+## Active execution checkpoint — #312 — 2026-11-01 05:11 UTC
+
+BP03 draftPR267: local `d6902be` has reviewed verification workspace/runtime/native-test changes and actual4HTTPS browser PASS36.8s. Remote `73c3832` CI failed container fixtures and the dedicated provider-job stage; only the former has a reviewed local correction. Critical #344 independently composes failed same-JVM contention with child-process exclusion and exposes a gap in the previous14-case SYSTEM proof; correction/review remain pending. #328 generic temporary-file work, #340/#343 Linux launcher review, #338 bounded ingress implementation and final provider/resource/current-source genuine-hour gates remain OPEN. #341 technical specification draftPR345 has pending independent #346 review; do not treat it as implementation approval. #299 development approval is source-specific despite later PR306 metadata CI failure; #308 PR317 is development-approved and current CI green. No current real-hour expiry test is running.
+
+BP04 draftPR247 source `6ab7385`:3 actualHTTPS browser journeys PASS41.7s, owned runtime verified/stopped; exact-source Foundation41275086768 still running and hygiene passed. Broader package acceptance and integration remain OPEN. BP05 PR266 development specification is ready for review with prior green checks, but implementation remains blocked by package/runtime-profile dependencies. Full BP00–BP17 goal remains active; no automatic merge under latest owner AGENTS.
+
 ## Queue and dependencies
 
 Package names and acceptance come from System Design §14; DKP identifiers below are delivery identifiers, not claims that external issue tickets exist. Split a large package into reviewable OpenSpec changes when needed without reducing its acceptance or dropping unfinished work.
