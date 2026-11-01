@@ -126,3 +126,8 @@ tasks.named('check') { dependsOn tasks.named('liveReadbackCoverageVerification')
     }
     tasks.named('check') { dependsOn verification }
 }
+
+tasks.named('check') {
+    dependsOn ':services:browser-bff:adapters-out:StreamReadLifecycleCoverageVerification'
+    dependsOn ':services:browser-bff:adapters-out:UploadReadAdmissionCoverageVerification'
+}

@@ -20,7 +20,8 @@ FLOORS = (
     ('bootstrap', 'OutboundAdmission'), ('bootstrap', 'OwnedWriteBuffer'),
     ('bootstrap', 'OutboundWrites'),
     ('bootstrap', 'ingress'), ('bootstrap', 'liveReadback'),
-    ('bootstrap', 'metadataBody'), ('adapters-out', 'transferLength'))
+    ('bootstrap', 'metadataBody'), ('adapters-out', 'transferLength'),
+    ('adapters-out', 'StreamReadLifecycle'), ('adapters-out', 'UploadReadAdmission'))
 
 
 def digest(path):

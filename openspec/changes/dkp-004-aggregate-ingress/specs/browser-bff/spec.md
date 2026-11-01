@@ -83,3 +83,21 @@ A terminal transport failure SHALL promptly fail the original promise and close 
 #### Scenario: Successful internal promise hides a release exception
 - **WHEN** the transport internally reports success after swallowing a private-buffer release exception
 - **THEN** the caller receives failure promptly, admission remains latched closed and the unresolved charge remains retained
+
+### Requirement: Finite upload source-read admission
+The development BFF SHALL admit at most64 application-owned upload request sources before publisher forwarding. This technical budget SHALL remain separate from domain upload slots and JDK/download/bridge ownership. Capacity refusal SHALL use the existing unavailable contract before source reads without poisoning policy readiness.
+
+#### Scenario: Blocked source owners exhaust capacity
+- **WHEN**64 admitted upload sources remain active or unproved after cancellation or close requests
+- **THEN** another upload source cannot be forwarded, existing owners remain charged, and only proven local source settlement permits reuse
+
+### Requirement: Actual source close and read-exit settlement
+A source lease SHALL release exactly once only after successful underlying close completion and actual exit of all admitted read invocations. Close SHALL prevent new read admission. Failed close SHALL remain unknown. Release callbacks SHALL run outside lifecycle locks; requested cancellation, flags, root disposal or future completion SHALL NOT substitute for either witness.
+
+#### Scenario: Close finishes before blocked read exits
+- **WHEN** a source close returns but an already admitted read is still blocked
+- **THEN** its lease remains charged until that read actually exits, and another read cannot enter the closing source
+
+#### Scenario: Close fails or remains pending
+- **WHEN** underlying close throws or has not returned
+- **THEN** no source settlement is reported, late read completion cannot repair a failed close, and the strongly identified owner remains charged
