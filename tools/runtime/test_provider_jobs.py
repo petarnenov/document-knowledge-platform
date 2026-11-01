@@ -256,6 +256,49 @@ class JobsTests(unittest.TestCase):
         m.stop_process(process);process.terminate.assert_called_once();process.kill.assert_called_once()
         process=Mock();process.poll.return_value=0;m.stop_process(process);process.terminate.assert_not_called()
 
+    def browser_ready_item(self, status='running', running=True):
+        digest=m.hashlib.sha256(str(Path('/private/jobs')/'control').encode()).hexdigest()
+        return {'Id':self.target,'Image':'image','Name':'/dkp-jobs-browser-'+digest[:16],
+                'Config':{'Image':'dkp-identity-e2e:local','Labels':{'dkp.issue':'305','dkp.jobs.control':digest}},
+                'State':{'Status':status,'Running':running}}
+
+    def test_created_browser_waits_under_original_deadline_then_executes_only_running_owner(self):
+        work=Path('/private/jobs');items=iter([self.browser_ready_item('created',False),self.browser_ready_item()]);live={};executed=[]
+        def inspect(*args):
+            nonlocal live
+            live=next(items);return [live]
+        def command(args,**kwargs):
+            if args[:3]==['docker','ps','-aq']:return self.target.encode()
+            # Causal Docker behavior: exec on a CREATED container fails.
+            if not live['State']['Running']:raise m.runtime.CommandFailure('process-exit-1')
+            executed.append((args,kwargs));return json.dumps(self.value).encode()
+        with patch.object(m.runtime,'docker',side_effect=inspect),patch.object(m.runtime,'command',side_effect=command),patch.object(m.time,'sleep') as sleep:
+            self.assertEqual(self.value,m.wait(lambda:m.exchange(work,'read','prepared'),180))
+        sleep.assert_called_once_with(.05)
+        self.assertEqual(1,len(executed));self.assertEqual(5,executed[0][1]['timeout'])
+        self.assertEqual(['docker','exec','--user','1001:1001',self.target],executed[0][0][:5])
+
+    def test_nonrunning_or_foreign_browser_never_dispatches_bridge(self):
+        work=Path('/private/jobs')
+        cases=[self.browser_ready_item(status,running) for status,running in [('created',True),('running',False),('paused',True),('exited',False),('dead',False),('restarting',True),('removing',False),('unknown',False)]]
+        missing=self.browser_ready_item();missing.pop('State');cases.append(missing)
+        foreign=self.browser_ready_item('created',False);foreign['Config']['Labels']['dkp.jobs.control']='foreign';cases.append(foreign)
+        for item in cases:
+            with self.subTest(state=item.get('State')),patch.object(m.runtime,'command',return_value=self.target.encode()) as command,patch.object(m.runtime,'docker',return_value=[item]):
+                with self.assertRaises(ValueError):m.exchange(work,'read','prepared')
+                self.assertEqual(1,command.call_count)
+        with patch.object(m.runtime,'command',return_value=self.target.encode()) as command,patch.object(m.runtime,'docker',return_value=[self.browser_ready_item('created',False)]):
+            with self.assertRaises(ValueError):m.exchange(work,'write','begin')
+            self.assertEqual(1,command.call_count)
+            # Cleanup must still find a CREATED owned browser; readiness is IO-only.
+            self.assertEqual((self.target,'image'),m.browser_instance(work))
+
+    def test_running_browser_exec_error_is_not_retried_or_swallowed(self):
+        failure=m.runtime.CommandFailure('process-exit-1')
+        with patch.object(m.runtime,'command',side_effect=[self.target.encode(),failure]) as command,patch.object(m.runtime,'docker',return_value=[self.browser_ready_item()]),patch.object(m.time,'sleep') as sleep:
+            with self.assertRaises(m.runtime.CommandFailure) as caught:m.wait(lambda:m.exchange(Path('/private/jobs'),'read','prepared'),180)
+            self.assertIs(failure,caught.exception);self.assertEqual(2,command.call_count);sleep.assert_not_called()
+
     def test_browser_lookup_requests_untruncated_identity_for_exact_validation(self):
         import hashlib
         work=Path('/private/jobs');digest=hashlib.sha256(str(work/'control').encode()).hexdigest()

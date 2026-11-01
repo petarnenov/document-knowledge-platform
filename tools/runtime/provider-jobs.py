@@ -157,7 +157,7 @@ if(operation==='write'){
 def exchange(work, operation, name):
     choices = ('begin','abort-now','restored','finish') if operation=='write' else ('prepared','submitted','aborted','completed','diagnostic') if operation=='read' else ()
     if name not in choices:raise ValueError('Closed private bridge required')
-    current=browser_instance(work)
+    current=browser_instance(work, require_running=True)
     if current is None:
         if operation=='read':return None
         raise ValueError('Exact owned browser required before control write')
@@ -359,7 +359,7 @@ def free_admissions(state):
     if d.sql(state, "SELECT (SELECT count(*) FROM dm.upload_global_resource_account)=1 AND (SELECT admitted_count=0 AND reserved_transient_bytes=0 AND promised_original_bytes=0 AND retained_original_bytes=0 FROM dm.upload_global_resource_account) AND NOT EXISTS(SELECT 1 FROM dm.upload_slots);") != 't':raise ValueError('Dedicated fresh uncharged runtime required')
 
 
-def browser_instance(work, expected=None):
+def browser_instance(work, expected=None, *, require_running=False):
     control_digest = hashlib.sha256(str(work / 'control').encode()).hexdigest()
     name = 'dkp-jobs-browser-' + control_digest[:16]
     identifier = runtime.command(['docker', 'ps', '-aq', '--no-trunc', '--filter', 'name=^/' + name + '$']).decode().strip()
@@ -368,6 +368,13 @@ def browser_instance(work, expected=None):
     item = runtime.docker('inspect', identifier)[0]
     labels = item['Config']['Labels']
     if item['Id'] != identifier or item['Name'] != '/' + name or labels.get('dkp.issue') != '305' or labels.get('dkp.jobs.control') != control_digest or item['Config']['Image'] != 'dkp-identity-e2e:local' or (expected is not None and (identifier, item['Image']) != expected):raise ValueError('Foreign browser cleanup refused')
+    if require_running:
+        state = item.get('State', {})
+        # docker run publishes the owned container before starting it. Let the
+        # existing marker wait/deadline handle this single not-ready state.
+        if state.get('Status') == 'created' and state.get('Running') is False:return None
+        if state.get('Status') != 'running' or state.get('Running') is not True:
+            raise ValueError('Owned browser is not running')
     return identifier, item['Image']
 
 
