@@ -16,6 +16,8 @@ import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
 import java.util.Map;
+import java.io.InputStream;
+import io.micronaut.core.annotation.Nullable;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.documentknowledge.browserbff.application.BffFailure;
@@ -32,21 +34,23 @@ public final class SessionController {
         return safely(() -> HttpResponse.ok(sessions.view(sessions.requireSession(request))));
     }
     @Post(value = "/session/tenant", consumes = MediaType.APPLICATION_JSON)
-    public HttpResponse<?> select(HttpRequest<?> request, @Body Map<String, Object> body) {
-        return safely(() -> {
+    public HttpResponse<?> select(HttpRequest<?> request, @Nullable @Body InputStream source) {
+        try { return safely(() -> {
             var session = sessions.requireSession(request); sessions.requireMutation(request, session);
+            var body = BoundedMetadataBody.decode(request, source);
             if (body.size() != 1 || !(body.get("tenantId") instanceof String tenant) || tenant.isBlank() || tenant.length() > 256) throw new BffFailure(400, "INVALID_REQUEST");
             return HttpResponse.ok(sessions.select(request, session, (String) body.get("tenantId")));
-        });
+        }); } finally { BoundedMetadataBody.close(source); }
     }
     @Post(value = "/session/logout", consumes = MediaType.APPLICATION_JSON)
-    public HttpResponse<?> logout(HttpRequest<?> request, @Body Map<String, Object> body) {
-        return safely(() -> {
+    public HttpResponse<?> logout(HttpRequest<?> request, @Nullable @Body InputStream source) {
+        try { return safely(() -> {
             var session = sessions.requireSession(request); sessions.requireMutation(request, session);
+            var body = BoundedMetadataBody.decode(request, source);
             if (!body.isEmpty()) throw new BffFailure(400, "INVALID_REQUEST");
             sessions.logout(request, session);
             return HttpResponse.noContent().cookie(Cookie.of("__Host-DKP-SESSION", "").httpOnly(true).secure(true).sameSite(SameSite.Lax).path("/").maxAge(0));
-        });
+        }); } finally { BoundedMetadataBody.close(source); }
     }
     @Get("/security/context/{service}") public HttpResponse<?> context(HttpRequest<?> request, String service) {
         return safely(() -> {

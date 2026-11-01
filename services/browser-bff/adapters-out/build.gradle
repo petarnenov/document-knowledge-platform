@@ -1,1 +1,26 @@
 // Layer dependencies and verification are configured centrally.
+
+// #365: retain the typed request-length classification without converting transport faults to 413.
+def transferLengthClasses = files(sourceSets.main.output.classesDirs.collect {
+    fileTree(it) { include '**/BoundedStream*.class' }
+})
+tasks.register('transferLengthCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.setFrom(transferLengthClasses)
+    sourceDirectories.setFrom(sourceSets.main.allJava.srcDirs)
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('transferLengthCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('transferLengthCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.setFrom(transferLengthClasses)
+    sourceDirectories.setFrom(sourceSets.main.allJava.srcDirs)
+    violationRules {
+        rule {
+            limit { counter = 'LINE'; minimum = 0.75 }
+            limit { counter = 'BRANCH'; minimum = 0.75 }
+        }
+    }
+}
+tasks.named('check') { dependsOn tasks.named('transferLengthCoverageVerification') }
