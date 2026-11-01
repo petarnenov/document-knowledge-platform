@@ -46,4 +46,14 @@ class DocumentShareServiceTest {
     @Test void globalCapacityAndIdempotentRelease(){List<SharingAdmission.Permit> permits=new ArrayList<>();for(int i=0;i<16;i++)permits.add(admission.acquire(new Actor(actor.issuer(),"p"+i)));failure(503,()->admission.acquire(actor));permits.getFirst().close();permits.getFirst().close();try(var permit=admission.acquire(actor)){assertNotNull(permit);}permits.forEach(SharingAdmission.Permit::close);}
     @Test void deadlineParentCancellationAndExactBoundaryRejectLateSql(){AtomicLong tick=new AtomicLong();SharingDeadline root=new SharingDeadline(tick::get,Duration.ofMillis(1500));SharingDeadline child=root.child(Duration.ofMillis(500));assertEquals(500_000_000,child.remainingNanos());root.cancel();failure(503,child::check);SharingDeadline expired=new SharingDeadline(tick::get,Duration.ofNanos(1));tick.set(1);failure(503,expired::remainingNanos);failure(503,()->service().discover(caller,List.of(low),expired));assertEquals(0,sql.get());}
     @Test void authenticationCompletionCannotRenewExpiredOwnership(){AtomicLong tick=new AtomicLong();SharingDeadline deadline=new SharingDeadline(tick::get,Duration.ofMillis(1500));override=n->{tick.set(1_500_000_000);return snapshot(AuthorityDecision.ALLOW,AuthorityDecision.ALLOW,"a".repeat(64));};failure(503,()->service().discover(caller,List.of(low),deadline));assertEquals(0,sql.get());}
+    @Test void actualFinalAuthorityTraceKeepsDenyAndUnknownPrecedence(){
+        rows=List.of(doc(low));
+        for(var route:List.of(AuthorityDecision.DENY,AuthorityDecision.UNAVAILABLE))try(var capture=new SharingAuthorityTraceTest.Capture()){
+            reads.set(0);override=n->snapshot(n==1?AuthorityDecision.ALLOW:route,AuthorityDecision.ALLOW,n==1?"a".repeat(64):"b".repeat(64));
+            failure(route==AuthorityDecision.DENY?404:503,()->service().assess(caller,List.of(new Expectation(low,0L)),deadline()));
+            assertEquals(List.of("dm_sharing_authority stage=ADMITTED category=NONE","dm_sharing_authority stage=SOURCE_RETURNED category=ALLOW","dm_sharing_authority stage=FIRST_SNAPSHOT_READY category=NONE","dm_sharing_authority stage=ROWS_LOCKED category=NONE","dm_sharing_authority stage=FIRST_AUTHORIZED category=NONE","dm_sharing_authority stage=SOURCE_RETURNED category="+route.name()),capture.lines);
+            assertTrue(capture.thrown.stream().allMatch(Objects::isNull));
+        }
+    }
+
 }

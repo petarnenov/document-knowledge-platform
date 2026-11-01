@@ -20,12 +20,19 @@ public final class DocumentShareService {
     public ShareBatchAssessment assess(DocumentCaller caller,List<Expectation> expectations,SharingDeadline deadline) {
         List<UUID> ids=validate(expectations);membership(caller);deadline.check();
         try(var permit=admission.acquire(caller.actor())) {
+            SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.ADMITTED);
             var first=snapshot(caller,ids,deadline);
+            SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.FIRST_SNAPSHOT_READY);
             return store.locked(caller.tenant(),ids,deadline,documents->{
+                SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.ROWS_LOCKED);
                 authorized(caller,ids,documents,first,true);
+                SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.FIRST_AUTHORIZED);
                 var last=snapshot(caller,ids,deadline);
+                SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.LAST_SNAPSHOT_READY);
                 List<Assessment> current=authorized(caller,ids,documents,last,true);
+                SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.LAST_AUTHORIZED);
                 membership(caller);deadline.check();
+                SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.FINAL_CONTEXT_READY);
                 if(!first.fingerprint().equals(last.fingerprint()))throw new DmFailure(409,"STALE_AUTHORITY");
                 for(Expectation expectation:expectations) if(expectation.expectedDocumentRevision()!=null&&current.stream().filter(a->a.documentId().equals(expectation.documentId())).findFirst().orElseThrow(DocumentShareService::unavailable).documentRevision()!=expectation.expectedDocumentRevision())throw new DmFailure(409,"STALE_POLICY");
                 return new ShareBatchAssessment(caller.actor(),caller.tenant(),ACTION,current);
@@ -36,12 +43,19 @@ public final class DocumentShareService {
         if(documents==null)throw new DmFailure(400,"INVALID_REQUEST");
         List<UUID> ids=validate(documents.stream().map(id->new Expectation(id,null)).toList());membership(caller);deadline.check();
         try(var permit=admission.acquire(caller.actor())) {
+            SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.ADMITTED);
             var first=snapshot(caller,ids,deadline);
+            SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.FIRST_SNAPSHOT_READY);
             return store.locked(caller.tenant(),ids,deadline,rows->{
+                SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.ROWS_LOCKED);
                 authorized(caller,ids,rows,first,false);
+                SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.FIRST_AUTHORIZED);
                 var last=snapshot(caller,ids,deadline);
+                SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.LAST_SNAPSHOT_READY);
                 List<Assessment> eligible=authorized(caller,ids,rows,last,false);
+                SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.LAST_AUTHORIZED);
                 membership(caller);deadline.check();
+                SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.FINAL_CONTEXT_READY);
                 if(!first.fingerprint().equals(last.fingerprint()))throw new DmFailure(409,"STALE_AUTHORITY");
                 return new ShareEligibilityResult(caller.actor(),caller.tenant(),ACTION,requestedSetDigest(ids),eligible);
             });
@@ -51,7 +65,8 @@ public final class DocumentShareService {
         deadline.check();List<String> resources=ids.stream().map(UUID::toString).toList();
         RequestScopedResourceAuthorityPort.Snapshot snapshot;
         try { snapshot=authority.snapshot(caller.actor(),caller.tenant(),ACTION,resources); }
-        catch(RuntimeException failure) { throw unavailable(); }
+        catch(RuntimeException failure) { SharingAuthorityTrace.event(SharingAuthorityTrace.Stage.SOURCE_FAILED);throw unavailable(); }
+        SharingAuthorityTrace.source(snapshot);
         deadline.check();
         if(snapshot==null||!caller.actor().equals(snapshot.actor())||!caller.tenant().equals(snapshot.tenant())||!ACTION.equals(snapshot.action())||!resources.equals(snapshot.resources())||!snapshot.decisions().keySet().equals(new HashSet<>(resources)))throw unavailable();
         decision(snapshot.route());

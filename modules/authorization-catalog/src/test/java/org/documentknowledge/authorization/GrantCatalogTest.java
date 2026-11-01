@@ -77,4 +77,14 @@ class GrantCatalogTest {
   write(p,catalog());assertEquals(AuthorityDecision.DENY,c.snapshot(actor,"tenant-a","document.share-to-collection",List.of("first")).route());assertEquals(AuthorityDecision.DENY,c.snapshot(new Actor(actor.issuer(),"other"),"tenant-a","document.create",List.of("first")).route());assertEquals(AuthorityDecision.DENY,c.snapshot(actor,"tenant-b","document.create",List.of("first")).route());
   write(p,"partial");var unknown=c.snapshot(actor,"tenant-a","document.share-to-collection",List.of("first"));assertEquals(AuthorityDecision.UNAVAILABLE,unknown.route());assertEquals(AuthorityDecision.UNAVAILABLE,unknown.decisions().get("first"));assertEquals("",unknown.fingerprint());
  }
+ @Test void actualScalarAndWholeSnapshotFallbacksKeepUnavailableAndFiniteDiagnostic()throws Exception{
+  try(var capture=new CatalogDiagnosticsTest.Capture()){
+   Path p=file();write(p,CatalogDiagnosticsTest.PRIVATE);var c=catalog(p);
+   assertEquals(AuthorityDecision.UNAVAILABLE,c.authorize(actor,"tenant-a","document.create",""));
+   assertEquals(AuthorityDecision.UNAVAILABLE,c.snapshot(actor,"tenant-a","document.create",List.of("resource")).route());
+   assertEquals(List.of("grant_catalog_failure category=JSON","grant_catalog_failure category=JSON"),capture.lines);
+   assertTrue(capture.thrown.stream().allMatch(java.util.Objects::isNull));
+  }
+ }
+
 }

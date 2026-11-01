@@ -126,3 +126,5 @@ The exact4519f2bf611c committed integration source passes the combined unprivile
 - [ ] [#403](https://github.com/petarnenov/document-knowledge-platform/issues/403) P1: add independently reviewed finite upstream DM sharing status diagnostics to diagnose #399; preserve all status mappings, budgets, response bounds and authority checks. Runtime diagnosis and full acceptance remain separate.
 
 - [ ] [#408](https://github.com/petarnenov/document-knowledge-platform/issues/408) P1: independently review finite DM sharing controller/deadline diagnostics and repeat exact-owned #399 denial; preserve required404, original deadlines, cancellation and all authority controls.
+
+- [ ] [#411](https://github.com/petarnenov/document-knowledge-platform/issues/411) P1: independently review finite DM sharing phase/catalog fallback diagnostics and diagnose actual #399 server failure; preserve all authorization, deadline, cancellation and404 acceptance gates.

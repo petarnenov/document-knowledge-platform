@@ -36,7 +36,7 @@ public final class GrantCatalog implements ResourceAuthorizationPort, org.docume
             Entry entry = catalog.get(new Key(actor.issuer(), actor.subject(), tenant));
             return entry != null && (delegation ? entry.ceiling() : entry.actions()).contains(action)
                 ? AuthorityDecision.ALLOW : AuthorityDecision.DENY;
-        } catch (Exception unavailable) { return AuthorityDecision.UNAVAILABLE; }
+        } catch (Exception unavailable) { CatalogDiagnostics.failure(unavailable);return AuthorityDecision.UNAVAILABLE; }
     }
     private Catalog readCatalog() throws java.io.IOException {
         byte[] bytes = files.readBounded(path, 65536, false);
@@ -65,7 +65,7 @@ public final class GrantCatalog implements ResourceAuthorizationPort, org.docume
             AuthorityDecision decision=entry!=null&&entry.actions().contains(action)?AuthorityDecision.ALLOW:AuthorityDecision.DENY;
             Map<String,AuthorityDecision> decisions=new HashMap<>(); resources.forEach(resource->decisions.put(resource,decision));
             return new Snapshot(actor,tenant,action,resources,decision,decisions,catalog.fingerprint());
-        } catch(Exception unavailable) { return org.documentknowledge.identity.RequestScopedResourceAuthorityPort.unavailable().snapshot(actor,tenant,action,resources); }
+        } catch(Exception unavailable) { CatalogDiagnostics.failure(unavailable);return org.documentknowledge.identity.RequestScopedResourceAuthorityPort.unavailable().snapshot(actor,tenant,action,resources); }
     }
     private record Catalog(Map<Key,Entry> entries,String fingerprint) { }
     private static Set<String> actions(Object value) {
