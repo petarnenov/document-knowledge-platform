@@ -4,14 +4,13 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.*;
-/** All identities server-derived. Implementations MUST NOT automatically retry versioned writes/deletes. */
+/** All identities server-derived. Implementations MUST NOT automatically retry versioned writes. */
 public interface UploadStoragePort {
  ObjectIdentity put(ObjectKey key,Path source,long sizeBytes,String sha256);
  InputStream open(ObjectIdentity object);
  ObjectIdentity copy(ObjectIdentity source,ObjectKey target);
  /** Recovery only: writer settlement must be proven before cleanup can consume these identities. */
  List<ObjectIdentity> versions(ObjectKey key);
- DeletionResult deleteOnce(DeletionFence attempt);
  record DeletionResult(UUID attemptId,ObjectIdentity object,String requestId,boolean terminal,
      boolean noFurtherExecution,boolean absent,boolean successful) { }
 }

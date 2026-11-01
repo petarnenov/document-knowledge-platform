@@ -402,6 +402,10 @@ def start(directory):
               'DKP_UPLOAD_STORAGE_ENDPOINT': 'https://rustfs:9000', 'DKP_UPLOAD_STORAGE_REGION': 'us-east-1',
               'DKP_UPLOAD_STORAGE_ACCESS_KEY_FILE': str(directory / 'rustfs/app/access.key'),
               'DKP_UPLOAD_STORAGE_SECRET_KEY_FILE': str(directory / 'rustfs/app/secret.key'),
+              'DKP_UPLOAD_STORAGE_ROLE_FILE': str(directory / 'rustfs/app/access.key.role'),
+              'DKP_UPLOAD_CLEANUP_ACCESS_KEY_FILE': str(directory / 'rustfs/cleanup/access.key'),
+              'DKP_UPLOAD_CLEANUP_SECRET_KEY_FILE': str(directory / 'rustfs/cleanup/secret.key'),
+              'DKP_UPLOAD_CLEANUP_ROLE_FILE': str(directory / 'rustfs/cleanup/access.key.role'),
               'DKP_UPLOAD_STORAGE_CA_FILE': str(directory / 'rustfs/app/ca.crt'),
               'DKP_UPLOAD_SPOOL_DIRECTORY': str(directory / 'rustfs/spool'),
               'DKP_UPLOAD_DEFINITIONS_DIRECTORY': str(generation),
@@ -430,7 +434,7 @@ def start(directory):
     stage('full-readiness', lambda: health(state))
     # Data/spool are mutable state, not private source authority. Hash only generated
     # static authority/config; definitions retain the publisher's immutable manifest.
-    for part in ('identity', 'inspector', 'rustfs/app', 'rustfs/server', 'rustfs/bootstrap'):
+    for part in ('identity', 'inspector', 'rustfs/app', 'rustfs/cleanup', 'rustfs/server', 'rustfs/bootstrap'):
         for path in (directory / part).rglob('*'):
             if path.is_file():state['files'][str(path.relative_to(directory))] = digest(path)
     for name in ('runtime.env', 'owned-compose.json'):state['files'][name] = digest(directory / name)

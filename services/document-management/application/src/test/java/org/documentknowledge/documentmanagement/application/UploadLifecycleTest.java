@@ -24,7 +24,9 @@ class UploadLifecycleTest {
  UUID document;
  DocumentService documents(){return new DocumentService(store,grants,new DelegationPolicyPort(){public AuthorityDecision targetGrant(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}public AuthorityDecision ceiling(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}},new ReceiptArtifactAuthority(store,storage,clock,temporary),new DocumentCursorPort(){public PagePosition decode(String c,Actor a,String t){throw new IllegalArgumentException();}public String encode(PagePosition p,Actor a,String t){return "cursor";}},clock);}
  UploadService uploads(){return new UploadService(store,grants,storage,scanner,inspector,clock,temporary);}
- ContentService content(){return new ContentService(store,grants,storage,clock,temporary);}
+ ContentService contentService;
+ ContentService content(){if(contentService==null)contentService=new ContentService(store,grants,storage,clock,temporary);return contentService;}
+ @AfterEach void closeContent(){if(contentService!=null)contentService.close();}
  UploadCleanupService cleanup(){return new UploadCleanupService(store,storage,clock);}
  @BeforeEach void create(){document=documents().create(caller,"create",new Metadata("Synthetic draft","")).documentId();}
  void failure(int status,String code,Runnable call){var failure=assertThrows(DmFailure.class,call::run);assertEquals(status,failure.status());assertEquals(code,failure.code());}
@@ -129,7 +131,7 @@ class UploadLifecycleTest {
   var app=uploads();var receipt=verified(app,UploadFormat.PDF);documents().appendVersion(caller,document,0,"append",receipt.receiptId().toString());UUID version=app.discover(caller,document,receipt.receiptId()).versionId();var gateway=content();
   for(String range:List.of("bytes=1-3","bytes=2-","bytes=-3","bytes=-9999"))try(var response=gateway.open(caller,document,version,range);var body=response.openStream()){assertEquals(206,response.status());assertEquals(response.length(),body.readAllBytes().length);assertNotNull(response.contentRange());}
   for(String range:List.of("bytes=-0","bytes=99-","bytes=3-1","bytes=1-2,4-5","items=1-2","bytes=99999999999999999999999-"))failure(416,"RANGE_NOT_SATISFIABLE",()->gateway.open(caller,document,version,range));
-  var response=gateway.open(caller,document,version,null);failure(429,"QUOTA_EXCEEDED",()->gateway.open(caller,document,version,null));allowed.remove(Action.CONTENT_REVIEW);failure(404,"NOT_FOUND",response::openStream);assertTrue(Files.list(temporary).findAny().isEmpty());
+  var response=gateway.open(caller,document,version,null);failure(429,"QUOTA_EXCEEDED",()->gateway.open(caller,document,version,null));allowed.remove(Action.CONTENT_REVIEW);failure(404,"NOT_FOUND",response::openStream);try(var files=Files.list(temporary.resolve("content-gateway"))){assertEquals(List.of(".owner"),files.map(p->p.getFileName().toString()).toList());}
  }
  @Test void wrongSourceHashAndFailureOutcomesKeepFenceAndAccounting(){
   var receipt=verified(uploads(),UploadFormat.PDF);var work=store.uploads.pendingCleanup(caller.tenant(),receipt.uploadId()).getFirst();storage.deleteSuccess=false;assertFalse(cleanup().cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));assertTrue(store.uploads.unresolvedFence(caller.tenant(),document).isEmpty());assertEquals(2*bytes().length,store.uploads.global.transientBytes());
@@ -347,7 +349,7 @@ class UploadLifecycleTest {
   failure(409,"UPLOAD_STATE_CONFLICT",()->app.transfer(caller,slot,"mismatched",new ByteArrayInputStream(bytes())));assertEquals(UploadState.RECEIVING,app.status(caller,slot).state());assertTrue(store.uploads.pendingCleanup(caller.tenant(),slot).isEmpty());assertEquals(2*bytes().length,store.uploads.global.transientBytes());
  }
  static class TestClock extends Clock {Instant now=Instant.parse("2026-10-31T20:00:00Z");void advance(long seconds){now=now.plusSeconds(seconds);}public ZoneId getZone(){return ZoneOffset.UTC;}public Clock withZone(ZoneId z){return this;}public Instant instant(){return now;}}
- static class BytesStorage implements UploadStoragePort {
+ static class BytesStorage implements UploadStoragePort, CleanupStoragePort {
   final Map<ObjectIdentity,byte[]> objects=new HashMap<>();boolean failPut,failCopy,deleteUnknown,badDeleteBinding,discardLargePut;boolean deleteSuccess=true,corruptCopy;java.util.function.Function<DeletionFence,DeletionResult> deletion;int copyCalls,deleteCalls;Runnable onCopy=()->{},onDelete=()->{},onPut=()->{};
   public ObjectIdentity put(ObjectKey key,Path file,long size,String sha){if(failPut)throw new IllegalStateException();try{var id=new ObjectIdentity(key,UUID.randomUUID().toString());objects.put(id,discardLargePut&&size>1_000_000?new byte[0]:Files.readAllBytes(file));onPut.run();return id;}catch(IOException e){throw new IllegalStateException(e);}}
   public InputStream open(ObjectIdentity object){byte[] bytes=objects.get(object);if(bytes==null)throw new IllegalStateException();return new ByteArrayInputStream(bytes);}

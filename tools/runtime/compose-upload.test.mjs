@@ -51,7 +51,13 @@ test('object store and scanner remain private and DM receives application author
   assert.equal(dm.environment.DKP_DM_STORAGE_ENDPOINT, 'https://rustfs:9000');
   assert.deepEqual(dm.volumes.filter((v) => v.target.startsWith('/run/dkp/storage/'))
     .map((v) => [v.target, v.read_only]), [
-    ['/run/dkp/storage/access.key', true], ['/run/dkp/storage/secret.key', true], ['/run/dkp/storage/ca.crt', true] ]);
+    ['/run/dkp/storage/access.key', true], ['/run/dkp/storage/secret.key', true], ['/run/dkp/storage/access.key.role', true], ['/run/dkp/storage/ca.crt', true] ]);
+  assert.deepEqual(dm.volumes.filter((v) => v.target.startsWith('/run/dkp/cleanup/')).map((v) => [v.target, v.read_only]), [
+    ['/run/dkp/cleanup/access.key', true], ['/run/dkp/cleanup/secret.key', true], ['/run/dkp/cleanup/access.key.role', true] ]);
+  assert.equal(dm.environment.DKP_DM_CLEANUP_ACCESS_KEY_PATH, '/run/dkp/cleanup/access.key');
+  for (const service of ['browser-bff', 'admin-portal', 'structure-inspector', 'knowledge-base', 'knowledge-search']) {
+    assert.equal(config.services[service].volumes.some((v) => v.target.startsWith('/run/dkp/cleanup/') || v.target.startsWith('/run/dkp/storage/')), false);
+  }
   assert.equal(dm.volumes.some((v) => /root-access|root-secret|ca\.key|server\.p12|keystore\.password/.test(v.source)), false);
   assert.deepEqual(config.services.clamav.healthcheck.test,
     ['CMD', 'clamdscan', '--config-file=/run/dkp/clamd.conf', '--ping=1']);

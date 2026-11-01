@@ -22,14 +22,11 @@ import org.documentknowledge.authorization.TrustedAuthorityFiles;
 import org.documentknowledge.documentmanagement.application.DmFailure;
 import org.documentknowledge.documentmanagement.application.upload.UploadStoragePort;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels;
-import org.documentknowledge.documentmanagement.domain.upload.UploadModels.DeletionFence;
-import org.documentknowledge.documentmanagement.domain.upload.UploadModels.FencePhase;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.ObjectIdentity;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.ObjectKey;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.apache5.Apache5HttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -38,13 +35,10 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
 import software.amazon.awssdk.services.s3.model.ChecksumMode;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 
 /** Private versioned storage. Domain authorization, accounting and dispatch fencing belong to the UoW. */
 public final class S3UploadStorageAdapter implements UploadStoragePort, AutoCloseable {
@@ -78,8 +72,21 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
             if (!MessageDigest.isEqual(marker, "dkp-private-spool-v1\n".getBytes(StandardCharsets.US_ASCII))) {
                 throw unavailable();
             }
+            S3Client s3 = client(configuration, "normal");
+            return new S3UploadStorageAdapter(s3, root);
+        } catch (Exception failure) {
+            throw unavailable();
+        }
+    }
+
+    static S3Client client(Configuration configuration, String role) {
+        try {
             String access = credential(configuration.accessKeyFile(), 16, 128);
             String secret = credential(configuration.secretKeyFile(), 32, 256);
+            if (access.equals(secret) || Files.isSameFile(configuration.accessKeyFile(), configuration.secretKeyFile())) throw unavailable();
+            String binding = "dkp-storage-" + role + "-v1\n" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(access.getBytes(StandardCharsets.US_ASCII))) + "\n" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(secret.getBytes(StandardCharsets.US_ASCII))) + "\n";
+            byte[] authority = TrustedAuthorityFiles.read(configuration.accessKeyFile().resolveSibling(configuration.accessKeyFile().getFileName() + ".role"), 256, true);
+            if (!MessageDigest.isEqual(authority, binding.getBytes(StandardCharsets.US_ASCII))) throw unavailable();
             var certificates = CertificateFactory.getInstance("X.509").generateCertificates(
                 new java.io.ByteArrayInputStream(TrustedAuthorityFiles.read(configuration.caFile(), 65536, false)));
             if (certificates.isEmpty()) throw unavailable();
@@ -107,10 +114,8 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
                 .httpClientBuilder(Apache5HttpClient.builder().connectionTimeout(Duration.ofSeconds(5))
                     .socketTimeout(Duration.ofSeconds(30)).tlsTrustManagersProvider(() -> managers))
                 .build();
-            return new S3UploadStorageAdapter(s3, root);
-        } catch (Exception failure) {
-            throw unavailable();
-        }
+            return s3;
+        } catch (Exception failure) { throw unavailable(); }
     }
 
     // Constructor seam for transport contract tests, never selected by runtime configuration.
@@ -120,7 +125,9 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
 
     /** Bounded non-mutating readiness; the runtime policy explicitly permits this on both private buckets. */
-    public boolean ready() {
+    public boolean ready() { return ready(client); }
+
+    static boolean ready(S3Client client) {
         try {
             for (String bucket : List.of("dkp-quarantine", "dkp-originals")) {
                 var request = software.amazon.awssdk.services.s3.model.GetBucketVersioningRequest.builder()
@@ -227,7 +234,9 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
 
     @Override
-    public List<ObjectIdentity> versions(ObjectKey key) {
+    public List<ObjectIdentity> versions(ObjectKey key) { return versions(client, key); }
+
+    static List<ObjectIdentity> versions(S3Client client, ObjectKey key) {
         try {
             var response = client.listObjectVersions(ListObjectVersionsRequest.builder()
                 .bucket(key.bucket()).prefix(key.key()).maxKeys(1000).build());
@@ -244,54 +253,9 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
         }
     }
 
-    @Override
-    public DeletionResult deleteOnce(DeletionFence fence) {
-        if (fence.phase() != FencePhase.DISPATCHED) throw unavailable();
-        var object = fence.object();
-        try {
-            var key = object.objectKey();
-            var response = client.deleteObject(DeleteObjectRequest.builder().bucket(key.bucket()).key(key.key())
-                .versionId(object.versionId()).build());
-            String requestId = response.responseMetadata().requestId();
-            if (response.sdkHttpResponse().statusCode() != 204 || !requestId(requestId)
-                    || (response.versionId() != null && !response.versionId().equals(object.versionId()))) {
-                return unknown(fence);
-            }
-            boolean absent = absent(object);
-            return new DeletionResult(fence.attemptId(), object, requestId, true, true, absent, true);
-        } catch (S3Exception failure) {
-            // A validated terminal 4xx is a rejected one-shot attempt, not proof of deletion.
-            if (failure.statusCode() >= 400 && failure.statusCode() < 500 && requestId(failure.requestId())) {
-                return new DeletionResult(fence.attemptId(), object, failure.requestId(), true, true, false, false);
-            }
-            return unknown(fence);
-        } catch (SdkClientException failure) {
-            return unknown(fence); // Timeout/lost response must never clear the durable fence.
-        }
-    }
-
-    private boolean absent(ObjectIdentity object) {
-        try {
-            client.headObject(HeadObjectRequest.builder().bucket(object.objectKey().bucket())
-                .key(object.objectKey().key()).versionId(object.versionId()).build());
-            return false;
-        } catch (S3Exception failure) {
-            return failure.statusCode() == 404 && failure.awsErrorDetails() != null
-                && List.of("NoSuchKey", "NoSuchVersion", "NotFound").contains(failure.awsErrorDetails().errorCode());
-        }
-    }
-
     private static ObjectIdentity identity(ObjectKey key, String versionId) {
         if (versionId == null || versionId.isBlank() || "null".equalsIgnoreCase(versionId)) throw unavailable();
         return new ObjectIdentity(key, versionId);
-    }
-    private static boolean requestId(String value) {
-        // AWS response metadata substitutes UNKNOWN when the server supplied no request ID.
-        return value != null && !"UNKNOWN".equalsIgnoreCase(value)
-            && value.matches("[A-Za-z0-9._:-]{1,256}");
-    }
-    private static DeletionResult unknown(DeletionFence fence) {
-        return new DeletionResult(fence.attemptId(), fence.object(), null, false, false, false, false);
     }
     private static String credential(Path path, int minimum, int maximum) throws IOException {
         String value = new String(TrustedAuthorityFiles.read(path, maximum + 1, true), StandardCharsets.US_ASCII).strip();

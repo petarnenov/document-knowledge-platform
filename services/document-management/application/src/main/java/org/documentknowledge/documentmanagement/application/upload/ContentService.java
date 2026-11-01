@@ -11,21 +11,24 @@ import org.documentknowledge.identity.ResourceAuthorizationPort;
 import static org.documentknowledge.documentmanagement.domain.upload.UploadModels.*;
 
 /** Exact immutable source verified before transmission; bounded disk and new-boundary authorization per request. */
-public final class ContentService {
+public final class ContentService implements AutoCloseable {
  private final DocumentUnitOfWork transactions;private final UploadPolicy policy;private final UploadStoragePort storage;private final Clock clock;private final Path temporary;
- private final Semaphore streams=new Semaphore(2);private final Set<String> actors=ConcurrentHashMap.newKeySet();
+ private ContentSpoolStore spools;private boolean stopped;private final Set<ContentResponse> responses=ConcurrentHashMap.newKeySet();private final Set<InputStream> sources=ConcurrentHashMap.newKeySet();
+ private synchronized ContentSpoolStore spools(){if(stopped)throw UploadPolicy.unavailable();if(spools==null)spools=new ContentSpoolStore(temporary);return spools;}
  public ContentService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,Clock clock,Path temporary){this.transactions=Objects.requireNonNull(transactions);policy=new UploadPolicy(grants);this.storage=Objects.requireNonNull(storage);this.clock=Objects.requireNonNull(clock);this.temporary=Objects.requireNonNull(temporary);}
  public ContentResponse open(DocumentCaller caller,UUID document,UUID version,String range){
   policy.route(caller,Action.CONTENT_REVIEW,document,true);UploadReceipt receipt=resolve(caller,document,version);
   ByteRange bytes=ByteRange.parse(range,receipt.sizeBytes());String actor=UploadSupport.fingerprint(caller.actor().issuer(),caller.actor().subject());
-  if(!streams.tryAcquire())throw new DmFailure(429,"QUOTA_EXCEEDED");if(!actors.add(actor)){streams.release();throw new DmFailure(429,"QUOTA_EXCEEDED");}
-  UploadSupport.Spool spool=null;
-  try(var source=storage.open(receipt.original())){
-   spool=UploadSupport.spool(source,temporary,receipt.sizeBytes(),clock,300);if(!spool.sha256().equals(receipt.sha256()))throw UploadPolicy.unavailable();
-   final UploadSupport.Spool owned=spool;resolve(caller,document,version);
-   return new ContentResponse(bytes.partial()?206:200,receipt.format().mime(),version+"."+receipt.format().extension(),bytes.length(),bytes.partial()?"bytes "+bytes.start()+"-"+bytes.end()+"/"+receipt.sizeBytes():null,owned,bytes,()->{UploadReceipt current=resolve(caller,document,version);if(!current.equals(receipt))throw UploadPolicy.unavailable();},()->{actors.remove(actor);streams.release();},clock);
-  }catch(IOException|RuntimeException failure){try{if(spool!=null)spool.close();}finally{actors.remove(actor);streams.release();}if(failure instanceof DmFailure d)throw d;throw UploadPolicy.unavailable();}
+  ContentSpoolStore.Lease lease=spools().reserve(actor);
+  try{
+   String hash;try(var source=storage.open(receipt.original())){synchronized(this){if(stopped)throw UploadPolicy.unavailable();sources.add(source);}try{hash=lease.write(source,receipt.sizeBytes(),clock);}finally{sources.remove(source);}}
+   if(!hash.equals(receipt.sha256()))throw UploadPolicy.unavailable();resolve(caller,document,version);
+   var response=new ContentResponse(bytes.partial()?206:200,receipt.format().mime(),version+"."+receipt.format().extension(),bytes.length(),bytes.partial()?"bytes "+bytes.start()+"-"+bytes.end()+"/"+receipt.sizeBytes():null,lease,bytes,()->{UploadReceipt current=resolve(caller,document,version);if(!current.equals(receipt))throw UploadPolicy.unavailable();},clock);
+   synchronized(this){if(stopped)throw UploadPolicy.unavailable();responses.add(response);}return response;
+  }catch(IOException|RuntimeException failure){try{lease.close();}catch(RuntimeException cleanup){failure.addSuppressed(cleanup);}if(failure instanceof DmFailure d)throw d;throw UploadPolicy.unavailable();}
  }
+ @Override public synchronized void close(){if(stopped)return;stopped=true;for(var source:List.copyOf(sources))try{source.close();}catch(IOException failure){/* Active lease retains capacity until its writer exits. */}for(var response:List.copyOf(responses))try{response.close();}catch(RuntimeException retained){/* Durable reservation remains charged for recovery. */}if(spools!=null)spools.close();}
+
  private UploadReceipt resolve(DocumentCaller caller,UUID document,UUID version){return transactions.execute(r->{var doc=policy.document(r,caller,document,Action.CONTENT_REVIEW,true);var found=doc.versions().stream().filter(v->v.versionId().equals(version)).findFirst().orElseThrow(UploadPolicy::hidden);
   UUID receiptId;try{receiptId=UUID.fromString(found.originalArtifactRef());}catch(IllegalArgumentException legacy){throw UploadPolicy.unavailable();}
   var u=r.uploads();var receipt=u.receipt(caller.tenant(),receiptId).orElseThrow(UploadPolicy::hidden);var consumption=u.consumption(caller.tenant(),receiptId).orElseThrow(UploadPolicy::hidden);
@@ -44,13 +47,13 @@ public final class ContentService {
   }
   private static DmFailure invalid(){return new DmFailure(416,"RANGE_NOT_SATISFIABLE");}
  }
- public static final class ContentResponse implements AutoCloseable {
+ public final class ContentResponse implements AutoCloseable {
   private final int status;private final String mimeType,filename,contentRange;private final long length;
-  private final UploadSupport.Spool spool;private final ByteRange range;private final Runnable authorize,release;private final Clock clock;private final AtomicBoolean opened=new AtomicBoolean(),closed=new AtomicBoolean();
-  private ContentResponse(int status,String mime,String filename,long length,String contentRange,UploadSupport.Spool spool,ByteRange range,Runnable authorize,Runnable release,Clock clock){this.status=status;mimeType=mime;this.filename=filename;this.length=length;this.contentRange=contentRange;this.spool=spool;this.range=range;this.authorize=authorize;this.release=release;this.clock=clock;}
+  private final ContentSpoolStore.Lease spool;private java.nio.channels.FileChannel channel;private final ByteRange range;private final Runnable authorize;private final Clock clock;private final AtomicBoolean opened=new AtomicBoolean(),closed=new AtomicBoolean();
+  private ContentResponse(int status,String mime,String filename,long length,String contentRange,ContentSpoolStore.Lease spool,ByteRange range,Runnable authorize,Clock clock){this.status=status;mimeType=mime;this.filename=filename;this.length=length;this.contentRange=contentRange;this.spool=spool;this.range=range;this.authorize=authorize;this.clock=clock;}
   public int status(){return status;}public String mimeType(){return mimeType;}public String filename(){return filename;}public long length(){return length;}public String contentRange(){return contentRange;}
-  public InputStream openStream(){if(closed.get()||!opened.compareAndSet(false,true))throw UploadPolicy.unavailable();
-   try {authorize.run();InputStream input=Files.newInputStream(spool.file());input.skipNBytes(range.start());var deadline=clock.instant().plusSeconds(300);
+  public synchronized InputStream openStream(){if(closed.get()||!opened.compareAndSet(false,true))throw UploadPolicy.unavailable();
+   try {authorize.run();channel=spool.open();channel.position(range.start());InputStream input=java.nio.channels.Channels.newInputStream(channel);var deadline=clock.instant().plusSeconds(300);
     return new FilterInputStream(input){long remaining=length;
      @Override public int read()throws IOException {byte[] b=new byte[1];return read(b,0,1)==-1?-1:Byte.toUnsignedInt(b[0]);}
      @Override public int read(byte[] b,int offset,int count)throws IOException {if(clock.instant().isAfter(deadline)){close();throw new IOException("Content deadline");}if(count==0)return 0;if(remaining==0){close();return -1;}int n=super.read(b,offset,(int)Math.min(Math.min(count,65536),remaining));if(n<0)throw new IOException("Truncated verified content");remaining-=n;if(remaining==0)close();return n;}
@@ -58,6 +61,6 @@ public final class ContentService {
     };
    }catch(IOException|RuntimeException failure){close();if(failure instanceof DmFailure d)throw d;throw UploadPolicy.unavailable();}
   }
-  @Override public void close(){if(closed.compareAndSet(false,true)){try{spool.close();}finally{release.run();}}}
+  @Override public synchronized void close(){closed.set(true);try{if(channel!=null){channel.close();if(channel.isOpen())throw UploadPolicy.unavailable();}spool.close();}catch(IOException failure){throw UploadPolicy.unavailable();}finally{responses.remove(this);}}
  }
 }

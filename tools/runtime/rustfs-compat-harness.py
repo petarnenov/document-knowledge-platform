@@ -61,10 +61,15 @@ def prepare(directory):
         (directory / part).mkdir(mode=0o700)
     root_access, root_secret = secrets.token_hex(16), secrets.token_hex(32)
     app_access, app_secret = secrets.token_hex(16), secrets.token_hex(32)
+    cleanup_access, cleanup_secret = secrets.token_hex(16), secrets.token_hex(32)
     write(directory / 'server/root-access', root_access + '\n')
     write(directory / 'server/root-secret', root_secret + '\n')
     write(directory / 'app/access-key', app_access + '\n')
     write(directory / 'app/secret-key', app_secret + '\n')
+    write(directory / 'app/cleanup-access-key', cleanup_access + '\n')
+    write(directory / 'app/cleanup-secret-key', cleanup_secret + '\n')
+    for role, access, secret, name in [('normal', app_access, app_secret, 'access-key'), ('cleanup', cleanup_access, cleanup_secret, 'cleanup-access-key')]:
+        write(directory / ('app/' + name + '.role'), 'dkp-storage-' + role + '-v1\n' + hashlib.sha256(access.encode()).hexdigest() + '\n' + hashlib.sha256(secret.encode()).hexdigest() + '\n')
     write(directory / 'app/.spool-authority', 'dkp-private-spool-v1\n')
     write(directory / 'root-curl.private', 'user = "' + root_access + ':' + root_secret + '"\n')
     run('openssl', 'req', '-x509', '-newkey', 'rsa:3072', '-nodes', '-days', '3', '-subj', '/CN=DKP104-isolated-CA',
@@ -123,12 +128,16 @@ def prepare(directory):
         {'Effect': 'Allow', 'Action': ['s3:GetBucketVersioning'], 'Resource': ['arn:aws:s3:::' + b for b in ('dkp-quarantine', 'dkp-originals')]},
         {'Effect': 'Allow', 'Action': ['s3:ListBucketVersions'], 'Resource': ['arn:aws:s3:::' + b for b in ('dkp-quarantine', 'dkp-originals')],
          'Condition': {'StringLike': {'s3:prefix': [state['prefix'] + '*']}}},
-        {'Effect': 'Allow', 'Action': ['s3:GetObject', 's3:GetObjectVersion', 's3:PutObject', 's3:DeleteObjectVersion'],
+        {'Effect': 'Allow', 'Action': ['s3:GetObject', 's3:GetObjectVersion', 's3:PutObject'],
          'Resource': ['arn:aws:s3:::' + b + '/' + state['prefix'] + '*' for b in ('dkp-quarantine', 'dkp-originals')]}
     ]}
     curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/add-canned-policy?name=dkp104-scoped', json.dumps(policy))
     curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/add-user?accessKey=' + app_access, json.dumps({'secretKey': app_secret, 'status': 'enabled'}))
     curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/set-user-or-group-policy?policyName=dkp104-scoped&userOrGroup=' + app_access + '&isGroup=false')
+    policy['Statement'][2]['Action'] = ['s3:GetObjectVersion', 's3:DeleteObjectVersion']
+    curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/add-canned-policy?name=dkp104-cleanup', json.dumps(policy))
+    curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/add-user?accessKey=' + cleanup_access, json.dumps({'secretKey': cleanup_secret, 'status': 'enabled'}))
+    curl(directory, state['endpoint'], 'PUT', '/rustfs/admin/v3/set-user-or-group-policy?policyName=dkp104-cleanup&userOrGroup=' + cleanup_access + '&isGroup=false')
     print('RustFS fixture ready; root bootstrap complete; native IAM scoped app authority volume=' + state['authority'])
 
 

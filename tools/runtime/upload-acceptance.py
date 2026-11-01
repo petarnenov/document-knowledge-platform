@@ -116,8 +116,17 @@ def validate_fixture(directory):
     if not re.fullmatch('[a-f0-9]{32}', root_access) or not re.fullmatch('[a-f0-9]{64}', root_secret):raise ValueError('Invalid bootstrap credential binding')
     if bounded(directory / 'root-curl.private', 1024).decode() != 'user = "' + root_access + ':' + root_secret + '"\n':raise ValueError('Root config must bind original server authority')
     if bounded(directory / 'ca.pem') != bounded(directory / 'app/ca.pem'):raise ValueError('Original TLS CA binding required')
-    for name, pattern in [('access-key','[a-f0-9]{32}'),('secret-key','[a-f0-9]{64}')]:
-        if not re.fullmatch(pattern, bounded(directory / 'app' / name, 128).decode().strip()):raise ValueError('Invalid app authority')
+    identities = [root_access, root_secret]
+    for prefix, role in [('', 'normal'), ('cleanup-', 'cleanup')]:
+        values = []
+        for name, pattern in [('access-key','[a-f0-9]{32}'),('secret-key','[a-f0-9]{64}')]:
+            value = bounded(directory / 'app' / (prefix + name),128).decode().strip()
+            if not re.fullmatch(pattern,value):raise ValueError('Invalid scoped authority')
+            values.append(value)
+        binding = 'dkp-storage-' + role + '-v1\n' + ''.join(hashlib.sha256(v.encode()).hexdigest() + '\n' for v in values)
+        if bounded(directory / 'app' / (prefix + 'access-key.role'),256).decode() != binding:raise ValueError('Scoped credential role mismatch')
+        identities.extend(values)
+    if len(set(identities)) != len(identities):raise ValueError('Independent scoped credentials required')
     return state
 
 
@@ -197,8 +206,10 @@ def owned(item,record):
     if any((labels or {}).get(key) != value for key,value in authority_labels(record).items()):raise ValueError('Foreign acceptance resource refused')
 
 
-AUTHORITY_FILES = ('denied/access-key','denied/secret-key','inspector/ca.crt','inspector/service.key')
-INITIALIZE_SCRIPT = 'test "$(find /authority -mindepth 1 | wc -l)" -eq 6 && '
+AUTHORITY_FILES = ('denied/access-key','denied/secret-key','denied/access-key.role','inspector/ca.crt','inspector/service.key')
+AUTHORITY_DIRECTORIES = tuple(sorted({str(Path(name).parent) for name in AUTHORITY_FILES}))
+AUTHORITY_COUNT_GUARD = 'test "$(find /authority -mindepth 1 | wc -l)" -eq ' + str(len(AUTHORITY_FILES) + len(AUTHORITY_DIRECTORIES)) + ' && '
+INITIALIZE_SCRIPT = AUTHORITY_COUNT_GUARD
 INITIALIZE_SCRIPT += ' && '.join('test ! -L /authority' + path + ' && test "$(stat -c %u /authority' + path + ')" = 0' for path in ('','/denied','/inspector'))
 INITIALIZE_SCRIPT += ' && ' + ' && '.join('test -f /authority/' + path + ' && test ! -L /authority/' + path + ' && test "$(stat -c %u /authority/' + path + ')" = 0' for path in AUTHORITY_FILES)
 INITIALIZE_SCRIPT += ' && chmod 0700 /authority /authority/denied /authority/inspector && chmod 0600 ' + ' '.join('/authority/' + path for path in AUTHORITY_FILES)
@@ -211,7 +222,7 @@ def authority_archive(work):
     # with explicit root metadata, allowing CHOWN-only initialization everywhere.
     stream = io.BytesIO()
     with tarfile.open(fileobj=stream,mode='w',format=tarfile.USTAR_FORMAT) as archive:
-        for name in ('denied','inspector'):
+        for name in AUTHORITY_DIRECTORIES:
             info = tarfile.TarInfo(name);info.type = tarfile.DIRTYPE;info.mode = 0o700
             archive.addfile(info)
         for name in AUTHORITY_FILES:
@@ -243,7 +254,7 @@ def attest_volume(record):
     if resource['Driver'] != 'local' or resource.get('Options') not in (None,{}):raise ValueError('Owned local app authority volume required')
     if command(['docker','ps','-aq','--filter','volume=' + record['authorityVolume']]).strip():raise ValueError('Acceptance authority has another consumer')
     files = AUTHORITY_FILES
-    script = 'test "$(find /authority -mindepth 1 | wc -l)" -eq 6 && '
+    script = AUTHORITY_COUNT_GUARD
     script += ' && '.join('test ! -L /authority' + p + ' && test "$(stat -c %u:%g:%a /authority' + p + ')" = 10001:10001:700' for p in ('','/denied','/inspector'))
     script += ' && ' + ' && '.join('test -f /authority/' + p + ' && test ! -L /authority/' + p + ' && test "$(stat -c %u:%g:%a /authority/' + p + ')" = 10001:10001:600' for p in files)
     script += ' && sha256sum ' + ' '.join('/authority/' + p for p in files)
@@ -274,6 +285,7 @@ def prepare(directory, fixture_directory, runtime_directory):
     for part in ('app','app/denied','app/inspector'):(directory / part).mkdir(mode=0o700)
     access,secret = secrets.token_hex(16),secrets.token_hex(32)
     private(directory / 'app/denied/access-key',access + '\n');private(directory / 'app/denied/secret-key',secret + '\n')
+    private(directory / 'app/denied/access-key.role','dkp-storage-cleanup-v1\n' + hashlib.sha256(access.encode()).hexdigest() + '\n' + hashlib.sha256(secret.encode()).hexdigest() + '\n')
     for name in ('ca.crt','service.key'):
         private(directory / 'app/inspector' / name,bounded(Path(live['directory']) / 'inspector/app' / name))
     policy_name = 'dkp151-readonly-' + run_id
@@ -293,7 +305,7 @@ def read_record(directory):
     directory = owned_directory(directory);record = json.loads(bounded(directory / 'state.json',16384))
     if (set(record) != FIELDS or record['schemaVersion'] != 1 or not re.fullmatch('[a-f0-9]{32}',record['runId'])
             or record['authorityVolume'] != 'dkp151-' + record['runId'] + '-authority' or record['phase'] != 'prepared'
-            or set(record['files']) != {'app/denied/access-key','app/denied/secret-key','app/inspector/ca.crt','app/inspector/service.key'}
+            or set(record['files']) != {'app/denied/access-key','app/denied/secret-key','app/denied/access-key.role','app/inspector/ca.crt','app/inspector/service.key'}
             or set(record['sourceHashes']) != set(BOUND_SOURCES)):raise ValueError('Complete closed acceptance record required')
     for relative,expected in record['files'].items():
         bounded(directory / relative)

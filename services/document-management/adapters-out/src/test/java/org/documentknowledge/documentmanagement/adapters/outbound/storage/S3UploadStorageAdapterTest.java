@@ -151,44 +151,7 @@ class S3UploadStorageAdapterTest {
             .versions(ObjectVersion.builder().key(KEY).versionId("null").build()).build()).versions(QUARANTINE));
     }
 
-    @Test void deletionRequiresDispatchedFenceAndOneBoundTerminalResponsePlusAbsence() {
-        var deletes = new AtomicInteger();
-        var adapter = adapter((method, args) -> {
-            if (method.equals("deleteObject")) {
-                var request = (DeleteObjectRequest) args[0];
-                assertEquals(OBJECT.versionId(), request.versionId());
-                assertEquals(KEY, request.key());
-                deletes.incrementAndGet();
-                return deleted("request-1", "exact-version");
-            }
-            assertEquals("headObject", method);
-            assertEquals(OBJECT.versionId(), ((HeadObjectRequest) args[0]).versionId());
-            throw failure(404, "NoSuchVersion", "request-2");
-        });
-        var fence = fence(FencePhase.DISPATCHED);
-        var result = adapter.deleteOnce(fence);
-        assertTrue(result.terminal()); assertTrue(result.noFurtherExecution());
-        assertTrue(result.absent()); assertTrue(result.successful());
-        assertEquals(fence.attemptId(), result.attemptId()); assertEquals(OBJECT, result.object());
-        assertEquals("request-1", result.requestId()); assertEquals(1, deletes.get());
-        assertUnavailable(() -> adapter.deleteOnce(fence(FencePhase.AUTHORIZED)));
-    }
 
-    @Test void timeoutsServerErrorsAndUnboundResponsesKeepDeletionUnresolved() {
-        for (var failure : List.of(SdkClientException.create("synthetic timeout"), failure(503, "Unavailable", "request-1"))) {
-            var adapter = adapter((method, args) -> { throw failure; });
-            var result = adapter.deleteOnce(fence(FencePhase.DISPATCHED));
-            assertFalse(result.terminal()); assertFalse(result.noFurtherExecution()); assertFalse(result.absent());
-        }
-        for (var response : List.of(deleted("", "exact-version"), deleted("request-1", "wrong-version"))) {
-            var result = adapter((method, args) -> response).deleteOnce(fence(FencePhase.DISPATCHED));
-            assertFalse(result.terminal()); assertFalse(result.absent());
-        }
-        var denied = adapter((method, args) -> { throw failure(403, "AccessDenied", "request-1"); })
-            .deleteOnce(fence(FencePhase.DISPATCHED));
-        assertTrue(denied.terminal()); assertTrue(denied.noFurtherExecution());
-        assertFalse(denied.successful()); assertFalse(denied.absent());
-    }
 
     private static DeletionFence fence(FencePhase phase) {
         return new DeletionFence(UUID.randomUUID(), "synthetic-tenant", UUID.randomUUID(), UUID.randomUUID(),
@@ -219,29 +182,6 @@ class S3UploadStorageAdapterTest {
         assertEquals("NoSuchVersion", exception.awsErrorDetails().errorCode());
     }
 
-    @Test void missingSdkRequestMetadataCannotSettleDeletion() {
-        DeleteObjectResponse.Builder builder = DeleteObjectResponse.builder().versionId("exact-version");
-        builder.responseMetadata(S3ResponseMetadata.create(new AwsResponseMetadata(Map.of()) { }));
-        builder.sdkHttpResponse(SdkHttpResponse.builder().statusCode(204).build());
-        var missing = builder.build();
-        assertEquals("UNKNOWN", missing.responseMetadata().requestId());
-        var calls = new AtomicInteger();
-        var result = adapter((method, args) -> {
-            assertEquals("deleteObject", method);
-            calls.incrementAndGet();
-            return missing;
-        }).deleteOnce(fence(FencePhase.DISPATCHED));
-        assertEquals(1, calls.get());
-        assertFalse(result.terminal());
-        assertFalse(result.noFurtherExecution());
-        assertFalse(result.absent());
-        assertFalse(result.successful());
-        var rejected = adapter((method, args) -> { throw failure(403, "AccessDenied", "UNKNOWN"); })
-            .deleteOnce(fence(FencePhase.DISPATCHED));
-        assertFalse(rejected.terminal());
-        assertFalse(rejected.noFurtherExecution());
-        assertFalse(rejected.absent());
-    }
 
     private S3UploadStorageAdapter adapter(BiFunction<String, Object[], Object> implementation) {
         var client = (S3Client) Proxy.newProxyInstance(S3Client.class.getClassLoader(), new Class<?>[] {S3Client.class},

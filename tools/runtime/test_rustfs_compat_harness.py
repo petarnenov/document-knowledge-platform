@@ -76,6 +76,72 @@ class RunnerPortabilityTests(unittest.TestCase):
             with patch.object(module.subprocess, 'run', side_effect=failure), self.assertRaisesRegex(RuntimeError, 'diagnostics suppressed'):
                 module.socket_group('trusted-source-image')
 
+    def test_fresh_preparation_generates_distinct_role_bound_principals_and_scoped_native_policies(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as temporary:
+            directory=Path(temporary)/'fresh';calls=[];native=[]
+            def command(*args,**kwargs):
+                calls.append(args)
+                if args[0]=='openssl':
+                    for option in ('-out','-keyout'):
+                        if option in args:Path(args[args.index(option)+1]).write_text('synthetic-test-material')
+                if args[:2]==('docker','inspect'):
+                    return subprocess.CompletedProcess(args,0,json.dumps([{'NetworkSettings':{'Ports':{'9000/tcp':[{'HostPort':'19900'}]}}}]).encode())
+                return subprocess.CompletedProcess(args,0,b'200' if args[0]=='curl' else b'')
+            with patch.object(module,'run',side_effect=command),patch.object(module,'curl',side_effect=lambda *a:native.append(a)),patch.object(module.time,'sleep'):
+                module.prepare(directory)
+            policies=[json.loads(a[4]) for a in native if 'add-canned-policy' in a[3]]
+            self.assertEqual(2,len(policies))
+            normal={x for s in policies[0]['Statement'] for x in s['Action']};cleanup={x for s in policies[1]['Statement'] for x in s['Action']}
+            self.assertNotIn('s3:DeleteObjectVersion',normal);self.assertNotIn('s3:PutObject',cleanup)
+            self.assertEqual({'s3:GetBucketVersioning','s3:ListBucketVersions','s3:GetObjectVersion','s3:DeleteObjectVersion'},cleanup)
+            credentials=[]
+            for prefix,role in [('', 'normal'),('cleanup-', 'cleanup')]:
+                access=(directory/('app/'+prefix+'access-key')).read_text().strip();secret=(directory/('app/'+prefix+'secret-key')).read_text().strip();credentials.extend([access,secret])
+                expected='dkp-storage-'+role+'-v1\n'+hashlib.sha256(access.encode()).hexdigest()+'\n'+hashlib.sha256(secret.encode()).hexdigest()+'\n'
+                self.assertTrue((directory/('app/'+prefix+'access-key.role')).read_text()==expected)
+            self.assertEqual(4,len(set(credentials)))
+            self.assertFalse(any('root' in p.name for p in (directory/'app').iterdir()))
+            self.assertTrue(all(p.stat().st_mode&0o777==0o600 for p in directory.rglob('*') if p.is_file()))
+            self.assertTrue(all(module.IMAGE in a for a in calls if a[:3]==('docker','run','-d')))
+
+    def test_private_curl_parser_failures_remain_failures_without_secret_diagnostics(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory=Path(temporary);(directory/'ca.pem').write_text('public-ca');(directory/'root-curl.private').write_text('private-root-config')
+            def command(*args,**kwargs):
+                Path(args[args.index('--output')+1]).write_bytes(b'private-response')
+                self.assertNotIn('private-root-config',args);self.assertNotIn('synthetic-body',args)
+                return subprocess.CompletedProcess(args,0,b'200')
+            with patch.object(module,'run',side_effect=command):module.curl(directory,'https://localhost:19900','PUT','/synthetic','synthetic-body')
+            for status,code in [(1,b'200'),(0,b'403'),(0,b'invalid')]:
+                with patch.object(module,'run',side_effect=lambda *a,**k:subprocess.CompletedProcess(a,status,code)),self.assertRaises(RuntimeError):
+                    module.curl(directory,'https://localhost:19900','GET','/synthetic')
+
+    def test_owned_cleanup_rejects_foreign_resources_and_removes_only_recorded_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory=Path(temporary);state={'container':'owned','data':'data','server':'server','authority':'authority','network':'network'};(directory/'state.json').write_text(json.dumps(state));events=[]
+            with patch.object(module,'owned',side_effect=lambda *a:events.append(('owned',*a))),patch.object(module,'run',side_effect=lambda *a:events.append(a)):
+                module.cleanup(directory)
+            self.assertEqual(('owned','owned','container'),events[0]);self.assertEqual(('docker','rm','-f','owned'),events[1]);self.assertEqual(10,len(events))
+            with patch.object(module,'run',return_value=subprocess.CompletedProcess([],0,json.dumps([{'Config':{'Labels':{'dkp.issue':'foreign'}}}]).encode())),self.assertRaises(RuntimeError):module.owned('foreign','container')
+            for kind,metadata in [('container',{'Config':{'Labels':{'dkp.issue':'104'}}}),('volume',{'Labels':{'dkp.issue':'104'}})]:
+                with patch.object(module,'run',return_value=subprocess.CompletedProcess([],0,json.dumps([metadata]).encode())):module.owned('owned',kind)
+
+    def test_command_failure_is_finite_and_cli_never_selects_outside_private_root(self):
+        import argparse
+        with patch.object(module.subprocess,'run',return_value=subprocess.CompletedProcess([],1,b'private-output',b'private-secret')):
+            with self.assertRaisesRegex(RuntimeError,'private diagnostics suppressed'):module.run('docker')
+            self.assertEqual(1,module.run('docker',check=False).returncode)
+        for action,image in [('prepare',None),('cleanup',None),('run','test-image')]:
+            args=argparse.Namespace(action=action,image=image,directory=Path('local-data/security/unit-fixture'))
+            with patch.object(module.argparse.ArgumentParser,'parse_args',return_value=args),patch.object(module,'prepare') as prepare,patch.object(module,'cleanup') as cleanup,patch.object(module,'execute') as execute:
+                module.main();{'prepare':prepare,'cleanup':cleanup,'run':execute}[action].assert_called_once()
+        for directory,image in [(Path('/outside'),None),(Path('local-data/security'),None),(Path('local-data/security/unit-fixture'),None)]:
+            args=argparse.Namespace(action='run',image=image,directory=directory)
+            with patch.object(module.argparse.ArgumentParser,'parse_args',return_value=args),patch.object(module.argparse.ArgumentParser,'error',side_effect=SystemExit),self.assertRaises(SystemExit):module.main()
+        args=argparse.Namespace(action='prepare',image=None,directory=Path('local-data/security/unit-fixture'))
+        with patch.object(module.argparse.ArgumentParser,'parse_args',return_value=args),patch.object(module,'prepare',side_effect=RuntimeError('finite failure')),self.assertRaises(SystemExit):module.main()
+
 
 if __name__ == '__main__':
     unittest.main()

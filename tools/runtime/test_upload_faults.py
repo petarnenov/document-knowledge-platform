@@ -240,6 +240,99 @@ class FaultTests(unittest.TestCase):
         self.assertEqual('FAIL',saved['verdict']);self.assertEqual('rustfs-candidate',saved['phase'])
         self.assertNotEqual('consume',m.browser.call_args.args[2])
 
+    def test_public_diagnostic_is_closed_finite_bounded_and_never_echoes_private_payloads(self):
+        secret = 'secret-credential Bearer token https://private.invalid/row?code=secret SELECT * FROM private'
+        expected_keys = {'schemaVersion','result','phase','service','checkpoint','category','restoration','locations'}
+        for payload in (None, secret, {'phase':secret,'service':secret,'checkpoint':secret,'category':secret,'restoration':secret,'extra':secret},
+                        {'phase': [], 'service': {}, 'category': [], 'restoration': {}, 'checkpoint': []}):
+            value = m.public_diagnostic(payload)
+            self.assertEqual(expected_keys, set(value)); self.assertEqual('FAIL', value['result'])
+            self.assertNotIn(secret, json.dumps(value)); self.assertLess(len(json.dumps(value)), 1024)
+        locations = [{'file':m.LOCATION_FILES[0],'line':n,'column':2} for n in range(1,10)]
+        locations += [{'file':secret,'line':1,'column':1},{'file':m.LOCATION_FILES[0],'line':True,'column':1}]
+        value=m.public_diagnostic({'phase':'rustfs-candidate','service':'rustfs','checkpoint':'failure-accounting',
+                                   'category':'ACCOUNTING_OR_STATE','restoration':'unknown','locations':locations})
+        self.assertEqual(3,len(value['locations'])); self.assertEqual('unknown',value['restoration'])
+        self.assertLess(len(json.dumps(value)),1024)
+        for item in ({'file':m.LOCATION_FILES[0],'line':0,'column':1}, {'file':m.LOCATION_FILES[0],'line':1,'column':1000000},
+                     {'file':m.LOCATION_FILES[0],'line':True,'column':1}, {'file':m.LOCATION_FILES[0],'line':1,'column':1,'message':secret}):
+            self.assertEqual([],m.public_diagnostic({'locations':[item]})['locations'])
+
+    def test_only_bounded_known_numeric_source_locations_leave_private_browser_output(self):
+        name=m.LOCATION_FILES[0]
+        output=('secret token https://private.invalid/secret\n' +
+                '\n'.join(f' at /workspace/{name}:{n}:22 (private-message)' for n in range(1,9)) +
+                '\n /workspace/private.env:1:1\n'+name+':0:1\n'+name+':1234567:1').encode()
+        selected=m.locations(output)
+        self.assertEqual([{'file':name,'line':n,'column':22} for n in range(1,4)],selected)
+        self.assertNotIn('private',json.dumps(selected).replace('admin-portal',''))
+        self.assertEqual([],m.locations(b'private arbitrary exception with malformed UTF8 \xff'))
+        self.assertEqual([],m.locations((name+':0:1 '+name+':1:0 '+name+':1234567:1').encode()))
+
+    def test_browser_timeout_failure_and_invalid_result_have_typed_nonsecret_diagnostics(self):
+        self.work.mkdir(); self.p(m,'ROOT',self.root)
+        def execute(args,**kwargs):
+            kwargs['stdout'].write(b'private secret at /workspace/apps/admin-portal/e2e-real/upload-faults.spec.ts:321:9\n')
+            return SimpleNamespace(returncode=1)
+        subprocess_run=self.p(m.subprocess,'run',side_effect=execute)
+        with self.assertRaises(m.DiagnosticFailure) as error:m.browser(self.work,self.state,'verify',self.fixture)
+        self.assertEqual('BROWSER_FAILED',error.exception.diagnostic['category'])
+        self.assertEqual('readonly-browser',error.exception.diagnostic['checkpoint'])
+        self.assertEqual(321,error.exception.diagnostic['locations'][0]['line'])
+        for failure,category in [(subprocess.TimeoutExpired('private-command',900),'BROWSER_TIMEOUT'),(OSError('private-env'),'BROWSER_UNAVAILABLE')]:
+            subprocess_run.side_effect=failure
+            with self.assertRaises(m.DiagnosticFailure) as error:m.browser(self.work,self.state,'seed',None)
+            self.assertEqual(category,error.exception.diagnostic['category'])
+            self.assertNotIn('private-env',json.dumps(error.exception.diagnostic))
+        def invalid(args,**kwargs):
+            kwargs['stdout'].write(b'DKP_UPLOAD_FAULT_RESULT {"private":"secret"}\n')
+            return SimpleNamespace(returncode=0)
+        subprocess_run.side_effect=invalid
+        with self.assertRaises(m.DiagnosticFailure) as error:m.browser(self.work,self.state,'consume',self.fixture)
+        self.assertEqual('BROWSER_RESULT_INVALID',error.exception.diagnostic['category'])
+        with patch.object(Path,'stat',return_value=SimpleNamespace(st_size=16*1024*1024+1)):
+            with self.assertRaises(m.DiagnosticFailure) as error:m.browser(self.work,self.state,'consume',self.fixture)
+            self.assertEqual('BROWSER_OUTPUT_BOUND',error.exception.diagnostic['category'])
+            self.assertEqual([],error.exception.diagnostic['locations'])
+
+    def test_unknown_restoration_never_becomes_restored_and_preserves_original_fail_status(self):
+        self.work.mkdir(); self.p(m.d,'container',return_value='private-container-id')
+        action=self.p(m.d,'action',side_effect=[None,ValueError('private-start-error')])
+        self.p(m.d,'wait_probe'); self.p(m,'browser',side_effect=m.DiagnosticFailure('private-browser',
+              {'category':'BROWSER_TIMEOUT','locations':[{'file':m.LOCATION_FILES[0],'line':4,'column':2}]}))
+        with self.assertRaises(m.DiagnosticFailure) as error:m.fault(self.work,self.state,self.fixture,'pg','candidate-outage')
+        value=error.exception.diagnostic
+        self.assertEqual('RESTORATION_UNPROVEN',value['category']);self.assertEqual('unknown',value['restoration'])
+        self.assertEqual('fault-restore',value['checkpoint']);self.assertEqual(4,value['locations'][0]['line'])
+        self.assertEqual(['stop','start'],[c.args[2] for c in action.call_args_list])
+        proof=json.loads(next(self.work.glob('fault-*.json')).read_text())
+        self.assertEqual('RESTORATION_UNPROVEN',proof['verdict'])
+        self.assertEqual('unknown',m.diagnosed(error.exception,'pg-candidate','pg','failure-delta','restored')['restoration'])
+
+    def test_failure_public_checkpoint_and_restore_status_are_derived_without_private_state_dump(self):
+        self.arrange_run();m.d.snapshot.return_value='changed-private-state'
+        with self.assertRaises(m.DiagnosticFailure) as error:m.run(self.work,'runtime')
+        value=error.exception.diagnostic
+        self.assertEqual('pg-readonly',value['phase']);self.assertEqual('pg',value['service'])
+        self.assertEqual('readonly-equality',value['checkpoint']);self.assertEqual('IMMUTABLE_FACTS',value['category'])
+        self.assertEqual('restored',value['restoration'])
+        self.assertNotIn('changed-private-state',json.dumps(value))
+        private=json.loads((self.work/'state.json').read_text());self.assertEqual('FAIL',private['verdict'])
+        self.assertEqual(value,private['diagnostic'])
+        self.assertEqual('SOURCE_BINDING',m.diagnosed(ValueError('private'),'seed',None,'source-binding')['category'])
+        self.assertEqual('PROVIDER_OR_HEALTH',m.diagnosed(ValueError('private'),'seed',None,'fault-stop')['category'])
+        self.assertEqual('ACCOUNTING_OR_STATE',m.diagnosed(ValueError('private'),'seed',None,'candidate-admission')['category'])
+
+    def test_cli_prints_only_closed_diagnostic_and_never_converts_failure_into_success(self):
+        failure=m.DiagnosticFailure('private password SQL URL',{'phase':'scanner-candidate','service':'scanner',
+                    'checkpoint':'fault-browser','category':'BROWSER_TIMEOUT','restoration':'unknown'})
+        self.p(m,'run',side_effect=failure);output=self.p(__import__('builtins'),'print')
+        self.assertEqual(1,m.main(['--directory','own','--runtime-directory','ready']))
+        public=output.call_args_list[0].args[0]
+        self.assertTrue(public.startswith(m.DIAGNOSTIC_MARKER))
+        value=json.loads(public[len(m.DIAGNOSTIC_MARKER):]);self.assertEqual('BROWSER_TIMEOUT',value['category'])
+        self.assertEqual('unknown',value['restoration']);self.assertNotIn('private password',str(output.call_args_list))
+
     def test_cli_no_raw_error_payload_and_no_false_success(self):
         run=self.p(m,'run',side_effect=ValueError('private-key'));output=self.p(__import__('builtins'),'print')
         self.assertEqual(1,m.main(['--directory','own','--runtime-directory','ready']));self.assertNotIn('private-key',output.call_args.args[0])

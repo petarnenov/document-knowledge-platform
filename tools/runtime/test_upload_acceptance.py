@@ -31,7 +31,9 @@ class AcceptanceTests(unittest.TestCase):
         self.state['prefix']=hashlib.sha256(self.state['tenant'].encode()).hexdigest()+'/'+self.state['document']+'/'
         for name,value in {'state.json':json.dumps(self.state),'server/root-access':'a'*32+'\n','server/root-secret':'b'*64+'\n',
                            'root-curl.private':'user = "'+'a'*32+':'+'b'*64+'"\n','ca.pem':'public-ca','app/ca.pem':'public-ca',
-                           'app/access-key':'c'*32,'app/secret-key':'d'*64}.items():m.private(self.fixture/name,value)
+                           'app/access-key':'c'*32,'app/secret-key':'d'*64,'app/cleanup-access-key':'e'*32,'app/cleanup-secret-key':'f'*64}.items():m.private(self.fixture/name,value)
+        for prefix, role, access, secret in [('', 'normal', 'c'*32, 'd'*64), ('cleanup-', 'cleanup', 'e'*32, 'f'*64)]:
+            m.private(self.fixture / ('app/' + prefix + 'access-key.role'), 'dkp-storage-' + role + '-v1\n' + hashlib.sha256(access.encode()).hexdigest() + '\n' + hashlib.sha256(secret.encode()).hexdigest() + '\n')
         self.directory=self.root/'local-data/security/acceptance151';self.image='sha256:'+'e'*64
         self.live={'directory':str(self.root/'local-data/security/bp03-upload/run'),'project':'dkp-bp03-'+'f'*12,'runId':'f'*32,
                    'workerImage':'sha256:'+'1'*64,'definitions':str(self.root/'definitions')}
@@ -64,7 +66,7 @@ class AcceptanceTests(unittest.TestCase):
     def arrange_prepared(self):
         self.directory.mkdir(mode=0o700)
         for part in ('app','app/denied','app/inspector'):(self.directory/part).mkdir(mode=0o700)
-        for name in ('app/denied/access-key','app/denied/secret-key','app/inspector/ca.crt','app/inspector/service.key'):m.private(self.directory/name,'synthetic')
+        for name in ('app/denied/access-key','app/denied/secret-key','app/denied/access-key.role','app/inspector/ca.crt','app/inspector/service.key'):m.private(self.directory/name,'synthetic')
         record=self.record();record['files']={str(p.relative_to(self.directory)):m.sha(p) for p in (self.directory/'app').rglob('*') if p.is_file()}
         m.save(self.directory,record);return record
     def replace_record(self,record):m.save(self.directory,record)
@@ -209,8 +211,8 @@ class AcceptanceTests(unittest.TestCase):
         self.p('attest_volume')
         self.p('volume',side_effect=lambda directory,record:events.append(('volume',sorted(str(p.relative_to(directory/'app')) for p in (directory/'app').rglob('*') if p.is_file()))))
         record=m.prepare(self.directory,self.fixture,self.live['directory'])
-        self.assertEqual('prepared',record['phase']);self.assertEqual(4,len(record['files']));self.assertLess(events.index(('matrix',)),next(i for i,e in enumerate(events) if e[0]=='volume'))
-        self.assertEqual(['denied/access-key','denied/secret-key','inspector/ca.crt','inspector/service.key'],events[-1][1])
+        self.assertEqual('prepared',record['phase']);self.assertEqual(5,len(record['files']));self.assertLess(events.index(('matrix',)),next(i for i,e in enumerate(events) if e[0]=='volume'))
+        self.assertEqual(sorted(m.AUTHORITY_FILES),events[-1][1])
         self.assertEqual(3,len([e for e in events if e[0]=='native']));self.assertTrue(all(e[1]=='root' for e in events if e[0]=='native'))
         with self.assertRaises(ValueError):m.prepare(self.directory,self.fixture,self.live['directory'])
         other=self.directory.with_name('notready');self.runtime.verify=lambda p:(_ for _ in ()).throw(ValueError('unready'))
@@ -231,7 +233,7 @@ class AcceptanceTests(unittest.TestCase):
     def test_volume_attestation_requires_private_nonroot_exact_app_bytes_and_no_other_consumer(self):
         record=self.arrange_prepared();calls=[]
         self.p('inspect',return_value={'Driver':'local','Options':{},'Labels':m.authority_labels(record)})
-        expected='\n'.join(record['files']['app/'+name]+'  /authority/'+name for name in ('denied/access-key','denied/secret-key','inspector/ca.crt','inspector/service.key'))+'\n'
+        expected='\n'.join(record['files']['app/'+name]+'  /authority/'+name for name in m.AUTHORITY_FILES)+'\n'
         def run(args,**kwargs):calls.append(args);return expected.encode() if args[:2]==['docker','run'] else b''
         self.p('command',side_effect=run);m.attest_volume(record)
         args=calls[-1];self.assertIn('10001:10001',args);self.assertIn('none',args);self.assertIn('--read-only',args);self.assertIn(',dst=/authority,readonly',' '.join(args))
@@ -302,7 +304,7 @@ class AcceptanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'stale image'):m.execute(self.directory,self.image)
         provider.assert_not_called()
 
-    def test_closed_archive_has_root_metadata_private_modes_and_only_four_app_files(self):
+    def test_closed_archive_has_root_metadata_private_modes_and_only_closed_app_files(self):
         import io,tarfile
         self.arrange_prepared()
         with tarfile.open(fileobj=io.BytesIO(m.authority_archive(self.directory))) as archive:
@@ -315,6 +317,45 @@ class AcceptanceTests(unittest.TestCase):
                 if entry.isfile():self.assertEqual((self.directory/'app'/entry.name).read_bytes(),archive.extractfile(entry).read())
         (self.directory/'app/denied/access-key').chmod(0o644)
         with self.assertRaises(ValueError):m.authority_archive(self.directory)
+
+    def test_actual_archive_shell_count_guards_accept_seven_and_reject_missing_or_extra_entries(self):
+        import io,shlex,tarfile
+        record=self.arrange_prepared();commands=[]
+        self.p('inspect',return_value={'Driver':'local','Options':{},'Labels':m.authority_labels(record)})
+        expected='\n'.join(record['files']['app/'+name]+'  /authority/'+name for name in m.AUTHORITY_FILES)+'\n'
+        def command(args,**kwargs):
+            commands.append(args)
+            return expected.encode() if args[:2]==['docker','run'] else b''
+        self.p('command',side_effect=command);m.attest_volume(record)
+        actual_attestation_script=commands[-1][-1]
+        scripts=[m.INITIALIZE_SCRIPT,actual_attestation_script]
+        with tempfile.TemporaryDirectory() as temporary:
+            authority=Path(temporary)/'authority';authority.mkdir()
+            with tarfile.open(fileobj=io.BytesIO(m.authority_archive(self.directory))) as archive:
+                members=archive.getmembers()
+                self.assertEqual([*m.AUTHORITY_DIRECTORIES,*m.AUTHORITY_FILES],[entry.name for entry in members])
+                for entry in members:
+                    destination=authority/entry.name
+                    if entry.isdir():destination.mkdir(mode=entry.mode)
+                    else:
+                        self.assertTrue(entry.isfile());self.assertFalse(entry.issym() or entry.islnk())
+                        destination.write_bytes(archive.extractfile(entry).read());destination.chmod(entry.mode)
+            actual_entries=list(authority.rglob('*'))
+            self.assertEqual(7,len(actual_entries))
+            self.assertEqual(set(m.AUTHORITY_DIRECTORIES),{str(p.relative_to(authority)) for p in actual_entries if p.is_dir()})
+            self.assertEqual(set(m.AUTHORITY_FILES),{str(p.relative_to(authority)) for p in actual_entries if p.is_file()})
+            def execute_count(script):
+                # Execute the exact production shell guard, not a Python count
+                # mirror. Only substitute the isolated extraction's mount path.
+                guard=script.split(' && ',1)[0].replace('/authority',shlex.quote(str(authority)))
+                return subprocess.run(['/bin/sh','-c',guard],capture_output=True,timeout=5).returncode
+            for script in scripts:self.assertEqual(0,execute_count(script))
+            extra=authority/'unexpected';extra.write_text('synthetic')
+            for script in scripts:self.assertNotEqual(0,execute_count(script))
+            extra.unlink();missing=authority/'denied/access-key.role';data=missing.read_bytes();missing.unlink()
+            for script in scripts:self.assertNotEqual(0,execute_count(script))
+            missing.write_bytes(data)
+            for script in scripts:self.assertEqual(0,execute_count(script))
 
     def test_private_initialization_normalizes_exact_root_owned_paths_before_leaf_first_transfer(self):
         script=m.INITIALIZE_SCRIPT

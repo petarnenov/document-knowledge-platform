@@ -57,6 +57,7 @@ class RustFsUploadStorageIntegrationTest {
     private static String prefix,tenant,container;
     private static UUID document;
     private static S3UploadStorageAdapter storage;
+    private static S3CleanupStorageAdapter cleanup;
     private static S3Client scoped;
     private static HttpClient http;
     private static TrustManagerFactory trust;
@@ -76,11 +77,13 @@ class RustFsUploadStorageIntegrationTest {
         var ssl=SSLContext.getInstance("TLS");ssl.init(null,trust.getTrustManagers(),null);
         http=HttpClient.newBuilder().sslContext(ssl).connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build();
         storage=S3UploadStorageAdapter.connect(configuration(authority.resolve("access-key"),authority.resolve("secret-key"),authority.resolve("ca.pem"),authority));
+        cleanup=S3CleanupStorageAdapter.connect(configuration(authority.resolve("cleanup-access-key"),authority.resolve("cleanup-secret-key"),authority.resolve("ca.pem"),authority));
+        assertTrue(cleanup.ready());
         scoped=client(credentials);
         var server=DockerClientFactory.instance().client().inspectContainerCmd(container).exec();
         assertTrue(container.matches("dkp104-[a-f0-9]{12}"));assertEquals("104",server.getConfig().getLabels().get("dkp.issue"));
     }
-    @AfterAll static void close(){if(storage!=null)storage.close();if(scoped!=null)scoped.close();}
+    @AfterAll static void close(){if(storage!=null)storage.close();if(cleanup!=null)cleanup.close();if(scoped!=null)scoped.close();}
     private static String required(String name){String value=System.getenv(name);assertNotNull(value,name+" must be explicitly provided by isolated harness");return value;}
     private static S3UploadStorageAdapter.Configuration configuration(Path access,Path secret,Path ca,Path spool){return new S3UploadStorageAdapter.Configuration(endpoint,"us-east-1",access,secret,ca,spool);}
     private static S3Client client(AwsBasicCredentials keys){return S3Client.builder().endpointOverride(endpoint).region(Region.US_EAST_1)
@@ -115,11 +118,11 @@ class RustFsUploadStorageIntegrationTest {
         Path bad=Files.createTempFile(authority,"bad-hash-",".bin");try{Files.write(bad,CONTENT);assertThrows(DmFailure.class,()->storage.put(key("dkp-quarantine"),bad,CONTENT.length,"0".repeat(64)));}finally{Files.delete(bad);}
     }
     @Test void exactVersionDeletionHasRealRequestBoundTerminalProofAndAuthoritativeAbsence()throws Exception {
-        var object=put(key("dkp-quarantine"),CONTENT);var attempt=fence(object);var result=storage.deleteOnce(attempt);
+        var object=put(key("dkp-quarantine"),CONTENT);var attempt=fence(object);var result=cleanup.deleteOnce(attempt);
         assertEquals(attempt.attemptId(),result.attemptId());assertEquals(object,result.object());assertNotNull(result.requestId());
         assertTrue(result.terminal());assertTrue(result.noFurtherExecution());assertTrue(result.successful());assertTrue(result.absent());
         assertTrue(storage.versions(object.objectKey()).isEmpty());assertThrows(DmFailure.class,()->storage.open(object));
-        assertThrows(DmFailure.class,()->storage.deleteOnce(new DeletionFence(attempt.attemptId(),tenant,document,attempt.uploadId(),object,attempt.executorId(),attempt.createdAt(),FencePhase.AUTHORIZED)));
+        assertThrows(DmFailure.class,()->cleanup.deleteOnce(new DeletionFence(attempt.attemptId(),tenant,document,attempt.uploadId(),object,attempt.executorId(),attempt.createdAt(),FencePhase.AUTHORIZED)));
     }
     @Test void nativeIamDeniesAnonymousWrongCredentialsAdminUnversionedDeleteAndOutsidePrefix()throws Exception {
         var object=put(key("dkp-quarantine"),CONTENT);
@@ -156,7 +159,7 @@ class RustFsUploadStorageIntegrationTest {
         try(var hostnameMismatch=S3UploadStorageAdapter.connect(wrongHost)){assertFalse(hostnameMismatch.ready());}
         assertThrows(DmFailure.class,()->S3UploadStorageAdapter.connect(configuration(authority.resolve("access-key"),authority.resolve("secret-key"),authority.resolve("non-ca.pem"),privateDir)));
         Files.writeString(badSecret,"X".repeat(64));
-        try(var denied=S3UploadStorageAdapter.connect(configuration(authority.resolve("access-key"),badSecret,authority.resolve("ca.pem"),privateDir))){assertFalse(denied.ready());}
+        assertThrows(DmFailure.class,()->S3UploadStorageAdapter.connect(configuration(authority.resolve("access-key"),badSecret,authority.resolve("ca.pem"),privateDir)));
         for(var invalid:List.of("", "not-a-certificate")) {
             Files.writeString(badCa,invalid);Files.setPosixFilePermissions(badCa,PosixFilePermissions.fromString("rw-------"));
             assertThrows(DmFailure.class,()->S3UploadStorageAdapter.connect(configuration(authority.resolve("access-key"),authority.resolve("secret-key"),badCa,privateDir)));
@@ -167,12 +170,38 @@ class RustFsUploadStorageIntegrationTest {
         assertThrows(DmFailure.class,()->S3UploadStorageAdapter.connect(configuration(symlink,authority.resolve("secret-key"),authority.resolve("ca.pem"),privateDir)));
         for(var file:List.of(symlink,badAccess,badSecret,badCa,marker))Files.delete(file);Files.delete(privateDir);
     }
+    @Test void nativeNormalDeleteIsDeniedWhileCleanupIsNarrowAndRoleSwapsFailBeforeTransport()throws Exception {
+        var object=put(key("dkp-quarantine"),CONTENT);
+        assertEquals(403,assertThrows(S3Exception.class,()->scoped.deleteObject(software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder().bucket(object.objectKey().bucket()).key(object.objectKey().key()).versionId(object.versionId()).build())).statusCode());
+        assertArrayEquals(CONTENT,read(object));
+        assertThrows(DmFailure.class,()->S3CleanupStorageAdapter.connect(configuration(authority.resolve("access-key"),authority.resolve("secret-key"),authority.resolve("ca.pem"),authority)));
+        assertThrows(DmFailure.class,()->S3UploadStorageAdapter.connect(configuration(authority.resolve("cleanup-access-key"),authority.resolve("cleanup-secret-key"),authority.resolve("ca.pem"),authority)));
+        try(var cleanupClient=client(AwsBasicCredentials.create(Files.readString(authority.resolve("cleanup-access-key")).strip(),Files.readString(authority.resolve("cleanup-secret-key")).strip()))) {
+            assertEquals(403,assertThrows(S3Exception.class,()->cleanupClient.putObject(PutObjectRequest.builder().bucket(object.objectKey().bucket()).key(object.objectKey().key()).build(),RequestBody.fromBytes(CONTENT))).statusCode());
+            assertEquals(403,assertThrows(S3Exception.class,()->cleanupClient.deleteObject(software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder().bucket("dkp-quarantine").key("0".repeat(64)+"/"+document+"/outside").versionId(object.versionId()).build())).statusCode());
+            assertEquals(403,assertThrows(S3Exception.class,()->cleanupClient.deleteObject(software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder().bucket(object.objectKey().bucket()).key(object.objectKey().key()).build())).statusCode());
+        }
+        var directory=Files.createTempDirectory(authority,"cleanup-negative-");Files.setPosixFilePermissions(directory,PosixFilePermissions.fromString("rwx------"));
+        Path access=directory.resolve("access-key"),secret=directory.resolve("secret-key"),role=directory.resolve("access-key.role");
+        Files.copy(authority.resolve("cleanup-access-key"),access);Files.copy(authority.resolve("cleanup-secret-key"),secret);
+        for(Path file:List.of(access,secret))Files.setPosixFilePermissions(file,PosixFilePermissions.fromString("rw-------"));
+        assertThrows(DmFailure.class,()->S3CleanupStorageAdapter.connect(configuration(access,secret,authority.resolve("ca.pem"),authority)));
+        Files.copy(authority.resolve("cleanup-access-key.role"),role);Files.setPosixFilePermissions(role,PosixFilePermissions.fromString("rw-r--r--"));
+        assertThrows(DmFailure.class,()->S3CleanupStorageAdapter.connect(configuration(access,secret,authority.resolve("ca.pem"),authority)));
+        Files.setPosixFilePermissions(role,PosixFilePermissions.fromString("rw-------"));Files.delete(secret);
+        assertThrows(DmFailure.class,()->S3CleanupStorageAdapter.connect(configuration(access,secret,authority.resolve("ca.pem"),authority)));
+        Files.createSymbolicLink(secret,authority.resolve("cleanup-secret-key"));
+        assertThrows(DmFailure.class,()->S3CleanupStorageAdapter.connect(configuration(access,secret,authority.resolve("ca.pem"),authority)));
+        for(Path file:List.of(access,secret,role))Files.delete(file);Files.delete(directory);
+        assertTrue(cleanup.versions(object.objectKey()).contains(object));
+        assertTrue(cleanup.deleteOnce(fence(object)).successful());assertFalse(storage.versions(object.objectKey()).contains(object));
+    }
     @Test void actualServerOutageFailsClosedAndDurableExactVersionsSurviveRestart()throws Exception {
         var object=put(key("dkp-quarantine"),CONTENT);var docker=DockerClientFactory.instance().client();
         docker.stopContainerCmd(container).withTimeout(10).exec();
         try {
             assertFalse(storage.ready());assertEquals(503,assertThrows(DmFailure.class,()->storage.open(object)).status());
-            var unknown=storage.deleteOnce(fence(object));assertFalse(unknown.terminal());assertFalse(unknown.noFurtherExecution());assertFalse(unknown.successful());assertFalse(unknown.absent());assertNull(unknown.requestId());
+            var unknown=cleanup.deleteOnce(fence(object));assertFalse(unknown.terminal());assertFalse(unknown.noFurtherExecution());assertFalse(unknown.successful());assertFalse(unknown.absent());assertNull(unknown.requestId());
         }finally{docker.startContainerCmd(container).exec();}
         boolean recovered=false;for(int i=0;i<100;i++){try{if(storage.versions(object.objectKey()).contains(object)){recovered=true;break;}}catch(DmFailure unavailable){Thread.sleep(200);}}
         assertTrue(recovered,"RustFS must recover the same persisted exact version");assertArrayEquals(CONTENT,read(object));
