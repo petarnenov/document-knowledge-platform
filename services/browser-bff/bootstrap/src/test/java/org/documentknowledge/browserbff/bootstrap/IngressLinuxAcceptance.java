@@ -51,7 +51,15 @@ public final class IngressLinuxAcceptance {
                 java.nio.file.Files.delete(readback.temp);
             }
         });
-        if(passed!=26)throw new IllegalStateException("INCOMPLETE_PROFILE");
-        System.out.println("{\"profile\":\"dkp338-linux-ingress-component\",\"passed\":26,\"failed\":0,\"skipped\":0}");
+        var admission = new IngressAdmissionIntegrationTest();
+        run("aggregate-preauth-connection-cap-and-reuse", admission::preAuthConnectionsAreBoundedAndConfirmedTeardownReusesCapacity);
+        run("aggregate-real-pipelined-request-cap", admission::retainedRequestCapacityCountsRealPipelinedBodiesAcrossConnections);
+        run("aggregate-incomplete-body-disconnect", admission::incompleteBodyDisconnectSettlesTheActualFrameworkOwner);
+        run("aggregate-unproved-teardown-retains", admission::missingOrFailedOrderedDiscardNeverFreesUnprovedCapacity);
+        var settlement = new PinnedIngressSettlementTest();
+        run("aggregate-offloop-forced-delay-cleanup", settlement::queuedOffLoopAndForcedDelaySplitCleanupNeedsTheOrderedBarrier);
+        run("aggregate-queued-discard-failure-retains", settlement::thrownQueuedDiscardCannotReleaseTheStillRetainedRoot);
+        if(passed!=32)throw new IllegalStateException("INCOMPLETE_PROFILE");
+        System.out.println("{\"profile\":\"dkp338-linux-ingress-component\",\"passed\":32,\"failed\":0,\"skipped\":0}");
     }
 }

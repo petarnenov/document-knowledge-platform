@@ -101,3 +101,28 @@ tasks.register('liveReadbackCoverageVerification', JacocoCoverageVerification) {
     } }
 }
 tasks.named('check') { dependsOn tasks.named('liveReadbackCoverageVerification') }
+
+// Separate floors prevent existing policy coverage from masking new admission/settlement gaps.
+['IngressAdmission', 'PinnedIngressSettlement'].each { className ->
+    def selected = files(sourceSets.main.output.classesDirs.collect {
+        fileTree(it) { include "**/${className}.class"; include "**/${className}\$*.class" }
+    })
+    def report = tasks.register("${className}CoverageReport", JacocoReport) {
+        dependsOn tasks.named('test')
+        executionData layout.buildDirectory.file('jacoco/test.exec')
+        classDirectories.setFrom(selected)
+        sourceDirectories.setFrom(sourceSets.main.allJava.srcDirs)
+        reports { xml.required = true; html.required = true }
+    }
+    def verification = tasks.register("${className}CoverageVerification", JacocoCoverageVerification) {
+        dependsOn report
+        executionData layout.buildDirectory.file('jacoco/test.exec')
+        classDirectories.setFrom(selected)
+        sourceDirectories.setFrom(sourceSets.main.allJava.srcDirs)
+        violationRules { rule {
+            limit { counter = 'LINE'; minimum = 0.75 }
+            limit { counter = 'BRANCH'; minimum = 0.75 }
+        } }
+    }
+    tasks.named('check') { dependsOn verification }
+}
