@@ -14,10 +14,10 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.DeserializationFeature;
 
 /** One bounded authoritative read per decision. There is deliberately no cached successful snapshot. */
-public final class GrantCatalog implements ResourceAuthorizationPort {
+public final class GrantCatalog implements ResourceAuthorizationPort, org.documentknowledge.identity.RequestScopedResourceAuthorityPort {
     public static final Set<String> ACTIONS = Set.of("document.create", "document.inspect-draft", "document.read",
         "document.update-metadata", "document.acl.restrict", "document.acl.delegate", "document.version.append",
-        "document.legal-hold.place", "document.legal-hold.inspect", "document.content.review");
+        "document.legal-hold.place", "document.legal-hold.inspect", "document.content.review", "document.share-to-collection");
     private final Path path;
     private final TrustedAuthorityFiles files;
     private final JsonMapper json = JsonMapper.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
@@ -32,13 +32,13 @@ public final class GrantCatalog implements ResourceAuthorizationPort {
     }
     private AuthorityDecision grant(Actor actor, String tenant, String action, boolean delegation) {
         try {
-            Map<Key, Entry> catalog = read();
+            Map<Key, Entry> catalog = readCatalog().entries();
             Entry entry = catalog.get(new Key(actor.issuer(), actor.subject(), tenant));
             return entry != null && (delegation ? entry.ceiling() : entry.actions()).contains(action)
                 ? AuthorityDecision.ALLOW : AuthorityDecision.DENY;
         } catch (Exception unavailable) { return AuthorityDecision.UNAVAILABLE; }
     }
-    private Map<Key, Entry> read() throws java.io.IOException {
+    private Catalog readCatalog() throws java.io.IOException {
         byte[] bytes = files.readBounded(path, 65536, false);
         Object decoded = json.readValue(bytes, Object.class);
         Map<?, ?> root = map(decoded, Set.of("schemaVersion", "entries"), Set.of("schemaVersion", "entries"));
@@ -54,8 +54,20 @@ public final class GrantCatalog implements ResourceAuthorizationPort {
             Entry entry = new Entry(actions(item.get("actions")), item.containsKey("delegationCeiling") ? actions(item.get("delegationCeiling")) : Set.of());
             if (result.putIfAbsent(key, entry) != null) invalid();
         }
-        return result;
+        try {
+            return new Catalog(Map.copyOf(result),java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes)));
+        } catch(java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
+    @Override public Snapshot snapshot(Actor actor,String tenant,String action,List<String> resources) {
+        try {
+            Catalog catalog=readCatalog();
+            Entry entry=catalog.entries().get(new Key(actor.issuer(),actor.subject(),tenant));
+            AuthorityDecision decision=entry!=null&&entry.actions().contains(action)?AuthorityDecision.ALLOW:AuthorityDecision.DENY;
+            Map<String,AuthorityDecision> decisions=new HashMap<>(); resources.forEach(resource->decisions.put(resource,decision));
+            return new Snapshot(actor,tenant,action,resources,decision,decisions,catalog.fingerprint());
+        } catch(Exception unavailable) { return org.documentknowledge.identity.RequestScopedResourceAuthorityPort.unavailable().snapshot(actor,tenant,action,resources); }
+    }
+    private record Catalog(Map<Key,Entry> entries,String fingerprint) { }
     private static Set<String> actions(Object value) {
         Set<String> result = new HashSet<>();
         for (Object action : list(value, 32)) {

@@ -99,8 +99,8 @@ export function Identity() {
       <Title order={1}>Your workspace access.</Title>
       <p className="lead">
         Sign in and choose a tenant to check your verified service context.
-        Metadata-only drafts are available from Documents; knowledge workflows
-        remain planned.
+        Documents and knowledge collections are available after tenant
+        selection.
       </p>
       {error && (
         <Alert

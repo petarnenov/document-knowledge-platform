@@ -1,3 +1,4 @@
+import { Knowledge } from './Knowledge';
 import {
   Anchor,
   Box,
@@ -69,6 +70,7 @@ function Shell() {
             <NavLink to="/foundation">Foundation</NavLink>
             <NavLink to="/identity">Workspace access</NavLink>
             <NavLink to="/documents">Documents</NavLink>
+            <NavLink to="/knowledge">Knowledge</NavLink>
           </nav>
           <p className="sidebar-note">
             Built around clear boundaries.
@@ -82,6 +84,7 @@ function Shell() {
             <Route path="/foundation" element={<Foundation />} />
             <Route path="/identity" element={<Identity />} />
             <Route path="/documents" element={<Documents />} />
+            <Route path="/knowledge" element={<Knowledge />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
@@ -115,7 +118,8 @@ function Overview() {
         <h2 id="welcome-title">Structure before content.</h2>
         <p>
           Draft metadata and verified content uploads are available through
-          verified workspace access. Collections and search remain planned.
+          verified workspace access. Collections and document policy are
+          available from Knowledge. Search remains planned.
         </p>
         <Anchor component={Link} className="primary-link" to="/foundation">
           Explore the foundation <span aria-hidden="true">↗</span>
@@ -178,7 +182,7 @@ function Foundation() {
       <Title order={1}>Built to grow with care.</Title>
       <p className="lead">
         This is an engineering foundation, with authorized metadata-only draft
-        management. Knowledge workflows remain planned.
+        management and knowledge collection policy. Search remains planned.
       </p>
       <Paper
         component="section"

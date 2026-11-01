@@ -48,7 +48,9 @@ public enum Action {
 
   DOCUMENT_LEGAL_HOLD_INSPECT("document.legal-hold.inspect"),
 
-  DOCUMENT_CONTENT_REVIEW("document.content.review");
+  DOCUMENT_CONTENT_REVIEW("document.content.review"),
+
+  DOCUMENT_SHARE_TO_COLLECTION("document.share-to-collection");
 
   private String value;
 

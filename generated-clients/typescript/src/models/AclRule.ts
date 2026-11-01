@@ -56,6 +56,7 @@ export const AclRuleActionEnum = {
     DocumentLegalHoldPlace: 'document.legal-hold.place',
     DocumentLegalHoldInspect: 'document.legal-hold.inspect',
     DocumentContentReview: 'document.content.review',
+    DocumentShareToCollection: 'document.share-to-collection',
 } as const;
 export type AclRuleActionEnum = typeof AclRuleActionEnum[keyof typeof AclRuleActionEnum];
 

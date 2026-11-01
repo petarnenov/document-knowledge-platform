@@ -60,3 +60,10 @@ When an external resource or a production-only owner decision blocks a criterion
 ## BP03 development sequencing — #87/#88
 
 The reviewed BP03 development specification uses separate verified-upload completion and existing explicit version append201. It must not expose processing readiness. BP05 retains atomic version/run/intent/outbox creation with202ACCEPTED_PENDING_DISPATCH and must explicitly reconcile legacy append compatibility and pre-processing versions. Independent security89/architecture90 accepted this sequencing and development approval is recorded in DKP-004. It does not change final project acceptance or grant production approval.
+
+
+## 2026-11-01 01:20 UTC active delivery checkpoint
+
+PR146 merged62a73f0 after genuine60minute expiry PASS and final-head CI. Post-dev41259066139 has passed authenticated provider faults, both themes and all8COPY/FENCE cases; fresh quota remains active. Subsequent PR223 fault-stage failure remains preserved/unknown; reviewed diagnostic PR241 has active CI. Full222/239 audit found approved separate normal/cleanup RustFS credentials absent;242 correction is required before BP03 archive/closure.
+
+BP04 accepted production packets235/236/244 are consolidated under193 from currentdev.168KBtests0skip pass; actual Linux combined gates,240 build review,245 review of243maximum-size browser acceptance and full192 runtime remain open. Full-project work continues; BP05 durable processing specification246 starts independently without runtime/dependency completion claims.

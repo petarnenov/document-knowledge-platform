@@ -53,6 +53,7 @@ export declare const DmChangeAclRequestChangesInnerActionEnum: {
     readonly DocumentLegalHoldPlace: "document.legal-hold.place";
     readonly DocumentLegalHoldInspect: "document.legal-hold.inspect";
     readonly DocumentContentReview: "document.content.review";
+    readonly DocumentShareToCollection: "document.share-to-collection";
 };
 export type DmChangeAclRequestChangesInnerActionEnum = typeof DmChangeAclRequestChangesInnerActionEnum[keyof typeof DmChangeAclRequestChangesInnerActionEnum];
 /**

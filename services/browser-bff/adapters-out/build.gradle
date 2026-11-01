@@ -1,1 +1,29 @@
 // Layer dependencies and verification are configured centrally.
+
+
+// KB boundaries each have a required floor; legacy source cannot hide gaps (#191/#193).
+def knowledgeTestProjects = ['application', 'adapters-in', 'adapters-out', 'bootstrap'].collect {
+    project(":services:browser-bff:${it}")
+}
+tasks.register('knowledgeCoverageReport', JacocoReport) {
+    dependsOn knowledgeTestProjects.collect { it.tasks.named('test') }
+    executionData.from knowledgeTestProjects.collect { it.layout.buildDirectory.file('jacoco/test.exec') }
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+            include 'org/documentknowledge/browserbff/adapters/outbound/FixedKnowledgeGateway*'
+    }
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('knowledgeCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('knowledgeCoverageReport')
+    executionData.from knowledgeTestProjects.collect { it.layout.buildDirectory.file('jacoco/test.exec') }
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+            include 'org/documentknowledge/browserbff/adapters/outbound/FixedKnowledgeGateway*'
+    }
+    violationRules { rule {
+        limit { counter = 'LINE'; minimum = 0.75 }
+        limit { counter = 'BRANCH'; minimum = 0.75 }
+    } }
+}
+tasks.named('check') { dependsOn 'knowledgeCoverageVerification' }
