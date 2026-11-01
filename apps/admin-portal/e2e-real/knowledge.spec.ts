@@ -359,16 +359,39 @@ if (enabled === 'true')
         }),
       ).toBeVisible();
       phase(page, 'reactivate-member');
+      const reactivation = page.waitForResponse(
+        (r) =>
+          /\/memberships\/[0-9a-f-]+$/.test(new URL(r.url()).pathname) &&
+          r.request().method() === 'PATCH',
+      );
+      const currentMembers = page.waitForResponse(
+        async (r) =>
+          new URL(r.url()).pathname.endsWith('/memberships') &&
+          r.request().method() === 'GET' &&
+          r.request().timing().startTime >=
+            (await reactivation).request().timing().startTime,
+      );
       await page
         .getByRole('button', {
           name: `Activate membership ${draft.documentId}`,
         })
         .click();
+      expect((await reactivation).status()).toBe(200);
+      const refreshed = await currentMembers;
+      expect(refreshed.status()).toBe(200);
+      const refreshedBody = (await refreshed.json()) as {
+        items: { documentId: string; state: string; revision: number }[];
+      };
+      expect(
+        refreshedBody.items.find(
+          (member) => member.documentId === draft.documentId,
+        ),
+      ).toMatchObject({ state: 'ACTIVE', revision: 2 });
       await expect(
         page.getByRole('button', {
           name: `Deactivate membership ${draft.documentId}`,
         }),
-      ).toBeVisible();
+      ).toBeEnabled();
       phase(page, 'open-settings');
       await page
         .getByRole('button', { name: 'Collection settings', exact: true })

@@ -126,6 +126,8 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
     decision: string;
   } | null>(null);
   const [blocked, setBlocked] = useState(false);
+  const [commandActive, setCommandActive] = useState(false);
+  const commandFlight = useRef(false);
   const [denialError, setDenialError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [decision, setDecision] = useState<string | null>(null);
@@ -137,7 +139,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
   const detail = useQuery({
     queryKey: [...scope, 'detail', selected],
     queryFn: ({ signal }) => inspectCollection(selected!, signal),
-    enabled: selected !== null && !blocked,
+    enabled: selected !== null && !blocked && !commandActive,
   });
   const acl = useQuery({
     queryKey: [...scope, 'acl', selected],
@@ -152,13 +154,39 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
   const members = useQuery({
     queryKey: [...scope, 'members', selected, memberCursor ?? ''],
     queryFn: ({ signal }) => listMembers(selected!, signal, memberCursor),
-    enabled: selected !== null && panel === 'members' && !blocked,
+    enabled:
+      selected !== null && panel === 'members' && !blocked && !commandActive,
   });
   type Command = {
     kind: KnowledgeCommand;
     body: object;
     membershipId?: string;
   };
+  // The server admits one actor-bound batch at a time. Cancellation is not settlement.
+  function coordinate(action: () => void) {
+    const memberState = client.getQueryState([
+      ...scope,
+      'members',
+      selected,
+      memberCursor ?? '',
+    ]);
+    if (
+      commandFlight.current ||
+      client.isFetching({ queryKey: [...scope, 'members'] }) > 0 ||
+      client.isFetching({ queryKey: [...scope, 'detail'] }) > 0 ||
+      (selected !== null &&
+        client.getQueryState([...scope, 'detail', selected])?.isInvalidated) ||
+      (panel === 'members' && selected !== null && memberState?.isInvalidated)
+    )
+      return;
+    commandFlight.current = true;
+    setCommandActive(true);
+    action();
+  }
+  function finishCommand() {
+    commandFlight.current = false;
+    setCommandActive(false);
+  }
   const intent = useRef<{
     command: Command;
     collectionId: string | undefined;
@@ -240,6 +268,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
       invalidate();
     },
     onError: refuse,
+    onSettled: finishCommand,
   });
   const recovery = useMutation({
     mutationKey: [...scope, 'recover'],
@@ -266,6 +295,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
       setDenialError(null);
     },
     onError: refuse,
+    onSettled: finishCommand,
   });
   const evaluation = useMutation({
     mutationKey: [...scope, 'evaluation'],
@@ -276,6 +306,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
         `Your audience decision is ${result.decision}. This does not grant document access.`,
       ),
     onError: refuse,
+    onSettled: finishCommand,
   });
   const policy = useMutation({
     mutationKey: [...scope, 'policy'],
@@ -317,8 +348,24 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
         `Complete policy decision: ${result.decision}. Compatibility does not grant read access or publication readiness.`,
       ),
     onError: refuse,
+    onSettled: finishCommand,
   });
+  function mutateCommand(command: Command) {
+    coordinate(() => mutation.mutate(command));
+  }
+  function recoverCommand() {
+    coordinate(() => recovery.mutate());
+  }
+  function evaluateCommand() {
+    coordinate(() => evaluation.mutate());
+  }
+  function policyCommand(mode: 'snapshot' | 'validate') {
+    coordinate(() => policy.mutate(mode));
+  }
   const busy =
+    commandActive ||
+    members.isFetching ||
+    detail.isFetching ||
     mutation.isPending ||
     recovery.isPending ||
     evaluation.isPending ||
@@ -369,7 +416,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
     event.preventDefault();
     setNotice(null);
     setDecision(null);
-    mutation.mutate({ kind, body });
+    mutateCommand({ kind, body });
   }
   function select(id: string) {
     setSelected(id);
@@ -413,7 +460,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
       {notice && <p role="status">{notice}</p>}
       {decision && <p role="status">{decision}</p>}
       {uncertain && (
-        <Button disabled={busy} onClick={() => recovery.mutate()}>
+        <Button disabled={busy} onClick={() => recoverCommand()}>
           Retry uncertain command with original key
         </Button>
       )}
@@ -574,7 +621,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
               <Button
                 disabled={busy || !reason}
                 onClick={() =>
-                  mutation.mutate({
+                  mutateCommand({
                     kind: 'status',
                     body: {
                       expectedRevision: current.revision,
@@ -625,7 +672,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
                   Boolean(acl.error)
                 }
                 onClick={() =>
-                  mutation.mutate({
+                  mutateCommand({
                     kind: 'acl',
                     body: {
                       expectedRevision: current.revision,
@@ -677,7 +724,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
                   Boolean(audience.error)
                 }
                 onClick={() =>
-                  mutation.mutate({
+                  mutateCommand({
                     kind: 'audience',
                     body: { expectedRevision: current.revision, rules, reason },
                   })
@@ -685,7 +732,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
               >
                 Replace audience policy
               </Button>
-              <Button disabled={busy} onClick={() => evaluation.mutate()}>
+              <Button disabled={busy} onClick={() => evaluateCommand()}>
                 Evaluate my audience access
               </Button>
             </>
@@ -710,7 +757,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
                         <Button
                           disabled={busy || !reason}
                           onClick={() =>
-                            mutation.mutate({
+                            mutateCommand({
                               kind: 'membership',
                               membershipId: member.membershipId,
                               body: {
@@ -775,7 +822,7 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
               <Button
                 disabled={busy || !reason || !documentId}
                 onClick={() =>
-                  mutation.mutate({
+                  mutateCommand({
                     kind: 'attach',
                     body: {
                       expectedRevision: current.revision,
@@ -834,13 +881,13 @@ function KnowledgeWorkspace({ session }: { session: SessionView }) {
         <Group>
           <Button
             disabled={busy || blocked || !documentId}
-            onClick={() => policy.mutate('snapshot')}
+            onClick={() => policyCommand('snapshot')}
           >
             Create policy snapshot
           </Button>
           <Button
             disabled={busy || !snapshot}
-            onClick={() => policy.mutate('validate')}
+            onClick={() => policyCommand('validate')}
           >
             Validate current policy snapshot
           </Button>
