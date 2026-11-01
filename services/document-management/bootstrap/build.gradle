@@ -1,1 +1,34 @@
 // Shared build conventions are defined in the root build.gradle.
+
+// Sharing has independent floors; legacy coverage cannot hide uncovered new boundaries (#189/#193).
+tasks.register('sharingCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+            include 'org/documentknowledge/documentmanagement/bootstrap/SharingRuntime*'
+            include 'org/documentknowledge/documentmanagement/bootstrap/DocumentFactory*'
+    }
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('sharingCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('sharingCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+            include 'org/documentknowledge/documentmanagement/bootstrap/SharingRuntime*'
+            include 'org/documentknowledge/documentmanagement/bootstrap/DocumentFactory*'
+    }
+    violationRules { rule {
+        limit { counter = 'LINE'; minimum = 0.75 }
+        limit { counter = 'BRANCH'; minimum = 0.75 }
+    } }
+}
+tasks.named('check') { dependsOn 'sharingCoverageVerification' }
+
+// CI bootstrap builds must enforce sharing floors in all changed boundaries (#193).
+tasks.named('check') {
+    dependsOn ':services:document-management:application:sharingCoverageVerification',
+            ':services:document-management:adapters-in:sharingCoverageVerification',
+            ':services:document-management:adapters-out:sharingCoverageVerification'
+}

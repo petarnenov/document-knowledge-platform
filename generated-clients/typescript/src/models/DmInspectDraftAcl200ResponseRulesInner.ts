@@ -56,6 +56,7 @@ export const DmInspectDraftAcl200ResponseRulesInnerActionEnum = {
     DocumentLegalHoldPlace: 'document.legal-hold.place',
     DocumentLegalHoldInspect: 'document.legal-hold.inspect',
     DocumentContentReview: 'document.content.review',
+    DocumentShareToCollection: 'document.share-to-collection',
 } as const;
 export type DmInspectDraftAcl200ResponseRulesInnerActionEnum = typeof DmInspectDraftAcl200ResponseRulesInnerActionEnum[keyof typeof DmInspectDraftAcl200ResponseRulesInnerActionEnum];
 

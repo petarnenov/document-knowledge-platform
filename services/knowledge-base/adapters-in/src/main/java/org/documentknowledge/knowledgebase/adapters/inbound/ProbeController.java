@@ -12,9 +12,11 @@ import org.documentknowledge.knowledgebase.application.Readiness;
 @Controller(value = "/health", produces = MediaType.APPLICATION_JSON)
 public final class ProbeController {
     private final Readiness readiness;
+    private final java.util.function.BooleanSupplier dependencies;
 
-    public ProbeController(Readiness readiness) {
+    public ProbeController(Readiness readiness,@jakarta.inject.Named("kb-readiness") java.util.function.BooleanSupplier dependencies) {
         this.readiness = readiness;
+        this.dependencies = dependencies;
     }
 
     @Get("/liveness")
@@ -23,8 +25,9 @@ public final class ProbeController {
     }
 
     @Get("/readiness")
+    @io.micronaut.scheduling.annotation.ExecuteOn(io.micronaut.scheduling.TaskExecutors.BLOCKING)
     public HttpResponse<String> readiness() {
-        return readiness.isAcceptingWork()
+        return readiness.isAcceptingWork() && dependencies.getAsBoolean()
                 ? HttpResponse.ok("{\"status\":\"UP\"}")
                 : HttpResponse.<String>status(HttpStatus.SERVICE_UNAVAILABLE).body("{\"status\":\"DOWN\"}");
     }

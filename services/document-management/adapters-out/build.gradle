@@ -128,3 +128,27 @@ tasks.register('realUploadPersistenceStorageAcceptance', JavaExec) {
     systemProperty 'java.io.tmpdir', authorityTmp.get().asFile.absolutePath
     doFirst { authorityTmp.get().asFile.mkdirs() }
 }
+
+// Sharing has independent floors; legacy coverage cannot hide uncovered new boundaries (#189/#193).
+tasks.register('sharingCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+            include 'org/documentknowledge/documentmanagement/adapters/outbound/sharing/**'
+    }
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('sharingCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('sharingCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+            include 'org/documentknowledge/documentmanagement/adapters/outbound/sharing/**'
+    }
+    violationRules { rule {
+        limit { counter = 'LINE'; minimum = 0.75 }
+        limit { counter = 'BRANCH'; minimum = 0.75 }
+    } }
+}
+tasks.named('check') { dependsOn 'sharingCoverageVerification' }

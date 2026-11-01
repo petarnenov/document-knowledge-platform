@@ -55,6 +55,15 @@ public final class DocumentFactory {
     public ContentService content(Bindings bindings){return new ContentService(bindings.transactions(),bindings.grants(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool());}
     @Singleton
     public UploadCleanupService cleanup(Bindings bindings){return new UploadCleanupService(bindings.transactions(),bindings.uploads(),Clock.systemUTC());}
+    @Singleton
+    @Bean(preDestroy="close")
+    SharingRuntime sharingRuntime(@Named("default") BeanProvider<DataSource> runtime){return new SharingRuntime(runtime);}
+    @Singleton
+    public org.documentknowledge.documentmanagement.application.sharing.DocumentShareService sharing(Environment environment,SharingRuntime runtime){
+        RequestScopedResourceAuthorityPort authority=environment.getProperty("dkp.security.profile",String.class).orElse("").equals("standalone")
+            ?new GrantCatalog(path(environment,"dkp.dm.catalog.path","/run/dkp/authority/grants.json")):RequestScopedResourceAuthorityPort.unavailable();
+        return new org.documentknowledge.documentmanagement.application.sharing.DocumentShareService(runtime,authority,new org.documentknowledge.documentmanagement.application.sharing.SharingAdmission());
+    }
     private static Path path(Environment environment,String name,String fallback){try{return Path.of(environment.getProperty(name,String.class).orElse(fallback));}catch(RuntimeException invalid){return null;}}
     private static HmacDocumentCursor cursor(Path path){
         try {

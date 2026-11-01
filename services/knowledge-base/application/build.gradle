@@ -1,1 +1,17 @@
-// Shared build conventions are defined in the root build.gradle.
+// Pure KB changed-source coverage; framework/probe coverage belongs to bootstrap.
+jacocoTestReport {
+    dependsOn test
+    reports { xml.required = true; html.required = true }
+    classDirectories.setFrom(files(sourceSets.main.output.classesDirs.collect { fileTree(dir: it, exclude: ['**/Readiness.class']) }))
+}
+jacocoTestCoverageVerification {
+    dependsOn test
+    classDirectories.setFrom(jacocoTestReport.classDirectories)
+    violationRules {
+        rule {
+            limit { counter = 'LINE'; minimum = 0.75 }
+            limit { counter = 'BRANCH'; minimum = 0.75 }
+        }
+    }
+}
+check.dependsOn jacocoTestReport, jacocoTestCoverageVerification

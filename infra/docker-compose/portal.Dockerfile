@@ -11,7 +11,7 @@ RUN pnpm --filter admin-portal build
 
 FROM nginxinc/nginx-unprivileged:1.30.2-alpine@sha256:de3e40ec8b7debd7194fc798d4bbfb102c7f8b012b2c73032816b5f72393acdd AS runtime
 COPY --from=build /workspace/apps/admin-portal/dist /usr/share/nginx/html
-COPY infra/docker-compose/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --chmod=0444 infra/docker-compose/nginx.conf /etc/nginx/conf.d/default.conf
 USER 101:101
 EXPOSE 8080
 HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=6 CMD wget -q -O /dev/null http://127.0.0.1:8080/

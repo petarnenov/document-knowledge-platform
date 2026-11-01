@@ -66,6 +66,7 @@ serviceNames.each { service ->
             dependencies {
                 implementation 'io.micronaut:micronaut-jackson-databind'
                 implementation 'io.micronaut:micronaut-http-server'
+                implementation 'io.projectreactor:reactor-core'
             }
         }
         project("${base}:adapters-out") {
@@ -100,6 +101,36 @@ serviceNames.each { service ->
             }
         }
     }
+    if (service == 'knowledge-base') {
+        project("${base}:adapters-in") {
+            dependencies { implementation 'io.micronaut:micronaut-jackson-databind' }
+        }
+        project("${base}:bootstrap") {
+            dependencies {
+                implementation 'io.projectreactor:reactor-core'
+                implementation 'io.micronaut.sql:micronaut-jdbc-hikari'
+                implementation 'io.micronaut.flyway:micronaut-flyway'
+                implementation "org.flywaydb:flyway-core:${rootProject.libs.versions.flyway.get()}"
+                runtimeOnly "org.flywaydb:flyway-database-postgresql:${rootProject.libs.versions.flyway.get()}"
+                runtimeOnly "org.postgresql:postgresql:${rootProject.libs.versions.postgresql.jdbc.get()}"
+                testImplementation "org.postgresql:postgresql:${rootProject.libs.versions.postgresql.jdbc.get()}"
+                testImplementation "org.testcontainers:testcontainers-postgresql:${rootProject.libs.versions.testcontainers.get()}"
+                testImplementation "org.flywaydb:flyway-database-postgresql:${rootProject.libs.versions.flyway.get()}"
+            }
+        }
+        project("${base}:adapters-out") {
+            dependencies {
+                implementation project(':modules:authorization-catalog')
+                implementation platform(rootProject.libs.micronaut.platform)
+                implementation 'tools.jackson.core:jackson-databind'
+                testImplementation "org.testcontainers:testcontainers-postgresql:${rootProject.libs.versions.testcontainers.get()}"
+                testImplementation "org.flywaydb:flyway-core:${rootProject.libs.versions.flyway.get()}"
+                testRuntimeOnly "org.flywaydb:flyway-database-postgresql:${rootProject.libs.versions.flyway.get()}"
+                testImplementation "org.postgresql:postgresql:${rootProject.libs.versions.postgresql.jdbc.get()}"
+            }
+        }
+    }
+
     ['adapters-in', 'adapters-out'].each { layer ->
         project("${base}:${layer}") {
             dependencies { implementation project("${base}:application") }
@@ -157,6 +188,7 @@ serviceNames.each { service ->
             implementation project(':modules:identity-contracts')
             if (service != 'browser-bff') implementation project(':modules:security-micronaut')
             if (service == 'browser-bff') {
+                implementation 'io.projectreactor:reactor-core'
                 implementation 'io.micronaut.security:micronaut-security-oauth2'
                 implementation 'io.micronaut.security:micronaut-security-session'
                 implementation 'io.micronaut.security:micronaut-security-csrf'
@@ -207,7 +239,7 @@ serviceNames.each { service ->
 def allowedLayerDependency = { String from, String target ->
     def f = from.tokenize(':'); def t = target.tokenize(':')
     if (target == ':modules:identity-contracts') return from.startsWith(':services:') || from in [':modules:security-micronaut', ':modules:authorization-catalog']
-    if (target == ':modules:authorization-catalog') return from in [':services:document-management:adapters-out', ':services:document-management:bootstrap']
+    if (target == ':modules:authorization-catalog') return from in [':services:document-management:adapters-out', ':services:document-management:bootstrap', ':services:knowledge-base:adapters-out']
     if (target == ':modules:security-micronaut') return f.size() == 3 && f[0] == 'services' && f[2] in ['adapters-in', 'adapters-out', 'bootstrap']
     if (f.size() != 3 || t.size() != 3 || f[0] != 'services' || t[0] != 'services') return false
     if (f[1] != t[1]) return false
@@ -233,7 +265,10 @@ tasks.register('architectureDependencyTest') {
         assert allowedLayerDependency(':modules:authorization-catalog', ':modules:identity-contracts')
         assert allowedLayerDependency(':services:document-management:adapters-out', ':modules:authorization-catalog')
         assert !allowedLayerDependency(':services:document-management:application', ':modules:authorization-catalog')
-        assert !allowedLayerDependency(':services:knowledge-base:adapters-out', ':modules:authorization-catalog')
+        assert allowedLayerDependency(':services:knowledge-base:adapters-out', ':modules:authorization-catalog')
+        assert !allowedLayerDependency(':services:knowledge-base:application', ':modules:authorization-catalog')
+        assert !allowedLayerDependency(':services:knowledge-base:domain', ':modules:authorization-catalog')
+        assert !allowedLayerDependency(':services:knowledge-base:bootstrap', ':modules:authorization-catalog')
         assert !allowedLayerDependency(':workers:structure-inspector', ':services:document-management:application')
         assert !allowedLayerDependency(':services:document-management:application', ':workers:structure-inspector')
         (serviceProjects + [project(':modules:identity-contracts'), project(':modules:security-micronaut'), project(':modules:authorization-catalog'), project(':workers:structure-inspector')]).each { p ->

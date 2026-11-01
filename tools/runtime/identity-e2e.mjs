@@ -3,9 +3,29 @@ import { readFileSync, lstatSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { loadKbBrowserState, validateKbBrowserContainers } from './kb-browser-runtime.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const image = 'dkp-identity-e2e:local';
+
+export function kbCliArguments(args) {
+  if (!args.some(value => ['--kb-runtime', '--kb-runtime-state'].includes(value))) return {};
+  const values = new Map();
+  let enabled = false;
+  for (let index = 0; index < args.length; index++) {
+    const flag = args[index];
+    if (flag === '--kb-runtime') {
+      if (enabled) throw new Error('Duplicate KB profile');
+      enabled = true;
+    } else {
+      if (!['--kb-runtime-state', '--security-directory', '--runtime-env-file'].includes(flag)
+          || values.has(flag) || !args[index + 1] || args[index + 1].startsWith('--')) throw new Error('Closed KB runner arguments required');
+      values.set(flag, resolve(args[++index]));
+    }
+  }
+  if (!enabled || values.size !== 3) throw new Error('Complete owned KB runner arguments required');
+  return { kbRuntime: true, kbRuntimeState: values.get('--kb-runtime-state') };
+}
 
 export function readCredentials(source) {
   const allowed = new Set(['DKP_TEST_USERNAME', 'DKP_TEST_PASSWORD']);
@@ -71,7 +91,8 @@ export function faultInput(value) {
   return value;
 }
 
-export function runtimeArguments({ portalId, address, certificate, portalPort = 18443, idpPort = 18444, uploadRuntime = false, uploadLimitsProfile, uploadDurabilityFixture = false, uploadFaultInput }) {
+export function runtimeArguments({ portalId, address, certificate, portalPort = 18443, idpPort = 18444, uploadRuntime = false, kbRuntime = false, uploadLimitsProfile, uploadDurabilityFixture = false, uploadFaultInput }) {
+  if (typeof kbRuntime !== 'boolean' || kbRuntime && (uploadRuntime || uploadLimitsProfile !== undefined || uploadDurabilityFixture || uploadFaultInput !== undefined || portalPort !== 20443 || idpPort !== 20444)) throw new Error('Separate fixed KB browser profile required');
   if (uploadFaultInput !== undefined) { faultInput(uploadFaultInput); if (!uploadRuntime || uploadDurabilityFixture || uploadLimitsProfile !== undefined) throw new Error('Separate upload fault profile required'); }
   if (typeof uploadRuntime !== 'boolean') throw new Error('Explicit boolean upload profile required');
   if (typeof uploadDurabilityFixture !== 'boolean' || (uploadDurabilityFixture && (!uploadRuntime || uploadLimitsProfile !== undefined))) throw new Error('Explicit durability fixture requires its own upload runtime profile');
@@ -90,11 +111,13 @@ export function runtimeArguments({ portalId, address, certificate, portalPort = 
     '--env', `DKP_IDENTITY_BASE_URL=https://localhost:${portalPort}`,
     '--env', `DKP_IDENTITY_IDP_BASE_URL=https://idp.localhost:${idpPort}`,
     '--env', `DKP_IDENTITY_IDP_ADDRESS=${address}`,
+    ...(kbRuntime ? ['--env', 'DKP_KB_E2E_ENABLED=true'] : []),
     ...(uploadRuntime ? ['--env', 'DKP_UPLOAD_E2E_ENABLED=true'] : []),
     ...(uploadLimitsProfile ? ['--env', `DKP_UPLOAD_LIMITS_PROFILE=${uploadLimitsProfile}`] : []),
     ...(uploadDurabilityFixture ? ['--env', 'DKP_UPLOAD_DURABILITY_FIXTURE=true'] : []),
     ...(uploadFaultInput !== undefined ? ['--env', `DKP_UPLOAD_FAULT_INPUT=${JSON.stringify(uploadFaultInput)}`] : []),
     image,
+    ...(kbRuntime ? ['knowledge.spec.ts'] : []),
     ...(uploadLimitsProfile ? ['upload-limits.spec.ts'] : []),
     ...(uploadDurabilityFixture ? ['upload-durability.spec.ts'] : []),
     ...(uploadFaultInput !== undefined ? ['upload-faults.spec.ts'] : []),
@@ -119,7 +142,8 @@ function docker(args, { environment = process.env, password, quiet = false } = {
   return result.stdout.trim();
 }
 
-export function main({ uploadRuntime = false, uploadLimitsProfile, uploadDurabilityFixture = false, uploadFaultInputFile, securityDirectory, runtimeEnvironmentFile, execute = docker, log = console.log } = {}) {
+export function main({ uploadRuntime = false, kbRuntime = false, kbRuntimeState, uploadLimitsProfile, uploadDurabilityFixture = false, uploadFaultInputFile, securityDirectory, runtimeEnvironmentFile, execute = docker, log = console.log } = {}) {
+  if (typeof kbRuntime !== 'boolean' || kbRuntime && (!kbRuntimeState || !securityDirectory || !runtimeEnvironmentFile || uploadRuntime || uploadDurabilityFixture || uploadLimitsProfile !== undefined || uploadFaultInputFile !== undefined) || !kbRuntime && kbRuntimeState !== undefined) throw new Error('Separate owned KB runtime required');
   if (typeof uploadDurabilityFixture !== 'boolean' || (uploadDurabilityFixture && uploadLimitsProfile !== undefined)) throw new Error('Explicit durability fixture requires a separate profile');
   if (uploadDurabilityFixture) uploadRuntime = true;
   if (uploadLimitsProfile !== undefined) {
@@ -135,6 +159,7 @@ export function main({ uploadRuntime = false, uploadLimitsProfile, uploadDurabil
     uploadRuntime = true;
   }
   const security = securityDirectory ?? resolve(root, uploadRuntime ? 'local-data/security/bp03-upload/identity' : 'local-data/security');
+  const kbState = kbRuntime ? loadKbBrowserState(kbRuntimeState, { root, securityDirectory: security, runtimeEnvironmentFile }) : undefined;
   const credentialsFile = resolve(security, 'runtime.env');
   const certificate = resolve(security, 'ca.crt');
   requirePrivateFile(credentialsFile);
@@ -145,6 +170,7 @@ export function main({ uploadRuntime = false, uploadLimitsProfile, uploadDurabil
   requirePrivateFile(environmentFile);
   if (uploadRuntime && uploadProject(readFileSync(environmentFile, 'utf8')) !== uploadProject(source)) throw new Error('Isolated runtime project does not match identity');
   const compose = ['compose', '--env-file', environmentFile, '-f', 'infra/docker-compose/compose.yaml'];
+  if (kbRuntime) compose.push('-p', kbState.project, '-f', 'infra/docker-compose/compose-kb.yaml');
   if (uploadRuntime) compose.push('-p', uploadProject(source), '-f', 'infra/docker-compose/compose-upload.yaml');
   const portalId = execute([...compose, 'ps', '-q', 'admin-portal'], { quiet: true });
   const providerId = execute([...compose, 'ps', '-q', 'keycloak'], { quiet: true });
@@ -152,11 +178,13 @@ export function main({ uploadRuntime = false, uploadLimitsProfile, uploadDurabil
   const portal = JSON.parse(execute(['inspect', portalId], { quiet: true }));
   const networks = Object.keys(portal?.[0]?.NetworkSettings?.Networks ?? {});
   if (networks.length !== 1) throw new Error('Identity E2E requires one explicit Compose network');
-  const address = findAddress(JSON.parse(execute(['inspect', providerId], { quiet: true })), networks[0]);
+  const provider = JSON.parse(execute(['inspect', providerId], { quiet: true }));
+  if (kbRuntime) validateKbBrowserContainers(kbState, portal[0], provider[0], JSON.parse(execute(['network', 'inspect', kbState.networkId], { quiet: true }))[0]);
+  const address = findAddress(provider, networks[0]);
   log('Building isolated Chromium identity verification runtime.');
   execute(['build', '-f', 'infra/docker-compose/identity-e2e.Dockerfile', '-t', image, '.']);
   log('Running strict-HTTPS real-provider browser verification.');
-  execute(runtimeArguments({ portalId, address, certificate, portalPort: uploadRuntime ? 19443 : 18443, idpPort: uploadRuntime ? 19444 : 18444, uploadRuntime, uploadLimitsProfile, uploadDurabilityFixture, uploadFaultInput }), {
+  execute(runtimeArguments({ portalId, address, certificate, portalPort: kbRuntime ? 20443 : uploadRuntime ? 19443 : 18443, idpPort: kbRuntime ? 20444 : uploadRuntime ? 19444 : 18444, uploadRuntime, kbRuntime, uploadLimitsProfile, uploadDurabilityFixture, uploadFaultInput }), {
     environment: { ...process.env, DKP_IDENTITY_USERNAME: credentials.username, DKP_IDENTITY_PASSWORD: credentials.password },
     password: credentials.password,
   });
@@ -172,7 +200,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     if (limitsIndex >= 0 && (!process.argv[limitsIndex + 1] || process.argv[limitsIndex + 1].startsWith('--'))) throw new Error('Upload limits profile is required');
     const faultIndex = process.argv.indexOf('--upload-fault-input-file');
     if (faultIndex >= 0 && (!process.argv[faultIndex + 1] || process.argv[faultIndex + 1].startsWith('--'))) throw new Error('Private fault input required');
-    main({ ...(faultIndex >= 0 ? { uploadFaultInputFile: resolve(process.argv[faultIndex + 1]) } : {}), uploadRuntime: process.argv.includes('--upload-runtime'), uploadDurabilityFixture: process.argv.includes('--upload-durability-fixture'), ...(limitsIndex >= 0 ? { uploadLimitsProfile: process.argv[limitsIndex + 1] } : {}), ...(index >= 0 ? { securityDirectory: resolve(process.argv[index + 1]) } : {}), ...(environmentIndex >= 0 ? { runtimeEnvironmentFile: resolve(process.argv[environmentIndex + 1]) } : {}) });
+    main({ ...kbCliArguments(process.argv.slice(2)), ...(faultIndex >= 0 ? { uploadFaultInputFile: resolve(process.argv[faultIndex + 1]) } : {}), uploadRuntime: process.argv.includes('--upload-runtime'), uploadDurabilityFixture: process.argv.includes('--upload-durability-fixture'), ...(limitsIndex >= 0 ? { uploadLimitsProfile: process.argv[limitsIndex + 1] } : {}), ...(index >= 0 ? { securityDirectory: resolve(process.argv[index + 1]) } : {}), ...(environmentIndex >= 0 ? { runtimeEnvironmentFile: resolve(process.argv[environmentIndex + 1]) } : {}) });
   } catch {
     // Never dump captured Docker inspect/env data or credential-bearing errors.
     console.error('Real identity E2E failed; inspect sanitized output and verify the running Compose runtime and owner-only local security material.');

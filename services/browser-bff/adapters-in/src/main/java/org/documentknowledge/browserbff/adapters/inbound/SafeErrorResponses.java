@@ -14,7 +14,8 @@ import org.documentknowledge.browserbff.application.UploadWire;
 @ServerFilter({"/api/v1/**", "/oauth/**"})
 public final class SafeErrorResponses {
     @ResponseFilter public void sanitize(HttpRequest<?> request, MutableHttpResponse<?> response) {
-        response.header("Cache-Control", "no-store");
+        if (request.getUri().getRawPath().startsWith("/api/v1/kb/")) response.getHeaders().set("Cache-Control", "no-store");
+        else response.header("Cache-Control", "no-store");
         int status = response.getStatus().getCode();
         if (status < 400) return;
         if (request.getPath().startsWith("/oauth/") && status >= 500) response.status(HttpStatus.SERVICE_UNAVAILABLE);

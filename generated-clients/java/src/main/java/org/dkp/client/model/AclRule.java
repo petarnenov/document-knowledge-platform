@@ -66,7 +66,9 @@ public class AclRule {
 
     DOCUMENT_LEGAL_HOLD_INSPECT(String.valueOf("document.legal-hold.inspect")),
 
-    DOCUMENT_CONTENT_REVIEW(String.valueOf("document.content.review"));
+    DOCUMENT_CONTENT_REVIEW(String.valueOf("document.content.review")),
+
+    DOCUMENT_SHARE_TO_COLLECTION(String.valueOf("document.share-to-collection"));
 
     private String value;
 

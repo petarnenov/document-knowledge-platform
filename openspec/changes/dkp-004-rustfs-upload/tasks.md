@@ -147,3 +147,16 @@ Runtime issues91–99 were created before execution. Development specification a
 
 - [ ] [#198](https://github.com/petarnenov/document-knowledge-platform/issues/198) P1: first genuine sixty-minute run FAILED on asynchronous persisted-state observation; automatic expiry+6.59seconds and immediate409 verified read-only. Minimal bounded status observation reviewed; NEWfresh real sixty-minute acceptance and integration pending.
 - [x] [#199](https://github.com/petarnenov/document-knowledge-platform/issues/199) P1: independent expiry observation review PASS; unchanged real-hour wait, immediate409 and all remaining assertions, invariant deadline every observation, latched invalid response and finite30second observation. This is source review, not elapsed-time acceptance.
+
+## Current delivery evidence — 2026-11-01 03:21 UTC
+
+The historical PR146 genuine hour remains PASS for its recorded source; no fresh current-source hour is running. DraftPR267 bf47d48 includes the reviewed timing, native-browser and real60 harness packets; actual provider/HTTPS/CI and final-hour gates remain open. The macOS full DM attempt returned authority UNAVAILABLE; it is retained as failed evidence, not native/Linux acceptance.
+
+- [x] [#284](https://github.com/petarnenov/document-knowledge-platform/issues/284) independent277/286 timing review accepts18-file189fde56;96application+22focusedadapter tests zero skip, changed96.43%lines/88.60%branches. Does not prove full resource readiness.
+- [x] [#291](https://github.com/petarnenov/document-knowledge-platform/issues/291) independent287/293 lifecycle/parser and root CI helper coverage review PASS;21 helper tests100%floors, actual isolated native visibility/cleanup inspected.
+- [ ] [#293](https://github.com/petarnenov/document-knowledge-platform/issues/293) complete-line native CDP parser correction integrated in draft267; actual fresh4HTTPS/OIDC/tenant cases and CI/dev integration required.
+- [ ] [#294](https://github.com/petarnenov/document-knowledge-platform/issues/294) explicit real60 provider task/harness required after eightCOPY/FENCE cases; real execution remains unperformed. Root independently reran32 harness tests; actual240s TCP component remains narrower than full service proof.
+- [x] [#297](https://github.com/petarnenov/document-knowledge-platform/issues/297) independent294 source/action/image/profile/result/CI review PASS; no timing override, skip, full-service240 or resource acceptance inferred.
+- [ ] [#296](https://github.com/petarnenov/document-knowledge-platform/issues/296) retained verification-temp files lack durable ownership through remote cleanup/re-admission/restart; content249 proof and S3 quota do not cover this namespace.
+- [ ] [#299](https://github.com/petarnenov/document-knowledge-platform/issues/299) explicit bounded verification-temp ownership/recovery technical OpenSpec amendment; development proposal/review before new lifecycle code, no invented architecture/security/production approval.
+- [ ] [#300](https://github.com/petarnenov/document-knowledge-platform/issues/300) independent delivery bookkeeping/protocol review; latest owner AGENTS prohibits automatic merge. Implementation and integration tasks stay open.

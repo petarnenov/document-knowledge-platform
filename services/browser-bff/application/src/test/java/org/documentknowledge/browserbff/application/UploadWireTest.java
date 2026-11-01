@@ -23,6 +23,6 @@ class UploadWireTest {
   for(var entry:valid.entrySet()){assertTrue(UploadWire.response(entry.getKey(),entry.getValue()),entry.getKey());for(String key:entry.getValue().keySet()){var bad=new HashMap<>(entry.getValue());bad.put(key,"invalid");assertFalse(UploadWire.response(entry.getKey(),bad),key);}var extra=new HashMap<>(entry.getValue());extra.put("private","secret");assertFalse(UploadWire.response(entry.getKey(),extra));assertFalse(UploadWire.response(entry.getKey(),null));}
   for(String state:List.of("INITIALIZED","RECEIVING","QUARANTINED","VERIFYING","VERIFIED","CONSUMED","REJECTED","EXPIRED")){status.put("state",state);assertTrue(UploadWire.response(SLOT+"/status",status));}
   status.put("failureCode","DEPENDENCY_UNAVAILABLE");assertTrue(UploadWire.response(SLOT+"/status",status));status.put("expiresAt",12);assertFalse(UploadWire.response(SLOT+"/status",status));status.put("expiresAt","invalid");assertFalse(UploadWire.response(SLOT+"/status",status));
-  assertEquals(201,UploadWire.success("POST",BASE+"/uploads"));assertEquals(200,UploadWire.success("POST",SLOT+"/complete"));assertEquals(10,DocumentWire.ACTIONS.size());assertTrue(DocumentWire.ACTIONS.contains("document.content.review"));
+  assertEquals(201,UploadWire.success("POST",BASE+"/uploads"));assertEquals(200,UploadWire.success("POST",SLOT+"/complete"));assertEquals(11,DocumentWire.ACTIONS.size());assertTrue(DocumentWire.ACTIONS.contains("document.content.review"));
  }
 }

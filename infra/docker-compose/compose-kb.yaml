@@ -1,0 +1,143 @@
+# Isolated BP04. Merge AFTER compose.yaml, using only fresh kb-security material.
+name: dkp-bp04
+x-kb-identity: &kb-identity
+  OIDC_ISSUER: https://idp.localhost:20444/realms/dkp
+  OIDC_STANDALONE_ISSUER: https://idp.localhost:20444/realms/dkp
+  OIDC_JWKS_URL: https://idp.localhost:20444/realms/dkp/protocol/openid-connect/certs
+services:
+  document-management:
+    ports: !override ["127.0.0.1:20081:8080"]
+    environment: *kb-identity
+    networks: !override [dm-data, dm-identity, dm-edge, dm-sharing]
+    volumes: !override
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/authority:/run/dkp/authority:ro
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/truststore.p12:/run/dkp/truststore.p12:ro
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/java-security.options:/run/dkp/java-security.options:ro
+  knowledge-base:
+    mem_limit: 1g
+    cpus: 2
+    pids_limit: 256
+    ports: !override ["127.0.0.1:20082:8080"]
+    environment:
+      <<: *kb-identity
+      DKP_KB_ENABLED: "true"
+      DKP_KB_CATALOG_PATH: /run/dkp/kb-authority/grants.json
+      DKP_KB_CURSOR_KEY_PATH: /run/dkp/kb-authority/cursor.key
+      DKP_KB_DM_BASE_URI: https://dm-sharing:8443
+      DKP_KB_DM_CA_PATH: /run/dkp/kb-authority/dm-ca.crt
+      DKP_KB_JDBC_URL: jdbc:postgresql://kb-postgres:5432/knowledge_base?currentSchema=kb
+      DKP_KB_JDBC_USERNAME: dkp_kb_runtime
+      DKP_KB_JDBC_PASSWORD: ${DKP_KB_RUNTIME_PASSWORD:?Generate fresh KB material}
+    networks: !override [kb-data, kb-identity, kb-edge, kb-sharing]
+    volumes: !override
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/kb-authority:/run/dkp/kb-authority:ro
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/truststore.p12:/run/dkp/truststore.p12:ro
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/java-security.options:/run/dkp/java-security.options:ro
+    depends_on:
+      kb-migrate: {condition: service_completed_successfully}
+      dm-sharing: {condition: service_healthy}
+  knowledge-search:
+    ports: !override []
+    environment: *kb-identity
+    volumes: !override
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/truststore.p12:/run/dkp/truststore.p12:ro
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/java-security.options:/run/dkp/java-security.options:ro
+  browser-bff:
+    environment:
+      <<: *kb-identity
+      DKP_PORTAL_ORIGIN: https://localhost:20443
+      OIDC_CALLBACK_URI: https://localhost:20443/oauth/callback/keycloak
+    networks: !override [default, dm-edge, kb-edge]
+    volumes: !override
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/truststore.p12:/run/dkp/truststore.p12:ro
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/java-security.options:/run/dkp/java-security.options:ro
+  admin-portal:
+    ports: !override ["127.0.0.1:20443:20443"]
+    volumes: !override
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/portal.crt:/run/dkp/portal.crt:ro
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/portal.key:/run/dkp/portal.key:ro
+      - ./kb-portal.conf:/etc/nginx/conf.d/default.conf:ro
+  keycloak:
+    ports: !override ["127.0.0.1:20444:20444"]
+    environment:
+      KC_HOSTNAME: https://idp.localhost:20444
+      KC_HTTPS_PORT: "20444"
+    networks:
+      default: {aliases: [idp.localhost]}
+      dm-identity: {aliases: [idp.localhost]}
+      kb-identity: {aliases: [idp.localhost]}
+    volumes: !override
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/idp.crt:/run/dkp/idp.crt:ro
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/idp.key:/run/dkp/idp.key:ro
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/identity/dkp-realm.json:/opt/keycloak/data/import/dkp-realm.json:ro
+  dm-sharing:
+    mem_limit: 128m
+    cpus: 1
+    pids_limit: 64
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/kb-dm-proxy.Dockerfile
+    user: "${DKP_LOCAL_UID:?Generate fresh KB material}:${DKP_LOCAL_GID:?Generate fresh KB material}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]
+    networks: [dm-sharing, kb-sharing]
+    volumes:
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/dm-proxy/server.crt:/run/dkp/dm-tls/server.crt:ro
+      - ${DKP_KB_SECURITY_DIRECTORY:?Generate fresh KB material}/dm-proxy/server.key:/run/dkp/dm-tls/server.key:ro
+    depends_on:
+      document-management: {condition: service_healthy}
+  kb-migrate:
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/kb-migrator.Dockerfile
+    user: "${DKP_LOCAL_UID:?Generate fresh KB material}:${DKP_LOCAL_GID:?Generate fresh KB material}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]
+    restart: "no"
+    environment:
+      DKP_KB_MIGRATION_URL: jdbc:postgresql://kb-postgres:5432/knowledge_base?currentSchema=kb
+      DKP_KB_MIGRATION_USERNAME: dkp_kb_migrator
+      DKP_KB_MIGRATION_PASSWORD: ${DKP_KB_MIGRATOR_PASSWORD:?Generate fresh KB material}
+    networks: [kb-data]
+    depends_on:
+      kb-postgres: {condition: service_healthy}
+  kb-postgres:
+    mem_limit: 1g
+    cpus: 2
+    pids_limit: 128
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/kb-postgres.Dockerfile
+    user: "999:999"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:uid=999,gid=999,mode=0700", "/var/run/postgresql:uid=999,gid=999,mode=0700"]
+    environment:
+      POSTGRES_USER: dkp_kb_local_admin
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${DKP_KB_ADMIN_PASSWORD:?Generate fresh KB material}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+      DKP_KB_MIGRATOR_PASSWORD: ${DKP_KB_MIGRATOR_PASSWORD:?Generate fresh KB material}
+      DKP_KB_RUNTIME_PASSWORD: ${DKP_KB_RUNTIME_PASSWORD:?Generate fresh KB material}
+      PGDATA: /var/lib/postgresql/18/docker
+    command: [postgres, -c, fsync=on, -c, synchronous_commit=on, -c, full_page_writes=on, -c, password_encryption=scram-sha-256, -c, log_statement=none, -c, log_min_error_statement=panic, -c, log_parameter_max_length_on_error=0]
+    volumes: [kb-postgres-data:/var/lib/postgresql]
+    networks: [kb-data]
+networks:
+  kb-data: {internal: true}
+  kb-identity: {internal: true}
+  kb-edge: {internal: true}
+  kb-sharing: {internal: true}
+  dm-identity: {internal: true}
+  dm-edge: {internal: true}
+  dm-sharing: {internal: true}
+volumes:
+  kb-postgres-data:

@@ -32,6 +32,7 @@ export const actions = [
   'document.legal-hold.place',
   'document.legal-hold.inspect',
   'document.content.review',
+  'document.share-to-collection',
 ] as const;
 const action = z.enum(actions);
 const receiptSchema = z.object({ documentId: z.uuid(), revision }).strict();

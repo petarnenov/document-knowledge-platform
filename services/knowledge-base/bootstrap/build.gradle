@@ -1,1 +1,63 @@
 // Shared build conventions are defined in the root build.gradle.
+
+// Issue190: changed HTTP/wiring sources, including nested classes, independent of persistence/migrations.
+def kbHttpProjects = [project(':services:knowledge-base:adapters-in'), project(':services:knowledge-base:bootstrap')]
+def kbHttpClasses = files(kbHttpProjects.collect { p -> p.sourceSets.main.output.classesDirs.asFileTree.matching {
+    include 'org/documentknowledge/knowledgebase/adapters/inbound/Knowledge*.class'
+    include 'org/documentknowledge/knowledgebase/adapters/inbound/ProbeController.class'
+    include 'org/documentknowledge/knowledgebase/bootstrap/KnowledgeRuntimeFactory*.class'
+    include 'org/documentknowledge/knowledgebase/bootstrap/KnowledgeReadinessFactory*.class'
+    include 'org/documentknowledge/knowledgebase/bootstrap/KnowledgeNettyRequestOwner*.class'
+} })
+tasks.register('httpCoverageReport', JacocoReport) {
+    dependsOn kbHttpProjects.collect { it.tasks.named('test') }
+    executionData.from kbHttpProjects.collect { it.layout.buildDirectory.file('jacoco/test.exec') }
+    sourceDirectories.from kbHttpProjects.collect { it.sourceSets.main.allSource.srcDirs }
+    classDirectories.from kbHttpClasses
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('httpCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('httpCoverageReport')
+    executionData.from kbHttpProjects.collect { it.layout.buildDirectory.file('jacoco/test.exec') }
+    sourceDirectories.from kbHttpProjects.collect { it.sourceSets.main.allSource.srcDirs }
+    classDirectories.from kbHttpClasses
+    violationRules { rule {
+        limit { counter = 'LINE'; minimum = 0.75 }
+        limit { counter = 'BRANCH'; minimum = 0.75 }
+    } }
+}
+tasks.named('check') { dependsOn 'httpCoverageVerification' }
+
+// Separate one-shot startup process must satisfy the same floor as request source (#206).
+tasks.register('migrationCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+        include 'org/documentknowledge/knowledgebase/bootstrap/KnowledgeMigrationMain*'
+    }
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('migrationCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('migrationCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+        include 'org/documentknowledge/knowledgebase/bootstrap/KnowledgeMigrationMain*'
+    }
+    violationRules { rule {
+        limit { counter = 'LINE'; minimum = 0.75 }
+        limit { counter = 'BRANCH'; minimum = 0.75 }
+    } }
+}
+tasks.named('check') { dependsOn 'migrationCoverageVerification' }
+
+// CI builds the bootstrap; retain each independently measured outbound floor (#193).
+tasks.named('check') {
+    dependsOn ':services:knowledge-base:domain:check',
+            ':services:knowledge-base:application:check',
+            ':services:knowledge-base:adapters-out:persistenceCoverageVerification',
+            ':services:knowledge-base:adapters-out:catalogCoverageVerification',
+            ':services:knowledge-base:adapters-out:remoteCoverageVerification',
+            ':services:knowledge-base:adapters-out:cursorCoverageVerification'
+}

@@ -1,1 +1,63 @@
-// Shared build conventions are defined in the root build.gradle.
+// Shared dependency pins are defined in the root build.gradle.
+tasks.register('persistenceCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+        include 'org/documentknowledge/knowledgebase/adapters/outbound/persistence/**'
+    }
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('persistenceCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('persistenceCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    sourceDirectories.from sourceSets.main.allSource.srcDirs
+    classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+        include 'org/documentknowledge/knowledgebase/adapters/outbound/persistence/**'
+    }
+    violationRules { rule {
+        limit { counter = 'LINE'; minimum = 0.75 }
+        limit { counter = 'BRANCH'; minimum = 0.75 }
+    } }
+}
+tasks.named('check') { dependsOn 'persistenceCoverageVerification' }
+
+// Each external authority boundary must meet its own coverage floor (#193/#204).
+['catalog', 'remote', 'cursor'].each { area ->
+    def reportTask = "${area}CoverageReport"
+    tasks.register(reportTask, JacocoReport) {
+        dependsOn tasks.named('test')
+        executionData layout.buildDirectory.file('jacoco/test.exec')
+        sourceDirectories.from sourceSets.main.allSource.srcDirs
+        classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+            include "org/documentknowledge/knowledgebase/adapters/outbound/${area}/**"
+        }
+        reports { xml.required = true; html.required = true }
+    }
+    def verificationTask = "${area}CoverageVerification"
+    tasks.register(verificationTask, JacocoCoverageVerification) {
+        dependsOn tasks.named(reportTask)
+        executionData layout.buildDirectory.file('jacoco/test.exec')
+        sourceDirectories.from sourceSets.main.allSource.srcDirs
+        classDirectories.from sourceSets.main.output.classesDirs.asFileTree.matching {
+            include "org/documentknowledge/knowledgebase/adapters/outbound/${area}/**"
+        }
+        violationRules { rule {
+            limit { counter = 'LINE'; minimum = 0.75 }
+            limit { counter = 'BRANCH'; minimum = 0.75 }
+        } }
+    }
+    tasks.named('check') { dependsOn verificationTask }
+}
+
+// The default shared /tmp remains forbidden by the real authority-file policy.
+tasks.named('test') {
+    def authorityTmp = layout.buildDirectory.dir('authority-test-tmp')
+    systemProperty 'java.io.tmpdir', authorityTmp.get().asFile.absolutePath
+    doFirst {
+        def privateParent = authorityTmp.get().asFile.toPath()
+        java.nio.file.Files.createDirectories(privateParent)
+        java.nio.file.Files.setPosixFilePermissions(privateParent,
+                java.nio.file.attribute.PosixFilePermissions.fromString('rwx------'))
+    }
+}

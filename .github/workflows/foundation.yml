@@ -32,7 +32,11 @@ jobs:
         if: always()
         with:
           name: java-${{ matrix.service }}
-          path: services/${{ matrix.service }}/bootstrap/build/reports
+          if-no-files-found: error
+          path: |
+            services/${{ matrix.service }}/**/build/reports/tests/test
+            services/${{ matrix.service }}/**/build/reports/jacoco
+            services/${{ matrix.service }}/**/build/test-results/test/*.xml
 
   architecture:
     runs-on: ubuntu-latest
@@ -63,10 +67,14 @@ jobs:
       - name: Shared real-browser acceptance helper coverage
         run: >-
           pnpm --filter admin-portal exec vitest run
-          src/upload-fault-contract.test.tsx src/ui-create-receipt.test.tsx
+          src/upload-fault-contract.test.tsx src/ui-create-receipt.test.tsx src/knowledge-acceptance.test.tsx
+          src/knowledge-dm-fixture.test.tsx src/knowledge-diagnostics.test.tsx
           --coverage
           --coverage.include=e2e-real/upload-fault-contract.ts
           --coverage.include=e2e-real/ui-create-receipt.ts
+          --coverage.include=e2e-real/knowledge-acceptance.ts
+          --coverage.include=e2e-real/knowledge-dm-fixture.ts
+          --coverage.include=e2e-real/knowledge-diagnostics.ts
           --coverage.reportsDirectory=coverage/acceptance-helpers
           --coverage.thresholds.lines=75 --coverage.thresholds.branches=75
           --coverage.thresholds.functions=75 --coverage.thresholds.statements=75
@@ -126,7 +134,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24.22.1'
-      - run: node --experimental-test-coverage --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test tools/runtime/identity-e2e.test.mjs
+      - run: node --experimental-test-coverage --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test tools/runtime/identity-e2e.test.mjs tools/runtime/kb-browser-runtime.test.mjs
       - name: Fast versus real-time upload expiry selector
         run: >-
           node --test --experimental-test-coverage
@@ -140,6 +148,11 @@ jobs:
           /tmp/dkp-runtime-checks/bin/coverage run --branch -m unittest discover -s tools/runtime -p 'test_*.py'
           /tmp/dkp-runtime-checks/bin/coverage run --branch --append -m unittest discover -s infra/docker-compose -p 'test_*.py'
           /tmp/dkp-runtime-checks/bin/coverage report --include='*/smoke.py,*/bootstrap-security.py,*/identity-provider-check.py,*/document-database-check.py' --fail-under=75
+      - name: Public configuration modes from private source snapshots
+        run: |
+          docker pull nginxinc/nginx-unprivileged:1.30.2-alpine@sha256:de3e40ec8b7debd7194fc798d4bbfb102c7f8b012b2c73032816b5f72393acdd
+          python3 tools/runtime/public_image_modes_acceptance.py
+          python3 tools/runtime/kb_edge_headers_acceptance.py
       - run: python3 infra/docker-compose/bootstrap-security.py
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml config --quiet
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml up --build --wait --wait-timeout 240
@@ -170,7 +183,7 @@ jobs:
         run: >-
           node --experimental-test-coverage --test-coverage-lines=75
           --test-coverage-branches=75 --test-coverage-functions=75 --test
-          tools/runtime/identity-e2e.test.mjs tools/runtime/compose-upload.test.mjs
+          tools/runtime/identity-e2e.test.mjs tools/runtime/kb-browser-runtime.test.mjs tools/runtime/compose-upload.test.mjs
       - name: Deterministic public synthetic document generator coverage
         run: >-
           node --experimental-test-coverage --test-coverage-lines=75
@@ -190,7 +203,7 @@ jobs:
           python3 - <<'PY'
           import json
           report = json.load(open('/tmp/dkp-upload-helper-coverage.json'))
-          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py', 'upload-durability.py', 'upload-accounting-acceptance.py', 'upload-acceptance.py', 'upload-faults.py'):
+          for name in ('clam-definitions.py', 'rustfs-runtime.py', 'upload-runtime.py', 'upload-durability.py', 'upload-accounting-acceptance.py', 'upload-acceptance.py', 'upload-faults.py', 'kb-security.py', 'kb-runtime.py', 'kb-network.py'):
               matches = [v['summary'] for p, v in report['files'].items() if p.endswith('/' + name)]
               if len(matches) != 1:
                   raise SystemExit('Missing source coverage for ' + name)

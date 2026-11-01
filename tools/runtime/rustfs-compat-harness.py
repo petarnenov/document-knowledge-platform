@@ -19,8 +19,8 @@ IMAGE = 'rustfs/rustfs:1.0.4@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368b
 LABEL = 'dkp.issue=104'
 
 
-def run(*args, input=None, check=True):
-    result = subprocess.run(args, input=input, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def run(*args, input=None, check=True, timeout=None):
+    result = subprocess.run(args, input=input, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
     if check and result.returncode:
         raise RuntimeError('fixture command failed: ' + args[0] + ' (private diagnostics suppressed)')
     return result
@@ -52,6 +52,40 @@ def owned(name, kind):
     labels = inspect.get('Labels') if kind in ('volume', 'network') else inspect['Config'].get('Labels')
     if not labels or labels.get('dkp.issue') != '104':
         raise RuntimeError('refusing unrelated Docker resource')
+
+
+def wait_ready(directory, endpoint):
+    # Pinned RustFS /health is liveness only. Probe readiness AND write quorum
+    # before the first mutation; never retry an ambiguous bucket/IAM write.
+    deadline = time.monotonic() + 60
+    statuses = ['unobserved', 'unobserved']
+    while time.monotonic() < deadline:
+        ready = True
+        for index, path in enumerate(('/health/ready', '/minio/health/cluster')):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                ready = False
+                break
+            timeout = min(2, remaining)
+            try:
+                result = run('curl', '--disable', '--silent', '--max-time', str(timeout),
+                             '--max-filesize', '1024', '--proto', '=https', '--noproxy', '*',
+                             '--cacert', str(directory / 'ca.pem'), '--output', os.devnull,
+                             '--write-out', '%{http_code}', endpoint + path,
+                             check=False, timeout=timeout)
+                statuses[index] = (result.stdout.decode('ascii')
+                                   if result.returncode == 0 and re.fullmatch(b'[0-9]{3}', result.stdout)
+                                   else 'unavailable')
+            except (OSError, subprocess.TimeoutExpired):
+                statuses[index] = 'unavailable'
+            if statuses[index] != '200':
+                ready = False
+                break
+        if ready and time.monotonic() < deadline:
+            return
+        time.sleep(min(1, max(0, deadline - time.monotonic())))
+    raise RuntimeError('RustFS native readiness unavailable (ready=' + statuses[0]
+                       + ', write=' + statuses[1] + '); no bootstrap write dispatched')
 
 
 def prepare(directory):
@@ -110,12 +144,7 @@ def prepare(directory):
     info = json.loads(run('docker', 'inspect', prefix).stdout)[0]
     state['endpoint'] = 'https://localhost:' + info['NetworkSettings']['Ports']['9000/tcp'][0]['HostPort']
     write(directory / 'state.json', json.dumps(state, indent=2) + '\n')
-    for _ in range(60):
-        ready = run('curl', '--silent', '--max-time', '2', '--cacert', str(directory / 'ca.pem'),
-                    '--output', os.devnull, '--write-out', '%{http_code}', state['endpoint'] + '/health', check=False)
-        if ready.returncode == 0 and ready.stdout in (b'200', b'403', b'404'): break
-        time.sleep(1)
-    else: raise RuntimeError('RustFS TLS listener did not become available')
+    wait_ready(directory, state['endpoint'])
     for bucket in ('dkp-quarantine', 'dkp-originals', 'dkp-outside'):
         curl(directory, state['endpoint'], 'PUT', '/' + bucket)
         curl(directory, state['endpoint'], 'PUT', '/' + bucket + '?versioning', '<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Status>Enabled</Status></VersioningConfiguration>')

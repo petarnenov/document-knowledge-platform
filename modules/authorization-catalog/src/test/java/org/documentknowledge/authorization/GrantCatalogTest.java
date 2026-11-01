@@ -64,11 +64,27 @@ class GrantCatalogTest {
  @Test void productionLinuxPlatformUsesTheDefaultFactory()throws Exception{Path p=file();write(p,catalog());assertEquals(AuthorityDecision.ALLOW,new GrantCatalog(p).authorize(actor,"tenant-a","document.create",""));}
 
  @Test void additiveContentActionRequiresExplicitGrantAndCeilingWithAllOldActionsPreserved()throws Exception{
-  Path p=file();assertEquals(10,GrantCatalog.ACTIONS.size());
+  Path p=file();assertEquals(11,GrantCatalog.ACTIONS.size());
   for(String action:GrantCatalog.ACTIONS){if(action.equals("document.create"))continue;write(p,catalog().replace("document.inspect-draft",action));assertEquals(AuthorityDecision.ALLOW,catalog(p).authorize(actor,"tenant-a",action,""));assertEquals(AuthorityDecision.ALLOW,catalog(p).delegationCeiling(actor,"tenant-a",action));}
   write(p,catalog());assertEquals(AuthorityDecision.DENY,catalog(p).authorize(actor,"tenant-a","document.content.review",""));assertEquals(AuthorityDecision.DENY,catalog(p).delegationCeiling(actor,"tenant-a","document.content.review"));
   write(p,catalog().replace("document.inspect-draft","document.content.review"));assertEquals(AuthorityDecision.ALLOW,catalog(p).authorize(actor,"tenant-a","document.content.review",""));
   for(String invalid:List.of("document.content.*","admin","document.content.review.extra")){write(p,catalog().replace("document.inspect-draft",invalid));assertEquals(AuthorityDecision.UNAVAILABLE,decide(p));}
+ }
+
+ @Test void wholeRequestSnapshotIsImmutableBoundedFreshAndOriginalActionsRemainExplicit()throws Exception{
+  Path p=file();write(p,catalog().replace("document.create","document.share-to-collection"));var c=catalog(p);List<String> ids=new java.util.ArrayList<>(List.of("first","second"));var first=c.snapshot(actor,"tenant-a","document.share-to-collection",ids);ids.clear();assertEquals(List.of("first","second"),first.resources());assertEquals(AuthorityDecision.ALLOW,first.route());assertEquals(java.util.Set.of("first","second"),first.decisions().keySet());assertTrue(first.fingerprint().matches("[0-9a-f]{64}"));assertEquals(AuthorityDecision.DENY,c.authorize(actor,"tenant-a","document.create",""));assertEquals(11,GrantCatalog.ACTIONS.size());
+  write(p,catalog().replace("document.create","document.share-to-collection")+"\n");var fresh=c.snapshot(actor,"tenant-a","document.share-to-collection",List.of("first","second"));assertNotEquals(first.fingerprint(),fresh.fingerprint());assertEquals(AuthorityDecision.ALLOW,first.decisions().get("first"));
+  write(p,catalog());assertEquals(AuthorityDecision.DENY,c.snapshot(actor,"tenant-a","document.share-to-collection",List.of("first")).route());assertEquals(AuthorityDecision.DENY,c.snapshot(new Actor(actor.issuer(),"other"),"tenant-a","document.create",List.of("first")).route());assertEquals(AuthorityDecision.DENY,c.snapshot(actor,"tenant-b","document.create",List.of("first")).route());
+  write(p,"partial");var unknown=c.snapshot(actor,"tenant-a","document.share-to-collection",List.of("first"));assertEquals(AuthorityDecision.UNAVAILABLE,unknown.route());assertEquals(AuthorityDecision.UNAVAILABLE,unknown.decisions().get("first"));assertEquals("",unknown.fingerprint());
+ }
+ @Test void actualScalarAndWholeSnapshotFallbacksKeepUnavailableAndFiniteDiagnostic()throws Exception{
+  try(var capture=new CatalogDiagnosticsTest.Capture()){
+   Path p=file();write(p,CatalogDiagnosticsTest.PRIVATE);var c=catalog(p);
+   assertEquals(AuthorityDecision.UNAVAILABLE,c.authorize(actor,"tenant-a","document.create",""));
+   assertEquals(AuthorityDecision.UNAVAILABLE,c.snapshot(actor,"tenant-a","document.create",List.of("resource")).route());
+   assertEquals(List.of("grant_catalog_failure category=JSON","grant_catalog_failure category=JSON"),capture.lines);
+   assertTrue(capture.thrown.stream().allMatch(java.util.Objects::isNull));
+  }
  }
 
 }
