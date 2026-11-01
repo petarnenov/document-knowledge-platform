@@ -15,6 +15,20 @@ public final class KnowledgeDiagnostics {
         public Event { Objects.requireNonNull(stage);Objects.requireNonNull(failure);Objects.requireNonNull(sqlState); }
         public String line(){return "kb_failure stage="+stage.name()+" category="+failure.name()+" sql_state="+sqlState.name();}
     }
+    public enum ShareStatus { FORBIDDEN,NOT_FOUND,CONFLICT,BAD_REQUEST,UNAUTHENTICATED,TOO_LARGE,UNSUPPORTED_MEDIA_TYPE,UNPROCESSABLE,RATE_LIMITED,INTERNAL,BAD_GATEWAY,UNAVAILABLE,GATEWAY_TIMEOUT,OTHER }
+    /** Only the fixed peer status is observable; no response data enters diagnostics. */
+    public static void shareResponse(int status){shareResponse(status,line->System.getLogger("org.documentknowledge.knowledgebase.failure").log(System.Logger.Level.WARNING,line));}
+    static void shareResponse(int status,Consumer<String> sink){
+        if(status==200)return;
+        ShareStatus category=switch(status){
+            case 403->ShareStatus.FORBIDDEN;case 404->ShareStatus.NOT_FOUND;case 409->ShareStatus.CONFLICT;
+            case 400->ShareStatus.BAD_REQUEST;case 401->ShareStatus.UNAUTHENTICATED;case 413->ShareStatus.TOO_LARGE;
+            case 415->ShareStatus.UNSUPPORTED_MEDIA_TYPE;case 422->ShareStatus.UNPROCESSABLE;case 429->ShareStatus.RATE_LIMITED;
+            case 500->ShareStatus.INTERNAL;case 502->ShareStatus.BAD_GATEWAY;case 503->ShareStatus.UNAVAILABLE;
+            case 504->ShareStatus.GATEWAY_TIMEOUT;default->ShareStatus.OTHER;
+        };
+        try{sink.accept("kb_share_response status="+category.name());}catch(RuntimeException ignored){/* Diagnostics cannot change the established peer response. */}
+    }
     private KnowledgeDiagnostics() { }
     public static void failure(Stage stage,Throwable failure){try{emit(classify(stage,failure),KnowledgeDiagnostics::log);}catch(RuntimeException ignored){/* Even classification failure cannot replace the original failure. */}}
     public static void sql(Stage stage,String state){emit(new Event(stage,Failure.SQL,sqlState(state)),KnowledgeDiagnostics::log);}

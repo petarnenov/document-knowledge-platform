@@ -80,6 +80,20 @@ class FixedDocumentShareClientTest {
         status=409;failure(409,this::assess);
         for(int value:List.of(201,301,302,307,400,401,422,429,500,503)){status=value;failure(503,this::assess);}
     }
+    @Test void actualPeerStatusIsLoggedWithoutBodyAndMappingsRemainUnchanged(){
+        var logger=java.util.logging.Logger.getLogger("org.documentknowledge.knowledgebase.failure");
+        var lines=new ArrayList<String>();var thrown=new ArrayList<Throwable>();
+        var handler=new java.util.logging.Handler(){public void publish(java.util.logging.LogRecord record){if(record.getMessage().startsWith("kb_share_response ")){lines.add(record.getMessage());thrown.add(record.getThrown());}}public void flush(){}public void close(){}};
+        boolean parents=logger.getUseParentHandlers();var level=logger.getLevel();logger.setUseParentHandlers(false);logger.setLevel(java.util.logging.Level.ALL);logger.addHandler(handler);
+        try{
+            body="synthetic-private-token tenant document https://private.invalid/\nforged-log";
+            status=404;failure(404,this::assess);status=409;failure(409,this::assess);
+            status=503;failure(503,this::assess);status=418;failure(503,this::assess);
+            assertEquals(List.of("kb_share_response status=NOT_FOUND","kb_share_response status=CONFLICT","kb_share_response status=UNAVAILABLE","kb_share_response status=OTHER"),lines);
+            assertTrue(thrown.stream().allMatch(Objects::isNull));
+            status=200;body=strict();assess();assertEquals(4,lines.size());
+        }finally{logger.removeHandler(handler);logger.setUseParentHandlers(parents);logger.setLevel(level);}
+    }
     @Test void malformedLocalInputCannotSendAndDeadlineCoversResponseBody() {
         failure(503,()->client.discover(new Context(actor.actor(),"tenant-b"),List.of(id),deadline()));
         failure(503,()->client.discover(actor,List.of(),deadline()));failure(503,()->client.discover(actor,List.of(id,id),deadline()));

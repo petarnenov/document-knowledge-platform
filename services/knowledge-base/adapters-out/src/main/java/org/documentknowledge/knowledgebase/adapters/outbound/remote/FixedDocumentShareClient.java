@@ -84,6 +84,7 @@ public final class FixedDocumentShareClient implements DocumentShareBatchAuthori
                 .POST(HttpRequest.BodyPublishers.ofByteArray(bytes)).build();
             future=client.sendAsync(request,info->new BoundedBody());
             HttpResponse<byte[]> response=future.get(remaining,TimeUnit.NANOSECONDS); deadline.check();
+            KnowledgeDiagnostics.shareResponse(response.statusCode());
             if(response.statusCode()==403||response.statusCode()==404) throw KbFailure.hidden();
             if(response.statusCode()==409) throw KbFailure.stale();
             if(response.statusCode()!=200||response.headers().firstValue("Content-Encoding").isPresent()
