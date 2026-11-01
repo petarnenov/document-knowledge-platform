@@ -173,6 +173,53 @@ class JobsTests(unittest.TestCase):
         m.stop_process(process);process.terminate.assert_called_once();process.kill.assert_called_once()
         process=Mock();process.poll.return_value=0;m.stop_process(process);process.terminate.assert_not_called()
 
+    def test_browser_lookup_requests_untruncated_identity_for_exact_validation(self):
+        import hashlib
+        work=Path('/private/jobs');digest=hashlib.sha256(str(work/'control').encode()).hexdigest()
+        item={'Id':self.target,'Image':'image','Name':'/dkp-jobs-browser-'+digest[:16],'Config':{'Image':'dkp-identity-e2e:local','Labels':{'dkp.issue':'305','dkp.jobs.control':digest}}}
+        def cli(args):
+            self.assertEqual(['docker','ps','-aq'],args[:3])
+            self.assertIn('name=^/dkp-jobs-browser-'+digest[:16]+'$',args)
+            # Docker's actual quiet-list output is short unless explicitly disabled.
+            return (self.target if '--no-trunc' in args else self.target[:12]).encode()+b'\n'
+        with patch.object(m.runtime,'command',side_effect=cli),patch.object(m.runtime,'docker',return_value=[item]) as inspect:
+            self.assertEqual((self.target,'image'),m.browser_instance(work))
+            inspect.assert_called_once_with('inspect',self.target)
+
+    def test_browser_lookup_rejects_malformed_and_foreign_cleanup_identity(self):
+        import hashlib
+        work=Path('/private/jobs');digest=hashlib.sha256(str(work/'control').encode()).hexdigest()
+        item={'Id':self.target,'Image':'image','Name':'/dkp-jobs-browser-'+digest[:16],'Config':{'Image':'dkp-identity-e2e:local','Labels':{'dkp.issue':'305','dkp.jobs.control':digest}}}
+        with patch.object(m.runtime,'command') as command,patch.object(m.runtime,'docker',return_value=[item]) as inspect:
+            for raw in (self.target[:12],self.target.upper(),'g'*64,self.target+'\n'+'c'*64):
+                command.return_value=raw.encode();inspect.reset_mock()
+                with self.subTest(rawLength=len(raw)),self.assertRaises(ValueError):m.browser_instance(work)
+                inspect.assert_not_called()
+            command.return_value=self.target.encode()
+            for field,bad in [('Id','c'*64),('Name','/foreign'),('Image','changed-image')]:
+                changed=copy.deepcopy(item);changed[field]=bad;inspect.return_value=[changed]
+                with self.subTest(field=field),self.assertRaises(ValueError):m.browser_instance(work,(self.target,'image'))
+            for field,bad in [('Image','foreign:local'),('Labels',{'dkp.issue':'other','dkp.jobs.control':digest}),('Labels',{'dkp.issue':'305','dkp.jobs.control':'foreign'})]:
+                changed=copy.deepcopy(item);changed['Config'][field]=bad;inspect.return_value=[changed]
+                with self.subTest(config=field),self.assertRaises(ValueError):m.browser_instance(work)
+            self.assertTrue(all(c.args[0][:3]==['docker','ps','-aq'] for c in command.call_args_list))
+
+    def test_boundary_failure_stops_browser_process_but_never_removes_foreign_container(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp,ExitStack() as stack:
+            work=Path(tmp);digest=hashlib.sha256(str(work/'control').encode()).hexdigest()
+            foreign={'Id':self.target,'Image':'image','Name':'/dkp-jobs-browser-'+digest[:16],'Config':{'Image':'dkp-identity-e2e:local','Labels':{'dkp.issue':'305','dkp.jobs.control':'foreign'}}}
+            for name in ('private',):stack.enter_context(patch.object(m.runtime,name))
+            stack.enter_context(patch.object(m,'bound'));stack.enter_context(patch.object(m,'wait',side_effect=ValueError('Synthetic boundary failure')))
+            command=stack.enter_context(patch.object(m.runtime,'command',return_value=self.target.encode()))
+            stack.enter_context(patch.object(m.runtime,'docker',return_value=[foreign]))
+            browser=Mock();browser.poll.return_value=None
+            stack.enter_context(patch.object(m.subprocess,'Popen',return_value=browser))
+            with self.assertRaisesRegex(ValueError,'Foreign browser cleanup refused'):m.dm_boundary(self.state,work)
+            browser.terminate.assert_called_once()
+            self.assertEqual(1,command.call_count)
+            self.assertEqual(['docker','ps','-aq','--no-trunc'],command.call_args.args[0][:4])
+
     def test_dm_real_restart_is_exact_crash_and_restore_even_when_boundary_fails(self):
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
             work=Path(tmp);(work/'control').mkdir()

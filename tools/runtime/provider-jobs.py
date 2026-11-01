@@ -282,7 +282,7 @@ def free_admissions(state):
 def browser_instance(work, expected=None):
     control_digest = hashlib.sha256(str(work / 'control').encode()).hexdigest()
     name = 'dkp-jobs-browser-' + control_digest[:16]
-    identifier = runtime.command(['docker', 'ps', '-aq', '--filter', 'name=^/' + name + '$']).decode().strip()
+    identifier = runtime.command(['docker', 'ps', '-aq', '--no-trunc', '--filter', 'name=^/' + name + '$']).decode().strip()
     if not identifier:return None
     if not re.fullmatch('[a-f0-9]{64}', identifier):raise ValueError('One exact owned browser required')
     item = runtime.docker('inspect', identifier)[0]
