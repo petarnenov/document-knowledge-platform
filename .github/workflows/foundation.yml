@@ -145,6 +145,7 @@ jobs:
         run: |
           docker pull nginxinc/nginx-unprivileged:1.30.2-alpine@sha256:de3e40ec8b7debd7194fc798d4bbfb102c7f8b012b2c73032816b5f72393acdd
           python3 tools/runtime/public_image_modes_acceptance.py
+          python3 tools/runtime/kb_edge_headers_acceptance.py
       - run: python3 infra/docker-compose/bootstrap-security.py
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml config --quiet
       - run: docker compose --env-file local-data/security/runtime.env -f infra/docker-compose/compose.yaml up --build --wait --wait-timeout 240
