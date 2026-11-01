@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Issue340: reproducible public SYSTEM Linux proof; no provider stack or authority input."""
+"""Issues340/349: reproducible public SYSTEM Linux proof; no provider stack or authority input."""
 import argparse
 import hashlib
 import json
@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[2]
 IMAGE = 'eclipse-temurin:25.0.5_8-jdk@sha256:83f4a7fc27df94dcc7b8de04d14cbbba8da14406f921e966969c3b09000aa507'
 PROJECTS = ('modules/identity-contracts', 'modules/authorization-catalog', 'services/document-management/domain', 'services/document-management/application', 'services/document-management/adapters-out')
 MAIN = 'services/document-management/adapters-out/src/test/java/org/documentknowledge/documentmanagement/adapters/outbound/verificationtemp/SystemVerificationWorkspaceAcceptance.java'
+LOCK_MAIN = 'services/document-management/adapters-out/src/test/java/org/documentknowledge/documentmanagement/adapters/outbound/temp/SystemProcessLockAcceptance.java'
+LOCK_CLASS = 'org.documentknowledge.documentmanagement.adapters.outbound.temp.SystemProcessLockAcceptance'
 CLASS = 'org.documentknowledge.documentmanagement.adapters.outbound.verificationtemp.SystemVerificationWorkspaceAcceptance'
 INIT = '''allprojects { p ->
     afterEvaluate {
@@ -32,6 +34,26 @@ INIT = '''allprojects { p ->
 }
 '''
 RESULT = {'schemaVersion': 1, 'result': 'PASS', 'cases': 14, 'uid': 10001, 'platform': 'Linux', 'publicConstructorOnly': True, 'maxPayloadBytes': 200000000, 'providerAccess': False}
+
+WORKSPACE_CASES = (
+    'sourceAndFreshCopyReadbackCapabilitiesNeverOverlapOrReuseStaleGeneration',
+    'physicalTwoHundredMillionBoundAndOversendAreEnforcedBeforeWrite',
+    'unsafeDeletionRetainsPhysicalBytesAndReservationUntilPermissionRestored',
+    'processLockAndClosedOwnerCannotAffectLaterWorkspace',
+    'workerClosingRetainsLockUntilBlockedWriterActuallySettles',
+    'foreignExtraGenerationAndNamespaceEntriesAreNeverAdoptedOrRemoved',
+    'malformedPrivateStateAndUncommittedNextCannotAuthorizePayload',
+    'lockPathReplacementInvalidatesOldOwner',
+    'actualChildJvmCrashRetainsPartialBytesUntilNewProcessDurablyRecovers',
+    'distinctChildJvmCannotAcquireTheLiveProcessLock',
+    'retainedActualReaderPreventsCleanupAndProcessTransferUntilReleased',
+    'noncanonicalRootAndUnsafePrivateMetadataFailClosedWithoutAdoption',
+    'reservationsRejectDuplicateWritesConcurrentAdmissionAndInvalidScratchOrder',
+    'changedOwnerMetadataAndMultiplyLinkedPayloadNeverAuthorizeDelete',
+)
+LOCK_CASES = ('initial_child_blocked', 'failed_same_jvm_contender_preserves_os_lock', 'pre_open_redirect_preserves_live_os_lock_and_poison_blocks_new_open', 'shutdown_retains_lock_and_bytes_until_reader_settles', 'actual_settlement_allows_successor_recovery')
+LOCK_RESULT = {'schemaVersion': 1, 'result': 'PASS', 'cases': 5, 'uid': 10001, 'platform': 'Linux', 'publicConstructorOnly': True, 'providerAccess': False}
+COMBINED_RESULT = {'schemaVersion': 1, 'result': 'PASS', 'cases': 19, 'proofs': {'workspace': RESULT, 'processLock': LOCK_RESULT}}
 
 
 def command(args, timeout=120):
@@ -64,7 +86,7 @@ def digest(path):
 
 def sources():
     canonical(ROOT)
-    paths = {ROOT / 'tools/runtime/verification-workspace-system.py', ROOT / 'gradle.properties', ROOT / MAIN, ROOT / 'build.gradle', ROOT / 'settings.gradle', ROOT / 'gradle/libs.versions.toml', ROOT / 'gradle/wrapper/gradle-wrapper.properties', ROOT / 'gradle/wrapper/gradle-wrapper.jar', ROOT / 'gradlew'}
+    paths = {ROOT / 'tools/runtime/verification-workspace-system.py', ROOT / 'gradle.properties', ROOT / MAIN, ROOT / LOCK_MAIN, ROOT / 'build.gradle', ROOT / 'settings.gradle', ROOT / 'gradle/libs.versions.toml', ROOT / 'gradle/wrapper/gradle-wrapper.properties', ROOT / 'gradle/wrapper/gradle-wrapper.jar', ROOT / 'gradlew'}
     for project in PROJECTS:
         tree = canonical(ROOT / project / 'src/main/java')
         for entry in tree.rglob('*'):
@@ -104,7 +126,7 @@ def compile_bundle(work):
         raise ValueError('Pinned repository javac25.0.5 required')
     # javac enforces the repository's Java25 class level; the actual runtime is the immutable JDK25 image.
     compiled = work / 'main';compiled.mkdir(mode=0o700)
-    command([str(java_home / 'bin/javac'), '-cp', os.pathsep.join(map(str, classes + jars)), '-d', str(compiled), str(ROOT / MAIN)])
+    command([str(java_home / 'bin/javac'), '-cp', os.pathsep.join(map(str, classes + jars)), '-d', str(compiled), str(ROOT / MAIN), str(ROOT / LOCK_MAIN)])
     if sources() != before:
         raise ValueError('Source or build input changed during compilation')
     bundle = work / 'public';bundle.mkdir(mode=0o755)
@@ -139,13 +161,13 @@ def inspect(identifier):
     return value[0]
 
 
-def owned(identifier, name, run_id, image_id, bundle, classpath, image_env):
+def owned(identifier, name, run_id, image_id, bundle, classpath, image_env, main_class=CLASS):
     value = inspect(identifier);config = value['Config'];host = value['HostConfig']
     mounts = value['Mounts']
     if (value['Id'] != identifier or value['Name'] != '/' + name or value['Image'] != image_id
             or config['Image'] != IMAGE or config['Labels'].get('dkp.issue') != '340' or config['Labels'].get('dkp340.run') != run_id
             or config.get('Env') != image_env or config['User'] != '10001:10001' or config['Entrypoint'] != ['java']
-            or config['Cmd'] != ['-Xmx128m', '-XX:ActiveProcessorCount=2', '-cp', ':'.join(classpath), CLASS] or config['WorkingDir'] != '/fixture'
+            or config['Cmd'] != ['-Xmx128m', '-XX:ActiveProcessorCount=2', '-cp', ':'.join(classpath), main_class] or config['WorkingDir'] != '/fixture'
             or host['NetworkMode'] != 'none' or not host['ReadonlyRootfs'] or host.get('Privileged') or host.get('CapAdd') or host['CapDrop'] != ['ALL']
             or host['SecurityOpt'] != ['no-new-privileges:true'] or host['Memory'] != 805306368 or host['NanoCpus'] != 1000000000 or host['PidsLimit'] != 64
             or host['Tmpfs'] != {'/fixture': 'uid=10001,gid=10001,mode=0700,size=384m'}
@@ -154,6 +176,36 @@ def owned(identifier, name, run_id, image_id, bundle, classpath, image_env):
             or mounts[0]['Type'] != 'bind' or mounts[0]['Source'] != str(bundle) or mounts[0]['Destination'] != '/opt/proof' or mounts[0]['RW']):
         raise ValueError('Exact isolated owned proof required')
     return value
+
+
+def run_proof(work, bundle, classpath, before, classes, image_id, image_env, kind, main_class):
+    run_id = uuid.uuid4().hex;name = 'dkp340-system-' + run_id[:12] + '-' + kind
+    args = ['docker', 'create', '--name', name, '--label', 'dkp.issue=340', '--label', 'dkp340.run=' + run_id, '--user', '10001:10001', '--network', 'none', '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--memory', '768m', '--cpus', '1', '--pids-limit', '64', '--tmpfs', '/fixture:uid=10001,gid=10001,mode=0700,size=384m', '--mount', 'type=bind,src=' + str(bundle) + ',dst=/opt/proof,readonly', '--workdir', '/fixture', '--entrypoint', 'java', IMAGE, '-Xmx128m', '-XX:ActiveProcessorCount=2', '-cp', ':'.join(classpath), main_class]
+    identifier = command(args).decode().strip()
+    if not re.fullmatch('[a-f0-9]{64}', identifier):
+        raise ValueError('Exact created container identity required')
+    try:
+        owned(identifier, name, run_id, image_id, bundle, classpath, image_env, main_class)
+        if sources() != before:
+            raise ValueError('Source changed before execution')
+        output = command(['docker', 'start', '--attach', identifier], 90).decode('utf8')
+        private(work / (kind + '.log'), output)
+        value = owned(identifier, name, run_id, image_id, bundle, classpath, image_env, main_class)
+        lines = output.splitlines()
+        if main_class == CLASS:
+            valid = lines == ['SYSTEM_CASE_PASS ' + case for case in WORKSPACE_CASES] + [json.dumps(RESULT, separators=(',', ':'))]
+            result = RESULT
+        else:
+            valid = main_class == LOCK_CLASS and lines == ['LOCK_CASE_PASS ' + case for case in LOCK_CASES]
+            result = LOCK_RESULT
+        if value['State']['Running'] or value['State']['ExitCode'] != 0 or not valid:
+            raise ValueError('All exact public SYSTEM cases required for each proof')
+        if sources() != before or classes != {str(p.relative_to(bundle)): digest(p) for p in sorted(bundle.rglob('*')) if p.is_file()}:
+            raise ValueError('Executed source/class binding changed')
+        private(work / (kind + '-result.json'), json.dumps({**result, 'mainClass': main_class, 'image': IMAGE, 'imageId': image_id, 'containerId': identifier, 'sourceDigest': hashlib.sha256(json.dumps(before, sort_keys=True).encode()).hexdigest(), 'classDigest': hashlib.sha256(json.dumps(classes, sort_keys=True).encode()).hexdigest()}) + '\n')
+    finally:
+        owned(identifier, name, run_id, image_id, bundle, classpath, image_env, main_class)
+        command(['docker', 'rm', '--force', identifier])
 
 
 def run():
@@ -167,28 +219,10 @@ def run():
     image = json.loads(command(['docker', 'image', 'inspect', IMAGE]))
     if not isinstance(image, list) or len(image) != 1 or not re.fullmatch('sha256:[a-f0-9]{64}', image[0]['Id']):
         raise ValueError('Pinned local JDK image required')
-    image_id = image[0]['Id'];image_env = image[0]['Config']['Env'];run_id = uuid.uuid4().hex;name = 'dkp340-system-' + run_id[:12]
-    args = ['docker', 'create', '--name', name, '--label', 'dkp.issue=340', '--label', 'dkp340.run=' + run_id, '--user', '10001:10001', '--network', 'none', '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--memory', '768m', '--cpus', '1', '--pids-limit', '64', '--tmpfs', '/fixture:uid=10001,gid=10001,mode=0700,size=384m', '--mount', 'type=bind,src=' + str(bundle) + ',dst=/opt/proof,readonly', '--workdir', '/fixture', '--entrypoint', 'java', IMAGE, '-Xmx128m', '-XX:ActiveProcessorCount=2', '-cp', ':'.join(classpath), CLASS]
-    identifier = command(args).decode().strip()
-    if not re.fullmatch('[a-f0-9]{64}', identifier):
-        raise ValueError('Exact created container identity required')
-    try:
-        owned(identifier, name, run_id, image_id, bundle, classpath, image_env)
-        if sources() != before:
-            raise ValueError('Source changed before execution')
-        output = command(['docker', 'start', '--attach', identifier], 90).decode('utf8')
-        private(work / 'runtime.log', output)
-        value = owned(identifier, name, run_id, image_id, bundle, classpath, image_env)
-        lines = output.splitlines()
-        if value['State']['Running'] or value['State']['ExitCode'] != 0 or len(lines) != 15 or sum(line.startswith('SYSTEM_CASE_PASS ') for line in lines) != 14 or json.loads(lines[-1]) != RESULT:
-            raise ValueError('All14 public SYSTEM cases required')
-        if sources() != before or classes != {str(p.relative_to(bundle)): digest(p) for p in sorted(bundle.rglob('*')) if p.is_file()}:
-            raise ValueError('Executed source/class binding changed')
-        private(work / 'result.json', json.dumps({**RESULT, 'image': IMAGE, 'imageId': image_id, 'containerId': identifier, 'sourceDigest': hashlib.sha256(json.dumps(before, sort_keys=True).encode()).hexdigest(), 'classDigest': hashlib.sha256(json.dumps(classes, sort_keys=True).encode()).hexdigest()}) + '\n')
-        return RESULT
-    finally:
-        owned(identifier, name, run_id, image_id, bundle, classpath, image_env)
-        command(['docker', 'rm', '--force', identifier])
+    for kind, main_class in (('workspace', CLASS), ('process-lock', LOCK_CLASS)):
+        run_proof(work, bundle, classpath, before, classes, image[0]['Id'], image[0]['Config']['Env'], kind, main_class)
+    private(work / 'result.json', json.dumps(COMBINED_RESULT) + '\n')
+    return COMBINED_RESULT
 
 
 if __name__ == '__main__':

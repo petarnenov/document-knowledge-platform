@@ -31,6 +31,15 @@ class SystemWorkspaceTests(unittest.TestCase):
         for field,bad in [('RW',True),('Type','volume'),('Source','/foreign'),('Destination','/etc')]:
             value=copy.deepcopy(good);value['Mounts'][0][field]=bad
             with patch.object(m,'inspect',return_value=value),self.assertRaises(ValueError):self.own()
+    def test_each_proof_container_binds_its_own_main_class(self):
+        value=self.item();value['Config']['Cmd'][-1]=m.LOCK_CLASS
+        with patch.object(m,'inspect',return_value=value):
+            self.assertEqual(value,m.owned(self.identifier,self.name,self.run_id,self.image_id,self.bundle,self.classpath,['PATH=/jdk/bin'],m.LOCK_CLASS))
+            with self.assertRaises(ValueError):self.own()
+        value['Config']['Cmd'][-1]=m.CLASS
+        with patch.object(m,'inspect',return_value=value),self.assertRaises(ValueError):
+            m.owned(self.identifier,self.name,self.run_id,self.image_id,self.bundle,self.classpath,['PATH=/jdk/bin'],m.LOCK_CLASS)
+
     def test_inspection_and_commands_are_bounded_and_fail_closed(self):
         with patch.object(m,'command',return_value=b'[]'),self.assertRaises(ValueError):m.inspect(self.identifier)
         with patch.object(m,'command',return_value=b'[{}]'):self.assertEqual({},m.inspect(self.identifier))
@@ -44,11 +53,13 @@ class SystemWorkspaceTests(unittest.TestCase):
         compiled=stack.enter_context(patch.object(m,'compile_bundle',return_value=(self.bundle,self.classpath,{'source':'hash'},{})))
         stack.enter_context(patch.object(m,'sources',return_value={'source':'hash'}));stack.enter_context(patch.object(m.uuid,'uuid4',return_value=type('Uuid',(),{'hex':self.run_id})()))
         stack.enter_context(patch.object(m,'owned',return_value=self.item()))
-        output=''.join('SYSTEM_CASE_PASS case'+str(i)+'\n' for i in range(14))+json.dumps(m.RESULT)+'\n'
+        output=''.join('SYSTEM_CASE_PASS '+case+'\n' for case in m.WORKSPACE_CASES)+json.dumps(m.RESULT,separators=(',',':'))+'\n'
+        selected=[None]
         def execute(args,timeout=120):
             if args[:3]==['docker','image','inspect']:return json.dumps([{'Id':self.image_id,'Config':{'Env':['PATH=/jdk/bin']}}]).encode()
-            if args[:2]==['docker','create']:return self.identifier.encode()
-            if args[:2]==['docker','start']:return output.encode()
+            if args[:2]==['docker','create']:selected[0]=args[-1];return self.identifier.encode()
+            if args[:2]==['docker','start']:
+                return (output if selected[0]==m.CLASS else ''.join('LOCK_CASE_PASS '+case+'\n' for case in m.LOCK_CASES)).encode()
             if args[:3]==['docker','rm','--force']:return b''
             raise AssertionError(args)
         command=stack.enter_context(patch.object(m,'command',side_effect=execute))
@@ -56,10 +67,16 @@ class SystemWorkspaceTests(unittest.TestCase):
     def test_success_records_private_bound_proof_and_only_removes_exact_container(self):
         from contextlib import ExitStack
         with ExitStack() as stack:
-            command,_=self.arrange_run(stack);self.assertEqual(m.RESULT,m.run())
+            command,compile_call=self.arrange_run(stack);self.assertEqual(m.COMBINED_RESULT,m.run());compile_call.assert_called_once()
             self.assertEqual(['docker','rm','--force',self.identifier],command.call_args.args[0])
             work=next((self.root/'build').iterdir());self.assertEqual(0o700,work.stat().st_mode&0o777)
             self.assertEqual(0o600,(work/'result.json').stat().st_mode&0o777)
+            workspace=json.loads((work/'workspace-result.json').read_text());composition=json.loads((work/'process-lock-result.json').read_text())
+            self.assertEqual(14,workspace['cases']);self.assertEqual(5,composition['cases'])
+            self.assertEqual(m.CLASS,workspace['mainClass']);self.assertEqual(m.LOCK_CLASS,composition['mainClass'])
+            created=[c.args[0] for c in command.call_args_list if c.args[0][:2]==['docker','create']]
+            self.assertEqual([m.CLASS,m.LOCK_CLASS],[args[-1] for args in created])
+            self.assertEqual(2,len([c for c in command.call_args_list if c.args[0][:2]==['docker','rm']]))
             self.assertFalse((self.root/'local-data').exists())
             args=next(c.args[0] for c in command.call_args_list if c.args[0][:2]==['docker','create']);self.assertIn('none',args);self.assertIn(m.IMAGE,args)
     def test_failed_timeout_or_result_still_cleans_owned_but_never_foreign_identity(self):
@@ -82,6 +99,67 @@ class SystemWorkspaceTests(unittest.TestCase):
                 removals=[c.args[0] for c in command.call_args_list if c.args[0][:2]==['docker','rm']]
                 self.assertEqual([] if failure=='foreign' else [['docker','rm','--force',self.identifier]],removals)
                 if (self.bundle/'new.class').exists():(self.bundle/'new.class').unlink()
+    def test_original_workspace_requires_all_exact_case_identities_before_composition(self):
+        from contextlib import ExitStack
+        for scenario in ('identical','duplicate','wrongcase','missing','extra','reordered','wrongsummary','duplicatefield','wrongsummarytype'):
+            with self.subTest(scenario=scenario),ExitStack() as stack:
+                command,_=self.arrange_run(stack);original=command.side_effect
+                def execute(args,timeout=120):
+                    if args[:2]==['docker','start']:
+                        lines=['SYSTEM_CASE_PASS '+case for case in m.WORKSPACE_CASES]
+                        summary=json.dumps(m.RESULT,separators=(',',':'))
+                        if scenario=='identical':lines=['SYSTEM_CASE_PASS duplicate']*14
+                        if scenario=='duplicate':lines[-1]=lines[0]
+                        if scenario=='wrongcase':lines[-1]='SYSTEM_CASE_PASS unknown'
+                        if scenario=='missing':lines.pop()
+                        if scenario=='extra':lines.append('SYSTEM_CASE_PASS extra')
+                        if scenario=='reordered':lines.reverse()
+                        if scenario=='wrongsummary':summary=json.dumps({**m.RESULT,'cases':19})
+                        if scenario=='duplicatefield':summary=summary.replace('"cases":14','"cases":5,"cases":14')
+                        if scenario=='wrongsummarytype':summary=summary.replace('"schemaVersion":1','"schemaVersion":true')
+                        return ('\n'.join(lines+[summary])+'\n').encode()
+                    return original(args,timeout)
+                command.side_effect=execute
+                with self.assertRaises(ValueError):m.run()
+                self.assertEqual(1,len([c for c in command.call_args_list if c.args[0][:2]==['docker','create']]))
+                self.assertEqual(1,len([c for c in command.call_args_list if c.args[0][:2]==['docker','rm']]))
+                work=max((self.root/'build').iterdir(),key=lambda p:p.stat().st_mtime_ns)
+                self.assertFalse((work/'workspace-result.json').exists());self.assertFalse((work/'result.json').exists())
+
+    def test_workspace_case_inventory_matches_the_unchanged_public_java_main(self):
+        import re
+        root=Path(__file__).resolve().parents[2]
+        source=(root/m.MAIN).read_text();inventory=source.split('String[] cases={',1)[1].split('};',1)[0]
+        self.assertEqual(tuple(re.findall(r'"([A-Za-z][A-Za-z0-9]+)"',inventory)),m.WORKSPACE_CASES)
+        self.assertEqual(14,len(set(m.WORKSPACE_CASES)))
+
+    def test_composition_is_distinct_exact_and_not_silently_skipped_after_workspace_success(self):
+        from contextlib import ExitStack
+        for scenario in ('missing','duplicate','wrongcase','workspaceonly','extra','timeout','changedsource'):
+            with self.subTest(scenario=scenario),ExitStack() as stack:
+                command,compile_call=self.arrange_run(stack);original=command.side_effect;selected=[None]
+                def execute(args,timeout=120):
+                    if args[:2]==['docker','create']:selected[0]=args[-1]
+                    if args[:2]==['docker','start'] and selected[0]==m.LOCK_CLASS:
+                        if scenario=='timeout':raise ValueError('timed out')
+                        if scenario=='changedsource':m.sources.return_value={'changed':'hash'}
+                        lines=['LOCK_CASE_PASS '+case for case in m.LOCK_CASES]
+                        if scenario=='missing':lines.pop()
+                        if scenario=='duplicate':lines[-1]=lines[0]
+                        if scenario=='wrongcase':lines[-1]='LOCK_CASE_PASS unknown'
+                        if scenario=='workspaceonly':return ('SYSTEM_CASE_PASS repeated\n'*14+json.dumps(m.RESULT)+'\n').encode()
+                        if scenario=='extra':lines.append('unexpected')
+                        return ('\n'.join(lines)+'\n').encode()
+                    return original(args,timeout)
+                command.side_effect=execute
+                with self.assertRaises(ValueError):m.run()
+                compile_call.assert_called_once()
+                removals=[c.args[0] for c in command.call_args_list if c.args[0][:2]==['docker','rm']]
+                self.assertEqual(2,len(removals))
+                work=max((self.root/'build').iterdir(),key=lambda p:p.stat().st_mtime_ns)
+                self.assertTrue((work/'workspace-result.json').is_file())
+                self.assertFalse((work/'result.json').exists())
+
     def test_unidentified_created_container_and_wrong_image_are_never_guessed_for_cleanup(self):
         from contextlib import ExitStack
         for value in (b'not-id',json.dumps([{'Id':'tag-only'}]).encode()):
@@ -91,13 +169,13 @@ class SystemWorkspaceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):m.run()
                 self.assertFalse(any(c.args[0][:2]==['docker','rm'] for c in command.call_args_list))
     def seed_sources(self):
-        for name in [m.MAIN,'tools/runtime/verification-workspace-system.py','gradle.properties','build.gradle','settings.gradle','gradle/libs.versions.toml','gradle/wrapper/gradle-wrapper.properties','gradle/wrapper/gradle-wrapper.jar','gradlew']:
+        for name in [m.MAIN,m.LOCK_MAIN,'tools/runtime/verification-workspace-system.py','gradle.properties','build.gradle','settings.gradle','gradle/libs.versions.toml','gradle/wrapper/gradle-wrapper.properties','gradle/wrapper/gradle-wrapper.jar','gradlew']:
             p=self.root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(b'public')
         for project in m.PROJECTS:
             p=self.root/project/'src/main/java';p.mkdir(parents=True);(p/'Example.java').write_text('class Example {}')
             for name in ['build.gradle','gradle.lockfile']:(self.root/project/name).write_text('public')
     def test_sources_closed_and_compile_bundles_only_fresh_public_classes_and_locked_jars(self):
-        self.seed_sources();before=m.sources();self.assertIn(m.MAIN,before)
+        self.seed_sources();before=m.sources();self.assertIn(m.MAIN,before);self.assertIn(m.LOCK_MAIN,before)
         cache_temp=tempfile.TemporaryDirectory();self.addCleanup(cache_temp.cleanup);cache=Path(cache_temp.name).resolve();jar=cache/'caches/modules-2/files-2.1/public/library/1/hash/library-1.jar';jar.parent.mkdir(parents=True);jar.write_bytes(b'public-jar')
         work=self.root/'work';work.mkdir();jhome=self.root/'jdk'
         def execute(args,timeout=120):
@@ -118,7 +196,7 @@ class SystemWorkspaceTests(unittest.TestCase):
     def test_launcher_build_properties_and_entire_source_ancestry_are_bound(self):
         self.seed_sources()
         before=m.sources()
-        for name in ('gradle.properties','tools/runtime/verification-workspace-system.py'):
+        for name in ('gradle.properties','tools/runtime/verification-workspace-system.py',m.MAIN,m.LOCK_MAIN):
             path=self.root/name;original=path.read_bytes();path.write_bytes(b'changed')
             self.assertNotEqual(before,m.sources());path.write_bytes(original)
         tree=self.root/m.PROJECTS[0]/'src/main/java'
