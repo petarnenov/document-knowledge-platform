@@ -246,4 +246,23 @@ class JdbcLogProducersTest {
         fails(LogFailure.Kind.CAPACITY,()->delegate(root,artifact,tenant,Set.of()));
         assertEquals(root.authority(),registry.authenticate(root.producerToken(),RequestDeadline.start()));
     }
+    @Test void scopedCatalogLookupUsesOriginalInstalledBridgeAndRejectsForgedOrCorruptEnvelope() throws Exception {
+        var root=register();var installed=registry.load(root.authority(),RequestDeadline.start());
+        assertEquals(artifact.manifestSha256(),installed.digest());assertEquals(artifact.vocabularySha256(),installed.vocabularyDigest());
+        assertEquals(artifact.binding().build(),installed.build());
+        var browser=install("admin-portal");var child=delegate(root,browser,tenant,Set.of(browser.manifestSha256()));
+        assertEquals(browser.manifestSha256(),registry.load(child.authority(),RequestDeadline.start()).digest());
+        var a=root.authority();
+        for(var forged:List.of(new ProducerScope(UUID.randomUUID(),a.scope(),a.binding(),a.replayUntil()),
+                new ProducerScope(a.producerId(),tenant("tenant-b").identified(a.scope().id()),a.binding(),a.replayUntil()),
+                new ProducerScope(a.producerId(),tenant.identified(UUID.randomUUID()),a.binding(),a.replayUntil()),
+                new ProducerScope(a.producerId(),a.scope(),a.binding(),a.replayUntil().plusSeconds(1))))
+            fails(LogFailure.Kind.FORBIDDEN,()->registry.load(forged,RequestDeadline.start()));
+        sql("UPDATE dev_logs.manifests SET manifest_bytes=decode('7b7d','hex') WHERE manifest_sha='"+artifact.manifestSha256()+"'");
+        fails(LogFailure.Kind.UNAVAILABLE,()->registry.load(a,RequestDeadline.start()));
+        fails(LogFailure.Kind.UNAVAILABLE,()->new JdbcLogProducers(reader).load(child.authority(),RequestDeadline.start()));
+        registry.revoke(registrar(),a.producerId(),RequestDeadline.start());
+        fails(LogFailure.Kind.FORBIDDEN,()->registry.load(child.authority(),RequestDeadline.start()));
+    }
+
 }

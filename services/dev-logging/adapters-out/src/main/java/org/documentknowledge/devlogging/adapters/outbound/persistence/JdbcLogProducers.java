@@ -13,7 +13,7 @@ import org.documentknowledge.devlogging.domain.*;
 import org.documentknowledge.observability.BuildIdentity;
 
 /** Owned scoped registration/replay adapter. Never wired into the read-only assembly. */
-public final class JdbcLogProducers implements LogProducerRegistry, LogProducerAuthentication {
+public final class JdbcLogProducers implements LogProducerRegistry, LogProducerAuthentication, LogManifestCatalog {
     private final DataSource dataSource;
     private final SecureRandom random = new SecureRandom();
 
@@ -96,16 +96,44 @@ public final class JdbcLogProducers implements LogProducerRegistry, LogProducerA
                 query.setString(1,hash);
                 try (var rows = query.executeQuery()) {
                     if (!rows.next()) throw new LogFailure(LogFailure.Kind.UNAUTHENTICATED);
-                    if (rows.getBoolean("revoked")) throw new LogFailure(LogFailure.Kind.FORBIDDEN);
-                    var replay = earlier(rows.getTimestamp("accept_until").toInstant(),rows.getTimestamp("replay_until").toInstant());
-                    if (!rows.getTimestamp("server_now").toInstant().isBefore(replay)) throw new LogFailure(LogFailure.Kind.EXPIRED);
-                    var scope = new LogScope(rows.getObject("scope_id",UUID.class),LogScope.Kind.valueOf(rows.getString("kind")),
-                        rows.getString("issuer"),rows.getString("subject"),rows.getString("tenant_id"));
-                    return new ProducerScope(rows.getObject("producer_id",UUID.class),scope,
-                        new ProducerBinding(build(rows),rows.getObject("target_run_id",UUID.class)),replay);
+                    return authenticated(rows);
                 }
             }
         });
+    }
+
+    @Override
+    public VerifiedLogManifest load(ProducerScope authority, RequestDeadline deadline) {
+        Objects.requireNonNull(authority);
+        return transaction(deadline,false,(connection,budget)->{
+            try(var query=budget.prepare(connection,"""
+                    SELECT p.producer_id,p.revoked,p.accept_until,s.scope_id,s.kind,s.issuer,s.subject,s.tenant_id,
+                        s.replay_until,s.target_run_id,m.build_id,m.component,m.git_sha,m.source_fingerprint,
+                        m.manifest_sha,m.vocabulary_sha,m.manifest_bytes,clock_timestamp() AS server_now
+                    FROM dev_logs.scopes s JOIN dev_logs.producers p ON p.producer_id=s.producer_id
+                    JOIN dev_logs.manifests m ON m.manifest_sha=s.target_manifest_sha
+                    WHERE s.scope_id=? AND p.producer_id=?
+                    """)) {
+                query.setObject(1,authority.scope().id());query.setObject(2,authority.producerId());
+                try(var rows=query.executeQuery()) {
+                    if(!rows.next() || !authority.equals(authenticated(rows))) throw new LogFailure(LogFailure.Kind.FORBIDDEN);
+                    try {
+                        return new VerifiedLogManifest(authority.binding().build(),rows.getString("manifest_sha"),
+                            rows.getString("vocabulary_sha"),rows.getBytes("manifest_bytes"));
+                    } catch(LogFailure corruptCatalog) { throw new LogFailure(LogFailure.Kind.UNAVAILABLE); }
+                }
+            }
+        });
+    }
+
+    private static ProducerScope authenticated(ResultSet rows) throws SQLException {
+        if (rows.getBoolean("revoked")) throw new LogFailure(LogFailure.Kind.FORBIDDEN);
+        var replay = earlier(rows.getTimestamp("accept_until").toInstant(),rows.getTimestamp("replay_until").toInstant());
+        if (!rows.getTimestamp("server_now").toInstant().isBefore(replay)) throw new LogFailure(LogFailure.Kind.EXPIRED);
+        var scope = new LogScope(rows.getObject("scope_id",UUID.class),LogScope.Kind.valueOf(rows.getString("kind")),
+            rows.getString("issuer"),rows.getString("subject"),rows.getString("tenant_id"));
+        return new ProducerScope(rows.getObject("producer_id",UUID.class),scope,
+            new ProducerBinding(build(rows),rows.getObject("target_run_id",UUID.class)),replay);
     }
 
     private record Parent(ArtifactRegistration artifact, Instant acceptUntil) { }

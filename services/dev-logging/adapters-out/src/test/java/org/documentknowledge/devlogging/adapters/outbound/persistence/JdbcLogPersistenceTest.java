@@ -241,7 +241,7 @@ class JdbcLogPersistenceTest {
         sql("UPDATE dev_logs.events SET canonical_payload=NULL");
         var receipt = store.receipts(authority, List.of(event.metadata().eventId()), Instant.now()).getFirst();
         assertEquals(ReceiptState.EXPIRED, receipt.state()); assertNull(receipt.receivedAt());
-        fails(LogFailure.Kind.EXPIRED, () -> store.commit(authority, batch(event), Instant.now()));
+        fails(LogFailure.Kind.EVENT_EXPIRED, () -> store.commit(authority, batch(event), Instant.now()));
         assertEquals(0, count("SELECT count(canonical_payload) FROM dev_logs.events"));
     }
 

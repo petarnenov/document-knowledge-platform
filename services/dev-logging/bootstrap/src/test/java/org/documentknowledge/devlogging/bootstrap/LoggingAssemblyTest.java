@@ -184,16 +184,19 @@ class LoggingAssemblyTest {
         assertArrayEquals(bytes,Files.readAllBytes(path));
     }
 
-    @Test void authenticatedRegistrationHttpComposesWithRealOwnedPostgresAndScopedRevocation() throws Exception {
+    @Test void authenticatedRegistrationAndIngestionHttpComposeWithRealPostgresAcrossRestartAndRevocation() throws Exception {
         try(var input=getClass().getResourceAsStream("/db/logging-migration/V2__scoped_producer_credentials.sql")) {
             sql(new String(Objects.requireNonNull(input).readAllBytes(),StandardCharsets.UTF_8));
         }
         var buildIdentity=new org.documentknowledge.observability.BuildIdentity(UUID.randomUUID(),"browser-bff","a".repeat(40),"b".repeat(64));
-        byte[] manifestBytes=("{\"verifiedHttpSqlFixture\":\""+buildIdentity.buildId()+"\"}").getBytes(StandardCharsets.UTF_8);
-        var manifest=new org.documentknowledge.devlogging.domain.VerifiedLogManifest(buildIdentity,
-            org.documentknowledge.devlogging.domain.VerifiedLogManifest.sha256(manifestBytes),"c".repeat(64),manifestBytes);
+        var manifestRow=PrivateLogManifestTest.manifest(PrivateLogManifestTest.vocabulary());
+        manifestRow.put("buildId",buildIdentity.buildId().toString());manifestRow.put("component",buildIdentity.component());
+        byte[] manifestBytes=PrivateLogManifest.canonical(manifestRow);
+        var manifest=PrivateLogManifest.parse(manifestBytes,org.documentknowledge.devlogging.domain.VerifiedLogManifest.sha256(manifestBytes));
         new org.documentknowledge.devlogging.adapters.outbound.persistence.JdbcLogManifests(owner).install(manifest,RequestDeadline.start());
         var registry=new org.documentknowledge.devlogging.adapters.outbound.persistence.JdbcLogProducers(owner);
+        var volume=new ObservedVolumeAdmission("f".repeat(64),Clock.systemUTC());
+        var persistence=new org.documentknowledge.devlogging.adapters.outbound.persistence.JdbcLogPersistence(owner,volume);
         String operatorToken="o".repeat(43),attestorToken="s".repeat(43);
         var registrar=new LogProducerRegistry.Registrar(UUID.randomUUID(),Instant.now().plusSeconds(3600));
         var registrarGrant=new org.documentknowledge.devlogging.adapters.outbound.persistence.ConfiguredLogRegistrars.RegistrarGrant(registrar,
@@ -208,10 +211,20 @@ class LoggingAssemblyTest {
                 var context=ApplicationContext.builder().properties(properties()).build();
                 // Test-only trusted composition. Production reader pool remains read-only; no writer deployment claim.
                 context.registerSingleton(LogProducerRegistry.class,registry);
+                context.registerSingleton(LogProducerAuthentication.class,(credential,deadline)->registry.authenticate(credential,deadline));
+                context.registerSingleton(LogManifestCatalog.class,(authority,deadline)->registry.load(authority,deadline));
+                context.registerSingleton(LogPersistence.class,persistence);
                 context.registerSingleton(LogRegistrationAuthentication.class,auth); return context.start();
             } catch(Exception failure) { throw new RuntimeException(failure); }
         };
         Map<?,?> root;
+        UUID logEvent=UUID.randomUUID();var contextValue=Map.of("phase","STARTUP","durationMs",0,"exceptionClass","unknown.SecretClass");
+        var eventValue=new HashMap<String,Object>(Map.of("eventId",logEvent.toString(),"buildId",binding.get("buildId"),"runId",binding.get("runId"),
+            "instanceId",UUID.randomUUID().toString(),"component",buildIdentity.component(),"gitSha",buildIdentity.gitSha(),"sourceFingerprint",buildIdentity.sourceFingerprint(),
+            "timestamp",Instant.now().toString(),"severity","DEBUG","eventName","operation.started"));
+        eventValue.put("correlationId",UUID.randomUUID().toString());eventValue.put("context",contextValue);
+        byte[] eventBatch=mapper.writeValueAsBytes(Map.of("schemaVersion",1,"events",List.of(eventValue)));
+        byte[] receiptBody=mapper.writeValueAsBytes(Map.of("eventIds",List.of(logEvent.toString())));
         try(var context=start.apply(registrationAuth);var server=context.getBean(EmbeddedServer.class).start()) {
             var body=mapper.writeValueAsBytes(Map.of("binding",binding,"scope",scope,"acceptUntil",Instant.now().plusSeconds(1800).toString()));
             var response=registrationRequest(server,"POST","registrations",operatorToken,body);
@@ -220,20 +233,50 @@ class LoggingAssemblyTest {
             assertEquals(root.get("scopeId"),authority.scope().id().toString()); assertEquals("tenant-a",authority.scope().tenantId());
             assertEquals(401,registrationRequest(server,"POST","registrations",(String)root.get("producerToken"),body).statusCode());
             assertEquals("dkp_log_reader",context.getBean(HikariDataSource.class).getUsername());
+            // Labelled trusted fixture observation only; no physical shared-volume deployment proof.
+            volume.observe("f".repeat(64),4L*1024*1024*1024,8L*1024*1024*1024);
+            var committed=registrationRequest(server,"POST","batches",(String)root.get("producerToken"),eventBatch);
+            assertEquals(200,committed.statusCode(),committed.body());assertTrue(committed.body().contains("COMMITTED"));assertTrue(committed.body().contains("receivedAt"));
+            assertFalse(committed.body().contains("SecretClass"));
         }
         var parent=UUID.fromString((String)root.get("producerId"));
         var delegator=new LogProducerRegistry.Delegator(UUID.randomUUID(),Instant.now().plusSeconds(3600),Set.of(parent),Set.of(),
-            Set.of(new LogProducerRegistry.ScopePermission(org.documentknowledge.devlogging.domain.LogScope.Kind.TENANT,"https://issuer.invalid","tenant-a")));
+            Set.of(new LogProducerRegistry.ScopePermission(org.documentknowledge.devlogging.domain.LogScope.Kind.TENANT,"https://issuer.invalid","tenant-a"),
+                new LogProducerRegistry.ScopePermission(org.documentknowledge.devlogging.domain.LogScope.Kind.TENANT,"https://issuer.invalid","tenant-b")));
         var delegationGrant=new org.documentknowledge.devlogging.adapters.outbound.persistence.ConfiguredLogRegistrars.DelegatorGrant(delegator,
             MessageDigest.getInstance("SHA-256").digest(attestorToken.getBytes(StandardCharsets.US_ASCII)));
         var auth=new org.documentknowledge.devlogging.adapters.outbound.persistence.ConfiguredLogRegistrars(List.of(registrarGrant),List.of(delegationGrant),Clock.systemUTC());
         try(var context=start.apply(auth);var server=context.getBean(EmbeddedServer.class).start()) {
-            var body=mapper.writeValueAsBytes(Map.of("parentProducerId",parent.toString(),"binding",binding,"scope",scope,
+            var retained=registrationRequest(server,"POST","receipts",(String)root.get("producerToken"),receiptBody);
+            assertEquals(200,retained.statusCode());assertTrue(retained.body().contains("COMMITTED"));
+            var childScope=new HashMap<>(scope);childScope.put("tenantId","tenant-b");
+            var body=mapper.writeValueAsBytes(Map.of("parentProducerId",parent.toString(),"binding",binding,"scope",childScope,
                 "contextEpoch",UUID.randomUUID().toString(),"captureUntil",Instant.now().plusSeconds(60).toString()));
             var response=registrationRequest(server,"POST","delegations",attestorToken,body);assertEquals(201,response.statusCode(),response.body());
             var child=mapper.readValue(response.body(),Map.class);assertEquals(parent.toString(),child.get("producerId"));
             var authority=registry.authenticate((String)child.get("producerToken"),RequestDeadline.start());assertEquals(parent,authority.producerId());
             assertNotEquals(root.get("scopeId"),authority.scope().id().toString());
+            assertEquals("tenant-b",authority.scope().tenantId());
+            var unknown=registrationRequest(server,"POST","receipts",(String)child.get("producerToken"),receiptBody);
+            assertEquals(200,unknown.statusCode());assertTrue(unknown.body().contains("UNKNOWN"));assertFalse(unknown.body().contains("receivedAt"));
+            volume.observe("f".repeat(64),4L*1024*1024*1024,8L*1024*1024*1024);
+            var replay=registrationRequest(server,"POST","batches",(String)root.get("producerToken"),eventBatch);assertEquals(200,replay.statusCode(),replay.body());
+            var childCommit=registrationRequest(server,"POST","batches",(String)child.get("producerToken"),eventBatch);assertEquals(200,childCommit.statusCode(),childCommit.body());
+            var visible=get(server,token,"&buildId="+buildIdentity.buildId());assertEquals(200,visible.statusCode());
+            var page=mapper.readValue(visible.body(),Map.class);assertEquals(1,((List<?>)page.get("events")).size());
+            assertFalse(visible.body().contains("tenant-b"));assertFalse(visible.body().contains("SecretClass"));assertTrue(visible.body().contains("unregisteredSymbols"));
+            var operatorPage=mapper.readValue(get(server,expired,"&buildId="+buildIdentity.buildId()).body(),Map.class);
+            assertEquals(2,((List<?>)operatorPage.get("events")).size());
+            var changed=new HashMap<>(eventValue);changed.put("context",Map.of("phase","STARTUP","durationMs",1));
+            volume.observe("f".repeat(64),4L*1024*1024*1024,8L*1024*1024*1024);
+            assertEquals(409,registrationRequest(server,"POST","batches",(String)root.get("producerToken"),mapper.writeValueAsBytes(Map.of("schemaVersion",1,"events",List.of(changed)))).statusCode());
+            volume.observationFailed();assertEquals(503,registrationRequest(server,"POST","batches",(String)root.get("producerToken"),eventBatch).statusCode());
+            volume.observe("f".repeat(64),4L*1024*1024*1024,8L*1024*1024*1024);
+            sql("UPDATE dev_logs.events SET canonical_payload=NULL WHERE scope_id='"+root.get("scopeId")+"' AND event_id='"+logEvent+"'");
+            var tombstone=registrationRequest(server,"POST","batches",(String)root.get("producerToken"),eventBatch);assertEquals(410,tombstone.statusCode(),tombstone.body());
+            assertTrue(tombstone.body().contains("LOG_EVENT_EXPIRED"));
+            var expiredReceipt=registrationRequest(server,"POST","receipts",(String)root.get("producerToken"),receiptBody);
+            assertEquals(200,expiredReceipt.statusCode());assertTrue(expiredReceipt.body().contains("EXPIRED"));assertFalse(expiredReceipt.body().contains("receivedAt"));
             assertEquals(204,registrationRequest(server,"DELETE","registrations/"+parent,operatorToken,new byte[0]).statusCode());
             assertEquals(org.documentknowledge.devlogging.domain.LogFailure.Kind.FORBIDDEN,
                 assertThrows(org.documentknowledge.devlogging.domain.LogFailure.class,()->registry.authenticate((String)child.get("producerToken"),RequestDeadline.start())).kind());

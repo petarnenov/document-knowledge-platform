@@ -65,7 +65,7 @@ final class LogRegistrationJson {
         if(value==null || !value.matches("[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")) invalid();
         var id=UUID.fromString(value); if(id.equals(new UUID(0,0))) invalid(); return id;
     }
-    private static Instant timestamp(String value) {
+    static Instant timestamp(String value) {
         if(!value.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt](?:[01][0-9]|2[0-3]):[0-5][0-9]:(?:[0-5][0-9]|60)(?:\\.[0-9]+)?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])")) invalid();
         return Instant.parse(value);
     }

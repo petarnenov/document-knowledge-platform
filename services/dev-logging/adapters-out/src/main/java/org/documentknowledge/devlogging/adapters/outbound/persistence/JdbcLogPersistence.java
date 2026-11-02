@@ -144,7 +144,7 @@ public final class JdbcLogPersistence implements LogPersistence {
     private Committed existing(Connection connection, Budget budget, ProducerScope authority, CanonicalLogEvent event) throws SQLException {
         try (var statement = lookup(connection, budget, authority, event.metadata().eventId()); var rows = statement.executeQuery()) {
             if (!rows.next()) return null;
-            if (rows.getBytes("canonical_payload") == null) throw new LogFailure(LogFailure.Kind.EXPIRED);
+            if (rows.getBytes("canonical_payload") == null) throw new LogFailure(LogFailure.Kind.EVENT_EXPIRED);
             if (!event.scopeBoundHash(authority.scope().id()).equals(rows.getString("canonical_hash"))) {
                 throw new LogFailure(LogFailure.Kind.CONFLICT);
             }
