@@ -19,6 +19,10 @@
     {
       "name": "Operations",
       "description": "Minimal process lifecycle probes."
+    },
+    {
+      "name": "DevLogging",
+      "description": "Shared development diagnostics; dedicated logging runtime."
     }
   ],
   "paths": {
@@ -108,6 +112,36 @@
     },
     "/api/v1/dm/documents/{documentId}/upload-receipts/{receiptId}/version": {
       "$ref": "./document-management.yaml#/paths/~1api~1v1~1dm~1documents~1%7BdocumentId%7D~1upload-receipts~1%7BreceiptId%7D~1version"
+    },
+    "/api/v1/dev-logs/batches": {
+      "$ref": "./dev-logging.yaml#/paths/~1api~1v1~1dev-logs~1batches"
+    },
+    "/api/v1/dev-logs/beacon": {
+      "$ref": "./dev-logging.yaml#/paths/~1api~1v1~1dev-logs~1beacon"
+    },
+    "/api/v1/dev-logs/events": {
+      "$ref": "./dev-logging.yaml#/paths/~1api~1v1~1dev-logs~1events"
+    },
+    "/api/v1/dev-logs/receipts": {
+      "$ref": "./dev-logging.yaml#/paths/~1api~1v1~1dev-logs~1receipts"
+    },
+    "/api/v1/dev-logs/context": {
+      "$ref": "./dev-logging.yaml#/paths/~1api~1v1~1dev-logs~1context"
+    },
+    "/api/v1/dev-logs/beacon/receipts": {
+      "$ref": "./dev-logging.yaml#/paths/~1api~1v1~1dev-logs~1beacon~1receipts"
+    },
+    "/api/v1/dev-logs/registrations": {
+      "$ref": "./dev-logging.yaml#/paths/~1api~1v1~1dev-logs~1registrations"
+    },
+    "/api/v1/dev-logs/delegations": {
+      "$ref": "./dev-logging.yaml#/paths/~1api~1v1~1dev-logs~1delegations"
+    },
+    "/api/v1/dev-logs/registrations/{producerId}": {
+      "$ref": "./dev-logging.yaml#/paths/~1api~1v1~1dev-logs~1registrations~1%7BproducerId%7D"
+    },
+    "/api/v1/dev-logs/storage-observation": {
+      "$ref": "./dev-logging.yaml#/paths/~1api~1v1~1dev-logs~1storage-observation"
     }
   },
   "components": {
@@ -123,6 +157,24 @@
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": "Strict per-service issuer, audience, authorized party and signature validation."
+      },
+      "ProducerToken": {
+        "$ref": "./dev-logging.yaml#/components/securitySchemes/ProducerToken"
+      },
+      "ReaderToken": {
+        "$ref": "./dev-logging.yaml#/components/securitySchemes/ReaderToken"
+      },
+      "BrowserSession": {
+        "$ref": "./dev-logging.yaml#/components/securitySchemes/BrowserSession"
+      },
+      "RegistrationToken": {
+        "$ref": "./dev-logging.yaml#/components/securitySchemes/RegistrationToken"
+      },
+      "DelegatorToken": {
+        "$ref": "./dev-logging.yaml#/components/securitySchemes/DelegatorToken"
+      },
+      "StorageObserverToken": {
+        "$ref": "./dev-logging.yaml#/components/securitySchemes/StorageObserverToken"
       }
     },
     "schemas": {
@@ -200,6 +252,63 @@
       },
       "AclChangeEntry": {
         "$ref": "./document-management.yaml#/components/schemas/AclChangeEntry"
+      },
+      "Uuid": {
+        "$ref": "./dev-logging.yaml#/components/schemas/Uuid"
+      },
+      "Component": {
+        "$ref": "./dev-logging.yaml#/components/schemas/Component"
+      },
+      "Severity": {
+        "$ref": "./dev-logging.yaml#/components/schemas/Severity"
+      },
+      "LogBatch": {
+        "$ref": "./dev-logging.yaml#/components/schemas/LogBatch"
+      },
+      "LogEvent": {
+        "$ref": "./dev-logging.yaml#/components/schemas/LogEvent"
+      },
+      "LogContext": {
+        "$ref": "./dev-logging.yaml#/components/schemas/LogContext"
+      },
+      "StoredEvent": {
+        "$ref": "./dev-logging.yaml#/components/schemas/StoredEvent"
+      },
+      "LookupBatchReceipt": {
+        "$ref": "./dev-logging.yaml#/components/schemas/LookupBatchReceipt"
+      },
+      "CommittedBatchReceipt": {
+        "$ref": "./dev-logging.yaml#/components/schemas/CommittedBatchReceipt"
+      },
+      "TraceId": {
+        "$ref": "./dev-logging.yaml#/components/schemas/TraceId"
+      },
+      "ContextView": {
+        "$ref": "./dev-logging.yaml#/components/schemas/ContextView"
+      },
+      "BrowserReceiptRequest": {
+        "$ref": "./dev-logging.yaml#/components/schemas/BrowserReceiptRequest"
+      },
+      "ArtifactBinding": {
+        "$ref": "./dev-logging.yaml#/components/schemas/ArtifactBinding"
+      },
+      "TrustedLogScope": {
+        "$ref": "./dev-logging.yaml#/components/schemas/TrustedLogScope"
+      },
+      "RegistrationRequest": {
+        "$ref": "./dev-logging.yaml#/components/schemas/RegistrationRequest"
+      },
+      "ProducerGrant": {
+        "$ref": "./dev-logging.yaml#/components/schemas/ProducerGrant"
+      },
+      "DelegationRequest": {
+        "$ref": "./dev-logging.yaml#/components/schemas/DelegationRequest"
+      },
+      "ScopedProducerGrant": {
+        "$ref": "./dev-logging.yaml#/components/schemas/ScopedProducerGrant"
+      },
+      "StorageObservation": {
+        "$ref": "./dev-logging.yaml#/components/schemas/StorageObservation"
       }
     }
   },

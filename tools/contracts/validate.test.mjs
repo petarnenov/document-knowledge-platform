@@ -20,6 +20,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { compareGeneratedTrees } from './sdk-tree.mjs';
 
+test('referenced logging operations retain producer authentication in the SDK aggregate', async () => {
+  const aggregate = parse(await readFile(resolve(root, 'contracts/openapi/v1/platform.yaml'), 'utf8'));
+  const logging = parse(await readFile(resolve(root, 'contracts/openapi/v1/dev-logging.yaml'), 'utf8'));
+  for (const path of ['/api/v1/dev-logs/batches', '/api/v1/dev-logs/receipts']) {
+    assert.ok(aggregate.paths[path].$ref.startsWith('./dev-logging.yaml#/paths/'));
+    assert.deepEqual(logging.paths[path].post.security, [{ ProducerToken: [] }],
+      'External path references must not depend on a foreign document default security');
+  }
+  assert.ok(aggregate.components.securitySchemes.ProducerToken);
+});
+
 test('SDK comparison detects changed, removed and added generated files', async () => {
   const temporary = await mkdtemp(join(tmpdir(), 'dkp-sdk-tree-test-'));
   const actual = join(temporary, 'actual');

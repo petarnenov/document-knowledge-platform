@@ -18,6 +18,8 @@ paths:
   /api/v1/dev-logs/batches:
     post:
       operationId: ingestDevLogBatch
+      security:
+        - ProducerToken: []
       tags:
         - DevLogging
       summary: Validate and atomically persist an idempotent event batch
@@ -238,6 +240,8 @@ paths:
   /api/v1/dev-logs/receipts:
     post:
       operationId: lookupDevLogReceipts
+      security:
+        - ProducerToken: []
       tags:
         - DevLogging
       summary: Resolve submitted event IDs without disclosing log contents
