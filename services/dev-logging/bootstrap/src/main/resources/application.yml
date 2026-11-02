@@ -4,3 +4,5 @@ micronaut:
   server:
     host: 127.0.0.1
     port: 18087
+    max-request-size: 32768
+    max-request-buffer-size: 32768

@@ -5,7 +5,11 @@ dependencies {
     implementation platform(rootProject.libs.micronaut.platform)
     implementation 'io.micronaut:micronaut-http-server'
     implementation 'io.micronaut:micronaut-json-core'
+    implementation 'tools.jackson.core:jackson-databind'
     testImplementation 'io.micronaut:micronaut-runtime'
     testImplementation 'io.micronaut:micronaut-http-server-netty'
     testImplementation 'io.micronaut:micronaut-jackson-databind'
 }
+
+// Keep real HTTP fixture pools separate from the real JDBC suite within the fixed CI PID budget.
+tasks.named('test') { mustRunAfter ':services:dev-logging:adapters-out:test' }

@@ -184,4 +184,68 @@ class LoggingAssemblyTest {
         assertArrayEquals(bytes,Files.readAllBytes(path));
     }
 
+    @Test void authenticatedRegistrationHttpComposesWithRealOwnedPostgresAndScopedRevocation() throws Exception {
+        try(var input=getClass().getResourceAsStream("/db/logging-migration/V2__scoped_producer_credentials.sql")) {
+            sql(new String(Objects.requireNonNull(input).readAllBytes(),StandardCharsets.UTF_8));
+        }
+        var buildIdentity=new org.documentknowledge.observability.BuildIdentity(UUID.randomUUID(),"browser-bff","a".repeat(40),"b".repeat(64));
+        byte[] manifestBytes=("{\"verifiedHttpSqlFixture\":\""+buildIdentity.buildId()+"\"}").getBytes(StandardCharsets.UTF_8);
+        var manifest=new org.documentknowledge.devlogging.domain.VerifiedLogManifest(buildIdentity,
+            org.documentknowledge.devlogging.domain.VerifiedLogManifest.sha256(manifestBytes),"c".repeat(64),manifestBytes);
+        new org.documentknowledge.devlogging.adapters.outbound.persistence.JdbcLogManifests(owner).install(manifest,RequestDeadline.start());
+        var registry=new org.documentknowledge.devlogging.adapters.outbound.persistence.JdbcLogProducers(owner);
+        String operatorToken="o".repeat(43),attestorToken="s".repeat(43);
+        var registrar=new LogProducerRegistry.Registrar(UUID.randomUUID(),Instant.now().plusSeconds(3600));
+        var registrarGrant=new org.documentknowledge.devlogging.adapters.outbound.persistence.ConfiguredLogRegistrars.RegistrarGrant(registrar,
+            MessageDigest.getInstance("SHA-256").digest(operatorToken.getBytes(StandardCharsets.US_ASCII)));
+        var registrationAuth=new org.documentknowledge.devlogging.adapters.outbound.persistence.ConfiguredLogRegistrars(List.of(registrarGrant),List.of(),Clock.systemUTC());
+        var mapper=io.micronaut.json.JsonMapper.createDefault();
+        var binding=Map.of("buildId",buildIdentity.buildId().toString(),"runId",UUID.randomUUID().toString(),"component",buildIdentity.component(),
+            "gitSha",buildIdentity.gitSha(),"sourceFingerprint",buildIdentity.sourceFingerprint(),"manifestSha256",manifest.digest(),"vocabularySha256",manifest.vocabularyDigest());
+        var scope=Map.of("scopeKind","TENANT","issuer","https://issuer.invalid","subject","verified-actor","tenantId","tenant-a");
+        java.util.function.Function<LogRegistrationAuthentication,ApplicationContext> start=auth->{
+            try {
+                var context=ApplicationContext.builder().properties(properties()).build();
+                // Test-only trusted composition. Production reader pool remains read-only; no writer deployment claim.
+                context.registerSingleton(LogProducerRegistry.class,registry);
+                context.registerSingleton(LogRegistrationAuthentication.class,auth); return context.start();
+            } catch(Exception failure) { throw new RuntimeException(failure); }
+        };
+        Map<?,?> root;
+        try(var context=start.apply(registrationAuth);var server=context.getBean(EmbeddedServer.class).start()) {
+            var body=mapper.writeValueAsBytes(Map.of("binding",binding,"scope",scope,"acceptUntil",Instant.now().plusSeconds(1800).toString()));
+            var response=registrationRequest(server,"POST","registrations",operatorToken,body);
+            assertEquals(201,response.statusCode(),response.body()); root=mapper.readValue(response.body(),Map.class);
+            var authority=registry.authenticate((String)root.get("producerToken"),RequestDeadline.start());
+            assertEquals(root.get("scopeId"),authority.scope().id().toString()); assertEquals("tenant-a",authority.scope().tenantId());
+            assertEquals(401,registrationRequest(server,"POST","registrations",(String)root.get("producerToken"),body).statusCode());
+            assertEquals("dkp_log_reader",context.getBean(HikariDataSource.class).getUsername());
+        }
+        var parent=UUID.fromString((String)root.get("producerId"));
+        var delegator=new LogProducerRegistry.Delegator(UUID.randomUUID(),Instant.now().plusSeconds(3600),Set.of(parent),Set.of(),
+            Set.of(new LogProducerRegistry.ScopePermission(org.documentknowledge.devlogging.domain.LogScope.Kind.TENANT,"https://issuer.invalid","tenant-a")));
+        var delegationGrant=new org.documentknowledge.devlogging.adapters.outbound.persistence.ConfiguredLogRegistrars.DelegatorGrant(delegator,
+            MessageDigest.getInstance("SHA-256").digest(attestorToken.getBytes(StandardCharsets.US_ASCII)));
+        var auth=new org.documentknowledge.devlogging.adapters.outbound.persistence.ConfiguredLogRegistrars(List.of(registrarGrant),List.of(delegationGrant),Clock.systemUTC());
+        try(var context=start.apply(auth);var server=context.getBean(EmbeddedServer.class).start()) {
+            var body=mapper.writeValueAsBytes(Map.of("parentProducerId",parent.toString(),"binding",binding,"scope",scope,
+                "contextEpoch",UUID.randomUUID().toString(),"captureUntil",Instant.now().plusSeconds(60).toString()));
+            var response=registrationRequest(server,"POST","delegations",attestorToken,body);assertEquals(201,response.statusCode(),response.body());
+            var child=mapper.readValue(response.body(),Map.class);assertEquals(parent.toString(),child.get("producerId"));
+            var authority=registry.authenticate((String)child.get("producerToken"),RequestDeadline.start());assertEquals(parent,authority.producerId());
+            assertNotEquals(root.get("scopeId"),authority.scope().id().toString());
+            assertEquals(204,registrationRequest(server,"DELETE","registrations/"+parent,operatorToken,new byte[0]).statusCode());
+            assertEquals(org.documentknowledge.devlogging.domain.LogFailure.Kind.FORBIDDEN,
+                assertThrows(org.documentknowledge.devlogging.domain.LogFailure.class,()->registry.authenticate((String)child.get("producerToken"),RequestDeadline.start())).kind());
+        }
+    }
+    HttpResponse<String> registrationRequest(EmbeddedServer server,String method,String path,String credential,byte[] body) throws Exception {
+        var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+server.getPort()+"/api/v1/dev-logs/"+path))
+            .timeout(Duration.ofSeconds(8)).header("Authorization","Bearer "+credential).header("Content-Type","application/json")
+            .method(method,HttpRequest.BodyPublishers.ofByteArray(body)).build();
+        try(var client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build()) {
+            return client.send(request,HttpResponse.BodyHandlers.ofString());
+        }
+    }
+
 }
