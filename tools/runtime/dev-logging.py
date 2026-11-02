@@ -261,11 +261,32 @@ def create_pki(directory, port, idp_port):
     security_bootstrap().generate(directory / 'gateway-pki', portal_port=port, idp_port=idp_port)
 
 
-def gateway_config(directory, port, idp_port, viewer=False):
+def logging_routes(writer=False):
+    if not writer:
+        return ('location = /api/v1/dev-logs { proxy_pass $logs; include /run/dkp/gateway/log-proxy.conf; }\n'
+                'location ^~ /api/v1/dev-logs/ { proxy_pass $logs; include /run/dkp/gateway/log-proxy.conf; }')
+    deny = ('{ add_header Cache-Control no-store always; '
+            'add_header X-Content-Type-Options nosniff always; '
+            'add_header Referrer-Policy no-referrer always; return 404; }')
+    routes = ['location = /api/v1/dev-logs ' + deny]
+    for path, method in [('events', 'GET'), ('registrations', 'POST'), ('delegations', 'POST'),
+                         ('batches', 'POST'), ('receipts', 'POST'), ('storage-observation', 'POST')]:
+        routes.append('location = /api/v1/dev-logs/' + path + ' {\n'
+                      '    if ($request_method != ' + method + ') { return 405; }\n'
+                      '    proxy_pass $logs; include /run/dkp/gateway/log-proxy.conf;\n}')
+    # Regex order matters: canonical DELETE before the closed catch-all, both before BFF regexes.
+    routes.append('location ~ "^/api/v1/dev-logs/registrations/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$" {\n'
+                  '    if ($request_method != DELETE) { return 405; }\n'
+                  '    proxy_pass $logs; include /run/dkp/gateway/log-proxy.conf;\n}')
+    routes.append('location ~ "^/api/v1/dev-logs/" ' + deny)
+    return '\n'.join(routes)
+
+
+def gateway_config(directory, port, idp_port, viewer=False, writer=False):
     (directory / 'gateway').mkdir(mode=0o700, exist_ok=True)
     for name, template in [('server.conf','dev-logging-gateway-server.template.conf'),('log-proxy.conf','dev-logging-log-proxy.template.conf')]:
         routes = COMPOSE.with_name('dev-logging-viewer-routes.template.conf').read_text() if viewer else 'location = /dev/logs { return 404; }\nlocation ^~ /dev/logs/ { return 404; }\nlocation = /logs.html { return 404; }'
-        value = COMPOSE.with_name(template).read_text().replace('__VIEWER_ROUTES__',routes).replace('__PORTAL_PORT__', str(port)).replace('__IDP_PORT__', str(idp_port))
+        value = COMPOSE.with_name(template).read_text().replace('__VIEWER_ROUTES__',routes).replace('__LOG_ROUTES__',logging_routes(writer)).replace('__PORTAL_PORT__', str(port)).replace('__IDP_PORT__', str(idp_port))
         write_private(directory / 'gateway' / name, value, replace=(directory / 'gateway' / name).exists())
 
 

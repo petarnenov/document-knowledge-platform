@@ -382,5 +382,34 @@ class LoggingRuntimeTests(unittest.TestCase):
         self.assertIn('http://viewer:18088',config.read_text())
         self.assertNotIn('__VIEWER_ROUTES__',config.read_text())
 
+    def test_writer_routes_require_explicit_selection_and_precede_general_bff_proxy(self):
+        config=self.directory/'gateway/server.conf'
+        original=config.read_text()
+        self.assertIn('location ^~ /api/v1/dev-logs/ { proxy_pass $logs;',original)
+        self.assertNotIn('location = /api/v1/dev-logs/registrations',original)
+        m.gateway_config(self.directory,18087,18088,viewer=True,writer=True)
+        selected=config.read_text()
+        self.assertNotIn('__LOG_ROUTES__',selected)
+        self.assertNotIn('location ^~ /api/v1/dev-logs/',selected)
+        for path,method in [('events','GET'),('registrations','POST'),('delegations','POST'),
+                            ('batches','POST'),('receipts','POST'),('storage-observation','POST')]:
+            route=selected.split('location = /api/v1/dev-logs/'+path+' {',1)[1].split('\n}',1)[0]
+            self.assertIn('if ($request_method != '+method+') { return 405; }',route)
+            self.assertIn('proxy_pass $logs; include /run/dkp/gateway/log-proxy.conf;',route)
+        delete=selected.index('location ~ "^/api/v1/dev-logs/registrations/')
+        deny=selected.index('location ~ "^/api/v1/dev-logs/"')
+        bff=selected.index('location ~ "^/(api|oauth|login|logout)(/|$)"')
+        self.assertLess(delete,deny);self.assertLess(deny,bff)
+        self.assertIn('if ($request_method != DELETE) { return 405; }',selected[delete:deny])
+        for location in ['location = /api/v1/dev-logs {', 'location ~ "^/api/v1/dev-logs/" {']:
+            block=selected.split(location,1)[1].split('}',1)[0]
+            for header in ['Cache-Control no-store', 'X-Content-Type-Options nosniff', 'Referrer-Policy no-referrer']:
+                self.assertIn('add_header '+header+' always;',block)
+        self.assertIn('alias /usr/share/nginx/html/logs.html',selected)
+        self.assertIn('proxy_ssl_verify on;',selected)
+        self.assertNotIn('Access-Control-Allow-Origin',selected)
+        m.gateway_config(self.directory,18087,18088)
+        self.assertEqual(original,config.read_text())
+
 
 if __name__=='__main__':unittest.main()
