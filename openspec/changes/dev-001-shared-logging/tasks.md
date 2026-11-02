@@ -7,6 +7,7 @@
 
 - [x] 2.0 Implement the separately selected framework-free build/execution/event identity foundation and dependency-purity checks. Local defcb04: independently verified60 pinned Linux tests,62/62 LINE and18/18 BRANCH; no API/database/Beacon/CI/integration claim.
 - [ ] 2.1 Implement hexagonal logging service, owned PostgreSQL schema, migration, indexed scoped queries and idempotent commit acknowledgement with negative tests.
+  - Local partial implementation `3fe6670`: framework-free domain/application, owned SQL migration, JDBC scoped atomic commit/replay/receipts and bounded observed-volume admission. Independently reviewed pinned Linux86 tests, including12 real PostgreSQL tests; zero failures/errors/skips. Domain78/80 lines49/50 branches, application32/32 lines36/36 branches, JDBC142/142 lines63/66 branches. Query/API, actual observer/runtime and full J1 request-deadline verification remain open; disposable test DB is not the shared persistent destination.
 - [ ] 2.2 Implement scoped producer/operator credentials, Beacon ingress validation, redaction, bounds, loss/degraded reporting, retention and restart/outage tests.
 - [ ] 2.3 Implement persistent shared-runtime lifecycle independent of build/task fixtures using reviewed existing immutable image pins; preserve owned cleanup boundaries.
 
@@ -22,4 +23,4 @@
 - [ ] 4.1 Prove FE/BE/infra events from two builds in the SAME persistent store, authenticated indexed filtering, restart persistence and reconstruction of a controlled real failed operation.
 - [ ] 4.2 Verify delayed/outage Beacon nonblocking UI, recovery/deduplication, bounds/retention/loss, trusted identity, cross-tenant queries and secret/content exclusion.
 - [ ] 4.3 Run applicable pinned Linux source/branch coverage floors, contracts/SDK, architecture, security and E2E checks; retain source-bound RED/GREEN evidence and independent final review.
-- [ ] 4.4 Open reviewed PR to dev, verify applicable exact-head terminal-success CI, authorized merge and post-dev checks; close #457 only with all acceptance evidence and save resumable handoff/current-session compaction checkpoint. Resume preserved BP03 work, keeping the full-project goal active.
+- [ ] 4.4 Open reviewed PR to dev, verify applicable exact-head terminal-success CI, authorized merge and post-dev checks; close #457 only with all acceptance evidence and save resumable handoff/current-session compaction checkpoint. Owner instruction2026-11-02: after this verified dev integration, persist the full handoff and PAUSE for harness restart before starting any next task. Preserve the full-project goal and the subsequent BP03/frontend order.
