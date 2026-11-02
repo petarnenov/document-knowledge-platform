@@ -1,6 +1,9 @@
 import { Uploads } from './Uploads';
+import { DocumentLibrary } from './features/documents/DocumentLibrary';
+import { DocumentLifecycle } from './features/documents/DocumentLifecycle';
 import {
   Alert,
+  Anchor,
   Button,
   NativeSelect,
   Paper,
@@ -9,7 +12,8 @@ import {
   Title,
 } from '@mantine/core';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getSession,
@@ -17,6 +21,7 @@ import {
   type SessionView,
 } from './identity-api';
 import { sessionKey } from './session-key';
+import { useSessionAuthority } from './features/identity/authority';
 import {
   actions,
   command,
@@ -30,6 +35,9 @@ import {
 } from './document-api';
 
 export function Documents() {
+  const [params] = useSearchParams();
+  const initialDocumentId = params.get('documentId');
+  const initialCreate = params.get('view') === 'create';
   const session = useQuery({
     queryKey: sessionKey,
     queryFn: ({ signal }) => getSession(signal),
@@ -56,6 +64,19 @@ export function Documents() {
         <Link to="/identity">Workspace access</Link>
       </section>
     );
+  if (
+    initialDocumentId !== null &&
+    !z.uuid().safeParse(initialDocumentId).success
+  )
+    return (
+      <section>
+        <Title order={1}>Documents</Title>
+        <p role="alert">
+          This document is unavailable or you do not have access.
+        </p>
+        <Link to="/documents">Back to library</Link>
+      </section>
+    );
   return (
     <DraftWorkspace
       key={[
@@ -63,13 +84,26 @@ export function Documents() {
         session.data.subject,
         session.data.selectedTenant,
         session.data.csrfToken,
+        initialDocumentId,
+        initialCreate,
       ].join('|')}
       session={session.data}
+      initialDocumentId={initialDocumentId}
+      initialCreate={initialCreate}
     />
   );
 }
-function DraftWorkspace({ session }: { session: SessionView }) {
+function DraftWorkspace({
+  session,
+  initialDocumentId,
+  initialCreate,
+}: {
+  session: SessionView;
+  initialDocumentId: string | null;
+  initialCreate: boolean;
+}) {
   const client = useQueryClient();
+  const authority = useSessionAuthority(session);
   const scope = [
     'documents',
     session.issuer,
@@ -91,9 +125,14 @@ function DraftWorkspace({ session }: { session: SessionView }) {
     });
   }, [client, scopeText]);
   const [cursor, setCursor] = useState<string | undefined>();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialDocumentId);
+  const [view, setView] = useState<'library' | 'create' | 'detail' | 'upload'>(
+    initialDocumentId ? 'detail' : initialCreate ? 'create' : 'library',
+  );
+  const [filter, setFilter] = useState('');
   const [showAcl, setShowAcl] = useState(false);
   const [showHolds, setShowHolds] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [receipt, setReceipt] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -109,22 +148,27 @@ function DraftWorkspace({ session }: { session: SessionView }) {
   const pendingKey = useRef<{ body: string; key: string } | null>(null);
   const page = useQuery({
     queryKey: [...scope, 'list', cursor ?? ''],
-    queryFn: ({ signal }) => listDrafts(session, signal, cursor),
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) => listDrafts(session, guard, cursor)),
+    enabled: !authority.blocked,
   });
   const detail = useQuery({
     queryKey: [...scope, 'detail', selected],
-    queryFn: ({ signal }) => inspectDraft(selected!, session, signal),
-    enabled: selected !== null,
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) => inspectDraft(selected!, session, guard)),
+    enabled: selected !== null && !authority.blocked,
   });
   const acl = useQuery({
     queryKey: [...scope, 'acl', selected],
-    queryFn: ({ signal }) => inspectAcl(selected!, signal),
-    enabled: selected !== null && showAcl,
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) => inspectAcl(selected!, guard)),
+    enabled: selected !== null && showAcl && !authority.blocked,
   });
   const holds = useQuery({
     queryKey: [...scope, 'holds', selected],
-    queryFn: ({ signal }) => inspectHolds(selected!, signal),
-    enabled: selected !== null && showHolds,
+    queryFn: ({ signal }) =>
+      authority.run(signal, (guard) => inspectHolds(selected!, guard)),
+    enabled: selected !== null && showHolds && !authority.blocked,
   });
   const mutation = useMutation({
     mutationFn: async ({
@@ -134,6 +178,8 @@ function DraftWorkspace({ session }: { session: SessionView }) {
       kind: 'create' | 'metadata' | 'acl' | 'hold';
       body: object;
     }) => {
+      const guard = authority.request(new AbortController().signal);
+      guard.assertCurrent();
       const canonical = JSON.stringify({
         kind,
         selected: kind === 'create' ? null : selected,
@@ -143,14 +189,19 @@ function DraftWorkspace({ session }: { session: SessionView }) {
         pendingKey.current = { body: canonical, key: crypto.randomUUID() };
       return command(
         session,
-        new AbortController().signal,
+        guard,
         kind,
         body,
         kind === 'create' ? undefined : (selected ?? undefined),
         pendingKey.current.key,
       );
     },
-    onSuccess: async (result) => {
+    onSuccess: async (result, variables) => {
+      authority.request(new AbortController().signal).assertCurrent();
+      if (variables.kind === 'create') {
+        setView('library');
+        setFilter('');
+      }
       setReceipt(
         `Saved document ${result.documentId}, revision ${result.revision}.`,
       );
@@ -230,242 +281,413 @@ function DraftWorkspace({ session }: { session: SessionView }) {
   }
   function open(id: string) {
     setSelected(id);
+    setAdvancedOpen(false);
+    setView('detail');
     setShowAcl(false);
     setShowHolds(false);
     setReceipt(null);
     mutation.reset();
   }
+  const visible =
+    page.data?.items.filter((draft) =>
+      `${draft.metadata.title} ${draft.metadata.description} ${draft.documentId}`
+        .toLowerCase()
+        .includes(filter.toLowerCase()),
+    ) ?? [];
   return (
     <section className="documents" aria-busy={mutation.isPending}>
-      <p className="eyebrow">DKP / DOCUMENTS</p>
-      <Title order={1}>Document drafts</Title>
-      <p>
-        Tenant: {session.selectedTenant}. Draft metadata and verified uploads.
-        Publication is unavailable.
-      </p>
-      <p>
-        Retention is unresolved; destruction is forbidden. Legal holds have no
-        automatic expiry.
-      </p>
+      <div className="breadcrumbs">
+        {view === 'library' ? (
+          'Workspace / Documents'
+        ) : (
+          <>
+            <Anchor
+              component="button"
+              size="xs"
+              aria-label="Back to library"
+              onClick={() => setView('library')}
+            >
+              Documents
+            </Anchor>{' '}
+            /{' '}
+            {view === 'create'
+              ? 'Create'
+              : view === 'upload'
+                ? 'Upload'
+                : detail.isSuccess
+                  ? detail.data.documentId
+                  : 'Draft detail'}
+          </>
+        )}
+      </div>
+      <Title order={1}>
+        {view === 'library'
+          ? 'Document Library'
+          : view === 'create'
+            ? 'Create document draft'
+            : view === 'upload'
+              ? 'Add immutable version'
+              : detail.isSuccess
+                ? detail.data.metadata.title
+                : 'Draft detail'}
+      </Title>
       {receipt && <p role="status">{receipt}</p>}
       {failures.filter(Boolean).map((error, index) => (
         <Alert role="alert" key={index} variant="outline" color="red">
           {documentError(error)}
         </Alert>
       ))}
-      <form className="info-card" onSubmit={(event) => submit(event, 'create')}>
-        <h2>Create a draft</h2>
-        <label htmlFor="draft-title">Title</label>
-        <TextInput
-          id="draft-title"
-          required
-          maxLength={256}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <label htmlFor="draft-description">Description</label>
-        <Textarea
-          id="draft-description"
-          maxLength={4096}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-        <Button disabled={mutation.isPending} type="submit">
-          Create draft
-        </Button>
-      </form>
-      <Paper
-        component="section"
-        className="info-card"
-        aria-labelledby="draft-list"
-      >
-        <h2 id="draft-list">Accessible drafts</h2>
-        {page.isPending && <p role="status">Loading drafts…</p>}
-        {page.isSuccess && (
-          <>
-            <ul>
-              {page.data.items.map((draft) => (
-                <li key={draft.documentId}>
-                  <Button type="button" onClick={() => open(draft.documentId)}>
-                    {draft.metadata.title}
-                  </Button>
-                </li>
+      {view === 'library' && (
+        <>
+          <div className="topline document-toolbar">
+            <div className="grow">
+              <TextInput
+                aria-label="Search documents on this page"
+                placeholder="Search documents"
+                value={filter}
+                onChange={(event) => setFilter(event.currentTarget.value)}
+              />
+            </div>
+            <Button
+              variant="filled"
+              onClick={() => {
+                setView('create');
+                setSelected(null);
+                setAdvancedOpen(false);
+                setTitle('');
+                setDescription('');
+                mutation.reset();
+                setReceipt(null);
+              }}
+            >
+              <span aria-hidden="true" style={{ whiteSpace: 'pre' }}>
+                ＋{' '}
+              </span>
+              New document
+            </Button>
+          </div>
+          <section
+            className="card document-library-card"
+            aria-label="Accessible drafts"
+          >
+            {page.isPending && <p role="status">Loading drafts…</p>}
+            {page.isSuccess &&
+              (filter && !visible.length ? (
+                <p className="muted">No matching documents on this page.</p>
+              ) : (
+                <DocumentLibrary
+                  drafts={visible}
+                  selected={selected}
+                  onOpen={open}
+                />
               ))}
-            </ul>
-            {page.data.items.length === 0 && (
-              <p>No accessible drafts on this page.</p>
-            )}
-            {page.data.nextCursor && (
+          </section>
+          <p className="hint">
+            Search applies only to accessible drafts on this page. Workspace:{' '}
+            {session.selectedTenant}.
+          </p>
+          <div className="actions">
+            {page.data?.nextCursor && (
               <Button
-                type="button"
+                variant="default"
                 onClick={() => {
-                  setCursor(page.data.nextCursor ?? undefined);
+                  setCursor(page.data?.nextCursor ?? undefined);
                   setSelected(null);
+                  setAdvancedOpen(false);
+                  setFilter('');
                 }}
               >
                 Next page
               </Button>
             )}
-          </>
-        )}
-        <Button
-          type="button"
-          onClick={() => {
-            setCursor(undefined);
-            void page.refetch();
-          }}
+            <Button
+              variant="default"
+              onClick={() => {
+                setCursor(undefined);
+                setFilter('');
+                void page.refetch();
+              }}
+            >
+              Refresh drafts
+            </Button>
+          </div>
+        </>
+      )}
+      {view === 'create' && (
+        <Paper
+          component="form"
+          className="card"
+          onSubmit={(event) => submit(event, 'create')}
         >
-          Refresh drafts
-        </Button>
-      </Paper>
-      {selected && (
-        <Paper component="section" className="info-card">
-          <h2>Draft detail</h2>
-          <Button
-            type="button"
-            onClick={() => {
-              void detail.refetch();
-            }}
-          >
-            Refresh document
+          <label htmlFor="draft-title">Title</label>
+          <TextInput
+            id="draft-title"
+            required
+            maxLength={256}
+            value={title}
+            placeholder="Enter document title"
+            onChange={(event) => setTitle(event.currentTarget.value)}
+          />
+          <label htmlFor="draft-collection">Collection (metadata only)</label>
+          <NativeSelect
+            id="draft-collection"
+            disabled
+            data={['Unavailable']}
+            aria-describedby="draft-collection-hint"
+          />
+          <p id="draft-collection-hint" className="hint">
+            Collection metadata is unavailable in the current draft contract. No
+            collection membership or access is granted.
+          </p>
+          <label htmlFor="draft-classification">Classification</label>
+          <TextInput
+            id="draft-classification"
+            readOnly
+            value="development-restricted"
+            aria-describedby="draft-classification-hint"
+          />
+          <p id="draft-classification-hint" className="hint">
+            Fixed by the current contract at classification policy revision 1.
+            Creating a draft does not grant policy permissions.
+          </p>
+          <label htmlFor="draft-description">Description</label>
+          <Textarea
+            id="draft-description"
+            maxLength={4096}
+            value={description}
+            onChange={(event) => setDescription(event.currentTarget.value)}
+          />
+          <p className="hint">
+            Save metadata first. A draft has no file until a verified version is
+            recorded.
+          </p>
+          <Button variant="filled" type="submit" disabled={mutation.isPending}>
+            Create draft
           </Button>
+        </Paper>
+      )}
+      {(view === 'detail' || view === 'upload') && (
+        <>
           {detail.isPending && <p role="status">Checking draft access…</p>}
           {detail.isSuccess && (
             <>
-              <h3>{detail.data.metadata.title}</h3>
-              <p>{detail.data.metadata.description}</p>
-              <p>
-                Revision {detail.data.revision} · DRAFT · development-restricted
-              </p>
-              <p>Retention: UNRESOLVED · Destruction forbidden</p>
-              <Uploads
-                key={selected}
-                documentId={selected}
-                revision={detail.data.revision}
-                session={session}
-              />
-              <Button
-                type="button"
-                onClick={() => {
-                  setTitle(detail.data.metadata.title);
-                  setDescription(detail.data.metadata.description);
-                }}
-              >
-                Use current metadata
-              </Button>
-              <form onSubmit={(event) => submit(event, 'metadata')}>
-                <h3>Update metadata</h3>
-                <p>Uses the Title and Description fields above.</p>
-                <Button type="submit" disabled={mutation.isPending || !title}>
-                  Save metadata
-                </Button>
-              </form>
-              <Button type="button" onClick={() => setShowAcl(true)}>
-                Inspect access rules
-              </Button>
-              {showAcl && acl.isSuccess && (
-                <ul aria-label="Access rules">
-                  {acl.data.rules.map((rule, index) => (
-                    <li key={index}>
-                      {rule.principal.issuer} / {rule.principal.subject}:{' '}
-                      {rule.action} {rule.effect}
-                    </li>
-                  ))}
-                </ul>
+              {view === 'detail' ? (
+                <>
+                  <DocumentLifecycle
+                    draft={detail.data}
+                    actions={
+                      <div className="toolbar">
+                        <Button
+                          variant="filled"
+                          onClick={() => setView('upload')}
+                        >
+                          Upload version
+                        </Button>
+                        <Button variant="default" disabled>
+                          Processing
+                        </Button>
+                        <Button
+                          variant="default"
+                          disabled
+                          title="Governance is unavailable."
+                        >
+                          Governance
+                        </Button>
+                        <Button variant="default" disabled>
+                          Preview
+                        </Button>
+                        <Button
+                          variant="default"
+                          onClick={() => {
+                            void detail.refetch();
+                          }}
+                        >
+                          Refresh document
+                        </Button>
+                      </div>
+                    }
+                  />
+                  <details
+                    className="card"
+                    open={advancedOpen}
+                    onToggle={(event) =>
+                      setAdvancedOpen(event.currentTarget.open)
+                    }
+                  >
+                    <summary>Advanced document controls</summary>
+                    <p className="hint">
+                      Access changes and legal holds are validated by the
+                      server. Retention is unresolved; destruction is forbidden.
+                      Legal holds have no automatic expiry.
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setTitle(detail.data.metadata.title);
+                        setDescription(detail.data.metadata.description);
+                      }}
+                    >
+                      Use current metadata
+                    </Button>
+                    <form onSubmit={(event) => submit(event, 'metadata')}>
+                      <h3>Update metadata</h3>
+                      <label htmlFor="metadata-title">Title</label>
+                      <TextInput
+                        id="metadata-title"
+                        required
+                        maxLength={256}
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                      />
+                      <label htmlFor="metadata-description">Description</label>
+                      <Textarea
+                        id="metadata-description"
+                        maxLength={4096}
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                      />
+                      <Button
+                        type="submit"
+                        disabled={mutation.isPending || !title}
+                      >
+                        Save metadata
+                      </Button>
+                    </form>
+                    <Button type="button" onClick={() => setShowAcl(true)}>
+                      Inspect access rules
+                    </Button>
+                    {showAcl && acl.isSuccess && (
+                      <ul aria-label="Access rules">
+                        {acl.data.rules.map((rule, index) => (
+                          <li key={index}>
+                            {rule.principal.issuer} / {rule.principal.subject}:{' '}
+                            {rule.action} {rule.effect}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <form onSubmit={(event) => submit(event, 'acl')}>
+                      <h3>Change access</h3>
+                      <label htmlFor="acl-mode">Access mode</label>
+                      <NativeSelect
+                        id="acl-mode"
+                        value={mode}
+                        onChange={(e) => {
+                          setMode(e.target.value as AclCommand['mode']);
+                          setOperation('REMOVE_ALLOW');
+                        }}
+                      >
+                        <option value="RESTRICT">Restrict my access</option>
+                        <option value="DELEGATE">
+                          Delegate within my ceiling
+                        </option>
+                      </NativeSelect>
+                      {mode === 'DELEGATE' && (
+                        <>
+                          <label htmlFor="target-issuer">Target issuer</label>
+                          <TextInput
+                            id="target-issuer"
+                            type="url"
+                            required
+                            maxLength={2048}
+                            value={targetIssuer}
+                            onChange={(e) => setTargetIssuer(e.target.value)}
+                          />
+                          <label htmlFor="target-subject">Target subject</label>
+                          <TextInput
+                            id="target-subject"
+                            required
+                            maxLength={256}
+                            value={targetSubject}
+                            onChange={(e) => setTargetSubject(e.target.value)}
+                          />
+                        </>
+                      )}
+                      <label htmlFor="acl-operation">Rule operation</label>
+                      <NativeSelect
+                        id="acl-operation"
+                        value={operation}
+                        onChange={(e) =>
+                          setOperation(e.target.value as typeof operation)
+                        }
+                      >
+                        {(mode === 'RESTRICT'
+                          ? ['REMOVE_ALLOW', 'ADD_DENY']
+                          : [
+                              'ADD_ALLOW',
+                              'REMOVE_ALLOW',
+                              'ADD_DENY',
+                              'REMOVE_DENY',
+                            ]
+                        ).map((value) => (
+                          <option key={value}>{value}</option>
+                        ))}
+                      </NativeSelect>
+                      <label htmlFor="acl-action">Document action</label>
+                      <NativeSelect
+                        id="acl-action"
+                        value={action}
+                        onChange={(e) =>
+                          setAction(e.target.value as typeof action)
+                        }
+                      >
+                        {actions.map((value) => (
+                          <option key={value}>{value}</option>
+                        ))}
+                      </NativeSelect>
+                      <Button type="submit" disabled={mutation.isPending}>
+                        Apply access change
+                      </Button>
+                    </form>
+                    <Button type="button" onClick={() => setShowHolds(true)}>
+                      Inspect legal holds
+                    </Button>
+                    {showHolds && holds.isSuccess && (
+                      <ul aria-label="Legal holds">
+                        {holds.data.items.map((hold) => (
+                          <li key={hold.holdId}>
+                            {hold.reason} · Active · {hold.placedAt}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <form onSubmit={(event) => submit(event, 'hold')}>
+                      <h3>Place a legal hold</h3>
+                      <label htmlFor="hold-reason">Hold reason</label>
+                      <Textarea
+                        id="hold-reason"
+                        required
+                        maxLength={1024}
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                      />
+                      <Button type="submit" disabled={mutation.isPending}>
+                        Place hold
+                      </Button>
+                    </form>
+                  </details>
+                </>
+              ) : (
+                <>
+                  <p className="sub">{detail.data.metadata.title}</p>
+                  <Anchor
+                    component="button"
+                    size="sm"
+                    onClick={() => setView('detail')}
+                  >
+                    Back to document
+                  </Anchor>
+                  <Uploads
+                    key={selected!}
+                    documentId={selected!}
+                    revision={detail.data.revision}
+                    session={session}
+                  />
+                </>
               )}
-              <form onSubmit={(event) => submit(event, 'acl')}>
-                <h3>Change access</h3>
-                <label htmlFor="acl-mode">Access mode</label>
-                <NativeSelect
-                  id="acl-mode"
-                  value={mode}
-                  onChange={(e) => {
-                    setMode(e.target.value as AclCommand['mode']);
-                    setOperation('REMOVE_ALLOW');
-                  }}
-                >
-                  <option value="RESTRICT">Restrict my access</option>
-                  <option value="DELEGATE">Delegate within my ceiling</option>
-                </NativeSelect>
-                {mode === 'DELEGATE' && (
-                  <>
-                    <label htmlFor="target-issuer">Target issuer</label>
-                    <TextInput
-                      id="target-issuer"
-                      type="url"
-                      required
-                      maxLength={2048}
-                      value={targetIssuer}
-                      onChange={(e) => setTargetIssuer(e.target.value)}
-                    />
-                    <label htmlFor="target-subject">Target subject</label>
-                    <TextInput
-                      id="target-subject"
-                      required
-                      maxLength={256}
-                      value={targetSubject}
-                      onChange={(e) => setTargetSubject(e.target.value)}
-                    />
-                  </>
-                )}
-                <label htmlFor="acl-operation">Rule operation</label>
-                <NativeSelect
-                  id="acl-operation"
-                  value={operation}
-                  onChange={(e) =>
-                    setOperation(e.target.value as typeof operation)
-                  }
-                >
-                  {(mode === 'RESTRICT'
-                    ? ['REMOVE_ALLOW', 'ADD_DENY']
-                    : ['ADD_ALLOW', 'REMOVE_ALLOW', 'ADD_DENY', 'REMOVE_DENY']
-                  ).map((value) => (
-                    <option key={value}>{value}</option>
-                  ))}
-                </NativeSelect>
-                <label htmlFor="acl-action">Document action</label>
-                <NativeSelect
-                  id="acl-action"
-                  value={action}
-                  onChange={(e) => setAction(e.target.value as typeof action)}
-                >
-                  {actions.map((value) => (
-                    <option key={value}>{value}</option>
-                  ))}
-                </NativeSelect>
-                <Button type="submit" disabled={mutation.isPending}>
-                  Apply access change
-                </Button>
-              </form>
-              <Button type="button" onClick={() => setShowHolds(true)}>
-                Inspect legal holds
-              </Button>
-              {showHolds && holds.isSuccess && (
-                <ul aria-label="Legal holds">
-                  {holds.data.items.map((hold) => (
-                    <li key={hold.holdId}>
-                      {hold.reason} · Active · {hold.placedAt}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <form onSubmit={(event) => submit(event, 'hold')}>
-                <h3>Place a legal hold</h3>
-                <label htmlFor="hold-reason">Hold reason</label>
-                <Textarea
-                  id="hold-reason"
-                  required
-                  maxLength={1024}
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                />
-                <Button type="submit" disabled={mutation.isPending}>
-                  Place hold
-                </Button>
-              </form>
             </>
           )}
-        </Paper>
+        </>
       )}
     </section>
   );

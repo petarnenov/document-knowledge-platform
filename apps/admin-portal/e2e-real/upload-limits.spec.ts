@@ -326,13 +326,21 @@ if (profile === 'quota') {
     await expect(
       page
         .getByRole('region', { name: 'Accessible drafts', exact: true })
-        .getByRole('list'),
+        .getByRole('table', { name: 'Document library', exact: true })
+        .or(
+          page
+            .getByRole('region', { name: 'Accessible drafts', exact: true })
+            .getByText('No accessible drafts on this page.', { exact: true }),
+        ),
     ).toHaveCount(1);
     await expect(
       page.getByText('Loading drafts…', { exact: true }),
     ).toHaveCount(0);
     await expect(page.getByRole('alert')).toHaveCount(0);
     const visibleTitle = `Synthetic visible capacity ${randomUUID()}`;
+    await page
+      .getByRole('button', { name: 'New document', exact: true })
+      .click();
     await page.getByLabel('Title', { exact: true }).fill(visibleTitle);
     const createdResponse = page.waitForResponse(
       (response) =>
@@ -359,8 +367,12 @@ if (profile === 'quota') {
     ).toBeVisible();
     // The receipt precedes the async query reset; mutation completion waits for it.
     await expect(
-      page.getByRole('button', { name: 'Create draft', exact: true }),
-    ).toBeEnabled();
+      page.getByRole('heading', { name: 'Document Library', exact: true }),
+    ).toBeVisible();
+    await expect(page.locator('.documents')).toHaveAttribute(
+      'aria-busy',
+      'false',
+    );
     await expect(
       page.getByText('Loading drafts…', { exact: true }),
     ).toHaveCount(0);
@@ -386,7 +398,12 @@ if (profile === 'quota') {
       await expect(
         page
           .getByRole('region', { name: 'Accessible drafts', exact: true })
-          .getByRole('list'),
+          .getByRole('table', { name: 'Document library', exact: true })
+          .or(
+            page
+              .getByRole('region', { name: 'Accessible drafts', exact: true })
+              .getByText('No accessible drafts on this page.', { exact: true }),
+          ),
       ).toHaveCount(1);
       await expect(
         page.getByText('Loading drafts…', { exact: true }),
@@ -399,6 +416,9 @@ if (profile === 'quota') {
       intended,
       createdReceipt.documentId,
     );
+    await page
+      .getByRole('button', { name: 'Upload version', exact: true })
+      .click();
     await page.locator('input[type=file]').setInputFiles(fixture);
     await page
       .getByRole('button', { name: 'Upload and append', exact: true })

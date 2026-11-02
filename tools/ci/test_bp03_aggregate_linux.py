@@ -50,7 +50,7 @@ class AggregateLinuxTest(unittest.TestCase):
         result = m.results(self.source, self.fixture)
         self.assertEqual(3, result['counts']['tests'])
         self.assertEqual(self.cases, result['linuxCases'])
-        self.assertEqual(17, len(result['coverage']))
+        self.assertEqual(18, len(result['coverage']))
         path = next((self.fixture / 'reports').rglob('*CoverageReport.xml'))
         original = path.read_text()
         for bad in [original.replace('covered="75"', 'covered="74"'),
@@ -59,6 +59,18 @@ class AggregateLinuxTest(unittest.TestCase):
             path.write_text(bad)
             with self.assertRaises(ValueError):
                 m.results(self.source, self.fixture)
+
+    def test_session_cookie_guard_requires_its_own_complete_floor(self):
+        path = self.fixture / 'reports/bootstrap/reports/jacoco/sessionCookieCoverageReport/sessionCookieCoverageReport.xml'
+        original = path.read_text()
+        for bad in (original.replace('covered="75"', 'covered="74"'),
+                    original.replace('covered="80"', 'covered="59"')):
+            path.write_text(bad)
+            with self.assertRaises(ValueError):
+                m.results(self.source, self.fixture)
+        path.unlink()
+        with self.assertRaises(FileNotFoundError):
+            m.results(self.source, self.fixture)
 
     def test_missing_failed_skipped_and_zero_tests_reject(self):
         path = self.fixture / 'reports/bootstrap/test-results/test/TEST-example.xml'

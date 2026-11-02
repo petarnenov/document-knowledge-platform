@@ -118,18 +118,16 @@ it('switches by Space without remounting routes or persisting any authority', as
       </MemoryRouter>
     </StrictMode>,
   );
-  const control = screen.getByRole('switch', {
-    name: 'Light theme',
-  }) as HTMLInputElement;
-  expect(control.checked).toBe(true);
+  const control = screen.getByRole('switch', { name: 'Light theme' });
+  expect(control.getAttribute('aria-checked')).toBe('true');
   control.focus();
   await user.keyboard(' ');
-  expect(control.checked).toBe(false);
+  expect(control.getAttribute('aria-checked')).toBe('false');
   expect(document.activeElement).toBe(control);
-  expect(screen.getByText('Dark mode')).toBeTruthy();
+  expect(screen.getByText('Dark')).toBeTruthy();
   await user.click(screen.getByRole('link', { name: 'Foundation' }));
   expect(screen.getByRole('switch', { name: 'Light theme' })).toBe(control);
-  expect(control.checked).toBe(false);
+  expect(control.getAttribute('aria-checked')).toBe('false');
   expect(localStorage.getItem(THEME_KEY)).toBe('dark');
   expect(sessionStorage.length).toBe(0);
 });
@@ -155,6 +153,37 @@ it('defines readable text, semantic status and visible control boundaries in bot
         palette.success,
       ])
         expect(contrast(text, background)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(palette.border, background)).toBeGreaterThanOrEqual(3);
+      expect(
+        contrast(palette.controlBorder, background),
+      ).toBeGreaterThanOrEqual(3);
     }
+});
+
+it('matches the prototype surface and semantic tokens exactly while keeping accessible controls distinct', () => {
+  expect(palettes.dark).toMatchObject({
+    body: '#10141b',
+    surface: '#191f29',
+    panel: '#212936',
+    border: '#354051',
+    text: '#edf1f7',
+    muted: '#a2afc0',
+    accent: '#6597f7',
+    success: '#52c49a',
+    warning: '#efb55f',
+    danger: '#fa7777',
+  });
+  expect(palettes.light).toMatchObject({
+    body: '#f6f8fc',
+    surface: '#ffffff',
+    panel: '#eef2f8',
+    border: '#d9e0e9',
+    text: '#1b2533',
+    muted: '#5e6c80',
+    accent: '#235cbd',
+    success: '#137653',
+    warning: '#98630b',
+    danger: '#b92e2e',
+  });
+  expect(palettes.dark.controlBorder).not.toBe(palettes.dark.border);
+  expect(palettes.light.controlBorder).not.toBe(palettes.light.border);
 });

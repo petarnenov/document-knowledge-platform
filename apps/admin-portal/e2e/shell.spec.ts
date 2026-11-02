@@ -5,7 +5,7 @@ test('built shell supports navigation, deep-link reload, theme and fallback', as
 }) => {
   await page.goto('/');
   await expect(
-    page.getByRole('heading', { name: 'A foundation for knowledge.' }),
+    page.getByRole('heading', { name: 'Knowledge workspace' }),
   ).toBeVisible();
   await page.getByRole('link', { name: 'Foundation', exact: true }).click();
   await expect(page).toHaveURL('/foundation');
@@ -19,7 +19,7 @@ test('built shell supports navigation, deep-link reload, theme and fallback', as
   const theme = page.getByRole('switch', { name: 'Light theme' });
   await theme.focus();
   await page.keyboard.press('Space');
-  await expect(theme).toBeChecked();
+  await expect(theme).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('html')).toHaveAttribute(
     'data-mantine-color-scheme',
     'light',
@@ -30,7 +30,7 @@ test('built shell supports navigation, deep-link reload, theme and fallback', as
   ).toBeVisible();
   await page.getByRole('link', { name: 'Return to overview' }).click();
   await expect(
-    page.getByRole('heading', { name: 'A foundation for knowledge.' }),
+    page.getByRole('heading', { name: 'Knowledge workspace' }),
   ).toBeVisible();
 });
 
@@ -45,6 +45,9 @@ test('keyboard navigation is visible and mobile content remains usable', async (
   await expect(skip).toBeInViewport();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('main')).toBeFocused();
+  const documents = page.getByRole('link', { name: 'Documents', exact: true });
+  await expect(documents).toBeVisible();
+  await expect(documents).toBeInViewport();
   await page.getByRole('link', { name: 'Foundation', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(

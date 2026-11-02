@@ -28,6 +28,12 @@ BFF additionally uses OIDC_ENABLED, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, DKP_PORT
 
 Standalone membership is the administrator-controlled signed dkp_tenants snapshot bound to the exact configured standalone issuer: BFF uses the validated ID token and each API independently validates the access token. It grants no document/collection action. External issuer mode ignores this local claim and calls the entitlement port; an unconfigured authority returns unavailable, never allow. Resource and workload ports remain deny/unavailable; forged SPIFFE headers are not certificate identity.
 
+### Session response ordering — #456
+
+The BFF uses session-only cookies: remember-me and cookie max-age are unsupported and rejected at startup. Server-side idle/absolute expiry and token expiry still determine authorization. `BrowserSessionCookieStrategy` delegates new/different identifiers to the framework codec and configured Secure/HttpOnly/SameSite/host-only flags. Responses to requests already carrying that same identifier do not reissue it; retired sessions do not issue it either. Otherwise a late response could overwrite a later login/tenant rotation or undo explicit logout cookie removal. Logout retains its explicit deletion cookie.
+
+The controlled HTTP regressions hold a loaded request across real tenant rotation/logout and separately apply an earlier framework-encoded response after rotation to model reversed delivery order. They establish the reachable response-reissuance defect, not the original #159 failure's cause, measured browser wire ordering, multi-instance session behavior or all concurrent new-login response ordering. Original unmodified real-provider long acceptance remains mandatory on fresh owned fixtures.
+
 ## Environment boundaries
 
 Environment-specific settings belong in runtime configuration, never frontend bundles or packaged credentials. Use environment-owned external secrets for deployed environments, independent credentials and migrations for each domain database, and fail startup or close affected capabilities when required trust is absent. Development must exercise the same tenant and authorization checks.

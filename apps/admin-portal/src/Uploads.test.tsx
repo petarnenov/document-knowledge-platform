@@ -4,6 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { PortalTheme } from './theme';
 import { Uploads } from './Uploads';
+import { sessionKey } from './session-key';
+import * as uploadApi from './upload-api';
+import { beginTransition } from './features/identity/authority';
 const id = '11111111-1111-4111-8111-111111111111',
   version = '22222222-2222-4222-8222-222222222222';
 const session = {
@@ -19,26 +22,92 @@ const json = (value: unknown, status = 200) =>
     status,
     headers: { 'Content-Type': 'application/json' },
   });
-const mount = () =>
-  render(
+const mount = () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  client.setQueryData(sessionKey, session);
+  const view = render(
     <PortalTheme>
-      <QueryClientProvider
-        client={
-          new QueryClient({
-            defaultOptions: {
-              queries: { retry: false },
-              mutations: { retry: false },
-            },
-          })
-        }
-      >
+      <QueryClientProvider client={client}>
         <Uploads documentId={id} revision={0} session={session} />
       </QueryClientProvider>
     </PortalTheme>,
   );
+  return { ...view, client };
+};
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+it('offers visible real file selection before initiating any upload', () => {
+  const fetcher = vi.fn();
+  vi.stubGlobal('fetch', fetcher);
+  mount();
+  expect(screen.getByText('Choose file…')).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Choose document file' }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Upload and append' }),
+  ).toHaveProperty('disabled', true);
+  expect(fetcher).not.toHaveBeenCalled();
+});
+it('never creates a download URL from a response that completes after a workspace transition', async () => {
+  vi.spyOn(uploadApi, 'initializeUpload').mockResolvedValue({ uploadId: id });
+  vi.spyOn(uploadApi, 'transferUpload').mockResolvedValue({ uploadId: id });
+  vi.spyOn(uploadApi, 'completeUpload').mockResolvedValue({
+    uploadId: id,
+    receiptId: id,
+  });
+  vi.spyOn(uploadApi, 'appendUpload').mockResolvedValue({
+    documentId: id,
+    revision: 1,
+  });
+  vi.spyOn(uploadApi, 'discoverVersion').mockResolvedValue({
+    documentId: id,
+    versionId: version,
+  });
+  vi.spyOn(uploadApi, 'inspectUpload').mockResolvedValue({
+    uploadId: id,
+    state: 'CONSUMED',
+    expiresAt: '2026-11-01T00:00:00Z',
+    failureCode: null,
+  });
+  let finish!: (value: Blob) => void;
+  const download = vi.spyOn(uploadApi, 'downloadVersion').mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const create = vi.fn(() => 'blob:private');
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: create,
+  });
+  const { client } = mount();
+  const user = userEvent.setup();
+  await user.upload(
+    document.querySelector('input[type=file]') as HTMLInputElement,
+    new File(['data'], 'synthetic.pdf', { type: 'application/pdf' }),
+  );
+  await user.click(screen.getByRole('button', { name: 'Upload and append' }));
+  await user.click(
+    await screen.findByRole('button', { name: 'Download verified content' }),
+  );
+  await waitFor(() => expect(download).toHaveBeenCalledOnce());
+  act(() => {
+    beginTransition(client, session, {});
+  });
+  await act(async () => finish(new Blob(['obsolete protected bytes'])));
+  expect(create).not.toHaveBeenCalled();
+  await screen.findByRole('alert');
+  expect(
+    screen
+      .getAllByRole('alert')
+      .some((alert) => alert.textContent?.includes('unavailable')),
+  ).toBe(true);
 });
 it('shows each verified stage and downloads through current-authority endpoint without persistent links', async () => {
   const fetcher = vi.fn(async (path: string, init?: RequestInit) => {
@@ -186,4 +255,117 @@ it('aborts an in-flight transfer when leaving the tenant workspace and never sta
   expect(fetcher.mock.calls.some(([path]) => path.endsWith('/complete'))).toBe(
     false,
   );
+});
+
+it('rejects a 100,000,001-byte selection before issuing any upload request', async () => {
+  const fetcher = vi.fn();
+  vi.stubGlobal('fetch', fetcher);
+  const user = userEvent.setup();
+  mount();
+  const file = new File(['x'], 'too-large.pdf', { type: 'application/pdf' });
+  Object.defineProperty(file, 'size', { value: 100_000_001 });
+  await user.upload(
+    document.querySelector('input[type=file]') as HTMLInputElement,
+    file,
+  );
+  expect(screen.getByRole('alert').textContent).toContain('at most 100 MB');
+  expect(
+    (
+      screen.getByRole('button', {
+        name: 'Upload and append',
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+  expect(fetcher).not.toHaveBeenCalled();
+});
+
+it('reconciles an uncertain append with the original key and never re-verifies its known receipt', async () => {
+  const appendKeys: string[] = [];
+  let completes = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith('/status'))
+        return json({
+          uploadId: id,
+          state: 'VERIFIED',
+          expiresAt: '2026-11-01T00:00:00Z',
+          failureCode: null,
+        });
+      if (path.endsWith('/version'))
+        return json({ documentId: id, versionId: version });
+      if (path.endsWith('/versions')) {
+        appendKeys.push(
+          (init?.headers as Record<string, string>)['Idempotency-Key']!,
+        );
+        return appendKeys.length === 1
+          ? json({ code: 'UNAVAILABLE' }, 503)
+          : json({ documentId: id, revision: 1 }, 201);
+      }
+      if (path.endsWith('/complete')) {
+        completes++;
+        return json({ uploadId: id, receiptId: id });
+      }
+      return json({ uploadId: id }, path.endsWith('/uploads') ? 201 : 200);
+    }),
+  );
+  const user = userEvent.setup();
+  mount();
+  await user.upload(
+    document.querySelector('input[type=file]') as HTMLInputElement,
+    new File(['data'], 'synthetic.pdf', { type: 'application/pdf' }),
+  );
+  await user.click(screen.getByRole('button', { name: 'Upload and append' }));
+  await screen.findByRole('alert');
+  expect(screen.getByText(/last operation may have completed/)).toBeTruthy();
+  expect(await screen.findAllByText('Confirmed by the server')).toHaveLength(3);
+  expect(screen.getByText('Not confirmed')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Retry upload' }));
+  await screen.findByText(`Version ${version}`);
+  expect(appendKeys).toHaveLength(2);
+  expect(appendKeys[1]).toBe(appendKeys[0]);
+  expect(completes).toBe(1);
+});
+
+it('admits the exact 100,000,000-byte limit and freezes the selected file during transfer', async () => {
+  let admitted: Record<string, unknown> | undefined;
+  let transferred = false;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith('/status'))
+        return json({
+          uploadId: id,
+          state: 'RECEIVING',
+          expiresAt: '2026-11-01T00:00:00Z',
+          failureCode: null,
+        });
+      if (path.endsWith('/uploads')) {
+        admitted = JSON.parse(init?.body as string) as Record<string, unknown>;
+        return json({ uploadId: id }, 201);
+      }
+      transferred = true;
+      return new Promise<Response>((_resolve, reject) =>
+        init?.signal?.addEventListener('abort', () =>
+          reject(new Error('aborted')),
+        ),
+      );
+    }),
+  );
+  const user = userEvent.setup();
+  const view = mount();
+  const file = new File(['x'], 'exact-limit.pdf', { type: 'application/pdf' });
+  Object.defineProperty(file, 'size', { value: 100_000_000 });
+  await user.upload(
+    document.querySelector('input[type=file]') as HTMLInputElement,
+    file,
+  );
+  await user.click(screen.getByRole('button', { name: 'Upload and append' }));
+  await waitFor(() => expect(transferred).toBe(true));
+  expect(admitted?.sizeBytes).toBe(100_000_000);
+  expect(
+    (screen.getByLabelText('Document format') as HTMLSelectElement).disabled,
+  ).toBe(true);
+  expect(screen.queryByRole('progressbar')).toBeNull();
+  view.unmount();
 });

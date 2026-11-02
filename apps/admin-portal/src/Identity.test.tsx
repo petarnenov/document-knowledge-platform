@@ -1,8 +1,12 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { PortalTheme } from './theme';
+import { Identity } from './Identity';
+import { sessionKey } from './session-key';
 
 const session = {
   issuer: 'https://idp.example/realms/dkp',
@@ -37,7 +41,14 @@ describe('workspace identity', () => {
         'href',
       ),
     ).toBe('/oauth/login/keycloak');
-    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Tenant' })).toBeNull();
+    const account = screen.getByRole('combobox', {
+      name: 'Authenticated account context',
+    }) as HTMLSelectElement;
+    expect(account.disabled).toBe(true);
+    expect(Array.from(account.options, (option) => option.text)).toEqual([
+      'Access not verified',
+    ]);
   });
 
   it('retries an unavailable session without pretending the user is authenticated', async () => {
@@ -133,7 +144,10 @@ describe('workspace identity', () => {
     vi.stubGlobal('fetch', fetcher);
     const user = userEvent.setup();
     open();
-    await user.selectOptions(await screen.findByRole('combobox'), 'tenant-b');
+    await user.selectOptions(
+      await screen.findByRole('combobox', { name: 'Tenant' }),
+      'tenant-b',
+    );
     await user.click(screen.getByRole('button', { name: 'Use tenant' }));
     expect((await screen.findByRole('alert')).textContent).toContain(
       'This action was denied',
@@ -221,7 +235,7 @@ describe('workspace identity', () => {
     );
     const user = userEvent.setup();
     open();
-    await user.click(screen.getByRole('link', { name: 'Overview' }));
+    await user.click(screen.getByRole('link', { name: 'Home' }));
     resolve(json(session));
     await waitFor(() =>
       expect(
@@ -229,4 +243,53 @@ describe('workspace identity', () => {
       ).toBeNull(),
     );
   });
+});
+
+it('cancels a context read on scope change and ignores its late 401 without signing out the fresh workspace', async () => {
+  let finish!: (value: Response) => void;
+  let contextSignal!: AbortSignal;
+  const initial = { ...session, selectedTenant: 'tenant-a' };
+  const fresh = {
+    ...session,
+    selectedTenant: 'tenant-b',
+    csrfToken: 'new-session-csrf',
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, options: RequestInit) => {
+      if (path.includes('/context/')) {
+        contextSignal = options.signal!;
+        return new Promise<Response>((resolve) => {
+          finish = resolve;
+        });
+      }
+      return json(initial);
+    }),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  client.setQueryData(sessionKey, initial);
+  render(
+    <PortalTheme>
+      <QueryClientProvider client={client}>
+        <Identity />
+      </QueryClientProvider>
+    </PortalTheme>,
+  );
+  const user = userEvent.setup();
+  await user.click(
+    screen.getByRole('button', { name: 'Check Document Management context' }),
+  );
+  await waitFor(() => expect(contextSignal).toBeTruthy());
+  act(() => client.setQueryData(sessionKey, fresh));
+  await waitFor(() => expect(contextSignal.aborted).toBe(true));
+  await act(async () => finish(json({ code: 'unauthenticated' }, 401)));
+  expect(client.getQueryData(sessionKey)).toEqual(fresh);
+  expect(screen.getByText('tenant-b', { selector: 'dd' })).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.queryByLabelText('Verified context')).toBeNull();
+  expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe(
+    'tenant-b',
+  );
 });

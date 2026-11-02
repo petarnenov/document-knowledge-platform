@@ -91,22 +91,25 @@ for (const scheme of ['dark', 'light'] as const) {
       scheme,
     );
     expect(await renderedContrast(page, 'h1')).toBeGreaterThanOrEqual(4.5);
-    expect(await renderedContrast(page, '.eyebrow')).toBeGreaterThanOrEqual(
+    expect(await renderedContrast(page, '.breadcrumbs')).toBeGreaterThanOrEqual(
       4.5,
     );
     expect(
       await renderedContrast(page, 'nav a[aria-current=page]'),
     ).toBeGreaterThanOrEqual(4.5);
     await page.getByRole('link', { name: 'Documents', exact: true }).click();
+    await expect(
+      page.getByText('No accessible drafts on this page.'),
+    ).toBeVisible();
+    await page
+      .getByRole('button', { name: 'New document', exact: true })
+      .click();
     await page
       .getByLabel('Title', { exact: true })
       .fill('Unsaved synthetic title');
     await page
       .getByLabel('Description', { exact: true })
       .fill('Unsaved description');
-    await expect(
-      page.getByText('No accessible drafts on this page.'),
-    ).toBeVisible();
     expect(
       await renderedContrast(page, 'input#draft-title'),
     ).toBeGreaterThanOrEqual(4.5);
@@ -122,7 +125,7 @@ for (const scheme of ['dark', 'light'] as const) {
       await renderedContrast(page, 'input#draft-title', 'outline-color'),
     ).toBeGreaterThanOrEqual(3);
     expect(
-      await renderedContrast(page, '.documents > p'),
+      await renderedContrast(page, '.documents form .hint'),
     ).toBeGreaterThanOrEqual(4.5);
     const count = calls.length;
     await toggle.focus();
@@ -144,6 +147,9 @@ for (const scheme of ['dark', 'light'] as const) {
     expect(await renderedContrast(page, '[role=alert]')).toBeGreaterThanOrEqual(
       4.5,
     );
+    await page
+      .getByRole('button', { name: 'Back to library', exact: true })
+      .click();
     for (const width of [1280, 390]) {
       await page.setViewportSize({ width, height: 844 });
       expect(
@@ -189,6 +195,9 @@ for (const scheme of ['dark', 'light'] as const) {
     });
     await page.reload();
     await expect(toggle).toBeChecked({ checked: scheme === 'light' });
+    await page
+      .getByRole('button', { name: 'New document', exact: true })
+      .click();
     await expect(page.getByLabel('Title', { exact: true })).toHaveValue('');
     const second = await context.newPage();
     await second.goto('/foundation');

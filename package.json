@@ -13,7 +13,9 @@
     "openspec:check": "openspec validate --all --strict",
     "format:check": "prettier --check apps/admin-portal package.json pnpm-workspace.yaml .prettierrc.json",
     "format": "prettier --write apps/admin-portal package.json pnpm-workspace.yaml .prettierrc.json",
-    "dependencies:test": "node --test tools/dependencies/compatibility.test.mjs"
+    "dependencies:test": "node --test tools/dependencies/compatibility.test.mjs",
+    "uiux-preview:test": "node --experimental-test-coverage --test-coverage-include=tools/runtime/uiux-preview.mjs --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test tools/runtime/uiux-preview.test.mjs",
+    "visual-reference:test": "node --experimental-test-coverage --test-coverage-include=tools/visual/capture-reference.mjs --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test tools/visual/capture-reference.test.mjs"
   },
   "devDependencies": {
     "@asyncapi/parser": "3.6.6",

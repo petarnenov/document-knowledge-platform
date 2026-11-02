@@ -80,6 +80,28 @@ tasks.register('metadataBodyCoverageVerification', JacocoCoverageVerification) {
 }
 tasks.named('check') { dependsOn tasks.named('metadataBodyCoverageVerification') }
 
+// #456: existing unrelated adapter coverage cannot hide the session response guard.
+def sessionCookieClassFiles = files(project(':services:browser-bff:adapters-in').sourceSets.main.output.classesDirs.collect {
+    fileTree(it) { include '**/BrowserSessionCookieStrategy.class' }
+})
+tasks.register('sessionCookieCoverageReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.setFrom(sessionCookieClassFiles)
+    sourceDirectories.setFrom(project(':services:browser-bff:adapters-in').sourceSets.main.allJava.srcDirs)
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('sessionCookieCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('sessionCookieCoverageReport')
+    executionData layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.setFrom(sessionCookieClassFiles)
+    violationRules { rule {
+        limit { counter = 'LINE'; minimum = 0.75 }
+        limit { counter = 'BRANCH'; minimum = 0.75 }
+    } }
+}
+tasks.named('check') { dependsOn tasks.named('sessionCookieCoverageVerification') }
+
 // The pinned read-only implementation has its own floor; policy coverage cannot hide its gaps.
 def liveReadbackClassFiles = files(sourceSets.main.output.classesDirs.collect {
     fileTree(it) { include '**/PinnedIngressReadback.class' }
