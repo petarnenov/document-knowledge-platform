@@ -13,6 +13,7 @@ import java.sql.*;
 import java.time.*;
 import java.util.*;
 import org.documentknowledge.devlogging.adapters.outbound.persistence.JdbcReadRoleVerifier;
+import org.documentknowledge.devlogging.adapters.outbound.persistence.JdbcWriteRoleVerifier;
 import org.documentknowledge.devlogging.application.*;
 import org.documentknowledge.devlogging.domain.LogFailure;
 import org.junit.jupiter.api.*;
@@ -155,6 +156,57 @@ class LoggingAssemblyTest {
                 verifier.verify(RequestDeadline.start());
             }
         }
+    }
+    @Test void exactWriterPrivilegesSupportLocksAndRejectMissingExcessPublicGrantOptionAndOwnership() throws Exception {
+        try(var input=LoggingAssemblyTest.class.getResourceAsStream("/db/logging-provision/write-role.sql")) {
+            sql(new String(Objects.requireNonNull(input).readAllBytes(),StandardCharsets.UTF_8).replace("__WRITER_PASSWORD__",password));
+        }
+        var writer=new PGSimpleDataSource();writer.setURL(owner.getURL());writer.setUser("dkp_log_writer");
+        writer.setPassword(password);writer.setConnectTimeout(1);writer.setSocketTimeout(5);
+        var verifier=new JdbcWriteRoleVerifier(writer);
+        try {
+            verifier.verify(RequestDeadline.start());
+            // Row-locking SELECT requires column UPDATE even though this statement never mutates it.
+            try(var c=writer.getConnection()) {
+                c.setAutoCommit(false);
+                try(var s=c.createStatement()) {
+                    s.executeQuery("SELECT reserved_bytes FROM dev_logs.capacity FOR UPDATE").close();
+                    s.executeQuery("SELECT scope_id FROM dev_logs.scopes FOR SHARE").close();
+                    s.executeQuery("SELECT producer_id FROM dev_logs.producers FOR SHARE").close();
+                    assertThrows(SQLException.class,()->s.execute("UPDATE dev_logs.scopes SET tenant_id=NULL"));
+                } finally {c.rollback();}
+            }
+            for(var mutation:List.of(
+                    new String[]{"REVOKE SELECT ON dev_logs.manifests FROM dkp_log_writer","GRANT SELECT ON dev_logs.manifests TO dkp_log_writer"},
+                    new String[]{"REVOKE UPDATE(reserved_bytes) ON dev_logs.scopes FROM dkp_log_writer","GRANT UPDATE(reserved_bytes) ON dev_logs.scopes TO dkp_log_writer"},
+                    new String[]{"REVOKE USAGE ON SEQUENCE dev_logs.events_sequence_seq FROM dkp_log_writer","GRANT USAGE ON SEQUENCE dev_logs.events_sequence_seq TO dkp_log_writer"},
+                    new String[]{"GRANT UPDATE ON dev_logs.events TO dkp_log_writer","REVOKE UPDATE ON dev_logs.events FROM dkp_log_writer"},
+                    new String[]{"GRANT UPDATE(tenant_id) ON dev_logs.scopes TO dkp_log_writer","REVOKE UPDATE(tenant_id) ON dev_logs.scopes FROM dkp_log_writer"},
+                    new String[]{"GRANT DELETE ON dev_logs.events TO PUBLIC","REVOKE DELETE ON dev_logs.events FROM PUBLIC"},
+                    new String[]{"GRANT SELECT ON dev_logs.events TO dkp_log_writer WITH GRANT OPTION","REVOKE GRANT OPTION FOR SELECT ON dev_logs.events FROM dkp_log_writer"},
+                    new String[]{"GRANT UPDATE(reserved_bytes) ON dev_logs.capacity TO dkp_log_writer WITH GRANT OPTION","REVOKE GRANT OPTION FOR UPDATE(reserved_bytes) ON dev_logs.capacity FROM dkp_log_writer"},
+                    new String[]{"GRANT SELECT ON SEQUENCE dev_logs.events_sequence_seq TO dkp_log_writer","REVOKE SELECT ON SEQUENCE dev_logs.events_sequence_seq FROM dkp_log_writer"},
+                    new String[]{"GRANT USAGE ON SEQUENCE dev_logs.events_sequence_seq TO dkp_log_writer WITH GRANT OPTION","REVOKE GRANT OPTION FOR USAGE ON SEQUENCE dev_logs.events_sequence_seq FROM dkp_log_writer"},
+                    new String[]{"GRANT TEMPORARY ON DATABASE dkp_dev_logs TO PUBLIC","REVOKE TEMPORARY ON DATABASE dkp_dev_logs FROM PUBLIC"},
+                    new String[]{"GRANT USAGE ON SCHEMA dev_logs TO dkp_log_writer WITH GRANT OPTION","REVOKE GRANT OPTION FOR USAGE ON SCHEMA dev_logs FROM dkp_log_writer"},
+                    new String[]{"GRANT CONNECT ON DATABASE dkp_dev_logs TO dkp_log_writer WITH GRANT OPTION","REVOKE GRANT OPTION FOR CONNECT ON DATABASE dkp_dev_logs FROM dkp_log_writer"},
+                    new String[]{"CREATE TABLE dev_logs.writer_extra(id integer); GRANT SELECT ON dev_logs.writer_extra TO dkp_log_writer","DROP TABLE dev_logs.writer_extra"},
+                    new String[]{"CREATE SEQUENCE dev_logs.writer_extra_seq; GRANT USAGE ON SEQUENCE dev_logs.writer_extra_seq TO dkp_log_writer","DROP SEQUENCE dev_logs.writer_extra_seq"},
+                    new String[]{"ALTER TABLE dev_logs.capacity OWNER TO dkp_log_writer","ALTER TABLE dev_logs.capacity OWNER TO postgres; GRANT SELECT ON dev_logs.capacity TO dkp_log_writer; GRANT UPDATE(reserved_bytes) ON dev_logs.capacity TO dkp_log_writer"},
+                    new String[]{"ALTER ROLE dkp_log_writer SUPERUSER","ALTER ROLE dkp_log_writer NOSUPERUSER"},
+                    new String[]{"CREATE ROLE writer_elevated; GRANT writer_elevated TO dkp_log_writer","REVOKE writer_elevated FROM dkp_log_writer; DROP ROLE writer_elevated"})) {
+                sql(mutation[0]);
+                try { assertEquals(LogFailure.Kind.UNAVAILABLE,assertThrows(LogFailure.class,()->verifier.verify(RequestDeadline.start())).kind()); }
+                finally {sql(mutation[1]);}
+                verifier.verify(RequestDeadline.start());
+            }
+            var wrong=new JdbcWriteRoleVerifier(owner);
+            assertEquals(LogFailure.Kind.UNAVAILABLE,assertThrows(LogFailure.class,()->wrong.verify(RequestDeadline.start())).kind());
+            var unavailable=new PGSimpleDataSource();unavailable.setURL(owner.getURL());unavailable.setUser("dkp_log_writer");unavailable.setPassword("invalid");
+            unavailable.setConnectTimeout(1);unavailable.setSocketTimeout(1);
+            var failure=assertThrows(LogFailure.class,()->new JdbcWriteRoleVerifier(unavailable).verify(RequestDeadline.start()));
+            assertEquals(LogFailure.Kind.UNAVAILABLE,failure.kind());assertNull(failure.getCause());
+        } finally {sql("DROP OWNED BY dkp_log_writer; DROP ROLE dkp_log_writer");}
     }
     @Test void actualStartupRejectsMissingPrivateConfigurationWrongDatabaseAndWritePrivilege() throws Exception {
         var absent=assertThrows(Exception.class,()->ApplicationContext.run(Map.of()));

@@ -240,7 +240,12 @@ class JdbcLogProducersTest {
         sql("UPDATE dev_logs.capacity SET reserved_bytes=reserved_bytes+4095*1024");
         fails(LogFailure.Kind.CAPACITY,()->register());
         var child=delegate(root,artifact,tenant,Set.of()); assertEquals(child.authority(),registry.authenticate(child.producerToken(),RequestDeadline.start()));
-        sql("INSERT INTO dev_logs.scopes(scope_id,producer_id,target_manifest_sha,target_run_id,context_epoch,kind,issuer,subject,tenant_id,created_at,capture_until,replay_until,reserved_bytes) SELECT gen_random_uuid(),producer_id,target_manifest_sha,target_run_id,gen_random_uuid(),kind,issuer,subject,tenant_id,created_at,capture_until,replay_until,1024 FROM dev_logs.scopes CROSS JOIN generate_series(1,131070) WHERE scope_id='"+root.authority().scope().id()+"'");
+        // Preserve the real 131072-row boundary without one oversized fixture statement.
+        // Each setup call retains the existing five-second socket bound; application deadlines are unchanged.
+        for(int inserted=0;inserted<131070;inserted+=4096) {
+            int amount=Math.min(4096,131070-inserted);
+            sql("INSERT INTO dev_logs.scopes(scope_id,producer_id,target_manifest_sha,target_run_id,context_epoch,kind,issuer,subject,tenant_id,created_at,capture_until,replay_until,reserved_bytes) SELECT gen_random_uuid(),producer_id,target_manifest_sha,target_run_id,gen_random_uuid(),kind,issuer,subject,tenant_id,created_at,capture_until,replay_until,1024 FROM dev_logs.scopes CROSS JOIN generate_series(1,"+amount+") WHERE scope_id='"+root.authority().scope().id()+"'");
+        }
         sql("UPDATE dev_logs.capacity SET reserved_bytes=reserved_bytes+131070::bigint*1024");
         assertEquals(131072,count("SELECT count(*) FROM dev_logs.scopes"));
         fails(LogFailure.Kind.CAPACITY,()->delegate(root,artifact,tenant,Set.of()));
