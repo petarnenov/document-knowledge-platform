@@ -1,5 +1,7 @@
 # Development Branch and Worktree Protocol
 
+Owner clarification2026-11-02: prioritize the normal working #457 shared logging flow. P3 downtime follow-ups [#458](https://github.com/petarnenov/document-knowledge-platform/issues/458) (pathological JDBC/trickled response/late-commit/cleanup proof) and [#459](https://github.com/petarnenov/document-knowledge-platform/issues/459) (sustained near-capacity registry/spool/store endurance) remain OPEN without blocking functional development delivery. This supersedes earlier draft requirements to complete these exceptional matrices before transport wiring. Preserve authentication/tenant/redaction/basic bounds, meaningful normal-operation/nonblocking/restart/recovery E2E,75% coverage, independent review and CI/dev/post-dev checks. Never claim deferred proofs passed or infer architecture/security-control/production sign-off. After #457 verified dev integration/post-dev, save the full handoff and pause for harness restart before starting another task.
+
 This repository uses the same **dev-first, isolated-worktree** delivery approach as the public reference workspace.
 
 ## Branches

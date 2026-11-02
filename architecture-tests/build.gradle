@@ -6,7 +6,7 @@ dependencies {
     testImplementation 'io.micronaut:micronaut-runtime'
     testImplementation project(':workers:structure-inspector')
     testImplementation project(':modules:observability-support')
-    ['domain', 'application', 'adapters-out'].each { layer ->
+    ['domain', 'application', 'adapters-in', 'adapters-out'].each { layer ->
         testImplementation project(":services:dev-logging:${layer}")
     }
     ['document-management', 'knowledge-base', 'knowledge-search', 'browser-bff'].each { service ->
