@@ -202,21 +202,19 @@ public final class JdbcLogPersistence implements LogPersistence {
 
     private <T> T transaction(RequestDeadline deadline, Work<T> work) {
         var budget = new Budget(deadline);
-        try (var connection = dataSource.getConnection()) {
+        try (var owned = new JdbcLogCleanup(dataSource.getConnection())) {
+            var connection = owned.connection();
             budget.network(connection);
             connection.setAutoCommit(false);
-            try {
-                T result = work.apply(connection, budget);
-                budget.limit(connection);
-                budget.network(connection);
-                budget.remaining();
-                connection.commit();
-                budget.remaining(); // A lost/late commit response is UNAVAILABLE, never an invented receipt.
-                return result;
-            } catch (SQLException | RuntimeException failure) {
-                try { connection.rollback(); } catch (SQLException ignored) { /* No raw SQL diagnostics escape. */ }
-                throw failure;
-            }
+            owned.transactionStarted();
+            T result = work.apply(connection, budget);
+            budget.limit(connection);
+            budget.network(connection);
+            budget.remaining();
+            connection.commit();
+            owned.transactionCompleted();
+            budget.remaining(); // A lost/late commit response is UNAVAILABLE, never an invented receipt.
+            return result;
         } catch (SQLException failure) {
             throw new LogFailure(LogFailure.Kind.UNAVAILABLE);
         }

@@ -23,71 +23,67 @@ public final class JdbcLogQueries implements LogQueries.Store {
     @Override
     public List<LogQueries.Row> read(LogReader reader, LogQuery query, LogQueries.Position after, RequestDeadline deadline) {
         deadline.requireTime();
-        try (var connection = dataSource.getConnection()) {
+        try (var owned = new JdbcLogCleanup(dataSource.getConnection())) {
+            var connection = owned.connection();
             network(connection, deadline);
             connection.setReadOnly(true);
             connection.setAutoCommit(false);
-            try {
-                limit(connection, deadline);
-                network(connection, deadline);
-                try (var statement = connection.prepareStatement("SELECT clock_timestamp()" ); var rows = statement.executeQuery()) {
-                    rows.next(); reader.requireActive(rows.getTimestamp(1).toInstant());
-                }
-                var sql = new StringBuilder("""
-                    SELECT producer_id,scope_id,event_id,received_at,sequence,scope_kind,
-                           actor_issuer,actor_subject,tenant_id,canonical_payload
-                    FROM dev_logs.events WHERE canonical_payload IS NOT NULL
-                      AND retain_until > clock_timestamp() AND received_at >= ? AND received_at < ?
-                    """);
-                var arguments = new ArrayList<Object>();
-                arguments.add(Timestamp.from(query.from())); arguments.add(Timestamp.from(query.to()));
-                if (!reader.operator()) {
-                    sql.append(" AND scope_kind='TENANT' AND actor_issuer=? AND tenant_id=?");
-                    arguments.add(reader.issuer()); arguments.add(reader.tenantId());
-                }
-                filter(sql, arguments, "build_id", query.buildId());
-                filter(sql, arguments, "run_id", query.runId());
-                filter(sql, arguments, "component", query.component());
-                filter(sql, arguments, "correlation_id", query.correlationId());
-                filter(sql, arguments, "trace_id", query.traceId());
-                if (query.minSeverity() != null) {
-                    sql.append(" AND severity IN (");
-                    for (int index = query.minSeverity().ordinal(); index < Severity.values().length; index++) {
-                        if (index > query.minSeverity().ordinal()) sql.append(',');
-                        sql.append('?'); arguments.add(Severity.values()[index].name());
-                    }
-                    sql.append(')');
-                }
-                if (after != null) {
-                    sql.append(" AND (received_at,sequence) < (?,?)");
-                    arguments.add(Timestamp.from(after.receivedAt())); arguments.add(after.sequence());
-                }
-                sql.append(" ORDER BY received_at DESC,sequence DESC LIMIT ?"); arguments.add(query.limit() + 1);
-                limit(connection, deadline);
-                network(connection, deadline);
-                var result = new ArrayList<LogQueries.Row>();
-                try (var statement = connection.prepareStatement(sql.toString())) {
-                    for (int index = 0; index < arguments.size(); index++) statement.setObject(index + 1, arguments.get(index));
-                    try (var rows = statement.executeQuery()) {
-                        while (rows.next()) {
-                            deadline.requireTime();
-                            var scope = new LogScope(rows.getObject("scope_id", UUID.class),
-                                LogScope.Kind.valueOf(rows.getString("scope_kind")), rows.getString("actor_issuer"),
-                                rows.getString("actor_subject"), rows.getString("tenant_id"));
-                            var event = new LogQueries.Stored(rows.getObject("producer_id", UUID.class), scope,
-                                rows.getObject("event_id", UUID.class), rows.getTimestamp("received_at").toInstant(),
-                                rows.getBytes("canonical_payload"));
-                            result.add(new LogQueries.Row(event, rows.getLong("sequence")));
-                        }
-                    }
-                }
-                deadline.requireTime();
-                connection.rollback(); // Read-only transaction, never an ingestion/registration commit.
-                return List.copyOf(result);
-            } catch (SQLException | RuntimeException failure) {
-                try { connection.rollback(); } catch (SQLException ignored) { /* Fixed safe error below. */ }
-                throw failure;
+            owned.transactionStarted();
+            limit(connection, deadline);
+            network(connection, deadline);
+            try (var statement = connection.prepareStatement("SELECT clock_timestamp()" ); var rows = statement.executeQuery()) {
+                rows.next(); reader.requireActive(rows.getTimestamp(1).toInstant());
             }
+            var sql = new StringBuilder("""
+                SELECT producer_id,scope_id,event_id,received_at,sequence,scope_kind,
+                       actor_issuer,actor_subject,tenant_id,canonical_payload
+                FROM dev_logs.events WHERE canonical_payload IS NOT NULL
+                  AND retain_until > clock_timestamp() AND received_at >= ? AND received_at < ?
+                """);
+            var arguments = new ArrayList<Object>();
+            arguments.add(Timestamp.from(query.from())); arguments.add(Timestamp.from(query.to()));
+            if (!reader.operator()) {
+                sql.append(" AND scope_kind='TENANT' AND actor_issuer=? AND tenant_id=?");
+                arguments.add(reader.issuer()); arguments.add(reader.tenantId());
+            }
+            filter(sql, arguments, "build_id", query.buildId());
+            filter(sql, arguments, "run_id", query.runId());
+            filter(sql, arguments, "component", query.component());
+            filter(sql, arguments, "correlation_id", query.correlationId());
+            filter(sql, arguments, "trace_id", query.traceId());
+            if (query.minSeverity() != null) {
+                sql.append(" AND severity IN (");
+                for (int index = query.minSeverity().ordinal(); index < Severity.values().length; index++) {
+                    if (index > query.minSeverity().ordinal()) sql.append(',');
+                    sql.append('?'); arguments.add(Severity.values()[index].name());
+                }
+                sql.append(')');
+            }
+            if (after != null) {
+                sql.append(" AND (received_at,sequence) < (?,?)");
+                arguments.add(Timestamp.from(after.receivedAt())); arguments.add(after.sequence());
+            }
+            sql.append(" ORDER BY received_at DESC,sequence DESC LIMIT ?"); arguments.add(query.limit() + 1);
+            limit(connection, deadline);
+            network(connection, deadline);
+            var result = new ArrayList<LogQueries.Row>();
+            try (var statement = connection.prepareStatement(sql.toString())) {
+                for (int index = 0; index < arguments.size(); index++) statement.setObject(index + 1, arguments.get(index));
+                try (var rows = statement.executeQuery()) {
+                    while (rows.next()) {
+                        deadline.requireTime();
+                        var scope = new LogScope(rows.getObject("scope_id", UUID.class),
+                            LogScope.Kind.valueOf(rows.getString("scope_kind")), rows.getString("actor_issuer"),
+                            rows.getString("actor_subject"), rows.getString("tenant_id"));
+                        var event = new LogQueries.Stored(rows.getObject("producer_id", UUID.class), scope,
+                            rows.getObject("event_id", UUID.class), rows.getTimestamp("received_at").toInstant(),
+                            rows.getBytes("canonical_payload"));
+                        result.add(new LogQueries.Row(event, rows.getLong("sequence")));
+                    }
+                }
+            }
+            deadline.requireTime();
+            return List.copyOf(result);
         } catch (SQLException failure) {
             throw new LogFailure(LogFailure.Kind.UNAVAILABLE);
         }
