@@ -49,6 +49,11 @@ services:
       DKP_LOGGING_DB_PASSWORD_FILE: /run/dkp/log-query/password
       DKP_LOGGING_READER_GRANTS_FILE: /run/dkp/log-query/readers.json
       DKP_LOGGING_CURSOR_KEY_FILE: /run/dkp/log-query/cursor-key
+      DKP_LOGGING_WRITER_ENABLED: ${DKP_LOG_WRITER_ENABLED:-false}
+      DKP_LOGGING_WRITER_PASSWORD_FILE: /run/dkp/log-query/writer-password
+      DKP_LOGGING_REGISTRATION_GRANTS_FILE: /run/dkp/log-query/registration-grants.json
+      DKP_LOGGING_OBSERVER_GRANT_FILE: /run/dkp/log-query/observer-grant.json
+      DKP_LOGGING_VOLUME_IDENTITY: ${DKP_LOG_VOLUME_IDENTITY:-unconfigured}
       JAVA_OPTS: -XX:ActiveProcessorCount=2 -Xmx2g
     volumes: ["${DKP_LOG_QUERY_CONFIG:?Use dev-logging.py}:/run/dkp/log-query:ro"]
     networks: [data, edge]

@@ -356,6 +356,20 @@ class LoggingRuntimeTests(unittest.TestCase):
         path=self.directory/'combined.private.log'
         self.assertEqual(b'normal-outputfatal-detail',path.read_bytes());self.assertEqual(0,path.stat().st_mode&0o077)
 
+    def test_acceptance_query_uses_requested_build_filter_and_retains_legacy_default(self):
+        spec=importlib.util.spec_from_file_location('acceptance_query',Path(__file__).with_name('accept_dev_logging.py'))
+        acceptance=importlib.util.module_from_spec(spec);spec.loader.exec_module(acceptance)
+        instance=acceptance.SharedLoggingAcceptance();instance.directory=self.directory;instance.port=18087
+        build_id='22222222-2222-4222-8222-222222222222'
+        with patch.object(acceptance.ssl,'create_default_context'),patch.object(acceptance.urllib.request,'urlopen',side_effect=lambda *args,**kwargs:io.BytesIO(b'{"events":[]}')) as request:
+            self.assertEqual({'events':[]},instance.query(build_id=build_id))
+            supplied=acceptance.urllib.parse.parse_qs(acceptance.urllib.parse.urlsplit(request.call_args.args[0].full_url).query)
+            self.assertEqual([build_id],supplied['buildId'])
+            self.assertIn('Authorization',request.call_args.args[0].headers)
+            instance.query()
+            legacy=acceptance.urllib.parse.parse_qs(acceptance.urllib.parse.urlsplit(request.call_args.args[0].full_url).query)
+            self.assertEqual(['11111111-1111-4111-8111-111111111111'],legacy['buildId'])
+
     def test_explicit_viewer_enable_builds_only_viewer_gateway_and_preserves_query_data_and_token(self):
         self.ready();before=self.state['imageId'];token=m.private(self.directory/'operator/read-token')
         def build(state,directory,component):
@@ -505,6 +519,172 @@ class LoggingRuntimeTests(unittest.TestCase):
         self.launchagents.chmod(0o755);m.install_observer(self.state,self.directory,python)
         self.launchagents.chmod(0o775)
         with self.assertRaisesRegex(m.RuntimeFailure,'PLIST_DIRECTORY'):m.observer_status(self.state,self.directory)
+
+    def writer_fixture(self):
+        self.ready();self.state['volumes']={'dkp-dev-logging-postgres-data':'a'*64}
+        self.model={'version':1,'digest':self.state['schemaSha256'],'summary':{'manifests':1,'producers':0,'scopes':0,'events':2,
+            'capacityReservedBytes':4096,'scopeReservedBytes':0,'eventReservedBytes':4096},'commitObservationFailure':False}
+        self.trace=[]
+        def sql(state,directory,payload):
+            if payload.startswith(b'BEGIN;'):
+                if payload.endswith(b'ROLLBACK;\n'):
+                    self.trace.append('preview');return 'f'*64
+                self.assertEqual('f'*64,state['writerActivation']['expectedSchemaSha256'])
+                self.assertEqual('PREPARED',state['writerActivation']['stage'])
+                self.trace.append('commit');self.model.update(version=2,digest='f'*64)
+                if self.model['commitObservationFailure']:raise m.RuntimeFailure('LOG_RUNTIME_COMMAND_UNAVAILABLE')
+                return ''
+            if payload==(m.SQL/'logging-provision/schema-version.sql').read_bytes():return m.writer_versions() if self.model['version']==2 else m.writer_versions().splitlines()[0]
+            if payload==(m.SQL/'logging-provision/schema-digest.sql').read_bytes():return self.model['digest']
+            if payload==(m.SQL/'logging-provision/writer-summary.sql').read_bytes():return json.dumps(self.model['summary'])
+            if b"rolname='dkp_log_writer'" in payload:return '0' if self.model['version']==1 else '1'
+            if payload in [(m.SQL/'logging-provision/schema-state.sql').read_bytes(),(m.SQL/'logging-provision/schema-shape.sql').read_bytes()]:return 't'
+            self.fail('Unexpected unit SQL request')
+        def build(state,directory,component):
+            self.trace.append('build-'+component)
+            return ({'image':'query:new','imageId':'sha256:'+'e'*64,'sourceFingerprint':'e'*64} if component=='query'
+                    else {'gatewayImage':'gateway:new','gatewayImageId':'sha256:'+'f'*64,'gatewaySourceFingerprint':'e'*64})
+        patches=[patch.object(m,'check_resources'),patch.object(m,'disk'),patch.object(m,'verify_live',return_value={'result':'PASS'}),
+            patch.object(m,'sql',side_effect=sql),patch.object(m,'container',side_effect=lambda state,directory,name:{'Id':name,'Image':name+'-image'}),
+            patch.object(m,'build_image',side_effect=build),patch.object(m,'inspect',side_effect=lambda kind,name:{'Id':name,'Config':{'Labels':m.labels(self.state)}}),
+            patch.object(m,'start',return_value={'result':'PASS'})]
+        for p in patches:p.start();self.addCleanup(p.stop)
+
+    def test_writer_preview_then_guarded_commit_preserves_old_files_and_uses_prebuilt_images(self):
+        self.writer_fixture()
+        before={name:m.private(self.directory/name) for name in ['query/password','query/cursor-key','query/readers.json','operator/read-token','database/admin-password']}
+        self.assertEqual({'result':'PASS'},m.enable_writer(self.state,self.directory))
+        self.assertEqual(['build-query','build-gateway','preview','commit'],self.trace)
+        self.assertTrue(self.state['writerEnabled']);self.assertEqual('ACTIVE',self.state['writerActivation']['stage'])
+        self.assertEqual(before,{name:m.private(self.directory/name) for name in before})
+        self.assertIn('prepared_images',m.start.call_args.kwargs);self.assertEqual('both',m.start.call_args.kwargs['target'])
+        self.assertEqual('f'*64,self.state['schemaSha256'])
+        files=m.writer_bindings(self.directory);self.assertEqual(files,self.state['writerActivation']['files'])
+        registration=json.loads(m.private(self.directory/'query/registration-grants.json'))
+        observer=json.loads(m.private(self.directory/'query/observer-grant.json'))
+        self.assertEqual([],registration['delegators']);self.assertNotEqual(observer['id'],registration['registrars'][0]['id'])
+        for grant,name in [(observer,'observer-token'),(registration['registrars'][0],'registrar-token')]:
+            token=m.private(self.directory/'operator'/name)
+            self.assertEqual(hashlib.sha256(token).hexdigest(),grant['tokenSha256'])
+            self.assertNotIn(token.decode(),json.dumps(grant))
+            lifetime=dt.datetime.fromisoformat(grant['expiresAt'].replace('Z','+00:00'))-dt.datetime.now(dt.timezone.utc)
+            self.assertGreater(lifetime,dt.timedelta(days=29));self.assertLessEqual(lifetime,dt.timedelta(days=30))
+        m.sql.reset_mock();m.start.reset_mock();m.enable_writer(self.state,self.directory)
+        m.sql.assert_not_called();m.start.assert_not_called()
+
+    def test_writer_unknown_commit_outcome_resumes_exact_v2_without_repeating_create_role(self):
+        self.writer_fixture();self.model['commitObservationFailure']=True
+        with self.assertRaisesRegex(m.RuntimeFailure,'COMMAND_UNAVAILABLE'):m.enable_writer(self.state,self.directory)
+        self.assertEqual('PREPARED',self.state['writerActivation']['stage']);self.assertFalse(self.state.get('writerEnabled',False))
+        files=m.writer_bindings(self.directory)
+        self.model['commitObservationFailure']=False
+        m.enable_writer(self.state,self.directory)
+        self.assertEqual(1,self.trace.count('preview'));self.assertEqual(1,self.trace.count('commit'))
+        self.assertEqual(files,m.writer_bindings(self.directory));self.assertEqual('ACTIVE',self.state['writerActivation']['stage'])
+
+    def test_writer_bindings_preserve_pki_files_and_ignore_authority_directory_without_following_symlinks(self):
+        self.writer_fixture()
+        authority=self.directory/'gateway-pki/authority';authority.mkdir(mode=0o550)
+        self.assertEqual({'result':'PASS'},m.enable_writer(self.state,self.directory))
+        files=m.writer_bindings(self.directory)
+        self.assertNotIn('gateway-pki/authority',files)
+        self.assertEqual(hashlib.sha256(m.private(self.directory/'gateway-pki/ca.crt')).hexdigest(),files['gateway-pki/ca.crt'])
+        alias=self.directory/'gateway-pki/authority-alias';alias.symlink_to(authority,target_is_directory=True)
+        with self.assertRaises(m.RuntimeFailure):m.writer_bindings(self.directory)
+        alias.unlink();alias.symlink_to(self.directory/'gateway-pki/ca.crt')
+        with self.assertRaises(m.RuntimeFailure):m.writer_bindings(self.directory)
+
+    def test_writer_postcommit_start_failure_keeps_migration_and_rejects_drift_on_resume(self):
+        self.writer_fixture();m.start.side_effect=m.RuntimeFailure('LOG_RUNTIME_COMMAND_FAILED')
+        with self.assertRaises(m.RuntimeFailure):m.enable_writer(self.state,self.directory)
+        self.assertEqual('MIGRATED',self.state['writerActivation']['stage']);self.assertTrue(self.state['writerEnabled'])
+        self.model['digest']='b'*64
+        with self.assertRaisesRegex(m.RuntimeFailure,'UNKNOWN_WRITER_STATE'):m.enable_writer(self.state,self.directory)
+        self.model['digest']='f'*64;m.start.side_effect=None
+        m.enable_writer(self.state,self.directory);self.assertEqual(1,self.trace.count('commit'))
+
+    def test_writer_changed_inputs_and_preservation_witness_fail_closed_before_retry(self):
+        self.writer_fixture();self.model['commitObservationFailure']=True
+        with self.assertRaises(m.RuntimeFailure):m.enable_writer(self.state,self.directory)
+        self.model['commitObservationFailure']=False
+        original=m.private(self.directory/'query/writer-password')
+        m.write_private(self.directory/'query/writer-password','z'*64,replace=True)
+        with self.assertRaisesRegex(m.RuntimeFailure,'ACTIVATION_INPUT_CHANGED'):m.enable_writer(self.state,self.directory)
+        m.write_private(self.directory/'query/writer-password',original,replace=True)
+        self.model['summary']['events']+=1
+        with self.assertRaisesRegex(m.RuntimeFailure,'DATA_CHANGED'):m.enable_writer(self.state,self.directory)
+        self.assertEqual(1,self.trace.count('commit'))
+        with self.assertRaisesRegex(m.RuntimeFailure,'UNKNOWN_WRITER_FILES'):m.create_writer_files(self.directory)
+        with self.assertRaises(m.RuntimeFailure):m.metadata_guard("x';COMMIT;")
+
+    def test_writer_sql_preview_rolls_back_and_real_commit_checks_expected_metadata_before_commit(self):
+        m.create_writer_files(self.directory)
+        preview=m.writer_transition_sql(self.directory,'a'*64)
+        commit=m.writer_transition_sql(self.directory,'a'*64,'b'*64)
+        self.assertTrue(preview.endswith(b'ROLLBACK;\n'));self.assertNotIn(b'COMMIT;',preview)
+        self.assertTrue(commit.endswith(b'COMMIT;\n'));self.assertIn(b'IS DISTINCT FROM',commit)
+        self.assertIn((m.SQL/'logging-migration/V2__scoped_producer_credentials.sql').read_bytes(),preview)
+        self.assertIn(b"rolname='dkp_log_writer'",preview);self.assertIn(b'LOCK TABLE dev_logs.schema_migrations',preview)
+        self.assertLess(commit.index(b'CREATE ROLE dkp_log_writer'),commit.rindex(b"'"+b'b'*64+b"'"))
+        self.assertNotEqual(m.config_digest(self.directory),m.config_digest(self.directory,True))
+        self.ready();self.state.update(writerEnabled=True,volumes={'dkp-dev-logging-postgres-data':'c'*64})
+        env=m.environment(self.state,self.directory)
+        self.assertIn('DKP_LOG_WRITER_ENABLED="true"',env);self.assertIn('DKP_LOG_VOLUME_IDENTITY="'+'c'*64+'"',env)
+        self.assertNotIn(m.private(self.directory/'query/writer-password').decode(),env)
+
+    def test_writer_grant_renewal_preserves_token_ids_and_does_not_extend_producer_scopes(self):
+        self.writer_fixture();m.enable_writer(self.state,self.directory)
+        before=json.loads(m.private(self.directory/'query/registration-grants.json'));token=m.private(self.directory/'operator/registrar-token')
+        m.sql.reset_mock();m.start.reset_mock();m.renew_writer_grants(self.state,self.directory)
+        after=json.loads(m.private(self.directory/'query/registration-grants.json'))
+        self.assertEqual(before['registrars'][0]['id'],after['registrars'][0]['id'])
+        self.assertEqual(token,m.private(self.directory/'operator/registrar-token'))
+        self.assertEqual(before['registrars'][0]['tokenSha256'],after['registrars'][0]['tokenSha256'])
+        m.sql.assert_not_called();self.assertEqual('query',m.start.call_args.kwargs['target'])
+        m.write_private(self.directory/'operator/observer-token','wrong-token',replace=True)
+        with self.assertRaisesRegex(m.RuntimeFailure,'GRANTS_INVALID'):m.renew_writer_grants(self.state,self.directory)
+
+    def manifest_operation_fixture(self):
+        self.ready();self.state['writerEnabled']=True
+        self.manifest=self.directory/'reviewed.json';m.write_private(self.manifest,'{}')
+        self.manifest=self.manifest.resolve();self.manifest_sha=hashlib.sha256(b'{}').hexdigest()
+        self.operation_labels={};self.operation_commands=[];self.operation_running=False;self.operation_start_failure=False
+        def docker(*args,**kwargs):
+            self.operation_commands.append(args)
+            if args[0]=='create':
+                self.operation_labels.update(dict(args[index+1].split('=',1) for index,value in enumerate(args) if value=='--label'))
+                return ('e'*64).encode()
+            if args[0]=='start':
+                if self.operation_start_failure:raise m.RuntimeFailure('LOG_RUNTIME_COMMAND_UNAVAILABLE')
+                return json.dumps({'result':'INSTALLED','manifestSha256':self.manifest_sha,'buildId':'11111111-1111-4111-8111-111111111111'}).encode()
+            return b''
+        def inspect(kind,name):
+            return {'Id':name,'Image':self.state['imageId'],'Config':{'Labels':self.operation_labels if kind=='container' else m.labels(self.state)},
+                    'State':{'Running':self.operation_running,'ExitCode':0}}
+        for p in [patch.object(m,'verify_live'),patch.object(m,'docker',side_effect=docker),patch.object(m,'inspect',side_effect=inspect)]:
+            p.start();self.addCleanup(p.stop)
+
+    def test_private_manifest_operation_has_only_fixed_private_mounts_and_terminal_owned_cleanup(self):
+        self.manifest_operation_fixture()
+        result=m.install_manifest(self.state,self.directory,self.manifest,self.manifest_sha)
+        self.assertEqual('INSTALLED',result['result'])
+        create=self.operation_commands[0];joined=' '.join(create)
+        self.assertEqual(2,create.count('--mount'));self.assertIn('dkp-dev-logging-data',create)
+        self.assertIn('--read-only',create);self.assertNotIn('--publish',create);self.assertNotIn('docker.sock',joined)
+        self.assertNotIn(m.private(self.directory/'database/admin-password').decode(),joined)
+        self.assertIn('/run/dkp/owner-password',create);self.assertEqual(('rm','e'*64),self.operation_commands[-1])
+        evidence=list((self.directory/'operator').glob('manifest-operation-*.json'));self.assertEqual(1,len(evidence))
+        record=json.loads(m.private(evidence[0]));self.assertEqual('REMOVED',record['cleanup']);self.assertEqual('INSTALLED',record['result'])
+
+    def test_unknown_running_manifest_operation_is_retained_without_force_stop_and_input_must_match(self):
+        self.manifest_operation_fixture()
+        with self.assertRaisesRegex(m.RuntimeFailure,'INPUT_INVALID'):m.install_manifest(self.state,self.directory,self.manifest,'f'*64)
+        self.assertEqual([],self.operation_commands)
+        self.operation_running=True;self.operation_start_failure=True
+        with self.assertRaisesRegex(m.RuntimeFailure,'COMMAND_UNAVAILABLE'):m.install_manifest(self.state,self.directory,self.manifest,self.manifest_sha)
+        self.assertFalse(any(call[0]=='rm' for call in self.operation_commands))
+        evidence=list((self.directory/'operator').glob('manifest-operation-*.json'))
+        record=json.loads(m.private(evidence[0]));self.assertEqual('RETAINED',record['cleanup']);self.assertEqual('STILL_RUNNING',record['stage'])
 
 
 if __name__=='__main__':unittest.main()

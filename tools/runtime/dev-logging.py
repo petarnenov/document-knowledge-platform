@@ -110,6 +110,7 @@ def validate_state(state, directory, project, port, idp_port=None):
     networks = [ipaddress.IPv4Network(value) for value in state['subnets'].values()]
     require(all(value.prefixlen == 28 and value.subnet_of(ipaddress.IPv4Network('10.241.0.0/16')) for value in networks) and not networks[0].overlaps(networks[1]))
     require(state['uid'] == os.getuid() and state['gid'] == os.getgid() and state['uid'] > 0)
+    require(type(state.get('writerEnabled', False)) is bool)
 
 
 def save(directory, state):
@@ -328,9 +329,13 @@ def initialize(directory, project, port, idp_port=None):
     return state
 
 
-def config_digest(directory):
+def config_digest(directory, writer=False):
     digest = hashlib.sha256()
-    for name in ('password', 'cursor-key', 'readers.json'):
+    names = ('password', 'cursor-key', 'readers.json')
+    if writer:
+        digest.update(b'writer-enabled=true\0')
+        names += ('writer-password', 'registration-grants.json', 'observer-grant.json')
+    for name in names:
         digest.update(name.encode() + b'\0' + private(directory / 'query' / name))
     return digest.hexdigest()
 
@@ -367,7 +372,9 @@ def environment(state, directory):
               'DKP_LOG_PORT': str(state['port']), 'DKP_LOG_IDP_PORT': str(state['idpPort']),
               'DKP_LOG_GATEWAY_CONFIG': str(directory / 'gateway'), 'DKP_LOG_GATEWAY_PKI': str(directory / 'gateway-pki'),
               'DKP_LOG_UID': str(state['uid']), 'DKP_LOG_GID': str(state['gid']),
-              'DKP_LOG_QUERY_CONFIG': str(directory / 'query')}
+              'DKP_LOG_QUERY_CONFIG': str(directory / 'query'),
+              'DKP_LOG_WRITER_ENABLED': 'true' if state.get('writerEnabled') else 'false',
+              'DKP_LOG_VOLUME_IDENTITY': state['volumes'][state['project'] + '-postgres-data'] if state.get('writerEnabled') else 'unconfigured'}
     require(all('\n' not in value and '\r' not in value and '$' not in value and '"' not in value for value in values.values()))
     return ''.join(key + '="' + value + '"\n' for key, value in values.items())
 
@@ -376,7 +383,9 @@ def compose(state, directory, *args, timeout=120):
     # Compose interpolates disabled profiles even for read-only ps. Older shared
     # runtimes lack viewer keys; derive only those keys without mutating their env.
     values = {'DKP_LOG_VIEWER_IMAGE': state.get('viewerImage','dkp-disabled-viewer:unselected'),
-              'DKP_LOG_VIEWER_TOKEN': str(directory / 'operator/read-token')}
+              'DKP_LOG_VIEWER_TOKEN': str(directory / 'operator/read-token'),
+              'DKP_LOG_WRITER_ENABLED': 'true' if state.get('writerEnabled') else 'false',
+              'DKP_LOG_VOLUME_IDENTITY': state['volumes'][state['project'] + '-postgres-data'] if state.get('writerEnabled') else 'unconfigured'}
     require(all(not any(character in value for character in ('\n','\r','$','"')) for value in values.values()))
     with tempfile.TemporaryDirectory(prefix='dkp-log-compose-viewer-') as temporary:
         overlay = Path(temporary) / 'viewer.env'
@@ -424,7 +433,7 @@ def install_secrets(state, directory):
 
 def sql(state, directory, payload):
     item = container(state, directory, 'postgres')
-    return docker('exec', '--interactive', item['Id'], 'psql', '-X', '--no-password', '--tuples-only', '--no-align',
+    return docker('exec', '--interactive', item['Id'], 'psql', '-X', '--quiet', '--no-password', '--tuples-only', '--no-align',
                   '--set', 'ON_ERROR_STOP=1', '--username', 'dkp_log_admin', '--dbname', 'dkp_dev_logs',
                   data=payload, timeout=10).decode().strip()
 
@@ -432,7 +441,10 @@ def sql(state, directory, payload):
 def assert_schema(state, directory):
     digest = hashlib.sha256((SQL / 'logging-migration/V1__owned_dev_logging.sql').read_bytes()).hexdigest()
     require(sql(state, directory, (SQL / 'logging-provision/schema-state.sql').read_bytes()) == 't', 'LOG_RUNTIME_SCHEMA_MISMATCH')
-    require(sql(state, directory, (SQL / 'logging-provision/schema-version.sql').read_bytes()) == '1:' + digest, 'LOG_RUNTIME_SCHEMA_MISMATCH')
+    versions = '1:' + digest
+    if state.get('writerEnabled'):
+        versions += '\n2:' + hashlib.sha256((SQL / 'logging-migration/V2__scoped_producer_credentials.sql').read_bytes()).hexdigest()
+    require(sql(state, directory, (SQL / 'logging-provision/schema-version.sql').read_bytes()) == versions, 'LOG_RUNTIME_SCHEMA_MISMATCH')
     require(sql(state, directory, (SQL / 'logging-provision/schema-shape.sql').read_bytes()) == 't', 'LOG_RUNTIME_UNKNOWN_SCHEMA')
     require(sql(state, directory, (SQL / 'logging-provision/schema-digest.sql').read_bytes()) == state['schemaSha256'], 'LOG_RUNTIME_SCHEMA_DRIFT')
 
@@ -496,7 +508,7 @@ def verify_live(state, directory):
     image = inspect('image', state['imageId'])
     owned(image, state)
     require(image['Config']['Labels'].get('dkp.logging.source') == state['sourceFingerprint'])
-    require(config_digest(directory) == state['configSha256'], 'LOG_RUNTIME_CONFIG_UPDATE_REQUIRED')
+    require(config_digest(directory, state.get('writerEnabled',False)) == state['configSha256'], 'LOG_RUNTIME_CONFIG_UPDATE_REQUIRED')
     gateway_image = inspect('image', state['gatewayImageId'])
     owned(gateway_image, state)
     require(gateway_image['Config']['Labels'].get('dkp.logging.source') == state['gatewaySourceFingerprint'])
@@ -525,17 +537,28 @@ def verify_live(state, directory):
             require(not item['HostConfig'].get('PortBindings'))
             require(item['Image'] == state['imageId'] if service == 'query' else item['Image'] == state['viewerImageId'] if service == 'viewer' else item['Config']['Image'] == PG)
         check_mounts(item, state, service)
+        if service == 'query':
+            actual = dict(value.split('=',1) for value in item['Config'].get('Env',[]) if '=' in value)
+            require(actual.get('DKP_LOGGING_WRITER_ENABLED','false') == ('true' if state.get('writerEnabled') else 'false'),
+                    'LOG_RUNTIME_WRITER_PROFILE_MISMATCH')
+            if state.get('writerEnabled'):
+                expected = {'DKP_LOGGING_WRITER_PASSWORD_FILE':'/run/dkp/log-query/writer-password',
+                    'DKP_LOGGING_REGISTRATION_GRANTS_FILE':'/run/dkp/log-query/registration-grants.json',
+                    'DKP_LOGGING_OBSERVER_GRANT_FILE':'/run/dkp/log-query/observer-grant.json',
+                    'DKP_LOGGING_VOLUME_IDENTITY':state['volumes'][state['project']+'-postgres-data']}
+                require(all(actual.get(key) == value for key,value in expected.items()), 'LOG_RUNTIME_WRITER_PROFILE_MISMATCH')
     assert_schema(state, directory)  # Status is read-only even for an incomplete initial state.
     probe(state, directory)
     if state.get('viewerEnabled'):
         probe(state,directory,viewer=True)
-    return {'viewer': 'ENABLED' if state.get('viewerEnabled') else 'NOT_ENABLED', 'result': 'PASS', 'stage': 'SHARED_READ_RUNTIME', 'url': 'https://localhost:' + str(state['port']),
+    return {'viewer': 'ENABLED' if state.get('viewerEnabled') else 'NOT_ENABLED', 'result': 'PASS', 'stage': 'SHARED_WRITER_RUNTIME' if state.get('writerEnabled') else 'SHARED_READ_RUNTIME', 'url': 'https://localhost:' + str(state['port']),
             'project': state['project'], 'sourceFingerprint': state['sourceFingerprint'], 'imageId': state['imageId'],
             'gatewayImageId': state['gatewayImageId'], 'gatewaySourceFingerprint': state['gatewaySourceFingerprint'],
-            'ingestion': 'NOT_IMPLEMENTED', 'full457': 'OPEN'}
+            'ingestion': 'HTTP_ENABLED_OBSERVATION_REQUIRED' if state.get('writerEnabled') else 'NOT_IMPLEMENTED',
+            'eventPersistence': 'NOT_ASSERTED', 'full457': 'OPEN'}
 
 
-def start(state, directory, update=False, target='both'):
+def start(state, directory, update=False, target='both', prepared_images=None):
     check_resources(state)
     require(target in ('query','gateway','both','viewer'))
     if state['stage'] == 'READY' and not update:
@@ -545,7 +568,7 @@ def start(state, directory, update=False, target='both'):
     if not initial:
         assert_schema(state, directory)
         if target in ('gateway','viewer'):
-            require(config_digest(directory) == state['configSha256'], 'LOG_RUNTIME_QUERY_UPDATE_REQUIRED')
+            require(config_digest(directory, state.get('writerEnabled',False)) == state['configSha256'], 'LOG_RUNTIME_QUERY_UPDATE_REQUIRED')
         if target == 'query':
             require(gateway_digest(directory) == state['gatewayConfigSha256'], 'LOG_RUNTIME_GATEWAY_UPDATE_REQUIRED')
     if state.get('viewerEnabled') and target != 'viewer':
@@ -553,8 +576,10 @@ def start(state, directory, update=False, target='both'):
     components = ('viewer','gateway') if target == 'viewer' else ('query','gateway') if initial or target == 'both' else (target,)
     if target == 'viewer':
         state['viewerEnabled'] = True
+    if prepared_images is not None:
+        require(update and target == 'both' and set(prepared_images) == {'query','gateway'})
     for component in components:
-        state.update(build_image(state, directory, component=component))
+        state.update(build_image(state, directory, component=component) if prepared_images is None else prepared_images[component])
         save(directory, state)
     if state['stage'] == 'NEW':
         install_secrets(state, directory)
@@ -569,11 +594,11 @@ def start(state, directory, update=False, target='both'):
     disk(state, directory)
     provision(state, directory)
     if update and 'gateway' in components:
-        gateway_config(directory, state['port'], state['idpPort'], viewer=state.get('viewerEnabled',False))
+        gateway_config(directory, state['port'], state['idpPort'], viewer=state.get('viewerEnabled',False), writer=state.get('writerEnabled',False))
     for component in components:
         compose(state, directory, 'up', '--detach', '--wait', '--no-deps', '--force-recreate' if update else '--no-recreate', component)
     if 'query' in components:
-        state['configSha256'] = config_digest(directory)
+        state['configSha256'] = config_digest(directory, state.get('writerEnabled',False))
     if 'gateway' in components:
         state['gatewayConfigSha256'] = gateway_digest(directory)
     if 'viewer' in components:
@@ -604,6 +629,227 @@ def renew(state, directory):
     require(len(old['readers']) == 1 and old['readers'][0]['tokenSha256'] == hashlib.sha256(token.encode()).hexdigest())
     write_private(directory / 'query/readers.json', json.dumps(grant(token, reader_id)), replace=True)
     return start(state, directory, update=True, target='query')
+
+
+def writer_scripts():
+    names = ('logging-migration/V1__owned_dev_logging.sql', 'logging-migration/V2__scoped_producer_credentials.sql',
+             'logging-provision/write-role.sql', 'logging-provision/schema-digest.sql', 'logging-provision/writer-summary.sql')
+    return {name: hashlib.sha256((SQL / name).read_bytes()).hexdigest() for name in names}
+
+
+def writer_versions():
+    return '\n'.join(str(version) + ':' + hashlib.sha256((SQL / name).read_bytes()).hexdigest()
+                     for version,name in [(1,'logging-migration/V1__owned_dev_logging.sql'),
+                                          (2,'logging-migration/V2__scoped_producer_credentials.sql')])
+
+
+def metadata_guard(digest):
+    require(re.fullmatch('[0-9a-f]{64}', digest))
+    query = (SQL / 'logging-provision/schema-digest.sql').read_text().strip().removesuffix(';')
+    return "DO $dkp$ BEGIN IF (" + query + ") IS DISTINCT FROM '" + digest + "' THEN RAISE EXCEPTION 'LOG_RUNTIME_SCHEMA_DRIFT'; END IF; END $dkp$;\n"
+
+
+def writer_transition_sql(directory, before, expected=None):
+    password = private(directory / 'query/writer-password', 512).decode('ascii')
+    require(re.fullmatch('[A-Za-z0-9_-]{32,512}', password))
+    migration = (SQL / 'logging-migration/V2__scoped_producer_credentials.sql').read_text()
+    role = (SQL / 'logging-provision/write-role.sql').read_text().replace('__WRITER_PASSWORD__', password)
+    versions = writer_versions().splitlines()
+    guard = ("DO $dkp$ BEGIN IF (SELECT string_agg(version::text||':'||migration_sha,E'\\n' ORDER BY version) "
+             "FROM dev_logs.schema_migrations) IS DISTINCT FROM '" + versions[0]
+             + "' OR EXISTS(SELECT FROM pg_roles WHERE rolname='dkp_log_writer') THEN RAISE EXCEPTION 'LOG_RUNTIME_UNKNOWN_WRITER_STATE'; END IF; END $dkp$;\n")
+    payload = "BEGIN;\nSET LOCAL lock_timeout='2s';\nSET LOCAL statement_timeout='5s';\nLOCK TABLE dev_logs.schema_migrations IN EXCLUSIVE MODE;\n"
+    payload += metadata_guard(before) + guard + migration + role
+    payload += "\nINSERT INTO dev_logs.schema_migrations VALUES (2,'" + versions[1].split(':',1)[1] + "');\n"
+    if expected is None:
+        payload += (SQL / 'logging-provision/schema-digest.sql').read_text() + '\nROLLBACK;\n'
+    else:
+        payload += metadata_guard(expected) + 'COMMIT;\n'
+    return payload.encode()
+
+
+def writer_bindings(directory):
+    names = ['query/password','query/cursor-key','query/readers.json','operator/read-token','database/admin-password',
+             'query/writer-password','query/registration-grants.json','query/observer-grant.json',
+             'operator/registrar-token','operator/observer-token']
+    names += ['gateway-pki/' + path.name for path in sorted((directory / 'gateway-pki').iterdir())
+              if not path.is_dir() or path.is_symlink()]
+    return {name: hashlib.sha256(private(directory / name)).hexdigest() for name in names}
+
+
+def create_writer_files(directory):
+    paths = ['query/writer-password','query/registration-grants.json','query/observer-grant.json',
+             'operator/registrar-token','operator/observer-token']
+    require(all(not (directory / name).exists() and not (directory / name).is_symlink() for name in paths),
+            'LOG_RUNTIME_UNKNOWN_WRITER_FILES')
+    expires = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=30)).isoformat().replace('+00:00','Z')
+    registrar, observer = secrets.token_urlsafe(48), secrets.token_urlsafe(48)
+    registration = {'schemaVersion':1,'registrars':[{'id':str(uuid.uuid4()),'expiresAt':expires,
+                    'tokenSha256':hashlib.sha256(registrar.encode()).hexdigest()}],'delegators':[]}
+    observation = {'schemaVersion':1,'id':str(uuid.uuid4()),'expiresAt':expires,
+                   'tokenSha256':hashlib.sha256(observer.encode()).hexdigest()}
+    for name,value in [('query/writer-password',secrets.token_urlsafe(48)),('query/registration-grants.json',json.dumps(registration)),
+                       ('query/observer-grant.json',json.dumps(observation)),('operator/registrar-token',registrar),
+                       ('operator/observer-token',observer)]:
+        write_private(directory / name,value)
+
+
+def writer_summary(state, directory):
+    value = json.loads(sql(state,directory,(SQL / 'logging-provision/writer-summary.sql').read_bytes()))
+    require(set(value) == {'manifests','producers','scopes','events','capacityReservedBytes','scopeReservedBytes','eventReservedBytes'}
+            and all(type(number) is int and number >= 0 for number in value.values()), 'LOG_RUNTIME_PRESERVATION_INVALID')
+    return value
+
+
+def enable_writer(state, directory):
+    require(state['stage'] == 'READY', 'LOG_RUNTIME_WRITER_REQUIRES_READY')
+    if state.get('writerEnabled') and state.get('writerActivation',{}).get('stage') == 'ACTIVE':
+        return verify_live(state,directory)
+    check_resources(state)
+    disk(state,directory)
+    if 'writerActivation' not in state:
+        require(not state.get('writerEnabled'), 'LOG_RUNTIME_UNKNOWN_WRITER_STATE')
+        verify_live(state,directory)
+        require(sql(state,directory,b"SELECT count(*) FROM pg_roles WHERE rolname='dkp_log_writer';") == '0',
+                'LOG_RUNTIME_UNKNOWN_WRITER_STATE')
+        services = ('postgres','query','gateway','viewer') if state.get('viewerEnabled') else ('postgres','query','gateway')
+        live = {name:container(state,directory,name) for name in services}
+        before = {'containers':{name:item['Id'] for name,item in live.items()},
+                  'images':{name:item['Image'] for name,item in live.items()},
+                  'configuration':{key:state.get(key) for key in ('configSha256','gatewayConfigSha256','viewerConfigSha256')},
+                  'volumes':dict(state['volumes']),'schemaSha256':state['schemaSha256'],
+                  'versions':sql(state,directory,(SQL / 'logging-provision/schema-version.sql').read_bytes()),
+                  'summary':writer_summary(state,directory)}
+        create_writer_files(directory)
+        state['writerActivation'] = {'stage':'PREPARING','before':before,'scripts':writer_scripts(),
+                                     'files':writer_bindings(directory),'images':{}}
+        save(directory,state)  # Generated credentials and before-state are bound before preview/commit.
+    transition = state['writerActivation']
+    require(transition['stage'] in ('PREPARING','PREPARED','MIGRATED'), 'LOG_RUNTIME_UNKNOWN_WRITER_STATE')
+    require(transition['scripts'] == writer_scripts() and transition['files'] == writer_bindings(directory),
+            'LOG_RUNTIME_ACTIVATION_INPUT_CHANGED')
+    before = transition['before']
+    require(state['volumes'] == before['volumes'] and container(state,directory,'postgres')['Id'] == before['containers']['postgres'],
+            'LOG_RUNTIME_ACTIVATION_OWNER_CHANGED')
+    if state.get('viewerEnabled'):
+        require(container(state,directory,'viewer')['Id'] == before['containers']['viewer'], 'LOG_RUNTIME_VIEWER_CHANGED')
+    require(writer_summary(state,directory) == before['summary'], 'LOG_RUNTIME_DATA_CHANGED')
+    if transition['stage'] == 'PREPARING':
+        assert_schema(state,directory)
+        for component in ('query','gateway'):
+            if component not in transition['images']:
+                transition['images'][component] = build_image(state,directory,component=component)
+                save(directory,state)
+        expected = sql(state,directory,writer_transition_sql(directory,before['schemaSha256']))
+        require(re.fullmatch('[0-9a-f]{64}',expected), 'LOG_RUNTIME_PREVIEW_INVALID')
+        assert_schema(state,directory)  # Preview must have rolled back every schema/role/grant change.
+        require(sql(state,directory,b"SELECT count(*) FROM pg_roles WHERE rolname='dkp_log_writer';") == '0',
+                'LOG_RUNTIME_PREVIEW_INVALID')
+        transition.update(expectedSchemaSha256=expected,stage='PREPARED')
+        save(directory,state)
+    versions = sql(state,directory,(SQL / 'logging-provision/schema-version.sql').read_bytes())
+    current = sql(state,directory,(SQL / 'logging-provision/schema-digest.sql').read_bytes())
+    if versions == before['versions'] and current == before['schemaSha256']:
+        sql(state,directory,writer_transition_sql(directory,before['schemaSha256'],transition['expectedSchemaSha256']))
+    else:
+        require(versions == writer_versions() and current == transition['expectedSchemaSha256'],
+                'LOG_RUNTIME_UNKNOWN_WRITER_STATE')
+    state['schemaSha256'] = transition['expectedSchemaSha256']
+    state['writerEnabled'] = True
+    transition['stage'] = 'MIGRATED'
+    save(directory,state)  # A later application failure retains committed V2 and exact recovery identities.
+    assert_schema(state,directory)
+    require(writer_summary(state,directory) == before['summary'], 'LOG_RUNTIME_DATA_CHANGED')
+    for component, image in transition['images'].items():
+        key = 'imageId' if component == 'query' else 'gatewayImageId'
+        item = inspect('image',image[key]);owned(item,state)
+        require(item['Id'] == image[key], 'LOG_RUNTIME_IMAGE_MISMATCH')
+    # Startup runs the existing exact reader/writer SQL verifiers before readiness can pass.
+    result = start(state,directory,update=True,target='both',prepared_images=transition['images'])
+    require(container(state,directory,'postgres')['Id'] == before['containers']['postgres'], 'LOG_RUNTIME_ACTIVATION_OWNER_CHANGED')
+    if state.get('viewerEnabled'):
+        require(container(state,directory,'viewer')['Id'] == before['containers']['viewer'], 'LOG_RUNTIME_VIEWER_CHANGED')
+    transition['stage'] = 'ACTIVE'
+    save(directory,state)
+    return result
+
+
+def renew_writer_grants(state, directory):
+    require(state.get('writerEnabled') is True, 'LOG_RUNTIME_WRITER_NOT_ENABLED')
+    verify_live(state,directory)
+    registration = json.loads(private(directory / 'query/registration-grants.json'))
+    observer = json.loads(private(directory / 'query/observer-grant.json'))
+    require(registration['schemaVersion'] == 1 and len(registration['registrars']) == 1 and registration['delegators'] == []
+            and observer['schemaVersion'] == 1, 'LOG_RUNTIME_GRANTS_INVALID')
+    registrar = registration['registrars'][0]
+    for grant,name in [(registrar,'registrar-token'),(observer,'observer-token')]:
+        require(grant['tokenSha256'] == hashlib.sha256(private(directory / 'operator' / name,512)).hexdigest(),
+                'LOG_RUNTIME_GRANTS_INVALID')
+    expiry = (dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=30)).isoformat().replace('+00:00','Z')
+    registrar['expiresAt'] = expiry;observer['expiresAt'] = expiry
+    write_private(directory / 'query/registration-grants.json',json.dumps(registration),replace=True)
+    write_private(directory / 'query/observer-grant.json',json.dumps(observer),replace=True)
+    result = start(state,directory,update=True,target='query')
+    if 'writerActivation' in state:
+        state['writerActivation']['files'] = writer_bindings(directory)
+        save(directory,state)
+    return result
+
+
+def install_manifest(state, directory, manifest, expected):
+    require(state.get('writerEnabled') is True, 'LOG_RUNTIME_WRITER_NOT_ENABLED')
+    require(manifest is not None and expected is not None and re.fullmatch('[0-9a-f]{64}',expected), 'LOG_MANIFEST_INPUT_INVALID')
+    require(manifest.is_absolute() and manifest.resolve(strict=True) == manifest
+            and not any(char in str(manifest) for char in (',','\n','\r')), 'LOG_MANIFEST_INPUT_INVALID')
+    require(hashlib.sha256(private(manifest)).hexdigest() == expected, 'LOG_MANIFEST_INPUT_INVALID')
+    verify_live(state,directory)
+    image = inspect('image',state['imageId']);owned(image,state)
+    require(image['Id'] == state['imageId'], 'LOG_RUNTIME_IMAGE_MISMATCH')
+    operation = uuid.uuid4().hex
+    args = ['create','--platform','linux/amd64','--name',state['project']+'-manifest-'+operation,
+            '--user',str(state['uid'])+':'+str(state['gid']),'--read-only','--cap-drop','ALL',
+            '--security-opt','no-new-privileges:true','--memory','512m','--cpus','1','--pids-limit','64',
+            '--network',state['project']+'-data','--tmpfs','/tmp',
+            '--env','JAVA_OPTS=-XX:ActiveProcessorCount=2 -Xmx256m',
+            '--mount','type=bind,src='+str(manifest)+',dst=/run/dkp/manifest.json,readonly',
+            '--mount','type=bind,src='+str(directory/'database/admin-password')+',dst=/run/dkp/owner-password,readonly']
+    for key,value in {**labels(state),'dkp.logging.operation':'manifest-install','dkp.logging.operation-id':operation}.items():
+        args.extend(['--label',key+'='+value])
+    args += [state['imageId'],'install-manifest','--manifest','/run/dkp/manifest.json','--sha256',expected,
+             '--jdbc-url','jdbc:postgresql://postgres:5432/dkp_dev_logs','--password-file','/run/dkp/owner-password']
+    identity = docker(*args).decode().strip()
+    require(re.fullmatch('[0-9a-f]{64}',identity), 'LOG_MANIFEST_OPERATION_INVALID')
+    record = {'schemaVersion':1,'operationId':operation,'containerId':identity,'imageId':state['imageId'],
+              'manifestSha256':expected,'stage':'CREATED','result':'UNKNOWN','cleanup':'RETAINED'}
+    evidence = directory/'operator'/('manifest-operation-'+operation+'.json')
+    def operation_container():
+        item = inspect('container',identity);owned(item,state)
+        actual = item['Config']['Labels']
+        require(item['Id'] == identity and item['Image'] == state['imageId']
+                and actual.get('dkp.logging.operation') == 'manifest-install'
+                and actual.get('dkp.logging.operation-id') == operation, 'LOG_MANIFEST_OPERATION_OWNER_MISMATCH')
+        return item
+    try:
+        operation_container()
+        write_private(evidence,json.dumps(record))
+        output = docker('start','--attach',identity,timeout=10)
+        item = operation_container()
+        require(not item['State']['Running'] and item['State']['ExitCode'] == 0, 'LOG_MANIFEST_OPERATION_INCOMPLETE')
+        require(len(output) <= 4096, 'LOG_MANIFEST_OPERATION_RESULT_INVALID')
+        value = json.loads(output)
+        require(set(value) == {'result','manifestSha256','buildId'} and value['result'] == 'INSTALLED'
+                and value['manifestSha256'] == expected and str(uuid.UUID(value['buildId'])) == value['buildId'],
+                'LOG_MANIFEST_OPERATION_RESULT_INVALID')
+        record.update(stage='COMPLETE',result='INSTALLED',buildId=value['buildId'])
+        return value
+    finally:
+        item = operation_container()
+        if not item['State']['Running']:
+            docker('rm',identity)  # Terminal exact owned one-off only. Never stop a running/unknown outcome.
+            record['cleanup'] = 'REMOVED'
+        else:
+            record['stage'] = 'STILL_RUNNING'
+        write_private(evidence,json.dumps(record),replace=evidence.exists())
 
 
 def local_daemon():
@@ -744,13 +990,15 @@ def operator_lock(directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('action', choices=('start', 'status', 'update', 'renew-readers', 'observer-install', 'observer-status'))
+    parser.add_argument('action', choices=('start', 'status', 'update', 'renew-readers', 'enable-writer', 'renew-writer-grants', 'install-manifest', 'observer-install', 'observer-status'))
     parser.add_argument('--directory', type=Path, default=ROOT / 'local-data/security/dev-logging/shared')
     parser.add_argument('--project', default='dkp-dev-logging')
     parser.add_argument('--port', type=int, default=18443)
     parser.add_argument('--idp-port', type=int, default=18444)
     parser.add_argument('--target', choices=('query','gateway','both','viewer'))
     parser.add_argument('--observer-python', type=Path)
+    parser.add_argument('--manifest', type=Path)
+    parser.add_argument('--sha256')
     args = parser.parse_args()
     if args.action == 'update' and args.target is None:
         parser.error('update requires explicit --target query|gateway|both|viewer')
@@ -765,6 +1013,12 @@ def main():
                 result = verify_live(state, directory)
             elif args.action == 'renew-readers':
                 result = renew(state, directory)
+            elif args.action == 'enable-writer':
+                result = enable_writer(state,directory)
+            elif args.action == 'renew-writer-grants':
+                result = renew_writer_grants(state,directory)
+            elif args.action == 'install-manifest':
+                result = install_manifest(state,directory,args.manifest,args.sha256)
             elif args.action == 'observer-install':
                 result = install_observer(state, directory, args.observer_python)
             elif args.action == 'observer-status':

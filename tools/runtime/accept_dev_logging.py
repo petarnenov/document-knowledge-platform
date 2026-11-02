@@ -1,12 +1,14 @@
 """Explicit real disposable Docker acceptance; never run against the shared project."""
 import tempfile
 import http.client
+import hashlib
 import datetime as dt
 import importlib.util
 import json
 import os
 from pathlib import Path
 import socket
+import signal
 import ssl
 import time
 import unittest
@@ -14,6 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import sys
 from unittest.mock import patch
 
 spec=importlib.util.spec_from_file_location('accepted_logging',Path(__file__).with_name('dev-logging.py'))
@@ -82,8 +85,28 @@ class SharedLoggingAcceptance(unittest.TestCase):
             try:cls.capture_private()
             except Exception:failed=True
         finally:
+            observer_failed=False
+            try:cls.stop_acceptance_observer()
+            except Exception:observer_failed=True
             cls.remove_owned()
+            if observer_failed:
+                m.write_private(cls.directory/'acceptance-cleanup.json',json.dumps({'project':cls.project,'result':'NATIVE_OBSERVER_PENDING','sharedProjectTouched':False}),replace=True)
+                failed=True
         m.require(not failed,'LOG_ACCEPTANCE_DIAGNOSTIC_FAILED')
+
+    @classmethod
+    def stop_acceptance_observer(cls):
+        m.require(cls.project.startswith('dkp-dev-logging-acceptance-'))
+        if getattr(cls,'observer_process',None) is not None:
+            process=cls.observer_process
+            if process.poll() is None:process.terminate();process.wait(timeout=5)
+            cls.observer_process=None
+        record=cls.state.get('observer')
+        if record and record.get('stage')!='REMOVED':
+            m.observer_files(cls.state,cls.directory)
+            if m.observer_job(record) is not None:m.command(['/bin/launchctl','bootout',record['service']],timeout=5)
+            m.require(m.observer_job(record) is None,'LOG_ACCEPTANCE_OBSERVER_STILL_PRESENT')
+            Path(record['plist']).unlink();record['stage']='REMOVED';m.save(cls.directory,cls.state)
 
     @classmethod
     def remove_owned(cls):
@@ -108,9 +131,9 @@ class SharedLoggingAcceptance(unittest.TestCase):
                 m.require(item['Id']==cls.state[identity]);m.docker('image','rm',cls.state[name])
         m.write_private(cls.directory/'acceptance-cleanup.json',json.dumps({'project':cls.project,'result':'REMOVED','sharedProjectTouched':False}))
 
-    def query(self,token=True):
+    def query(self,token=True,build_id='11111111-1111-4111-8111-111111111111'):
         now=dt.datetime.now(dt.timezone.utc)
-        query=urllib.parse.urlencode({'from':(now-dt.timedelta(minutes=5)).isoformat(),'to':(now+dt.timedelta(minutes=1)).isoformat(),'buildId':'11111111-1111-4111-8111-111111111111'})
+        query=urllib.parse.urlencode({'from':(now-dt.timedelta(minutes=5)).isoformat(),'to':(now+dt.timedelta(minutes=1)).isoformat(),'buildId':build_id})
         headers={'Authorization':'Bearer '+m.private(self.directory/'operator/read-token').decode()} if token else {}
         request=urllib.request.Request('https://localhost:'+str(self.port)+'/api/v1/dev-logs/events?'+query,headers=headers)
         with urllib.request.urlopen(request,timeout=5,context=ssl.create_default_context(cafile=self.directory/'gateway-pki/ca.crt')) as response:return json.load(response)
@@ -272,6 +295,121 @@ BROWSER
         m.verify_live(self.state,self.directory)
         m.write_private(self.directory/'viewer-acceptance.json',json.dumps({'result':'PASS','anonymousRead':True,'mainApiAuthenticationPreserved':True,'queryAndDatabasePreserved':True,'privateTokenAndPkiPreserved':True,'realBrowser':True,'legacyReadRuntimeUpgrade':True,'enabledViewerUpdateTargets':list(update_targets)}))
 
+    def writer_request(self,method,path,token=None,body=None):
+        headers={'Content-Type':'application/json'}
+        if token is not None:headers['Authorization']='Bearer '+token
+        request=urllib.request.Request('https://localhost:'+str(self.port)+'/api/v1/dev-logs/'+path,
+            data=None if body is None else json.dumps(body,separators=(',',':')).encode(),headers=headers,method=method)
+        context=ssl.create_default_context(cafile=self.directory/'gateway-pki/ca.crt')
+        try:
+            with urllib.request.urlopen(request,context=context,timeout=8) as response:return response.status,dict(response.headers),response.read()
+        except urllib.error.HTTPError as response:return response.code,dict(response.headers),response.read()
+
+    def wait_observer(self,after=None,different_pid=None):
+        last=None
+        for _ in range(60):
+            try:
+                value=json.loads(m.private(self.directory/'observer/health.json'))
+                if sys.platform=='darwin':
+                    status=m.observer_status(self.state,self.directory)
+                    good=status['result']=='PASS' and (different_pid is None or status['pid']!=different_pid)
+                else:
+                    good=value['result']=='ACCEPTED';status={'pid':self.observer_process.pid,'sequence':value['sequence'],'result':'PASS'}
+                if good and (after is None or dt.datetime.fromisoformat(value['at'])>after):return status
+                last=value['code']
+            except (OSError,ValueError,m.RuntimeFailure):pass
+            time.sleep(.25)
+        self.fail('Owned observer did not recover: '+str(last))
+
+    def writer_acceptance(self):
+        before={name:m.container(self.state,self.directory,name)['Id'] for name in ('postgres','query','gateway','viewer')}
+        token=m.private(self.directory/'operator/read-token');volumes=dict(self.state['volumes'])
+        retained=m.writer_summary(self.state,self.directory)
+        result=m.enable_writer(self.state,self.directory)
+        self.assertEqual('SHARED_WRITER_RUNTIME',result['stage'])
+        self.assertEqual(retained,m.writer_summary(self.state,self.directory));self.assertEqual(volumes,self.state['volumes'])
+        self.assertEqual(before['postgres'],m.container(self.state,self.directory,'postgres')['Id'])
+        self.assertEqual(before['viewer'],m.container(self.state,self.directory,'viewer')['Id'])
+        self.assertEqual(token,m.private(self.directory/'operator/read-token'))
+        self.assertEqual('ACTIVE',self.state['writerActivation']['stage'])
+        self.assertEqual(m.writer_versions(),m.sql(self.state,self.directory,(m.SQL/'logging-provision/schema-version.sql').read_bytes()))
+        with patch.object(m,'build_image',side_effect=AssertionError('repeat must verify only')):
+            self.assertEqual('PASS',m.enable_writer(self.state,self.directory)['result'])
+        for path,method in [('unknown','GET'),('registrations/not-a-uuid','DELETE'),('batches','GET'),('events','POST')]:
+            code,headers,_=self.writer_request(method,path)
+            self.assertEqual(405 if path in ('batches','events') else 404,code)
+            self.assertEqual('no-store',headers.get('Cache-Control'));self.assertEqual('nosniff',headers.get('X-Content-Type-Options'))
+        for path in ['registrations','delegations','batches','receipts','storage-observation']:
+            self.assertEqual(401,self.writer_request('POST',path,body={})[0])
+        self.assertEqual(401,self.writer_request('DELETE','registrations/'+str(uuid.uuid4()))[0])
+        # Explicitly trusted acceptance-only artifact; never installed into actual shared storage.
+        import re
+        events=re.findall(r'\("([a-z.]+)"\)',(m.ROOT/'modules/observability-support/src/main/java/org/documentknowledge/observability/EventCode.java').read_text())
+        vocabulary={'events':events,'phases':['STARTUP'],'errorCodes':['DEPENDENCY_FAILED'],'dependencies':[],'exceptionClasses':[],'frames':[]}
+        canonical=lambda value:json.dumps(value,sort_keys=True,separators=(',',':')).encode()
+        build_id=str(uuid.uuid4());run_id=str(uuid.uuid4())
+        manifest={'schemaVersion':1,'buildId':build_id,'component':'runtime-tools','gitSha':'a'*40,'sourceFingerprint':'b'*64,
+            'compiledAt':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z'),'toolchainFingerprint':'c'*64,
+            'dependencyFingerprint':'d'*64,'vocabularySha256':hashlib.sha256(canonical(vocabulary)).hexdigest(),'vocabulary':vocabulary,
+            'sourceFingerprintAlgorithm':'dkp-public-inputs-v1','dirty':True}
+        path=self.directory/'operator/trusted-acceptance-manifest.json';m.write_private(path,canonical(manifest))
+        digest=hashlib.sha256(m.private(path)).hexdigest()
+        self.assertEqual('INSTALLED',m.install_manifest(self.state,self.directory,path,digest)['result'])
+        self.assertEqual('INSTALLED',m.install_manifest(self.state,self.directory,path,digest)['result'])
+        binding={key:manifest[key] for key in ['buildId','component','gitSha','sourceFingerprint','vocabularySha256']}
+        binding.update(runId=run_id,manifestSha256=digest)
+        registrar=m.private(self.directory/'operator/registrar-token').decode()
+        code,_,body=self.writer_request('POST','registrations',registrar,{'binding':binding,'scope':{'scopeKind':'OPERATOR_ONLY'},
+            'acceptUntil':(dt.datetime.now(dt.timezone.utc)+dt.timedelta(hours=1)).isoformat().replace('+00:00','Z')})
+        self.assertEqual(201,code);producer=json.loads(body);producer_token=producer['producerToken']
+        event_id=str(uuid.uuid4())
+        event={'eventId':event_id,'buildId':build_id,'runId':run_id,'instanceId':str(uuid.uuid4()),'component':'runtime-tools',
+            'gitSha':'a'*40,'sourceFingerprint':'b'*64,'timestamp':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z'),
+            'severity':'DEBUG','eventName':'operation.started','correlationId':str(uuid.uuid4()),'context':{'phase':'STARTUP','durationMs':0}}
+        batch={'schemaVersion':1,'events':[event]}
+        self.assertEqual(503,self.writer_request('POST','batches',producer_token,batch)[0])
+        if sys.platform=='darwin':
+            # The installer caller really exits before native supervision/liveness is inspected.
+            args=[sys.executable,str(m.ROOT/'tools/runtime/dev-logging.py'),'observer-install','--directory',str(self.directory),
+                '--project',self.project,'--port',str(self.port),'--idp-port',str(self.idp_port),'--observer-python',str(Path(sys.executable).resolve())]
+            output=m.command(args,timeout=30);self.assertEqual('OBSERVER_JOB_INSTALLED',json.loads(output)['stage'])
+            self.state.clear();self.state.update(json.loads(m.private(self.directory/'state.json')))
+        else:
+            # Explicit foreground Linux fixture; never a native supervisor persistence claim.
+            folder=self.directory/'observer';folder.mkdir(mode=0o700)
+            pg=m.container(self.state,self.directory,'postgres')
+            config={'schemaVersion':1,'ownerId':self.state['ownerId'],'directory':str(self.directory),'project':self.project,
+                'pgContainerId':pg['Id'],'pgImageId':pg['Image'],'volumeIdentity':self.state['volumes'][self.project+'-postgres-data'],
+                'dockerBinary':str(Path(m.shutil.which('docker')).resolve()),'dockerContext':m.docker('context','show').decode().strip(),'port':self.port}
+            m.write_private(folder/'observer.py',(m.ROOT/'tools/runtime/log-volume-observer.py').read_bytes())
+            m.write_private(folder/'config.json',json.dumps(config))
+            self.__class__.observer_process=m.subprocess.Popen([sys.executable,'-I',str(folder/'observer.py'),'--config',str(folder/'config.json')],stdout=m.subprocess.DEVNULL,stderr=m.subprocess.DEVNULL)
+        first=self.wait_observer();at=dt.datetime.now(dt.timezone.utc);later=self.wait_observer(after=at)
+        self.assertGreater(later['sequence'],first['sequence'])
+        code,_,body=self.writer_request('POST','batches',producer_token,batch)
+        self.assertEqual(200,code);self.assertIn(b'COMMITTED',body)
+        self.assertEqual(200,self.writer_request('POST','batches',producer_token,batch)[0])
+        self.assertIn(b'COMMITTED',self.writer_request('POST','receipts',producer_token,{'eventIds':[event_id]})[2])
+        self.assertEqual(401,self.writer_request('POST','batches',registrar,batch)[0])
+        if sys.platform=='darwin':
+            crash_at=dt.datetime.now(dt.timezone.utc);os.kill(later['pid'],signal.SIGKILL)
+            recovered=self.wait_observer(after=crash_at,different_pid=later['pid'])
+            self.assertNotEqual(recovered['pid'],later['pid'])
+        m.start(self.state,self.directory,update=True,target='query');self.wait_observer()
+        self.assertEqual(200,self.writer_request('POST','receipts',producer_token,{'eventIds':[event_id]})[0])
+        found=[row for row in self.query(build_id=build_id)['events'] if row['event']['buildId']==build_id]
+        self.assertEqual(1,len(found));self.assertEqual(event_id,found[0]['event']['eventId'])
+        self.assertEqual(before['postgres'],m.container(self.state,self.directory,'postgres')['Id'])
+        self.assertEqual(before['viewer'],m.container(self.state,self.directory,'viewer')['Id'])
+        self.assertEqual(token,m.private(self.directory/'operator/read-token'))
+        self.stop_acceptance_observer();time.sleep(5.2)
+        another={**event,'eventId':str(uuid.uuid4())}
+        self.assertEqual(503,self.writer_request('POST','batches',producer_token,{'schemaVersion':1,'events':[another]})[0])
+        m.write_private(self.directory/'writer-acceptance.json',json.dumps({'result':'PASS','previewRollbackThenKnownV2':True,
+            'preservedLegacyData':True,'manifestPrivateCli':True,'registrationIngestionReceiptQuery':True,'realPhysicalVolumeTls204':True,
+            'nativePostCallerProgressAndCrashRecovery':sys.platform=='darwin','queryRestartPersistence':True,'missingStaleObserverRejected':True,
+            'closedNginxRoutesAndHeaders':True,'full457':'OPEN'}))
+
     def test_persistent_owned_query_lifecycle(self):
         self.assertEqual('PASS',self.result['result'])
         before={service:m.container(self.state,self.directory,service)['Id'] for service in ('postgres','query','gateway')}
@@ -345,6 +483,7 @@ BROWSER
         result=m.verify_live(self.state,self.directory)
         m.write_private(self.directory/'acceptance-result.json',json.dumps({**result,'result':'PASS','normalRestart':True,'crashRecovery':True,'dataRetained':True,'idempotentStart':True,'schemaDriftRejected':True,'queryOnlyUpdate':True,'readerRenewalPreservedIdentity':True}))
         self.viewer_acceptance()
+        self.writer_acceptance()
         # Removed storage is not recreated by update, even when an owner label was previously recorded.
         for service in ('query','postgres','gateway','viewer'):
             identity=m.container(self.state,self.directory,service)['Id'];m.docker('rm','--force','--volumes',identity)
