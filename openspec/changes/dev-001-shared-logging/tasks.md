@@ -1,0 +1,24 @@
+## 1. Protocol and reviewed contract — #457
+
+- [ ] 1.1 Persist the owner BLOCKER requirement, all-build shared destination and Beacon semantics in the protocol and queue; independently review the exact changes.
+- [ ] 1.2 Validate official OpenSpec artifacts and versioned ingestion/query contract; resolve architecture/security review findings and record exact-revision development selection before runtime edits.
+
+## 2. Persistent telemetry boundary — #457
+
+- [ ] 2.1 Implement hexagonal logging service, owned PostgreSQL schema, migration, indexed scoped queries and idempotent commit acknowledgement with negative tests.
+- [ ] 2.2 Implement scoped producer/operator credentials, Beacon ingress validation, redaction, bounds, loss/degraded reporting, retention and restart/outage tests.
+- [ ] 2.3 Implement persistent shared-runtime lifecycle independent of build/task fixtures using reviewed existing immutable image pins; preserve owned cleanup boundaries.
+
+## 3. All producers and build provenance — #457
+
+- [ ] 3.1 Propagate explicit compilation buildId and execution runId through Gradle/Vite/images/manifests, runtime tools and CI; test repeated same-SHA compilations and rebuild provenance.
+- [ ] 3.2 Instrument FE console/error/rejection/request/query/mutation/route/identity boundaries using bounded Beacon delivery; test sanitization, offline/unknown/rejected delivery, session transitions and nonblocking actions.
+- [ ] 3.3 Instrument BE services and worker operations, DB/provider/retry/deadline/cancellation/cleanup boundaries and sanitized exceptions with bounded asynchronous emission; reconcile preserved #166 diagnostics without concealing its unresolved cause.
+- [ ] 3.4 Integrate infrastructure/build/CI/runtime producers with the common API, durable sanitized spool/import and explicit reachability/persistence checks; preserve isolated test network controls.
+
+## 4. Real acceptance and integration — #457
+
+- [ ] 4.1 Prove FE/BE/infra events from two builds in the SAME persistent store, authenticated indexed filtering, restart persistence and reconstruction of a controlled real failed operation.
+- [ ] 4.2 Verify delayed/outage Beacon nonblocking UI, recovery/deduplication, bounds/retention/loss, trusted identity, cross-tenant queries and secret/content exclusion.
+- [ ] 4.3 Run applicable pinned Linux source/branch coverage floors, contracts/SDK, architecture, security and E2E checks; retain source-bound RED/GREEN evidence and independent final review.
+- [ ] 4.4 Open reviewed PR to dev, verify applicable exact-head terminal-success CI, authorized merge and post-dev checks; close #457 only with all acceptance evidence and save resumable handoff/current-session compaction checkpoint. Resume preserved BP03 work, keeping the full-project goal active.

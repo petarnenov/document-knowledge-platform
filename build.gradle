@@ -9,7 +9,7 @@ def serviceNames = ['document-management', 'knowledge-base', 'knowledge-search',
 def layerNames = ['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap']
 
 subprojects {
-    if (name in layerNames || name in ['architecture-tests', 'identity-contracts', 'security-micronaut', 'authorization-catalog', 'structure-inspector']) {
+    if (name in layerNames || name in ['architecture-tests', 'identity-contracts', 'security-micronaut', 'authorization-catalog', 'observability-support', 'structure-inspector']) {
         apply plugin: 'java-library'
         apply plugin: 'jacoco'
         // Gradle resolves components by group/name/version, so repeated layer names
@@ -236,7 +236,10 @@ tasks.register('architectureDependencyTest') {
         assert !allowedLayerDependency(':services:knowledge-base:adapters-out', ':modules:authorization-catalog')
         assert !allowedLayerDependency(':workers:structure-inspector', ':services:document-management:application')
         assert !allowedLayerDependency(':services:document-management:application', ':workers:structure-inspector')
-        (serviceProjects + [project(':modules:identity-contracts'), project(':modules:security-micronaut'), project(':modules:authorization-catalog'), project(':workers:structure-inspector')]).each { p ->
+        assert !allowedLayerDependency(':modules:observability-support', ':modules:identity-contracts')
+        assert !allowedLayerDependency(':modules:observability-support', ':services:browser-bff:application')
+        assert !allowedLayerDependency(':services:browser-bff:application', ':modules:observability-support')
+        (serviceProjects + [project(':modules:identity-contracts'), project(':modules:security-micronaut'), project(':modules:authorization-catalog'), project(':modules:observability-support'), project(':workers:structure-inspector')]).each { p ->
                 def layer = p.name
                 p.configurations.matching { it.name in ['api', 'implementation', 'compileOnly', 'runtimeOnly'] }.each { config ->
                     config.dependencies.each { dependency ->
@@ -244,7 +247,7 @@ tasks.register('architectureDependencyTest') {
                             if (!allowedLayerDependency(p.path, dependency.path)) {
                                 throw new GradleException("Forbidden project dependency: ${p.path} -> ${dependency.path}")
                             }
-                        } else if (layer in ['domain', 'application', 'identity-contracts']) {
+                        } else if (layer in ['domain', 'application', 'identity-contracts', 'observability-support']) {
                             throw new GradleException("External production dependency forbidden in ${p.path}: ${dependency}")
                         }
                     }

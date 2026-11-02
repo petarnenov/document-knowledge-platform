@@ -14,7 +14,15 @@ After every verified task closure, save the resumable handoff and run `/compact`
 
 While work is active, publish a structured status at least every 15 minutes with completed, in-progress and blocked tasks, executed verification/results and next actions. Brief findings between these reports do not replace the periodic task/execution status. Resume the full queue after interruptions; package completion is a milestone, not the end of the project goal.
 
-## Immediate priority — BP-03 / #222 aggregate acceptance
+## Immediate BLOCKER — shared development logging / #457
+
+[Owner-selected #457](https://github.com/petarnenov/document-knowledge-platform/issues/457) preempts further implementation and BP-03 diagnostic/acceptance work. Implement one shared logging API and dedicated persistent log-only database for **all compilations** and all FE/BE/worker/infra/build/CI/runtime components, with mandatory indexed `buildId`, separate `runId` and cross-component correlation. FE uses nonblocking `navigator.sendBeacon()`; all producers emit useful sanitized development diagnostics, including successful boundaries and safe failure context. Preserve security/tenant boundaries and separate authoritative audit. See the [mandatory logging gate](../development/worktree-workflow.md#blocking-development-logging-gate--457) and `openspec/changes/dev-001-shared-logging`.
+
+State: issue-first protocol and specification preparation; no runtime implementation, CI verification, integration or closure claimed. New worktree `spec/dkp-457-dev-logging` starts at dev `4b79ba6a4430060b1d607f349e817387e69b6bbc`. The shared store outlives individual build/test fixtures. A reachable authenticated CI destination or completed sanitized spool import must be proven rather than inferred.
+
+Preserved work: #166 narrow adapter diagnostics are locally committed as `29ee7c0` in their separate worktree and do not satisfy this global requirement. Draft PR453 source `c040e0e254424def57d2adb682073c4e5f50853c` has two terminal failing CI runs (Foundation41441843895 and aggregate41441838691); merge remains blocked. The original one-attempt genuine-hour test finished successfully at 13:16:22 Sofia on 2026-11-02 with its original source qualification; no runtime test is currently active. Original failure evidence and unresolved causes remain open. Final resource/headroom accounting stays DEFERRED_OPEN while actual functional failures remain delivery gates. The complete BP00–BP17 project and Interactive Design v0.5 remain the goal.
+
+## Preserved next priority — BP-03 / #222 aggregate acceptance
 
 Close BP-03 before further package expansion. PR267 is merged into dev as0d63008 (2026-11-01 17:34 UTC); its PR checks passed, but actual post-dev Foundation41332195752 FAILED in authenticated provider faults, tracked under166/237. Do not describe the earlier270 failure or an old PR267 source as the current execution state. Preserve its original failure evidence and the unresolved427/430 evidence/parity findings.
 
