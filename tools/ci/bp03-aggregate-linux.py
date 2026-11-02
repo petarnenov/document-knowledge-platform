@@ -22,7 +22,7 @@ FLOORS = (
     ('bootstrap', 'OutboundWrites'), ('bootstrap', 'BridgeAllocationPool'),
     ('bootstrap', 'DownloadBridge'), ('bootstrap', 'DownloadBodyWriter'),
     ('bootstrap', 'ingress'), ('bootstrap', 'liveReadback'),
-    ('bootstrap', 'metadataBody'), ('adapters-out', 'transferLength'),
+    ('bootstrap', 'metadataBody'), ('bootstrap', 'sessionCookie'), ('adapters-out', 'transferLength'),
     ('adapters-out', 'StreamReadLifecycle'), ('adapters-out', 'UploadReadAdmission'),
     ('adapters-out', 'OwnedJdkTransport'), ('adapters-out', 'JdkResponseSource'),
     ('adapters-out', 'OutboundDeadline'))

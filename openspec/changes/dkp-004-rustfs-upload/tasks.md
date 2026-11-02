@@ -123,6 +123,8 @@ Runtime issues91–99 were created before execution. Development specification a
 
 - [ ] [#159](https://github.com/petarnenov/document-knowledge-platform/issues/159) P1: genuine OIDC reauthentication across unchanged five-minute sessions in the sixty-minute expiry acceptance; test source frozen, actual run pending.
 
+- [ ] [#456](https://github.com/petarnenov/document-knowledge-platform/issues/456) P1: deterministic real-HTTP in-flight response/rotation regression and conditional correction under the approved restricted-session invariant. The #159 c8be0cc diagnostic failed at its third renewal; cookie overwrite remains a hypothesis until controlled RED. Preserve authentication, CSRF, tenant checks, TTLs and original elapsed-hour acceptance; independent review, pinned Linux verification and PR/CI/integration remain required.
+
 - [ ] [#160](https://github.com/petarnenov/document-knowledge-platform/issues/160) P1: consistent Python3.14 coverage core and transparent per-helper metrics; all121 tests and six unchanged floors pass locally, CI pending.
 - [ ] [#161](https://github.com/petarnenov/document-knowledge-platform/issues/161) P1: actual curl HEAD config parser correction; real native403/nonmutating preparation passes, combined cases pending.
 - [x] [#162](https://github.com/petarnenov/document-knowledge-platform/issues/162) P1: independent review of HEAD, coverage and isolated spool fixture fixes.
