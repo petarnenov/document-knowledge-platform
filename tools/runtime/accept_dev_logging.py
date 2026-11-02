@@ -224,6 +224,12 @@ BROWSER
     def viewer_acceptance(self):
         with self.assertRaises(urllib.error.HTTPError) as disabled:self.viewer_get('/dev/logs')
         self.assertEqual(404,disabled.exception.code)
+        # Reproduce a read runtime provisioned before the optional viewer existed.
+        env=self.directory/'compose.env'
+        legacy=''.join(line+'\n' for line in m.private(env).decode().splitlines() if not line.startswith(('DKP_LOG_VIEWER_IMAGE=','DKP_LOG_VIEWER_TOKEN=')))
+        m.write_private(env,legacy,replace=True)
+        m.verify_live(self.state,self.directory)
+        self.assertEqual(legacy,m.private(env).decode())
         before={name:m.container(self.state,self.directory,name)['Id'] for name in ('query','postgres','gateway')}
         token=m.private(self.directory/'operator/read-token');volumes=dict(self.state['volumes'])
         pki={name:m.private(self.directory/'gateway-pki'/name) for name in ('portal.crt','portal.key','idp.crt','idp.key','ca.crt')}
@@ -264,7 +270,7 @@ BROWSER
         self.browser_acceptance('UNAVAILABLE')
         m.docker('start',viewer['Id'])
         m.verify_live(self.state,self.directory)
-        m.write_private(self.directory/'viewer-acceptance.json',json.dumps({'result':'PASS','anonymousRead':True,'mainApiAuthenticationPreserved':True,'queryAndDatabasePreserved':True,'privateTokenAndPkiPreserved':True,'realBrowser':True,'enabledViewerUpdateTargets':list(update_targets)}))
+        m.write_private(self.directory/'viewer-acceptance.json',json.dumps({'result':'PASS','anonymousRead':True,'mainApiAuthenticationPreserved':True,'queryAndDatabasePreserved':True,'privateTokenAndPkiPreserved':True,'realBrowser':True,'legacyReadRuntimeUpgrade':True,'enabledViewerUpdateTargets':list(update_targets)}))
 
     def test_persistent_owned_query_lifecycle(self):
         self.assertEqual('PASS',self.result['result'])

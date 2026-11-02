@@ -69,6 +69,37 @@ class LoggingRuntimeTests(unittest.TestCase):
         self.assertNotIn(token,env);self.assertNotIn(m.private(self.directory/'database/admin-password').decode(),env)
         self.assertEqual(0,(self.directory/'query/password').stat().st_mode&0o077)
 
+    def test_legacy_compose_environment_has_private_ephemeral_viewer_defaults_without_mutation(self):
+        self.ready()
+        legacy=m.environment(self.state,self.directory)
+        legacy=''.join(line+'\n' for line in legacy.splitlines() if not line.startswith(('DKP_LOG_VIEWER_IMAGE=','DKP_LOG_VIEWER_TOKEN=')))
+        m.write_private(self.directory/'compose.env',legacy)
+        overlays=[]
+        def inspect_command(*args,**kwargs):
+            self.assertEqual(2,args.count('--env-file'))
+            index=[i for i,value in enumerate(args) if value=='--env-file'][-1]
+            path=Path(args[index+1]);overlays.append(path)
+            payload=m.private(path).decode()
+            self.assertIn('DKP_LOG_VIEWER_TOKEN="'+str(self.directory/'operator/read-token')+'"',payload)
+            self.assertIn('DKP_LOG_VIEWER_IMAGE="'+self.state.get('viewerImage','dkp-disabled-viewer:unselected')+'"',payload)
+            self.assertNotIn(m.private(self.directory/'operator/read-token').decode(),payload)
+            self.assertEqual(legacy,(self.directory/'compose.env').read_text())
+            return b'fixture'
+        with patch.object(m,'docker',side_effect=inspect_command):
+            self.assertEqual(b'fixture',m.compose(self.state,self.directory,'ps','--all','--quiet','postgres'))
+        self.assertTrue(overlays);self.assertFalse(overlays[0].exists())
+        self.assertEqual(legacy,(self.directory/'compose.env').read_text())
+        self.state.update(viewerEnabled=True,viewerImage='owned-viewer:current')
+        with patch.object(m,'docker',side_effect=inspect_command):m.compose(self.state,self.directory,'ps','--all')
+        self.assertFalse(overlays[-1].exists())
+        def failed_command(*args,**kwargs):
+            inspect_command(*args,**kwargs)
+            raise m.RuntimeFailure('LOG_RUNTIME_COMMAND_FAILED')
+        with patch.object(m,'docker',side_effect=failed_command),self.assertRaises(m.RuntimeFailure):m.compose(self.state,self.directory,'ps','--all')
+        self.assertFalse(overlays[-1].exists())
+        self.assertEqual(legacy,(self.directory/'compose.env').read_text())
+
+
     def test_private_read_and_atomic_write_reject_unsafe_permissions_symlinks_and_oversize(self):
         p=self.directory/'query/password'
         with self.assertRaises(FileExistsError):m.write_private(p,'overwrite')

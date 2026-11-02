@@ -350,8 +350,16 @@ def environment(state, directory):
 
 
 def compose(state, directory, *args, timeout=120):
-    return docker('compose', '--project-name', state['project'], '--env-file', str(directory / 'compose.env'),
-                  '--file', str(COMPOSE), *args, timeout=timeout)
+    # Compose interpolates disabled profiles even for read-only ps. Older shared
+    # runtimes lack viewer keys; derive only those keys without mutating their env.
+    values = {'DKP_LOG_VIEWER_IMAGE': state.get('viewerImage','dkp-disabled-viewer:unselected'),
+              'DKP_LOG_VIEWER_TOKEN': str(directory / 'operator/read-token')}
+    require(all(not any(character in value for character in ('\n','\r','$','"')) for value in values.values()))
+    with tempfile.TemporaryDirectory(prefix='dkp-log-compose-viewer-') as temporary:
+        overlay = Path(temporary) / 'viewer.env'
+        write_private(overlay, ''.join(key + '="' + value + '"\n' for key,value in values.items()))
+        return docker('compose', '--project-name', state['project'], '--env-file', str(directory / 'compose.env'),
+                      '--env-file', str(overlay), '--file', str(COMPOSE), *args, timeout=timeout)
 
 
 def container(state, directory, service):
