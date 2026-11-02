@@ -9,6 +9,16 @@ public record LogScope(UUID id, Kind kind, String issuer, String subject, String
 
     public LogScope {
         requireId(id);
+        requireFields(kind, issuer, subject, tenantId);
+    }
+
+    /** Trusted scope description without a caller-selected persistent ID. */
+    public record Description(Kind kind, String issuer, String subject, String tenantId) {
+        public Description { requireFields(kind, issuer, subject, tenantId); }
+        public LogScope identified(UUID serverId) { return new LogScope(serverId, kind, issuer, subject, tenantId); }
+    }
+
+    private static void requireFields(Kind kind, String issuer, String subject, String tenantId) {
         Objects.requireNonNull(kind);
         switch (kind) {
             case TENANT -> {
