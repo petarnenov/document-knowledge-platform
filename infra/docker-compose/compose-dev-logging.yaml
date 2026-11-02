@@ -1,0 +1,97 @@
+name: ${DKP_LOG_PROJECT:?Use dev-logging.py}
+x-labels: &labels
+  dkp.owner: shared-dev-logging
+  dkp.issue: "457"
+  dkp.logging.owner-id: ${DKP_LOG_OWNER_ID:?Use dev-logging.py}
+x-restrictions: &restrictions
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+services:
+  postgres:
+    <<: *restrictions
+    image: postgres:18.6@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+    labels: *labels
+    user: "999:999"
+    mem_limit: 768m
+    cpus: 2
+    pids_limit: 128
+    tmpfs: ["/tmp:uid=999,gid=999,mode=0700", "/var/run/postgresql:uid=999,gid=999,mode=0700"]
+    environment:
+      POSTGRES_USER: dkp_log_admin
+      POSTGRES_DB: dkp_dev_logs
+      POSTGRES_PASSWORD_FILE: /run/secrets/admin-password
+      PGPASSFILE: /run/secrets/admin.pgpass
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+      PGDATA: /var/lib/postgresql/18/docker
+    command: [postgres, -c, fsync=on, -c, synchronous_commit=on, -c, full_page_writes=on, -c, password_encryption=scram-sha-256, -c, log_statement=none, -c, log_min_error_statement=panic, -c, log_parameter_max_length_on_error=0]
+    volumes: ["postgres-data:/var/lib/postgresql", "postgres-secrets:/run/secrets:ro"]
+    networks: [data]
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, dkp_log_admin, -d, dkp_dev_logs]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  query:
+    <<: *restrictions
+    image: ${DKP_LOG_QUERY_IMAGE:?Use dev-logging.py}
+    labels: *labels
+    user: "${DKP_LOG_UID:?Use dev-logging.py}:${DKP_LOG_GID:?Use dev-logging.py}"
+    mem_limit: 3g
+    cpus: 2
+    pids_limit: 256
+    tmpfs: ["/tmp"]
+    environment:
+      MICRONAUT_SERVER_HOST: 0.0.0.0
+      MICRONAUT_SERVER_PORT: "18087"
+      DKP_LOGGING_JDBC_URL: jdbc:postgresql://postgres:5432/dkp_dev_logs
+      DKP_LOGGING_DB_PASSWORD_FILE: /run/dkp/log-query/password
+      DKP_LOGGING_READER_GRANTS_FILE: /run/dkp/log-query/readers.json
+      DKP_LOGGING_CURSOR_KEY_FILE: /run/dkp/log-query/cursor-key
+      JAVA_OPTS: -XX:ActiveProcessorCount=2 -Xmx2g
+    volumes: ["${DKP_LOG_QUERY_CONFIG:?Use dev-logging.py}:/run/dkp/log-query:ro"]
+    networks: [data, edge]
+    depends_on:
+      postgres: {condition: service_healthy}
+  gateway:
+    <<: *restrictions
+    image: ${DKP_LOG_GATEWAY_IMAGE:?Use dev-logging.py}
+    labels: *labels
+    user: "${DKP_LOG_UID:?Use dev-logging.py}:${DKP_LOG_GID:?Use dev-logging.py}"
+    mem_limit: 768m
+    cpus: 2
+    pids_limit: 128
+    tmpfs: ["/tmp"]
+    ports: ["127.0.0.1:${DKP_LOG_PORT:?Use dev-logging.py}:8443", "127.0.0.1:${DKP_LOG_IDP_PORT:?Use dev-logging.py}:8444"]
+    volumes:
+      - ${DKP_LOG_GATEWAY_CONFIG:?Use dev-logging.py}/server.conf:/run/dkp/gateway/server.conf:ro
+      - ${DKP_LOG_GATEWAY_CONFIG:?Use dev-logging.py}/log-proxy.conf:/run/dkp/gateway/log-proxy.conf:ro
+      - ${DKP_LOG_GATEWAY_PKI:?Use dev-logging.py}/portal.crt:/run/dkp/gateway/portal.crt:ro
+      - ${DKP_LOG_GATEWAY_PKI:?Use dev-logging.py}/portal.key:/run/dkp/gateway/portal.key:ro
+      - ${DKP_LOG_GATEWAY_PKI:?Use dev-logging.py}/idp.crt:/run/dkp/gateway/idp.crt:ro
+      - ${DKP_LOG_GATEWAY_PKI:?Use dev-logging.py}/idp.key:/run/dkp/gateway/idp.key:ro
+      - ${DKP_LOG_GATEWAY_PKI:?Use dev-logging.py}/ca.crt:/run/dkp/gateway/ca.crt:ro
+    networks: [edge]
+    depends_on:
+      query: {condition: service_started}
+
+networks:
+  edge:
+    name: ${DKP_LOG_PROJECT}-edge
+    ipam:
+      config: [{subnet: "${DKP_LOG_EDGE_SUBNET:?Use dev-logging.py}"}]
+    labels: *labels
+  data:
+    name: ${DKP_LOG_PROJECT}-data
+    ipam:
+      config: [{subnet: "${DKP_LOG_DATA_SUBNET:?Use dev-logging.py}"}]
+    internal: true
+    labels: *labels
+volumes:
+  postgres-data:
+    name: ${DKP_LOG_PROJECT}-postgres-data
+    labels: *labels
+  postgres-secrets:
+    name: ${DKP_LOG_PROJECT}-postgres-secrets
+    labels: *labels

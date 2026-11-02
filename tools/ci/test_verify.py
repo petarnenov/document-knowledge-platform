@@ -70,7 +70,7 @@ class CheckTests(unittest.TestCase):
             (parent/name).write_text('public')
             with self.assertRaises(ValueError):inside.floors(report,self.source)
             report['files']['/workspace/tools/runtime/'+name]={'summary':{'covered_lines':3,'num_statements':4,'covered_branches':3,'num_branches':4}}
-        self.assertEqual(10,len(inside.floors(report,self.source)))
+        self.assertEqual(len(inside.HELPERS)+len(inside.FEATURE_HELPERS),len(inside.floors(report,self.source)))
         for key,value in [('num_statements',0),('num_branches',0),('covered_lines',2),('covered_branches',2)]:
             bad=copy.deepcopy(report);bad['files']['/workspace/tools/runtime/clam-definitions.py']['summary'][key]=value
             with self.assertRaises(ValueError):inside.floors(bad,self.source)

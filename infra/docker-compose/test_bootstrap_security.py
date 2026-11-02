@@ -31,7 +31,7 @@ class SecurityBootstrapTest(unittest.TestCase):
                 self.assertEqual(0o400, path.stat().st_mode & 0o777)
             self.assertEqual(32, len(base64.b64decode((authority / 'cursor.key').read_text(), validate=False)))
             for name, hostname in [('portal', 'localhost'), ('idp', 'idp.localhost')]:
-                result = subprocess.run(['openssl', 'verify', '-CAfile', str(target / 'ca.crt'),
+                result = subprocess.run(['openssl', 'verify', '-x509_strict', '-CAfile', str(target / 'ca.crt'),
                                          '-verify_hostname', hostname, str(target / f'{name}.crt')],
                                         capture_output=True)
                 self.assertEqual(0, result.returncode)

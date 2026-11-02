@@ -99,10 +99,11 @@ def generate(destination, *, keytool=None, runtime_uid=None, runtime_gid=None, p
             '-days', '365', '-subj', '/CN=DKP isolated development CA',
             '-keyout', str(scratch / 'ca.key'), '-out', str(scratch / 'ca.crt'),
             '-addext', 'basicConstraints=critical,CA:TRUE',
-            '-addext', 'keyUsage=critical,keyCertSign,cRLSign')
+            '-addext', 'keyUsage=critical,keyCertSign,cRLSign',
+            '-addext', 'subjectKeyIdentifier=hash')
         for name, dns in [('portal', 'localhost'), ('idp', 'idp.localhost')]:
             config = scratch / f'{name}.ext'
-            config.write_text(f'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:{dns},IP:127.0.0.1\n')
+            config.write_text(f'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectKeyIdentifier=hash\nauthorityKeyIdentifier=keyid,issuer\nsubjectAltName=DNS:{dns},IP:127.0.0.1\n')
             run('openssl', 'req', '-new', '-newkey', 'rsa:3072', '-nodes', '-sha256',
                 '-subj', f'/CN={dns}', '-keyout', str(scratch / f'{name}.key'),
                 '-out', str(scratch / f'{name}.csr'))

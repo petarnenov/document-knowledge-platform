@@ -95,6 +95,10 @@ class LoggingAssemblyTest {
                 assertFalse(response.body().contains("tenant-b"));assertFalse(response.body().contains(other.toString()));
                 assertEquals(401,get(server,null,"").statusCode());assertEquals(401,get(server,"x".repeat(64),"").statusCode());
                 assertFalse(response.body().contains(password));assertFalse(response.body().contains(token));
+                var empty=get(server,token,"&buildId="+UUID.randomUUID());
+                assertEquals(200,empty.statusCode());
+                var emptyPage=context.getBean(io.micronaut.json.JsonMapper.class).readValue(empty.body(),Map.class);
+                assertEquals(java.util.List.of(),emptyPage.get("events"));
                 try(var c=pool.getConnection();var s=c.createStatement()) {
                     assertThrows(SQLException.class,()->s.execute("DELETE FROM dev_logs.events"));
                     assertThrows(SQLException.class,()->s.executeQuery("SELECT * FROM dev_logs.producers"));
