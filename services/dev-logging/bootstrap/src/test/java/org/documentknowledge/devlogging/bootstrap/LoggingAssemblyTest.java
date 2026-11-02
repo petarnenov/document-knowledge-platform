@@ -252,6 +252,42 @@ class LoggingAssemblyTest {
         assertArrayEquals(bytes,Files.readAllBytes(path));
     }
 
+    @Test void privateManifestCommandCommitsWithDedicatedOwnerAndDispatchesWithoutStartingServer() throws Exception {
+        String adminPassword=UUID.randomUUID().toString().replace("-","")+UUID.randomUUID().toString().replace("-","");
+        sql("CREATE ROLE dkp_log_admin LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '"+adminPassword+"'");
+        try {
+            sql("GRANT CONNECT ON DATABASE dkp_dev_logs TO dkp_log_admin; GRANT USAGE ON SCHEMA dev_logs TO dkp_log_admin; "
+                +"GRANT SELECT,INSERT ON dev_logs.manifests TO dkp_log_admin; GRANT SELECT,UPDATE ON dev_logs.capacity TO dkp_log_admin");
+            var manifest=PrivateLogManifestTest.manifest(PrivateLogManifestTest.vocabulary());
+            UUID buildId=UUID.randomUUID();manifest.put("buildId",buildId.toString());
+            byte[] bytes=PrivateLogManifest.canonical(manifest);
+            String digest=org.documentknowledge.devlogging.domain.VerifiedLogManifest.sha256(bytes);
+            var args=new String[]{"install-manifest","--manifest",file("cli-manifest.json",new String(bytes,StandardCharsets.UTF_8)).toString(),
+                "--sha256",digest,"--jdbc-url",System.getenv("DKP_LOG_TEST_JDBC"),"--password-file",file("cli-password",adminPassword).toString()};
+            var output=new java.io.ByteArrayOutputStream();
+            try(var stream=new java.io.PrintStream(output,true,StandardCharsets.UTF_8)) {
+                assertEquals(0,PrivateManifestCommand.run(args,stream));
+                assertEquals(0,PrivateManifestCommand.run(args,stream));
+            }
+            String expected="{\"result\":\"INSTALLED\",\"manifestSha256\":\""+digest+"\",\"buildId\":\""+buildId+"\"}";
+            assertEquals(List.of(expected,expected),output.toString(StandardCharsets.UTF_8).lines().toList());
+            Application.main(args); // Returns from the private path, with no Micronaut server/configuration.
+            try(var c=owner.getConnection();var query=c.prepareStatement("SELECT manifest_bytes,build_id FROM dev_logs.manifests WHERE manifest_sha=?")) {
+                query.setString(1,digest);try(var rows=query.executeQuery()) {
+                    assertTrue(rows.next());assertArrayEquals(bytes,rows.getBytes(1));assertEquals(buildId,rows.getObject(2,UUID.class));assertFalse(rows.next());
+                }
+            }
+            sql("REVOKE INSERT ON dev_logs.manifests FROM dkp_log_admin");
+            manifest.put("buildId",UUID.randomUUID().toString());bytes=PrivateLogManifest.canonical(manifest);
+            args[2]=file("cli-denied-manifest.json",new String(bytes,StandardCharsets.UTF_8)).toString();
+            args[4]=org.documentknowledge.devlogging.domain.VerifiedLogManifest.sha256(bytes);
+            assertEquals("LOG_MANIFEST_INSTALL_UNAVAILABLE",PrivateManifestCommandTest.failure(args));
+            try(var c=owner.getConnection();var query=c.prepareStatement("SELECT count(*) FROM dev_logs.manifests WHERE manifest_sha=?")) {
+                query.setString(1,args[4]);try(var rows=query.executeQuery()){assertTrue(rows.next());assertEquals(0,rows.getLong(1));}
+            }
+        } finally {sql("DROP OWNED BY dkp_log_admin; DROP ROLE dkp_log_admin");}
+    }
+
     @Test void enabledWriterBootstrapUsesPrivateGrantsRealRolesAndObserverAcrossRestartAndRevocation() throws Exception {
         try(var input=getClass().getResourceAsStream("/db/logging-migration/V2__scoped_producer_credentials.sql")) {
             sql(new String(Objects.requireNonNull(input).readAllBytes(),StandardCharsets.UTF_8));

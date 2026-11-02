@@ -33,8 +33,12 @@ def bootstrapChangedClasses = serviceClasses.asFileTree.matching {
         '**/bootstrap/PrivateLogConfiguration.class', '**/persistence/JdbcReadRoleVerifier.class',
         '**/persistence/JdbcLogQueries.class'
 }
-['serviceCoverage', 'readBootstrapCoverage'].each { prefix ->
-    def selectedClasses = prefix == 'serviceCoverage' ? serviceClasses : bootstrapChangedClasses
+def manifestCommandClasses = serviceClasses.asFileTree.matching {
+    include '**/bootstrap/Application.class', '**/bootstrap/PrivateManifestCommand.class'
+}
+['serviceCoverage', 'readBootstrapCoverage', 'manifestCommandCoverage'].each { prefix ->
+    def selectedClasses = prefix == 'serviceCoverage' ? serviceClasses :
+        (prefix == 'manifestCommandCoverage' ? manifestCommandClasses : bootstrapChangedClasses)
     tasks.register("${prefix}Report", JacocoReport) {
         dependsOn coveredLayers.collect { it.tasks.named('test') }
         executionData.from coveredLayers.collect { it.layout.buildDirectory.file('jacoco/test.exec') }
