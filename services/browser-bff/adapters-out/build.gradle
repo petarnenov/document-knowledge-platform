@@ -24,3 +24,31 @@ tasks.register('transferLengthCoverageVerification', JacocoCoverageVerification)
     }
 }
 tasks.named('check') { dependsOn tasks.named('transferLengthCoverageVerification') }
+
+// #222: source ownership has independent line and branch floors.
+['StreamReadLifecycle', 'UploadReadAdmission', 'OwnedJdkTransport', 'JdkResponseSource', 'OutboundDeadline'].each { className ->
+    def selected = files(sourceSets.main.output.classesDirs.collect {
+        fileTree(it) { include "**/${className}.class"; include "**/${className}\$*.class" }
+    })
+    def report = tasks.register("${className}CoverageReport", JacocoReport) {
+        dependsOn tasks.named('test')
+        executionData layout.buildDirectory.file('jacoco/test.exec')
+        classDirectories.setFrom(selected)
+        sourceDirectories.setFrom(sourceSets.main.allJava.srcDirs)
+        reports { xml.required = true; html.required = true }
+    }
+    def verification = tasks.register("${className}CoverageVerification", JacocoCoverageVerification) {
+        dependsOn report
+        executionData layout.buildDirectory.file('jacoco/test.exec')
+        classDirectories.setFrom(selected)
+        violationRules { rule {
+            limit { counter = 'LINE'; minimum = 0.75 }
+            limit { counter = 'BRANCH'; minimum = 0.75 }
+        } }
+    }
+    tasks.named('check') { dependsOn verification }
+}
+
+// #222: startup-selected BFF profile, shared with the distribution and Linux entrypoint.
+def outboundProfile = ['-Djava.util.concurrent.ForkJoinPool.common.parallelism=2', '-Djava.util.concurrent.ForkJoinPool.common.maximumSpares=0', '-Djdk.httpclient.connectionPoolSize=32', '-Djdk.httpclient.bufsize=16384', '-Djdk.httpclient.redirects.retrylimit=5', '-Djdk.httpclient.disableRetryConnect=false', '-Djdk.httpclient.enableAllMethodRetry=false']
+tasks.withType(Test).configureEach { jvmArgs outboundProfile }

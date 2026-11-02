@@ -1,0 +1,1023 @@
+{
+  "observedDate": "2026-11-01",
+  "query": "https://api.osv.dev/v1/querybatch",
+  "disposition": "Untriaged package/version matches; fixedVersions are feed data, not an approved override or reachability assertion. Re-query and independently validate vendor advisories and compatibility before implementation.",
+  "advisories": [
+    {
+      "id": "GHSA-343h-94h5-c4wr",
+      "summary": "yawkat LZ4 Java: LZ4BlockInputStream with stopOnEmptyBlock=false recurses once per empty block, causing StackOverflowError",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-106449"],
+      "matchedCoordinates": ["at.yawk.lz4:lz4-java:1.11.2"],
+      "fixedVersionsReportedByFeed": ["1.11.4"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/security/advisories/GHSA-343h-94h5-c4wr"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-106449"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/commit/c8ebf97d504fb34434fda46fc761e8202570e0d8"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/releases/tag/v1.11.4"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-3pjw-73gf-8qr5",
+      "summary": "jackson-databind: @JsonIgnore on a Record property is bypassed with a PropertyNamingStrategy",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-59888"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.8", "2.21.4"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-3pjw-73gf-8qr5"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-59888"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/5974"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/baa2cdf5ca2b2717fbb88d91955d69d8651df3e4"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/c7c678360624da5bc7eed2152789fa522880db9d"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-5gvw-p9qm-jgwh",
+      "summary": "jackson-databind: @JsonView bypassed for @JsonUnwrapped container properties on deserialization",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-59889"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.9", "2.21.5", "2.22.1"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-5gvw-p9qm-jgwh"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-59889"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/6060"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6056"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/d627a8a86fcb062429282f79f3f256f181ed2c7b"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-5jmj-h7xm-6q6v",
+      "summary": "jackson-databind has case-insensitive deserialization bypasses per-property @JsonIgnoreProperties",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-54515"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.9", "2.21.5", "2.22.1", "3.1.4"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-5jmj-h7xm-6q6v"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-54515"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/5962"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/5964"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/0e1b0b211f7a53baa62ba2f4c9bd006c7bf4d5fa"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-72hv-8253-57qq",
+      "summary": "jackson-core: Number Length Constraint Bypass in Async Parser Leads to Potential DoS Condition",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-18401"],
+      "matchedCoordinates": ["com.fasterxml.jackson.core:jackson-core:2.15.4"],
+      "fixedVersionsReportedByFeed": ["2.18.6", "2.21.1"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/security/advisories/GHSA-72hv-8253-57qq"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-18401"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/pull/1555"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/commit/b0c428e6f993e1b5ece5c1c3cb2523e887cd52cf"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-7hhh-6rmp-j9qf",
+      "summary": "jackson-core: UTF8DataInputJsonParser._reportInvalidToken() missing maxErrorTokenLength limit -> unbounded StringBuilder growth (DoS)",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-89425"],
+      "matchedCoordinates": ["com.fasterxml.jackson.core:jackson-core:2.15.4"],
+      "fixedVersionsReportedByFeed": ["2.18.11", "2.21.7", "2.22.3"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/security/advisories/GHSA-7hhh-6rmp-j9qf"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-89425"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/pull/1698"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/commit/211cf2c5d91abbec38067f37efc1363cd4e88ee3"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/releases/tag/jackson-core-2.18.11"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/releases/tag/jackson-core-3.2.3"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-cxp5-3px4-pw24",
+      "summary": "jackson-databind quadratic forward-reference completion ",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-91777"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.11", "2.21.7", "2.22.3"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-cxp5-3px4-pw24"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-91777"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/6204"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6204"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/37ad9b81712cbb9fb62c2d2c1813593252a24b67"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.11"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.7"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.3"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.7"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.3"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-g3pr-3p32-fp23",
+      "summary": "Micrometer HTTP server instrumentations DoS",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-40984"],
+      "matchedCoordinates": ["io.micrometer:micrometer-core:1.9.9"],
+      "fixedVersionsReportedByFeed": ["1.15.12", "1.16.6"],
+      "references": [
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-40984"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/micrometer-metrics/micrometer/commit/36da131525228188a36779a28471a76c79213dd4"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:36839"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:37390"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:41951"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:50848"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:50849"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:54435"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:62260"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:66488"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:66545"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/security/cve/CVE-2026-40984"
+        },
+        {
+          "type": "WEB",
+          "url": "https://bugzilla.redhat.com/show_bug.cgi?id=2486716"
+        },
+        {
+          "type": "WEB",
+          "url": "https://security.access.redhat.com/data/csaf/v2/vex/2026/cve-2026-40984.json"
+        },
+        {
+          "type": "WEB",
+          "url": "https://spring.io/security/cve-2026-40984"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-gm45-99xc-r7wv",
+      "summary": "yawkat LZ4 Java: LZ4FrameInputStream reallocates block buffers for every frame, allowing CPU and GC amplification from small inputs",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-106450"],
+      "matchedCoordinates": ["at.yawk.lz4:lz4-java:1.11.2"],
+      "fixedVersionsReportedByFeed": ["1.11.4"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/security/advisories/GHSA-gm45-99xc-r7wv"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-106450"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/commit/2acc0ec1ead226145c62a817c18c8ed49233a283"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/releases/tag/v1.11.4"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-gwq9-9ffj-mvrv",
+      "summary": "snappy-java: Heap buffer overflow in Snappy.uncompress*Array typed-array methods",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-93451"],
+      "matchedCoordinates": ["org.xerial.snappy:snappy-java:1.1.10.7"],
+      "fixedVersionsReportedByFeed": ["1.1.10.9"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/security/advisories/GHSA-gwq9-9ffj-mvrv"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-93451"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/issues/729"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/pull/739"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/commit/943c6043a292568575e8347af4507d015e802c75"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/blob/v1.1.10.8/src/main/java/org/xerial/snappy/Snappy.java#L802"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/releases/tag/v1.1.10.9"
+        },
+        {
+          "type": "WEB",
+          "url": "https://www.vulncheck.com/advisories/snappy-java-through-1.1.10.8-buffer-overflow-via-typed-uncompress-methods"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-gx83-3vf8-gh7j",
+      "summary": "jackson-databind: Comparable missing from DefaultBaseTypeLimitingValidator's unsafe base types (incomplete PolymorphicTypeValidator denylist)",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-83557"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.10", "2.21.6", "2.22.2"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-gx83-3vf8-gh7j"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-83557"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/6156"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6155"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/eb3b7fc0f9c0d27f471550ac3316b17d1987388f"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.10"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.2"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.2"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-hgj6-7826-r7m5",
+      "summary": "jackson-databind: InetSocketAddress deserialization triggers eager DNS resolution (SSRF)",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-54514"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.8", "2.21.4", "3.1.4"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-hgj6-7826-r7m5"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-54514"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/5951"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/1f5a1037b1e9e05920e755cb35f198bcd46667e4"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-j3rv-43j4-c7qm",
+      "summary": "jackson-databind has a PolymorphicTypeValidator bypass via generic type parameters that allows arbitrary class instantiation",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-54512"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.8", "2.21.4", "3.1.4"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-j3rv-43j4-c7qm"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-54512"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/5988"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/434d6c511de7fdd9872f29157aafb6162d12d8d5"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-mcr4-qmvw-px4g",
+      "summary": "yawkat LZ4 Java: Native library extraction to a shared temporary directory is vulnerable to file replacement by another local user",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-106451"],
+      "matchedCoordinates": ["at.yawk.lz4:lz4-java:1.11.2"],
+      "fixedVersionsReportedByFeed": ["1.11.4"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/security/advisories/GHSA-mcr4-qmvw-px4g"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-106451"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/commit/7a48b7f6b8099b9dab6541e4ac2ee0979dc55aa3"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/releases/tag/v1.11.4"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-pq2g-wx69-c263",
+      "summary": "Netplex Json-smart Uncontrolled Recursion vulnerability",
+      "withdrawn": null,
+      "aliases": ["CVE-2024-57699"],
+      "matchedCoordinates": ["net.minidev:json-smart:2.5.0"],
+      "fixedVersionsReportedByFeed": ["2.5.2"],
+      "references": [
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-57699"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/netplex/json-smart-v2/issues/232"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/netplex/json-smart-v2/issues/233"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/netplex/json-smart-v2/issues/236"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/TurtleLiu/Vul_PoC/tree/main/CVE-2024-57699"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/netplex/json-smart-v2/releases/tag/2.5.2"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/cve-2023-1370"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-q233-g92q-qxp6",
+      "summary": "snappy-java: Unbounded memory allocation from attacker-declared uncompressed lengtha",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-108106"],
+      "matchedCoordinates": ["org.xerial.snappy:snappy-java:1.1.10.7"],
+      "fixedVersionsReportedByFeed": ["1.1.10.9"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/security/advisories/GHSA-q233-g92q-qxp6"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-108106"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/pull/739"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/commit/943c6043a292568575e8347af4507d015e802c75"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/blob/v1.1.10.8/src/main/java/org/xerial/snappy/Snappy.java#L517"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/releases/tag/v1.1.10.9"
+        },
+        {
+          "type": "WEB",
+          "url": "https://www.vulncheck.com/advisories/xerial-snappy-java-before-1.1.10.9-unbounded-memory-allocation-denial-of-service"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-q4xh-88c3-wmh7",
+      "summary": "jackson-databind: Duration XMLGregorianCalendar Unbounded Number Parse DoS",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-68497"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.10", "2.21.6", "2.22.2"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-q4xh-88c3-wmh7"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-68497"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6127"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/a99b7e74c8928f43f6975773a8c862c8316178bd"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.10"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.2"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.2"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-r7wm-3cxj-wff9",
+      "summary": "jackson-core: Async parser maxNumberLength bypass via chunked digit accumulation (incomplete fix for GHSA-72hv-8253-57qq)",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-68494"],
+      "matchedCoordinates": ["com.fasterxml.jackson.core:jackson-core:2.15.4"],
+      "fixedVersionsReportedByFeed": ["2.18.8", "2.21.4"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/security/advisories/GHSA-r7wm-3cxj-wff9"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-68494"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/pull/1611"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/commit/050b429804dce2a7e08f0be1b0b4c3d040fdb9cd"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/commit/4cdd529749da396cc7edf6d4a2aad41d47902641"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/commit/c5941e5aae7fd5aeac55d66933cfb82b9aabeef8"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-rmj7-2vxq-3g9f",
+      "summary": "jackson-databind has an array subtype allowlist bypass in BasicPolymorphicTypeValidator (allowIfSubTypeIsArray)",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-54513"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.8", "2.21.4", "3.1.4"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-rmj7-2vxq-3g9f"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-54513"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/5983"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/5981"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/5984"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/24529da29fdf46ff94ca38de9ebf31cd188f5e8e"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/01d1692c8d0ed03e51a0e3c4f8a9e6908e4931e5"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:50849"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:54435"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:54622"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:62260"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:66488"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:66545"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/security/cve/CVE-2026-54513"
+        },
+        {
+          "type": "WEB",
+          "url": "https://bugzilla.redhat.com/show_bug.cgi?id=2492010"
+        },
+        {
+          "type": "WEB",
+          "url": "https://security.access.redhat.com/data/csaf/v2/vex/2026/cve-2026-54513.json"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:36839"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:40895"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:41951"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:43218"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:43400"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:44061"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:44062"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:44063"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:44064"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:44065"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:44066"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:44271"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:48095"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:48151"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:50846"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:50847"
+        },
+        {
+          "type": "WEB",
+          "url": "https://access.redhat.com/errata/RHSA-2026:50848"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-vvgp-rfg2-7rr6",
+      "summary": "jackson-databind: Incomplete fix for CVE-2026-54514: eager DNS resolution (SSRF) still present in InetAddress deserialization",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-77310"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.9", "2.21.5", "2.22.1"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-vvgp-rfg2-7rr6"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-77310"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6058"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/2fc7bd9057dd051d7dea0e5fcad89822d0fa5ebd"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.9"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.5"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.1"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.5"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.1"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-wjgm-6hv5-3cvf",
+      "summary": "jackson-databind: Path Deserialization Missing Scheme Allowlist for FileSystemProvider Resolution",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-19032"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.10", "2.21.6", "2.22.2"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-wjgm-6hv5-3cvf"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-19032"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6129"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/cc6756b61ed90b6b9227f670e0408d5d9bd48551"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/ce26eda3481cd796f76ba4c53ffe1da23b53f166"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/d94bb632becfe0ba96926b9909ab06d1f87aad6d"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.10"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.2"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.2"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-wv8q-qhhj-9h54",
+      "summary": "jackson-databind retains every unknown raw type ID ",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-91776"],
+      "matchedCoordinates": [
+        "com.fasterxml.jackson.core:jackson-databind:2.15.4"
+      ],
+      "fixedVersionsReportedByFeed": ["2.18.11", "2.21.7", "2.22.3"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-wv8q-qhhj-9h54"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-91776"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/6203"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/2870d1d6dc1b7e1c07ee11dd5b04ab71cddbb577"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.11"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.7"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.3"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.7"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.3"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-xqrx-qh46-34m7",
+      "summary": "snappy-java: JVM crash from unchecked ranges in Snappy.arrayCopy and SnappyOutputStream.rawWrite",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-116590"],
+      "matchedCoordinates": ["org.xerial.snappy:snappy-java:1.1.10.7"],
+      "fixedVersionsReportedByFeed": ["1.1.10.9"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/security/advisories/GHSA-xqrx-qh46-34m7"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-116590"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/pull/741"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/commit/2d7ca71c087a98f1219fb2d51909f3891c3ce77b"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/releases/tag/v1.1.10.9"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-xxph-c9ww-hj94",
+      "summary": "Google Guava: CompactHashMap/CompactHashSet/MapMakerInternalMap deserialization triggers uncontrolled memory allocation",
+      "withdrawn": null,
+      "aliases": ["CVE-2026-102554"],
+      "matchedCoordinates": ["com.google.guava:guava:33.4.8-jre"],
+      "fixedVersionsReportedByFeed": ["33.7.2"],
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/google/guava/security/advisories/GHSA-xxph-c9ww-hj94"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-102554"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/google/guava/commit/b931fe9d6d5cf00bc55714ad3308d086f71850fe"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/google/guava/releases/tag/v33.7.2"
+        }
+      ]
+    }
+  ]
+}

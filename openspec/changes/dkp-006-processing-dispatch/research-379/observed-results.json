@@ -1,0 +1,292 @@
+{
+  "status": "RESEARCH_COMPLETED_CANDIDATES_BLOCKED",
+  "javaVersion": "openjdk 25.0.5 2026-10-20 LTS",
+  "nodeVersion": "v24.22.1",
+  "sdkConfiguration": "PASS_NO_CONNECTION_STARTED",
+  "vectorCount": 45,
+  "javaPassed": 38,
+  "javaFailures": [
+    "duplicate-null",
+    "duplicate-escaped-null",
+    "lone-high-value",
+    "lone-low-value",
+    "lone-high-key",
+    "leading-zero",
+    "invalid-utf8"
+  ],
+  "javascriptPositivePassed": 31,
+  "javascriptPositiveFailures": [],
+  "javascriptRawNegativeDisposition": "Raw strict parsing is not supplied by value-only reference; no negative pass claimed.",
+  "results": [
+    {
+      "id": "empty-object",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "array-order",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "recursive-sort",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "utf16-sort",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "no-normalization",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "large-integer-is-string",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "escape-control",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-0000000000000000",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-8000000000000000",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-0000000000000001",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-8000000000000001",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-7fefffffffffffff",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-ffefffffffffffff",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-4340000000000000",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-c340000000000000",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-4430000000000000",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-7fffffffffffffff",
+      "expected": "REJECT",
+      "java": "PASS",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "rfc-b-7ff0000000000000",
+      "expected": "REJECT",
+      "java": "PASS",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "rfc-b-44b52d02c7e14af5",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-44b52d02c7e14af6",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-44b52d02c7e14af7",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-444b1ae4d6e2ef4e",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-444b1ae4d6e2ef4f",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-444b1ae4d6e2ef50",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-3eb0c6f7a0b5ed8c",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-3eb0c6f7a0b5ed8d",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-41b3de4355555553",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-41b3de4355555554",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-41b3de4355555555",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-41b3de4355555556",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-41b3de4355555557",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-becbf647612f3696",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "rfc-b-43143ff3c1cb0959",
+      "expected": "CANONICAL",
+      "java": "PASS",
+      "reference": "PASS"
+    },
+    {
+      "id": "duplicate",
+      "expected": "REJECT",
+      "java": "PASS",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "duplicate-null",
+      "expected": "REJECT",
+      "java": "FAIL",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "duplicate-escaped-null",
+      "expected": "REJECT",
+      "java": "FAIL",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "lone-high-value",
+      "expected": "REJECT",
+      "java": "FAIL",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "lone-low-value",
+      "expected": "REJECT",
+      "java": "FAIL",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "lone-high-key",
+      "expected": "REJECT",
+      "java": "FAIL",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "number-overflow",
+      "expected": "REJECT",
+      "java": "PASS",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "nan",
+      "expected": "REJECT",
+      "java": "PASS",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "leading-zero",
+      "expected": "REJECT",
+      "java": "FAIL",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "trailing-comma",
+      "expected": "REJECT",
+      "java": "PASS",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "trailing-data",
+      "expected": "REJECT",
+      "java": "PASS",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    },
+    {
+      "id": "invalid-utf8",
+      "expected": "REJECT",
+      "java": "FAIL",
+      "reference": "RAW_INPUT_VALIDATION_REQUIRED"
+    }
+  ]
+}

@@ -122,3 +122,19 @@ A new hold hitting unresolved fence returns existing503 UNAVAILABLE without muta
 This can indefinitely block NEW hold placement and admission after uncertain deletion. That availability cost is explicit and pending89/90 development-policy acceptance; it is not legal/production signoff. Existing hold201 minimal receipt and authorized same-command replay remain unchanged. The narrow content streaming post-check race does not authorize destructive hold races.
 
 Compatibility correction restores existing dmAppendVersion/bffAppendVersion operation IDs and AppendVersion request DTO. Existing append path/method/request/success are stable; new typed upload/receipt failures and429 are an explicit additive failure-contract proposal. Do not claim the entire operation is unchanged.
+
+## Proposed bounded development failure observation — #433 / #384
+
+Foundation41363536700 at adeb884 failed the final provider acceptance with only `DM_BOUNDARY/UNDETERMINED`. The original unchanged local three-phase command subsequently passed; its different first local private-control timeout and all original CI evidence remain retained. Neither result establishes the original CI cause. This amendment proposes one bounded diagnostic CI publication after independent review and pinned local verification, without a production correction or acceptance waiver.
+
+Keep the existing five-field failure receipt on stderr unchanged. Only when the original entrypoint fails at `AcceptanceStage.DM_BOUNDARY`, emit one separate stdout line prefixed `DKP305_DM_BOUNDARY_DETAIL ` with this versioned closed shape:
+
+```json
+{"schemaVersion":1,"issue":305,"stage":"DM_BOUNDARY","cause":"UNDETERMINED","parentFailure":null,"browserLastObservation":null}
+```
+
+`parentFailure`, when available, is exactly the existing private v1 record `{schemaVersion, phase, errorClass}`: the existing `DM_DIAGNOSTIC_PHASES` whitelist and `TIMEOUT/VALIDATION/IO/ERROR` categories. `browserLastObservation`, when available, is exactly the existing closed browser v1 record `{schemaVersion, phase, errorClass, expectedStatus, actualStatus}` with the unchanged `DIAGNOSTIC_PHASES` and `DIAGNOSTIC_ERRORS` whitelists and integer HTTP100–599 or null statuses. No phase/category is added by this amendment. A retained browser observation may precede the parent failure; it is not a causal conclusion. Missing, unreadable or invalid evidence remains null; the cause remains `UNDETERMINED`.
+
+Read only `dm-boundary-diagnostic.json` and `browser-diagnostic.json` from the existing confined task-owned private acceptance directory after the original cleanup/finally path. Pin the directory descriptor, reject symlink/nonregular/foreign-owner or group/other-readable files, and read at most8192 bytes per file. Reject malformed UTF-8/JSON, duplicate keys, extra fields, invalid versions/enums/types/statuses and oversized records. Reconstruct output solely from the validated closed fields. Never print exception text, paths, commands, URLs, credentials, headers, bodies, synthetic object identifiers, SQL rows, arbitrary file content or raw provider/browser logs. Diagnostic read/write/sink failures must preserve the original failure receipt, exit status and cleanup/error precedence. No extra provider operation, polling, warmup, retry or business command is introduced; success and other failure stages retain their existing output.
+
+Verification includes meaningful hostile-record, bounded-read, symlink/ownership/permission/type, missing/partial observation, non-DM/success-output and original-error/sink-failure controls; full affected pinned Python checks and separate existing source/branch floors remain mandatory. Independently audit the exact final diff and applicable source bindings before one diagnostic publication. A green diagnostic CI run is not proof of causality; original failures and full-project/deferred acceptance remain open.

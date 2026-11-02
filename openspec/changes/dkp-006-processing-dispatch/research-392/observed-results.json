@@ -1,0 +1,84 @@
+{
+  "issue": 392,
+  "status": "RESEARCH_COMPLETED_CANDIDATE_NOT_SELECTED",
+  "observedDate": "2026-11-01",
+  "jdk": "25.0.5+8",
+  "gradle": "9.8.2",
+  "node": "v24.22.1",
+  "hostSystem": "Darwin x86_64",
+  "combinedArtifacts": 54,
+  "productionArtifacts": 43,
+  "originalAdvisoriesTriaged": 24,
+  "originalAffectedCoordinates": 7,
+  "candidateGraphOsvSnapshotMatches": 0,
+  "localBehaviorChecks": 7,
+  "localBehaviorResult": "PASS_NO_PROVIDER_CONNECTION",
+  "originalGraphSecurityRegression": "RED: ignored record input populated despite ignore annotation and naming strategy",
+  "bidirectionalPayloadFixtureRuns": 4,
+  "payloadCompatibilityResult": "PASS_FINITE_FIXTURE_ONLY",
+  "sdkKafkaOptions": "PASS_UNCHANGED_BUDGETS_NO_CONNECTION",
+  "canonicalizerJavaPassed": 38,
+  "canonicalizerVectorCount": 45,
+  "canonicalizerSelection": "BLOCKED_SEVEN_RAW_INPUT_FAILURES_REMAIN",
+  "probeCoverage": {
+    "INSTRUCTION": {
+      "covered": 415,
+      "missed": 27
+    },
+    "BRANCH": {
+      "covered": 6,
+      "missed": 0
+    },
+    "LINE": {
+      "covered": 84,
+      "missed": 2
+    },
+    "COMPLEXITY": {
+      "covered": 16,
+      "missed": 5
+    },
+    "METHOD": {
+      "covered": 13,
+      "missed": 5
+    },
+    "CLASS": {
+      "covered": 5,
+      "missed": 0
+    }
+  },
+  "behaviorSourceSha256": "49bbf8dc31ebbd3904bb569d02f1e6580ae9615fb0df4998e8cd466903f232f5",
+  "payloadSourceSha256": "488cebb8399d6be585e2e02a64863afcf13a98a1370955564e92edd18e49e13a",
+  "executedClassHashes": {
+    "ConvergenceProbe$Hidden.class": "d14c3b94df6393d3002524299586692d7c565bb40207354332715ae810d9482e",
+    "ConvergenceProbe$Payload.class": "99744b747a7d76b97a28e114701d868b15d34b13dd2233927664ae646b25081d",
+    "ConvergenceProbe.class": "b35ed476079608775b5c69873551a048f9f08e48b65026d9713ba31ee8ab1d01",
+    "PayloadCompatibilityProbe$Value.class": "8a269826a56e3c30135b2b8ee405c787c0556cadef6a544692052ac2a570b9d5",
+    "PayloadCompatibilityProbe.class": "5176b6e3312c636cc3efb4b13cb27a9b68d9e1a68441102f054a170943ebdcad"
+  },
+  "evidenceHashes": {
+    "candidate-exact-behavior.log": "7843fbbee93582aff141acdd65337cb915a9763d8bbad7921efad19a6e39351c",
+    "baseline-exact-behavior.log": "b330bd72251f92b4bcf88577b83cc3f059c994aad74ef4a4d41e2cc0d63bae50",
+    "payload-compatibility.json": "9297786e4da19352636e33e1308ce02c32da34e4ff08b26e1b715d305a82c98f",
+    "candidate-osv-query.json": "aaa4cf5a97a8acff32941465b7b2afe235f81000459f20369b9bc24fbfcfb077",
+    "candidate-osv-response.json": "d8d937d147f3ab2d581e4cd7c267cc1ea92d0c7780cdcf32f57294812ff5e4f5",
+    "sdk-kafka-config.log": "55e3931d606df9479f07ac17ff9b2373e2338d6d1d227494875bac3b2b3b856c",
+    "canonicalization.log": "eb8a942a43a75245166a6aa788fcd8cc313cdb412b68613789140f93445da8eb",
+    "convergence-probe-coverage.xml": "ea3b7f1e7d7e6803a271a62bf85f5244a79f631e629b2a8fadd87cd2067caf92"
+  },
+  "retainedWarnings": [
+    "JDK native-access future restrictions for compression libraries",
+    "Protobuf Unsafe future-removal warning"
+  ],
+  "noProductionJvmFlagsAdded": true,
+  "noImageLayersPulled": true,
+  "noProvidersStarted": true,
+  "independentReview": "PENDING",
+  "remaining": [
+    "Actual application/BOM/locks convergence",
+    "Maintained strict canonicalizer choice",
+    "Image provenance/signatures/SBOM/license/security",
+    "JDK25 supported-platform native and SDK/server/PostgreSQL18.6 interoperability",
+    "Full approved BP05/prerequisite/fault/history/E2E/CID/production gates"
+  ],
+  "temporalTestingScope": "TestEnvironmentOptions construction and exact configured flags only; no environment/server created"
+}

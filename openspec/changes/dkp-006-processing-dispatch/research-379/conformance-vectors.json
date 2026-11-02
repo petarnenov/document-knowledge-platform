@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    "https://www.rfc-editor.org/rfc/rfc8785#section-3.2",
+    "https://www.rfc-editor.org/rfc/rfc8785#appendix-B"
+  ],
+  "limits": "Finite shared seed corpus; not exhaustive binary64 or parser-fuzz certification. Raw duplicates/invalid UTF8 must be rejected before a value-only JavaScript canonicalizer.",
+  "vectors": [
+    {
+      "id": "empty-object",
+      "expected": "CANONICAL",
+      "json": " {} ",
+      "canonical": "{}",
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    },
+    {
+      "id": "array-order",
+      "expected": "CANONICAL",
+      "json": "[3,2,1]",
+      "canonical": "[3,2,1]",
+      "sha256": "30c8681f9b840aceee56b737f3b126ae67ec4eb71d2881db831f86014fba016d"
+    },
+    {
+      "id": "recursive-sort",
+      "expected": "CANONICAL",
+      "json": "{\"z\":[{\"b\":2,\"a\":1}],\"a\":true}",
+      "canonical": "{\"a\":true,\"z\":[{\"a\":1,\"b\":2}]}",
+      "sha256": "4f1cc1676b4591a84b76768886f93f659ac89c3c0ff933f4a0dccb6b2ceda86b"
+    },
+    {
+      "id": "utf16-sort",
+      "expected": "CANONICAL",
+      "json": "{\"\\ue000\":1,\"\\ud83d\\ude00\":2}",
+      "canonical": "{\"\ud83d\ude00\":2,\"\ue000\":1}",
+      "sha256": "28c95d1bbb2209223307e62f489020e8f9e0cfa16adf2daf6d88127a1e8dd22a"
+    },
+    {
+      "id": "no-normalization",
+      "expected": "CANONICAL",
+      "json": "{\"e\\u0301\":1,\"\\u00e9\":2}",
+      "canonical": "{\"e\u0301\":1,\"\u00e9\":2}",
+      "sha256": "c2635d7e15e25b90abc8b3543d92f0ffcee0644372d8b662a0775f88d43278e5"
+    },
+    {
+      "id": "large-integer-is-string",
+      "expected": "CANONICAL",
+      "json": "{\"n\":\"9223372036854775807\"}",
+      "canonical": "{\"n\":\"9223372036854775807\"}",
+      "sha256": "7a2da9858d0e2aec6392850a4eddc6e72261fe80f6fadfc79fffff71cedc3192"
+    },
+    {
+      "id": "escape-control",
+      "expected": "CANONICAL",
+      "json": "{\"x\":\"\\u000f\\n\\t\\\\\\\"/\"}",
+      "canonical": "{\"x\":\"\\u000f\\n\\t\\\\\\\"/\"}",
+      "sha256": "855a01a3343cc643f1c15a35cdaa6ade432fcd26084475ad36bfbf1d8fd39f09"
+    },
+    {
+      "id": "rfc-b-0000000000000000",
+      "expected": "CANONICAL",
+      "ieee754": "0000000000000000",
+      "canonical": "{\"n\":0}",
+      "sha256": "f3013f933b9fb80ab6d995e7ad9da36f683837ba1d81e950c943d40111eac2f0"
+    },
+    {
+      "id": "rfc-b-8000000000000000",
+      "expected": "CANONICAL",
+      "ieee754": "8000000000000000",
+      "canonical": "{\"n\":0}",
+      "sha256": "f3013f933b9fb80ab6d995e7ad9da36f683837ba1d81e950c943d40111eac2f0"
+    },
+    {
+      "id": "rfc-b-0000000000000001",
+      "expected": "CANONICAL",
+      "ieee754": "0000000000000001",
+      "canonical": "{\"n\":5e-324}",
+      "sha256": "cf4df7d2834198d284947133d3ec7a66f3d94e8d447cac6a0783324211b36d43"
+    },
+    {
+      "id": "rfc-b-8000000000000001",
+      "expected": "CANONICAL",
+      "ieee754": "8000000000000001",
+      "canonical": "{\"n\":-5e-324}",
+      "sha256": "db93947692a55593072b514da386faf1a8c7dc6c49f2d037ac7d9c0f89d5956a"
+    },
+    {
+      "id": "rfc-b-7fefffffffffffff",
+      "expected": "CANONICAL",
+      "ieee754": "7fefffffffffffff",
+      "canonical": "{\"n\":1.7976931348623157e+308}",
+      "sha256": "9599e0f9672bfa5d654b432fa5f9b7ee04f35c607b3a3ff01ce97b070f8f2648"
+    },
+    {
+      "id": "rfc-b-ffefffffffffffff",
+      "expected": "CANONICAL",
+      "ieee754": "ffefffffffffffff",
+      "canonical": "{\"n\":-1.7976931348623157e+308}",
+      "sha256": "f1ab4b1ad58d11c148ebb64cc86506290ab42b198162ffd4e1d2f1772d8c3a4b"
+    },
+    {
+      "id": "rfc-b-4340000000000000",
+      "expected": "CANONICAL",
+      "ieee754": "4340000000000000",
+      "canonical": "{\"n\":9007199254740992}",
+      "sha256": "66c87d9cb3014e05a11baa97df62282d89d425f22ee15816577c84534e2ef1bb"
+    },
+    {
+      "id": "rfc-b-c340000000000000",
+      "expected": "CANONICAL",
+      "ieee754": "c340000000000000",
+      "canonical": "{\"n\":-9007199254740992}",
+      "sha256": "b05a958438727696a33ea9f819b69ca4ea39b5ee89f0f80a61d5f813875f9734"
+    },
+    {
+      "id": "rfc-b-4430000000000000",
+      "expected": "CANONICAL",
+      "ieee754": "4430000000000000",
+      "canonical": "{\"n\":295147905179352830000}",
+      "sha256": "325cc4ff312eeb1384e130b9072cebd2eca9ad95e621fb017b1ffcc161ebf477"
+    },
+    {
+      "id": "rfc-b-7fffffffffffffff",
+      "expected": "REJECT",
+      "ieee754": "7fffffffffffffff"
+    },
+    {
+      "id": "rfc-b-7ff0000000000000",
+      "expected": "REJECT",
+      "ieee754": "7ff0000000000000"
+    },
+    {
+      "id": "rfc-b-44b52d02c7e14af5",
+      "expected": "CANONICAL",
+      "ieee754": "44b52d02c7e14af5",
+      "canonical": "{\"n\":9.999999999999997e+22}",
+      "sha256": "491b1f5976bc87bb471c8095f795c7d51065b16440ccd6dec5c16a28db4f93dc"
+    },
+    {
+      "id": "rfc-b-44b52d02c7e14af6",
+      "expected": "CANONICAL",
+      "ieee754": "44b52d02c7e14af6",
+      "canonical": "{\"n\":1e+23}",
+      "sha256": "f8acd93b4d43262e8d22f393b3fc172b2608154644f68bd2295239d62451edef"
+    },
+    {
+      "id": "rfc-b-44b52d02c7e14af7",
+      "expected": "CANONICAL",
+      "ieee754": "44b52d02c7e14af7",
+      "canonical": "{\"n\":1.0000000000000001e+23}",
+      "sha256": "7dbb03dffbdbc82effa56050f04ba388db0e16d0084dbe69012440341b65e5a8"
+    },
+    {
+      "id": "rfc-b-444b1ae4d6e2ef4e",
+      "expected": "CANONICAL",
+      "ieee754": "444b1ae4d6e2ef4e",
+      "canonical": "{\"n\":999999999999999700000}",
+      "sha256": "0a3c0de48065cb644319c57ce0af93c2ef88d1f8d9f228be26bb4831391d0021"
+    },
+    {
+      "id": "rfc-b-444b1ae4d6e2ef4f",
+      "expected": "CANONICAL",
+      "ieee754": "444b1ae4d6e2ef4f",
+      "canonical": "{\"n\":999999999999999900000}",
+      "sha256": "8e51b9a1b33e4815dbf02451cf409338b6c2e4eaa3399f5fa0b72d162e48dd6e"
+    },
+    {
+      "id": "rfc-b-444b1ae4d6e2ef50",
+      "expected": "CANONICAL",
+      "ieee754": "444b1ae4d6e2ef50",
+      "canonical": "{\"n\":1e+21}",
+      "sha256": "f1ee2b60ee95a3170fdc07a577e5f3514ced26867443d69da265acadead81007"
+    },
+    {
+      "id": "rfc-b-3eb0c6f7a0b5ed8c",
+      "expected": "CANONICAL",
+      "ieee754": "3eb0c6f7a0b5ed8c",
+      "canonical": "{\"n\":9.999999999999997e-7}",
+      "sha256": "ea0486d765f0e78e3cfd35b0da15c67c6c5f7aefde4dd5bc17ad8b8e95880a1f"
+    },
+    {
+      "id": "rfc-b-3eb0c6f7a0b5ed8d",
+      "expected": "CANONICAL",
+      "ieee754": "3eb0c6f7a0b5ed8d",
+      "canonical": "{\"n\":0.000001}",
+      "sha256": "28343867a0be00aee19f81aa90cfd6c646878b9303fa15410d16bfd3f8894578"
+    },
+    {
+      "id": "rfc-b-41b3de4355555553",
+      "expected": "CANONICAL",
+      "ieee754": "41b3de4355555553",
+      "canonical": "{\"n\":333333333.3333332}",
+      "sha256": "1e2e5158c5181c3fdce46fb33314ecd3d0d65aa634f728cbf0263dccef9da48a"
+    },
+    {
+      "id": "rfc-b-41b3de4355555554",
+      "expected": "CANONICAL",
+      "ieee754": "41b3de4355555554",
+      "canonical": "{\"n\":333333333.33333325}",
+      "sha256": "ac4d04fb830b0f5f3c69cbabe1f395fa6461c293693aaac69e31a68d442aefd7"
+    },
+    {
+      "id": "rfc-b-41b3de4355555555",
+      "expected": "CANONICAL",
+      "ieee754": "41b3de4355555555",
+      "canonical": "{\"n\":333333333.3333333}",
+      "sha256": "8e1aa496328ac7acbd045b34464ae11d72d8b525c355b85099382ffcb499143b"
+    },
+    {
+      "id": "rfc-b-41b3de4355555556",
+      "expected": "CANONICAL",
+      "ieee754": "41b3de4355555556",
+      "canonical": "{\"n\":333333333.3333334}",
+      "sha256": "3c8fb0b18feffd17c168b36aef586b8984d28808e4ef73f3e3b467085c079972"
+    },
+    {
+      "id": "rfc-b-41b3de4355555557",
+      "expected": "CANONICAL",
+      "ieee754": "41b3de4355555557",
+      "canonical": "{\"n\":333333333.33333343}",
+      "sha256": "3bec5b8b8e554841ebdf6460208c624df5fc1674a82a8bf97e0577dbb209cae7"
+    },
+    {
+      "id": "rfc-b-becbf647612f3696",
+      "expected": "CANONICAL",
+      "ieee754": "becbf647612f3696",
+      "canonical": "{\"n\":-0.0000033333333333333333}",
+      "sha256": "aae32db884750318e6c338f99586e0d862246d45ad53aafbd7e83dcdd037f8b3"
+    },
+    {
+      "id": "rfc-b-43143ff3c1cb0959",
+      "expected": "CANONICAL",
+      "ieee754": "43143ff3c1cb0959",
+      "canonical": "{\"n\":1424953923781206.2}",
+      "sha256": "c620a6071bc4870e99e38aeff2dbb0ae03cb7d525d60f0cad1b1abcb5bfafe05"
+    },
+    {
+      "id": "duplicate",
+      "expected": "REJECT",
+      "json": "{\"a\":1,\"a\":2}"
+    },
+    {
+      "id": "duplicate-null",
+      "expected": "REJECT",
+      "json": "{\"a\":null,\"a\":2}"
+    },
+    {
+      "id": "duplicate-escaped-null",
+      "expected": "REJECT",
+      "json": "{\"a\":null,\"\\u0061\":2}"
+    },
+    {
+      "id": "lone-high-value",
+      "expected": "REJECT",
+      "json": "{\"x\":\"\\ud800\"}"
+    },
+    {
+      "id": "lone-low-value",
+      "expected": "REJECT",
+      "json": "{\"x\":\"\\udc00\"}"
+    },
+    {
+      "id": "lone-high-key",
+      "expected": "REJECT",
+      "json": "{\"\\ud800\":1}"
+    },
+    {
+      "id": "number-overflow",
+      "expected": "REJECT",
+      "json": "{\"n\":1e999}"
+    },
+    {
+      "id": "nan",
+      "expected": "REJECT",
+      "json": "{\"n\":NaN}"
+    },
+    {
+      "id": "leading-zero",
+      "expected": "REJECT",
+      "json": "{\"n\":01}"
+    },
+    {
+      "id": "trailing-comma",
+      "expected": "REJECT",
+      "json": "{\"a\":1,}"
+    },
+    {
+      "id": "trailing-data",
+      "expected": "REJECT",
+      "json": "{} {}"
+    },
+    {
+      "id": "invalid-utf8",
+      "expected": "REJECT",
+      "utf8Bytes": [123, 34, 120, 34, 58, 34, 195, 40, 34, 125]
+    }
+  ]
+}

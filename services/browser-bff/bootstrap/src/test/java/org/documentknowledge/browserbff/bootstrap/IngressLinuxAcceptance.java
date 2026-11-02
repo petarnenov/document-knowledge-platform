@@ -5,7 +5,10 @@ public final class IngressLinuxAcceptance {
     @FunctionalInterface interface Case { void run() throws Exception; }
     private static int passed;
     static void run(String name, Case body)throws Exception {
-        body.run();passed++;System.out.println("{\"case\":\""+name+"\",\"result\":\"PASS\"}");
+        var fixtureLoops = LinuxFixtureEventLoops.observe();
+        try (fixtureLoops) { body.run(); }
+        System.out.println("{\"fixture\":\""+name+"\",\"terminatedEventLoopGroups\":"+fixtureLoops.size()+"}");
+        passed++;System.out.println("{\"case\":\""+name+"\",\"result\":\"PASS\"}");
     }
     static String json(java.util.Map<String,Long> values) {
         return values.entrySet().stream().sorted(java.util.Map.Entry.comparingByKey())
@@ -13,6 +16,7 @@ public final class IngressLinuxAcceptance {
     }
     public static void main(String[] args)throws Exception {
         if(args.length!=0||!System.getProperty("os.name").equals("Linux"))throw new IllegalArgumentException("EXPLICIT_LINUX_PROFILE_REQUIRED");
+        run("bridge-actual-arena-copy-and-consumption", BridgeBufferCopyAcceptance::bothProfiles);
         var config=new BoundedIngressPolicyTest();var channel=new IngressChannelPolicyTest();var backpressure=new IngressBackpressureTest();
         run("profile-tcp-and-tls-config",config::exactProfileAndPlainTcpListenersAreAccepted);
         run("profile-negative-config",config::everyMemoryProtocolAndDecompressionMismatchFailsClosed);
@@ -51,7 +55,25 @@ public final class IngressLinuxAcceptance {
                 java.nio.file.Files.delete(readback.temp);
             }
         });
-        if(passed!=26)throw new IllegalStateException("INCOMPLETE_PROFILE");
-        System.out.println("{\"profile\":\"dkp338-linux-ingress-component\",\"passed\":26,\"failed\":0,\"skipped\":0}");
+        var admission = new IngressAdmissionIntegrationTest();
+        run("aggregate-preauth-connection-cap-and-reuse", admission::preAuthConnectionsAreBoundedAndConfirmedTeardownReusesCapacity);
+        run("aggregate-real-pipelined-request-cap", admission::retainedRequestCapacityCountsRealPipelinedBodiesAcrossConnections);
+        run("aggregate-incomplete-body-disconnect", admission::incompleteBodyDisconnectSettlesTheActualFrameworkOwner);
+        run("aggregate-unproved-teardown-retains", admission::missingOrFailedOrderedDiscardNeverFreesUnprovedCapacity);
+        var settlement = new PinnedIngressSettlementTest();
+        run("aggregate-offloop-forced-delay-cleanup", settlement::queuedOffLoopAndForcedDelaySplitCleanupNeedsTheOrderedBarrier);
+        run("aggregate-queued-discard-failure-retains", settlement::thrownQueuedDiscardCannotReleaseTheStillRetainedRoot);
+        var outbound = new OutboundWriteIntegrationTest();
+        run("outbound-real-slow-reader-and-disconnect", outbound::realSlowReaderRetainsFiniteWritesAndDisconnectActuallySettles);
+        run("outbound-large-closed-metadata", outbound::actualLargeClosedMetadataResponseExceedsIncomingChunkWithoutTruncation);
+        run("outbound-mutated-watermark-rejected", outbound::changedActualWriteWatermarkFailsClosedBeforeDispatch);
+        var delivery = new DownloadBridgeIntegrationTest();
+        run("download-production-exact-large-and-settlement", delivery::authenticatedProductionWriterDeliversExactLargeBytesAndSettlesAllOwners);
+        run("download-production-slow-reader-abort", delivery::slowAuthenticatedReaderBackpressuresAndAbortSettlesActualOwners);
+        run("download-disconnect-before-upstream-return", delivery::disconnectBeforeUpstreamHeadersRetainsReservationUntilLateSourceCloses);
+        run("download-current-session-revoked-after-dispatch", delivery::sessionRevokedDuringUpstreamDispatchDeniesContentAndClosesAttachedSource);
+        run("download-production-shared-capacity-refusal-and-reuse", delivery::realRouteRefusesFullSharedProducerBudgetBeforeUpstreamAndRecovers);
+        if(passed!=41)throw new IllegalStateException("INCOMPLETE_PROFILE");
+        System.out.println("{\"profile\":\"dkp338-linux-ingress-component\",\"passed\":41,\"failed\":0,\"skipped\":0}");
     }
 }

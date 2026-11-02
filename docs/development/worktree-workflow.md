@@ -13,6 +13,8 @@ Every change must include an approved OpenSpec change when it affects runtime be
 
 ## Mandatory GitHub issue lifecycle
 
+Owner delivery-order clarification (2026-11-01), tracked in #5: the immediate priority is verified BP-03 closure. Thereafter keep one active delivery task, completing implementation, local CI-environment verification, independent review, PR/CI, authorized dev integration and verified issue closure with handoff/compaction before starting the next task. Bring the frontend up to currently implemented backend capabilities before starting a subsequent backend package; preserve existing frontend work and supply verified manual-test links. Independent review within that task remains mandatory. Coordinate existing external work; this instruction does not authorize interrupting another session or changing its stack.
+
 Owner requirement adopted on 2026-10-31: **have a suitable GitHub issue with an explicit priority before starting every task, and close it after verified completion**. This applies to specifications, implementation, bug fixes, tests, reviews, infrastructure, delivery and protocol changes. A task checklist in a spec or chat does not replace its GitHub issue.
 
 1. Before task execution or delegation, search for and reuse a suitable existing issue. Create a new issue only after the duplicate check below; an existing suitable issue satisfies issue-before-work. Include the concrete problem/outcome, scope, acceptance criteria, verification plan, dependencies, delivery package and an explicit `priority:P0`, `priority:P1`, `priority:P2` or `priority:P3` label. Record the priority reason; do not leave it implicit in the title.
@@ -92,6 +94,21 @@ python3 tools/ci/verify.py validate-evidence --source /absolute/source-checkout 
 The evidence directory must be fresh and outside the acceptance runtime. The runner seals tracked public source, records its commit/index/fingerprint, builds the pinned Linux/amd64 Python/Java/coverage image, and runs the common Python profile without network or a Docker socket. CI uses the same entrypoint. Preserve the private build log, test log and receipt. Validation must fail after affected source or runner changes; rerun rather than editing a receipt. Stage new intended source files before checking: untracked files are not part of the sealed source.
 
 This profile covers Python runtime/bootstrap tests and their applicable coverage floors. It does not execute Java service suites, browser tests, real provider integration or the long expiry scenario; those remain separately required using their own pinned shared commands. The new pinned Python environment is a deliberate reproducible baseline, not a claim to reconstruct the unknown Python patch/core of historical CI.
+
+## Shared BP-03 aggregate ingress profile (#222)
+
+For affected BFF ingress/timer changes, stage intended public files and use the same controller locally and in the feature-branch CI workflow:
+
+```bash
+python3 tools/ci/bp03-aggregate-linux.py run --source /absolute/source-checkout --evidence /private/tmp/task-owned-new-evidence
+python3 tools/ci/bp03-aggregate-linux.py validate --source /absolute/source-checkout --evidence /private/tmp/task-owned-new-evidence
+```
+
+The controller seals tracked working source, binds its own source and the declared Java pin, and builds the immutable Temurin25.0.5_8 Linux/amd64 image. It runs `bash tools/ci/bp03-aggregate-check.sh` without network, host mounts, credentials or Docker socket, as nonroot with2GB/2CPU/256PID. The command rebuilds the affected BFF tests/coverage and runs all41 explicit Linux ingress/delivery cases plus the actual HTTP upload-source lifecycle/capacity cases in the affected adapter JUnit suite. Validation requires passing non-skipped JUnit results for the three executed layers, fourteen separate75% line/branch floors (including upload source lifecycle/admission, bridge Arena allocation, production download producer and specialized writer), the complete ordered Linux case set, unchanged source/index/commit, retained logs and confirmed exact-owned-container removal. Keep failed attempts; source or index changes invalidate the receipt.
+
+The controller's own negative/unit tests run separately in the pinned Python3.14.10/coverage7.17.0 image defined by `tools/ci/bp03-aggregate-selftest.Dockerfile`, using the shared `bp03-aggregate-selftest.sh` command and separate75% line/branch floors. These orchestration fixtures do not replace the mandatory real Java/socket checks. Host `python3` only orchestrates Docker; its actual version is recorded as `operatorPython`, separately from pinned test runtimes.
+
+The additional `.github/workflows/bp03-aggregate.yml` runs on matching feature-branch pushes or manual dispatch. It preserves the existing Foundation workflow and its PR/dev gates; a successful targeted run establishes only this profile's **CI_VERIFIED** evidence. It does not establish full BP-03 acceptance, provider/OIDC/expiry acceptance, all process-memory pools, PR readiness or dev integration. Keep the genuine long acceptance and all other applicable checks mandatory. Its artifacts contain only sealed-source, isolated-test evidence; no manual-acceptance stack is accessed.
 
 ## Owner-selected object store
 

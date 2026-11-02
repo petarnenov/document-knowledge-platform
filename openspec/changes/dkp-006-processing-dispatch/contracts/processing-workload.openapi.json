@@ -1,0 +1,1008 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DKP fixed processing workload boundary candidate",
+    "version": "1.0.0",
+    "description": "DRAFT246 private mTLS only. No original URLs/keys, body-supplied actor/tenant or browser bearer. Current server-derived actor+workload+ACL+run fence required."
+  },
+  "servers": [
+    {
+      "url": "https://dm-processing:8443"
+    }
+  ],
+  "tags": [
+    {
+      "name": "ProcessingWorkload",
+      "description": "Fixed scoped technical capabilities."
+    }
+  ],
+  "paths": {
+    "/internal/v1/processing-runs/{processingRunId}/original-resolution": {
+      "post": {
+        "tags": [
+          "ProcessingWorkload"
+        ],
+        "operationId": "resolveProcessingOriginal",
+        "summary": "resolveProcessingOriginal",
+        "description": "Current server-issued attempt/revision fence plus fresh actor/workload authority required. Persist immutable resolutionId/inputDigest and first observedAt. Same semantic input returns original resolution after new current validation; volatile revision/epoch are request guards only. Exact trust invalid422/unknown503. Whole2s; no network under SQL.",
+        "security": [
+          {
+            "WorkloadMTLS": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "processingRunId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "description": "Opaque exact current owned run."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveOriginalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Closed result",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OriginalResolution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/processing-runs/{processingRunId}/checkpoints": {
+      "post": {
+        "tags": [
+          "ProcessingWorkload"
+        ],
+        "operationId": "recordProcessingCheckpoint",
+        "summary": "recordProcessingCheckpoint",
+        "description": "Reference only a server-issued immutable resolution. First write requires current attempt/revision; exact already-committed semantic checkpoint replays original200 after fresh actor/workload/current-stage/compatible-input checks, even if original revision advanced or current epoch differs. Different resolution/input binding409; stale uncommitted write409; cancellation/deadline denies. Whole2s. See protocol-recovery.md.",
+        "security": [
+          {
+            "WorkloadMTLS": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "processingRunId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "description": "Opaque exact current owned run."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckpointRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Closed result",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckpointReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/processing-runs/{processingRunId}/attempt-handoffs": {
+      "post": {
+        "tags": [
+          "ProcessingWorkload"
+        ],
+        "operationId": "acquireProcessingAttempt",
+        "summary": "acquireProcessingAttempt",
+        "description": "Server-issued current attempt handoff. Fresh workload+accepted actor authority and authoritative exact Temporal execution/start-input fingerprint required. Durable attempt exists BEFORE Start. Early worker and lost Start ACK reconcile the same execution; no caller-chosen epoch. Whole2s, unknown503, no remote call under SQL. See protocol-recovery.md.",
+        "security": [
+          {
+            "WorkloadMTLS": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "processingRunId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "description": "Opaque exact current owned run."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttemptHandoffRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Closed result",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptHandoff"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Finite safe rejection with no protected resource details.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                },
+                "description": "Exactly one no-store field."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "WorkloadMTLS": {
+        "type": "mutualTLS",
+        "description": "PrivateCA exact configured URI SAN+EKU+validity and role allowlist; no development bypass."
+      }
+    },
+    "schemas": {
+      "ResolveOriginalRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expectedRunRevision",
+          "attemptEpoch"
+        ],
+        "properties": {
+          "expectedRunRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "attemptEpoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "OriginalResolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "documentId",
+          "versionId",
+          "processingRunId",
+          "sourceSha256",
+          "sizeBytes",
+          "mimeType",
+          "profileDigest",
+          "schemaFingerprint",
+          "originalTrust",
+          "retentionResolution",
+          "observedAt",
+          "resolutionId",
+          "inputDigest"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": "1.0.0"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "processingRunId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sourceSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000
+          },
+          "mimeType": {
+            "type": "string",
+            "enum": [
+              "application/pdf",
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ]
+          },
+          "profileDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "schemaFingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "originalTrust": {
+            "const": "VERIFIED_IMMUTABLE_ORIGINAL"
+          },
+          "retentionResolution": {
+            "const": "UNRESOLVED"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolutionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "inputDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "description": "Immutable server-issued resolution. observedAt is the first committed observation, not the current authorization time. Replays revalidate current authority independently; this object confers no grant."
+      },
+      "CheckpointReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "processingRunId",
+          "runRevision",
+          "checkpointId"
+        ],
+        "properties": {
+          "processingRunId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "runRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "checkpointId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "INVALID_REQUEST",
+              "UNAUTHENTICATED",
+              "FORBIDDEN",
+              "NOT_FOUND",
+              "TENANT_DENIED",
+              "AUTHORITY_UNAVAILABLE",
+              "STALE_REVISION",
+              "IDEMPOTENCY_CONFLICT",
+              "INVALID_ARTIFACT",
+              "LIMIT_EXCEEDED",
+              "TOO_MANY_REQUESTS",
+              "UNAVAILABLE",
+              "PAYLOAD_TOO_LARGE",
+              "UNSUPPORTED_MEDIA_TYPE",
+              "NOT_ACCEPTABLE"
+            ]
+          }
+        }
+      },
+      "AttemptHandoffRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workflowId",
+          "workflowExecutionId",
+          "workflowInputDigest",
+          "stage"
+        ],
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "pattern": "^dkp-processing-v1/[0-9a-f-]{36}$",
+            "maxLength": 64
+          },
+          "workflowExecutionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "workflowInputDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "stage": {
+            "const": "RESOLVE_ORIGINAL_V1"
+          }
+        }
+      },
+      "AttemptHandoff": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "processingRunId",
+          "attemptEpoch",
+          "expectedRunRevision",
+          "inputDigest",
+          "checkpoint"
+        ],
+        "properties": {
+          "processingRunId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "attemptEpoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "expectedRunRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "inputDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "checkpoint": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CheckpointReceipt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "CheckpointRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "attemptEpoch",
+          "expectedRunRevision",
+          "resolutionId",
+          "inputDigest"
+        ],
+        "properties": {
+          "attemptEpoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "expectedRunRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "resolutionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "inputDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  }
+}

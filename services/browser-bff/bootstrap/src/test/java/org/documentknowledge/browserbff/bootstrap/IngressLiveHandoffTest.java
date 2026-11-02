@@ -21,6 +21,8 @@ class IngressLiveHandoffTest {
                 socket.setSoTimeout(3000);
                 var channel = context.getBean(IngressChannelObserver.class).channels.poll(3, TimeUnit.SECONDS);
                 assertNotNull(channel);
+                // The observer publishes during a composite callback, before every member returns.
+                channel.eventLoop().submit(() -> {}).get(3, TimeUnit.SECONDS);
                 assertTrue(context.getBean(Readiness.class).isAcceptingWork());
                 channel.eventLoop().submit(() -> channel.pipeline().get(PipeliningServerHandler.class)
                     .setRequestDecompressionEnabled(true)).sync();

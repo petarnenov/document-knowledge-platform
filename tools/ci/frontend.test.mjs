@@ -91,6 +91,7 @@ test('preserves every gate and helper coverage before mock E2E', (t) => {
       'build',
       'coverage',
       'helper-coverage',
+      'boundary-observer-coverage',
       'mock-e2e',
       'visual-reference-coverage',
     ],
@@ -129,6 +130,39 @@ test('a failed gate preserves reports, returns its status and stops later comman
   const result = JSON.parse(readFileSync(join(root, 'evidence/result.json')));
   assert.equal(result.passed, false);
   assert.equal(result.results.at(-1).status, 7);
+});
+
+test('inherited observer coverage keeps exact scope and blocks later browser gates on failure', (t) => {
+  const root = fixture(t);
+  const observer = commands.find(([name]) => name === 'boundary-observer-coverage')[1];
+  assert.deepEqual(observer.slice(0, 5), [
+    '--filter', 'admin-portal', 'exec', 'vitest', 'run',
+  ]);
+  assert(observer.includes('src/boundary-event-observer.test.tsx'));
+  assert(observer.includes('--coverage.include=e2e-real/boundary-event-observer.ts'));
+  assert(observer.includes('--coverage.reportsDirectory=coverage/boundary-observer'));
+  for (const metric of ['lines', 'branches', 'functions', 'statements'])
+    assert(observer.includes(`--coverage.thresholds.${metric}=75`));
+  const seen = [];
+  const run = (_, args) => {
+    seen.push(args);
+    return args[0] === '--version'
+      ? { ...ok, stdout: '12.16.1' }
+      : args.includes('src/boundary-event-observer.test.tsx')
+        ? { status: 9, stderr: 'synthetic observer floor failure' }
+        : ok;
+  };
+  assert.equal(check(root, join(root, 'evidence'), run, runtime), 9);
+  const result = JSON.parse(readFileSync(join(root, 'evidence/result.json')));
+  assert.equal(result.passed, false);
+  assert.equal(result.results.at(-1).name, 'boundary-observer-coverage');
+  assert(seen.some((args) => args.includes('src/upload-job-fixture.test.tsx')));
+  assert(!seen.some((args) => args.includes('test:e2e')));
+  assert(!seen.some((args) => args.includes('visual-reference:test')));
+  assert.match(
+    readFileSync(join(root, 'evidence/boundary-observer-coverage.log'), 'utf8'),
+    /synthetic observer floor failure/,
+  );
 });
 
 test('signal/spawn failures cannot report success', (t) => {

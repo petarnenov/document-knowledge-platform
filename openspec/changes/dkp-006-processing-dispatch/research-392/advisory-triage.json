@@ -1,0 +1,2641 @@
+{
+  "issue": 392,
+  "observedDate": "2026-11-01",
+  "status": "RESEARCH_ONLY_NO_EXPLOITABILITY_WAIVER",
+  "originalMatchCount": 24,
+  "rows": [
+    {
+      "id": "GHSA-343h-94h5-c4wr",
+      "aliases": [
+        "CVE-2026-106449"
+      ],
+      "originalCoordinate": "at.yawk.lz4:lz4-java:1.11.2",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-10-07T20:45:07.306709237Z",
+      "affected": [
+        {
+          "package": {
+            "name": "at.yawk.lz4:lz4-java",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/at.yawk.lz4/lz4-java"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "1.11.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 1.11.3",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/10/GHSA-343h-94h5-c4wr/GHSA-343h-94h5-c4wr.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "1.11.4"
+      ],
+      "candidateCoordinate": "at.yawk.lz4:lz4-java:1.12.1",
+      "preconditions": "Repeated empty LZ4 blocks with non-stopping stream mode.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/yawkat/lz4-java/security/advisories/GHSA-343h-94h5-c4wr",
+        "sha256": "9f86e4ab851968b89d04d4fb850ce8acf177631d987b22416bbe31731a4cb1fb",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-343h-94h5-c4wr",
+        "sha256": "34597244ecc7e1bc43cd30fd360ba1e02d106dd1477308cf4fbff40819eb6f02"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/security/advisories/GHSA-343h-94h5-c4wr"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/commit/c8ebf97d504fb34434fda46fc761e8202570e0d8"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/yawkat/lz4-java"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/releases/tag/v1.11.4"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-3pjw-73gf-8qr5",
+      "aliases": [
+        "CVE-2026-59888"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-10T03:51:10.312389083Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.15.0"
+                },
+                {
+                  "fixed": "2.18.8"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-3pjw-73gf-8qr5/GHSA-3pjw-73gf-8qr5.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-3pjw-73gf-8qr5/GHSA-3pjw-73gf-8qr5.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.8",
+        "2.21.4"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Record ignored properties combined with naming strategy.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-3pjw-73gf-8qr5",
+        "sha256": "eb654b544b1c1ca4e37be517c3c633d342e6f7deb689058535a81a805cb26a52",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-3pjw-73gf-8qr5",
+        "sha256": "c17e7f1f4a868700eaa0526ec027d925354967a52d61e655d0e36878f06210a4"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-3pjw-73gf-8qr5"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/5974"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/baa2cdf5ca2b2717fbb88d91955d69d8651df3e4"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/c7c678360624da5bc7eed2152789fa522880db9d"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-5gvw-p9qm-jgwh",
+      "aliases": [
+        "CVE-2026-59889"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-10-19T19:45:04.650428177Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.5"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-5gvw-p9qm-jgwh/GHSA-5gvw-p9qm-jgwh.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.0.0-RC1"
+                },
+                {
+                  "fixed": "2.18.9"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-5gvw-p9qm-jgwh/GHSA-5gvw-p9qm-jgwh.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.22.0"
+                },
+                {
+                  "fixed": "2.22.1"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-5gvw-p9qm-jgwh/GHSA-5gvw-p9qm-jgwh.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.9",
+        "2.21.5",
+        "2.22.1"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Deserialization with view restrictions and unwrapped container properties.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-5gvw-p9qm-jgwh",
+        "sha256": "f74ede7e536baa3e4859858c4c61069f9a0133bcb0bfea4b533f85cee26b8e17",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-5gvw-p9qm-jgwh",
+        "sha256": "e7378100bbbbea49df121b79cf92342cb92b60f29c2766c54fb142b638ec7142"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-5gvw-p9qm-jgwh"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/6060"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6056"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/d627a8a86fcb062429282f79f3f256f181ed2c7b"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-5jmj-h7xm-6q6v",
+      "aliases": [
+        "CVE-2026-54515"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-10T03:51:08.069993966Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "3.1.0"
+                },
+                {
+                  "fixed": "3.1.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-5jmj-h7xm-6q6v/GHSA-5jmj-h7xm-6q6v.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.8.0"
+                },
+                {
+                  "fixed": "2.18.9"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-5jmj-h7xm-6q6v/GHSA-5jmj-h7xm-6q6v.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.5"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-5jmj-h7xm-6q6v/GHSA-5jmj-h7xm-6q6v.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.22.0"
+                },
+                {
+                  "fixed": "2.22.1"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-5jmj-h7xm-6q6v/GHSA-5jmj-h7xm-6q6v.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.9",
+        "2.21.5",
+        "2.22.1",
+        "3.1.4"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Case-insensitive deserialization with per-property ignore rules.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-5jmj-h7xm-6q6v",
+        "sha256": "b5e7c0d634cf24e971c7e153e8254bf9de8a58b2ba4e0a762e0014d5b32a1f91",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-5jmj-h7xm-6q6v",
+        "sha256": "7fb82428b4276d428b050a72106e94c8bfe60f641b50fd227c95042eeb719714"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-5jmj-h7xm-6q6v"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/5962"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/5964"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/0e1b0b211f7a53baa62ba2f4c9bd006c7bf4d5fa"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-72hv-8253-57qq",
+      "aliases": [
+        "CVE-2026-18401"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-core:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-10T03:50:34.318297905Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.1"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/02/GHSA-72hv-8253-57qq/GHSA-72hv-8253-57qq.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.15.0"
+                },
+                {
+                  "fixed": "2.18.6"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 2.18.5",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/02/GHSA-72hv-8253-57qq/GHSA-72hv-8253-57qq.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.6",
+        "2.21.1"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-core:2.22.4",
+      "preconditions": "Asynchronous JSON numeric input exceeds configured length constraints.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-core/security/advisories/GHSA-72hv-8253-57qq",
+        "sha256": "02c1de7b93992c63d925a025589d569e64a5fbf078b6e50f8a34f7f29bfe8ce3",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-72hv-8253-57qq",
+        "sha256": "6891ae6b7f62faac11690955f98c18e65b47636cb97e0dd45c55923f4fbd629e"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/security/advisories/GHSA-72hv-8253-57qq"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/pull/1555"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/commit/b0c428e6f993e1b5ece5c1c3cb2523e887cd52cf"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-core"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-7hhh-6rmp-j9qf",
+      "aliases": [
+        "CVE-2026-89425"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-core:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-10-01T15:30:05.552671898Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.7"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 2.21.6",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/10/GHSA-7hhh-6rmp-j9qf/GHSA-7hhh-6rmp-j9qf.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.22.0"
+                },
+                {
+                  "fixed": "2.22.3"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 2.22.2",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/10/GHSA-7hhh-6rmp-j9qf/GHSA-7hhh-6rmp-j9qf.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.8.0"
+                },
+                {
+                  "fixed": "2.18.11"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/10/GHSA-7hhh-6rmp-j9qf/GHSA-7hhh-6rmp-j9qf.json",
+            "last_known_affected_version_range": "<= 2.18.10"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.11",
+        "2.21.7",
+        "2.22.3"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-core:2.22.4",
+      "preconditions": "DataInput JSON parser builds error tokens beyond configured limits.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-core/security/advisories/GHSA-7hhh-6rmp-j9qf",
+        "sha256": "c8f1ba28001341873830fe48147d536f120d99350022dd7d9bc1d678f8300e1b",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-7hhh-6rmp-j9qf",
+        "sha256": "96107c18f5f163a8bed85184440d1307b2c963de3e775f046dd4fdf5daaed755"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/security/advisories/GHSA-7hhh-6rmp-j9qf"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/pull/1698"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/commit/211cf2c5d91abbec38067f37efc1363cd4e88ee3"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-core"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/releases/tag/jackson-core-2.18.11"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/releases/tag/jackson-core-3.2.3"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-cxp5-3px4-pw24",
+      "aliases": [
+        "CVE-2026-91777"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-30T15:46:18.051343022Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.7"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 2.21.6",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-cxp5-3px4-pw24/GHSA-cxp5-3px4-pw24.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.5.0"
+                },
+                {
+                  "fixed": "2.18.11"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 2.18.10",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-cxp5-3px4-pw24/GHSA-cxp5-3px4-pw24.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.22.0"
+                },
+                {
+                  "fixed": "2.22.3"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 2.22.2",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-cxp5-3px4-pw24/GHSA-cxp5-3px4-pw24.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.11",
+        "2.21.7",
+        "2.22.3"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Adversarial object graphs using forward references.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-cxp5-3px4-pw24",
+        "sha256": "fc36dc3906c52f2c3ef3bc1c1053ca2582c86a3cfc2690f1747b57be99a1970e",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-cxp5-3px4-pw24",
+        "sha256": "8b5cc7bba44b752989a61442e9b04a69760defbae85055a3fffd0c7ef027c2ab"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-cxp5-3px4-pw24"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/6204"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6204"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/37ad9b81712cbb9fb62c2d2c1813593252a24b67"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.11"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.7"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.3"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.7"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.3"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-g3pr-3p32-fp23",
+      "aliases": [
+        "CVE-2026-40984"
+      ],
+      "originalCoordinate": "io.micrometer:micrometer-core:1.9.9",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-11T15:45:08.795437706Z",
+      "affected": [
+        {
+          "package": {
+            "name": "io.micrometer:micrometer-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/io.micrometer/micrometer-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "1.16.0"
+                },
+                {
+                  "fixed": "1.16.6"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 1.16.5",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-g3pr-3p32-fp23/GHSA-g3pr-3p32-fp23.json"
+          }
+        },
+        {
+          "package": {
+            "name": "io.micrometer:micrometer-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/io.micrometer/micrometer-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "1.15.0"
+                },
+                {
+                  "fixed": "1.15.12"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-g3pr-3p32-fp23/GHSA-g3pr-3p32-fp23.json",
+            "last_known_affected_version_range": "<= 1.15.11"
+          }
+        },
+        {
+          "package": {
+            "name": "io.micrometer:micrometer-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/io.micrometer/micrometer-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "1.14.0"
+                },
+                {
+                  "last_affected": "1.14.14"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-g3pr-3p32-fp23/GHSA-g3pr-3p32-fp23.json"
+          }
+        },
+        {
+          "package": {
+            "name": "io.micrometer:micrometer-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/io.micrometer/micrometer-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "1.10.0"
+                },
+                {
+                  "last_affected": "1.13.15"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-g3pr-3p32-fp23/GHSA-g3pr-3p32-fp23.json"
+          }
+        },
+        {
+          "package": {
+            "name": "io.micrometer:micrometer-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/io.micrometer/micrometer-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "last_affected": "1.9.17"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-g3pr-3p32-fp23/GHSA-g3pr-3p32-fp23.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "1.15.12",
+        "1.16.6"
+      ],
+      "candidateCoordinate": "io.micrometer:micrometer-core:1.17.2",
+      "preconditions": "Affected HTTP server instrumentation processing adversarial request patterns.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://spring.io/security/cve-2026-40984",
+        "sha256": "7c3a96f2d7bcceea58916aecab3e5c2736ab4b97d9552c4d3fb0e729d80de1f6",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-g3pr-3p32-fp23",
+        "sha256": "6d1b1ce96adb214198811a62a96219e98c36d7972734044cb0665a0658d998f2"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/micrometer-metrics/micrometer/commit/36da131525228188a36779a28471a76c79213dd4"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/micrometer-metrics/micrometer"
+        },
+        {
+          "type": "WEB",
+          "url": "https://spring.io/security/cve-2026-40984"
+        }
+      ],
+      "secondaryDatabaseSource": {
+        "url": "https://github.com/advisories/GHSA-g3pr-3p32-fp23",
+        "sha256": "bdb7a0c46fb7258c2e3d36eb054a14301440f4c1ced50c178d5ab27a1568f1e6",
+        "httpVerified": true
+      }
+    },
+    {
+      "id": "GHSA-gm45-99xc-r7wv",
+      "aliases": [
+        "CVE-2026-106450"
+      ],
+      "originalCoordinate": "at.yawk.lz4:lz4-java:1.11.2",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-10-07T20:45:05.906321924Z",
+      "affected": [
+        {
+          "package": {
+            "name": "at.yawk.lz4:lz4-java",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/at.yawk.lz4/lz4-java"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "1.11.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/10/GHSA-gm45-99xc-r7wv/GHSA-gm45-99xc-r7wv.json",
+            "last_known_affected_version_range": "<= 1.11.3"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "1.11.4"
+      ],
+      "candidateCoordinate": "at.yawk.lz4:lz4-java:1.12.1",
+      "preconditions": "Many small LZ4 frames causing repeated buffer work.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/yawkat/lz4-java/security/advisories/GHSA-gm45-99xc-r7wv",
+        "sha256": "c860c9fc996b861661b7c4feb11e29225e06bffbd5f393c7aa839ef3aee46a7e",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-gm45-99xc-r7wv",
+        "sha256": "699bd55589e65d532ae85777f3ccb9c2bd49221b96510de92657c731e6ce3f27"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/security/advisories/GHSA-gm45-99xc-r7wv"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/commit/2acc0ec1ead226145c62a817c18c8ed49233a283"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/yawkat/lz4-java"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/releases/tag/v1.11.4"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-gwq9-9ffj-mvrv",
+      "aliases": [
+        "CVE-2026-93451"
+      ],
+      "originalCoordinate": "org.xerial.snappy:snappy-java:1.1.10.7",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-10-27T15:47:24.498155855Z",
+      "affected": [
+        {
+          "package": {
+            "name": "org.xerial.snappy:snappy-java",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/org.xerial.snappy/snappy-java"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "1.1.10.9"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 1.1.10.8",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/10/GHSA-gwq9-9ffj-mvrv/GHSA-gwq9-9ffj-mvrv.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "1.1.10.9"
+      ],
+      "candidateCoordinate": "org.xerial.snappy:snappy-java:1.1.10.12",
+      "preconditions": "Snappy typed-array decompression entry points receiving adversarial offsets or lengths.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/xerial/snappy-java/security/advisories/GHSA-gwq9-9ffj-mvrv",
+        "sha256": "952d3fed5261beab43e569f7949f70bb3c8789cb54fee1d0732e958f23d2f932",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-gwq9-9ffj-mvrv",
+        "sha256": "6a212ec6b935892d7fdb32ff37330ae5e59c40617166b948682a98e64948c4a5"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/security/advisories/GHSA-gwq9-9ffj-mvrv"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/issues/729"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/pull/739"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/commit/943c6043a292568575e8347af4507d015e802c75"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/xerial/snappy-java"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/blob/v1.1.10.8/src/main/java/org/xerial/snappy/Snappy.java#L802"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/releases/tag/v1.1.10.9"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-gx83-3vf8-gh7j",
+      "aliases": [
+        "CVE-2026-83557"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-28T21:00:05.608227628Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.11.0"
+                },
+                {
+                  "fixed": "2.18.10"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-gx83-3vf8-gh7j/GHSA-gx83-3vf8-gh7j.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.6"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-gx83-3vf8-gh7j/GHSA-gx83-3vf8-gh7j.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.22.0"
+                },
+                {
+                  "fixed": "2.22.2"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-gx83-3vf8-gh7j/GHSA-gx83-3vf8-gh7j.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.10",
+        "2.21.6",
+        "2.22.2"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Polymorphic deserialization using an insufficient unsafe-base-type deny list.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-gx83-3vf8-gh7j",
+        "sha256": "62010fb243e7888482e2b2a0050e967203d34dc7a0bf3b039f2e8552114aa437",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-gx83-3vf8-gh7j",
+        "sha256": "ba663c4c4c1b485a1af9e715083cca2bc3d24a7fdfef31226ea7eda93da5de9a"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-gx83-3vf8-gh7j"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/6156"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6155"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/eb3b7fc0f9c0d27f471550ac3316b17d1987388f"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.10"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.2"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.2"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-hgj6-7826-r7m5",
+      "aliases": [
+        "CVE-2026-54514"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-10T03:50:49.909813840Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.0.0"
+                },
+                {
+                  "fixed": "2.18.8"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-hgj6-7826-r7m5/GHSA-hgj6-7826-r7m5.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-hgj6-7826-r7m5/GHSA-hgj6-7826-r7m5.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "3.0.0"
+                },
+                {
+                  "fixed": "3.1.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-hgj6-7826-r7m5/GHSA-hgj6-7826-r7m5.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.8",
+        "2.21.4",
+        "3.1.4"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Untrusted network-address deserialization can cause name resolution.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-hgj6-7826-r7m5",
+        "sha256": "7507f08c4d9512be3eeb7d9c4a607da0a54aa557f33bc2219cb76eec4fb7b368",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-hgj6-7826-r7m5",
+        "sha256": "8830b36ebe42be9d9b5838e4540e9bea9949cf87b901770b6818111ab537b10e"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-hgj6-7826-r7m5"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/5951"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/1f5a1037b1e9e05920e755cb35f198bcd46667e4"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-j3rv-43j4-c7qm",
+      "aliases": [
+        "CVE-2026-54512"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-10-28T10:56:49.472327085Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.10.0"
+                },
+                {
+                  "fixed": "2.18.8"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 2.18.7",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-j3rv-43j4-c7qm/GHSA-j3rv-43j4-c7qm.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "3.0.0"
+                },
+                {
+                  "fixed": "3.1.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 3.1.3",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-j3rv-43j4-c7qm/GHSA-j3rv-43j4-c7qm.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 2.21.3",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-j3rv-43j4-c7qm/GHSA-j3rv-43j4-c7qm.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.8",
+        "2.21.4",
+        "3.1.4"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Generic type parameters evade selected polymorphic type validation.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-j3rv-43j4-c7qm",
+        "sha256": "b00bef25f950f23dcd2d2c72748e45aeaeaa14f4f588e24cd8fd4e36f76d3492",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-j3rv-43j4-c7qm",
+        "sha256": "aec6e637974df615e8a3de5b3990ac23205ee6df06bb50f8220c2dda6188e477"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-j3rv-43j4-c7qm"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/5988"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/434d6c511de7fdd9872f29157aafb6162d12d8d5"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-mcr4-qmvw-px4g",
+      "aliases": [
+        "CVE-2026-106451"
+      ],
+      "originalCoordinate": "at.yawk.lz4:lz4-java:1.11.2",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-10-07T20:45:06.908713391Z",
+      "affected": [
+        {
+          "package": {
+            "name": "at.yawk.lz4:lz4-java",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/at.yawk.lz4/lz4-java"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "1.11.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 1.11.3",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/10/GHSA-mcr4-qmvw-px4g/GHSA-mcr4-qmvw-px4g.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "1.11.4"
+      ],
+      "candidateCoordinate": "at.yawk.lz4:lz4-java:1.12.1",
+      "preconditions": "Native library extraction in a directory writable by another local principal.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/yawkat/lz4-java/security/advisories/GHSA-mcr4-qmvw-px4g",
+        "sha256": "a58c5b8ceecc509134916e327d20eab6f4066f683dfd65c4038232c1b6879110",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-mcr4-qmvw-px4g",
+        "sha256": "4aee76dfd03d5e8c0c205d7a5c1090f508247aa5f1b04f1ea7bac75f6f8a2cea"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/security/advisories/GHSA-mcr4-qmvw-px4g"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/commit/7a48b7f6b8099b9dab6541e4ac2ee0979dc55aa3"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/yawkat/lz4-java"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/yawkat/lz4-java/releases/tag/v1.11.4"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-pq2g-wx69-c263",
+      "aliases": [
+        "CVE-2024-57699"
+      ],
+      "originalCoordinate": "net.minidev:json-smart:2.5.0",
+      "scope": "testing-only",
+      "withdrawn": null,
+      "modified": "2026-09-10T03:50:22.800274372Z",
+      "affected": [
+        {
+          "package": {
+            "name": "net.minidev:json-smart",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/net.minidev/json-smart"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.5.0"
+                },
+                {
+                  "fixed": "2.5.2"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2025/02/GHSA-pq2g-wx69-c263/GHSA-pq2g-wx69-c263.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.5.2"
+      ],
+      "candidateCoordinate": "net.minidev:json-smart:2.6.0",
+      "preconditions": "Deep attacker-controlled JSON passed to json-smart parsing.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/netplex/json-smart-v2/issues/232",
+        "sha256": "bb818b03941b505e529a74b4e6b440c3a30f831f4151e325e688c2a8de792d16",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-pq2g-wx69-c263",
+        "sha256": "689116dba67c0701321600e8189e78d84b841fb8fc30dffc2397e64cafb13a48"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/netplex/json-smart-v2/issues/232"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/netplex/json-smart-v2/issues/233"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/netplex/json-smart-v2/issues/236"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/TurtleLiu/Vul_PoC/tree/main/CVE-2024-57699"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/netplex/json-smart-v2"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/netplex/json-smart-v2/releases/tag/2.5.2"
+        }
+      ],
+      "secondaryDatabaseSource": {
+        "url": "https://github.com/advisories/GHSA-pq2g-wx69-c263",
+        "sha256": "29d14930b158054a7050dd1cbee405c12da785f93a7770af3232d00fd6f54086",
+        "httpVerified": true
+      }
+    },
+    {
+      "id": "GHSA-q233-g92q-qxp6",
+      "aliases": [
+        "CVE-2026-108106"
+      ],
+      "originalCoordinate": "org.xerial.snappy:snappy-java:1.1.10.7",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-10-27T15:47:24.815707184Z",
+      "affected": [
+        {
+          "package": {
+            "name": "org.xerial.snappy:snappy-java",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/org.xerial.snappy/snappy-java"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "1.1.10.9"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 1.1.10.8",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/10/GHSA-q233-g92q-qxp6/GHSA-q233-g92q-qxp6.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "1.1.10.9"
+      ],
+      "candidateCoordinate": "org.xerial.snappy:snappy-java:1.1.10.12",
+      "preconditions": "Snappy compressed data declaring excessive output size.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/xerial/snappy-java/security/advisories/GHSA-q233-g92q-qxp6",
+        "sha256": "b083e3dd6a1912073c16d1fbb916e60cb69c4ea56d4d6f02e3f9951e4a3fd4cb",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-q233-g92q-qxp6",
+        "sha256": "7d405df617305fc20342fdec65281d4534853d6ff7c4d7cfd67e7a5bd67534bf"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/security/advisories/GHSA-q233-g92q-qxp6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/pull/739"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/commit/943c6043a292568575e8347af4507d015e802c75"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/xerial/snappy-java"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/blob/v1.1.10.8/src/main/java/org/xerial/snappy/Snappy.java#L517"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/releases/tag/v1.1.10.9"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-q4xh-88c3-wmh7",
+      "aliases": [
+        "CVE-2026-68497"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-28T20:30:05.315085978Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.14.0"
+                },
+                {
+                  "fixed": "2.18.10"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-q4xh-88c3-wmh7/GHSA-q4xh-88c3-wmh7.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.6"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-q4xh-88c3-wmh7/GHSA-q4xh-88c3-wmh7.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.22.0"
+                },
+                {
+                  "fixed": "2.22.2"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-q4xh-88c3-wmh7/GHSA-q4xh-88c3-wmh7.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.10",
+        "2.21.6",
+        "2.22.2"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Oversized numeric duration or calendar values during deserialization.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-q4xh-88c3-wmh7",
+        "sha256": "8a3a899a8e87877e53554a97a253e57b85792e0e818c3b8a3f885f0b326d7cea",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-q4xh-88c3-wmh7",
+        "sha256": "bcebbcb10543bdda20a220fa13b70bb4b4ff1bbb8144453347a7f9e4cd8dbcc6"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-q4xh-88c3-wmh7"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6127"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/a99b7e74c8928f43f6975773a8c862c8316178bd"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.10"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.2"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.2"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-r7wm-3cxj-wff9",
+      "aliases": [
+        "CVE-2026-68494"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-core:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-10-02T23:15:06.853935725Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "2.18.8"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-r7wm-3cxj-wff9/GHSA-r7wm-3cxj-wff9.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-core",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-core"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-r7wm-3cxj-wff9/GHSA-r7wm-3cxj-wff9.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.8",
+        "2.21.4"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-core:2.22.4",
+      "preconditions": "Chunked asynchronous numeric tokens bypass prior length-check repair.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-core/security/advisories/GHSA-r7wm-3cxj-wff9",
+        "sha256": "43abaff87783bd6fa96495f191c916bb018317596b586ac83aeb6bc51263905a",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-r7wm-3cxj-wff9",
+        "sha256": "45e5b1b98a763aa70ef91dd92e1445ad982c472da7ab9e9a3b9cb0ec4357ff49"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/security/advisories/GHSA-r7wm-3cxj-wff9"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/pull/1611"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/commit/050b429804dce2a7e08f0be1b0b4c3d040fdb9cd"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/commit/4cdd529749da396cc7edf6d4a2aad41d47902641"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-core/commit/c5941e5aae7fd5aeac55d66933cfb82b9aabeef8"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-core"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-rmj7-2vxq-3g9f",
+      "aliases": [
+        "CVE-2026-54513"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-11T15:45:08.499771763Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.10.0"
+                },
+                {
+                  "fixed": "2.18.8"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-rmj7-2vxq-3g9f/GHSA-rmj7-2vxq-3g9f.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-rmj7-2vxq-3g9f/GHSA-rmj7-2vxq-3g9f.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "3.0.0"
+                },
+                {
+                  "fixed": "3.1.4"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-rmj7-2vxq-3g9f/GHSA-rmj7-2vxq-3g9f.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.8",
+        "2.21.4",
+        "3.1.4"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Polymorphic array subtype allow-list behavior.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-rmj7-2vxq-3g9f",
+        "sha256": "9e42b0033e68d2197172827d52c41aab0c318f730dfa0b778d11dbe37bad46b6",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-rmj7-2vxq-3g9f",
+        "sha256": "9d676d526a919db922ddc0564ff90aa47a01e40f58c838c555a99d2c588d4bd1"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-rmj7-2vxq-3g9f"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/5983"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/5981"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/5984"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/24529da29fdf46ff94ca38de9ebf31cd188f5e8e"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/01d1692c8d0ed03e51a0e3c4f8a9e6908e4931e5"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-vvgp-rfg2-7rr6",
+      "aliases": [
+        "CVE-2026-77310"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-28T20:30:05.324367371Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.0.0"
+                },
+                {
+                  "fixed": "2.18.9"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-vvgp-rfg2-7rr6/GHSA-vvgp-rfg2-7rr6.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.5"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-vvgp-rfg2-7rr6/GHSA-vvgp-rfg2-7rr6.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.22.0"
+                },
+                {
+                  "fixed": "2.22.1"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-vvgp-rfg2-7rr6/GHSA-vvgp-rfg2-7rr6.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.9",
+        "2.21.5",
+        "2.22.1"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Network-address parsing still performs eager name resolution after earlier repair.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-vvgp-rfg2-7rr6",
+        "sha256": "b703ae8927d4df655700139f0fa83cdcde661fdc93dbbbd348ffd12fbaebbbc2",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-vvgp-rfg2-7rr6",
+        "sha256": "dd77d0de13717aee617253bf82930a0cb6aeb668fb08de5c5a12eecdea8db105"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-vvgp-rfg2-7rr6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6058"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/2fc7bd9057dd051d7dea0e5fcad89822d0fa5ebd"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.9"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.5"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.1"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.5"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.1"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-wjgm-6hv5-3cvf",
+      "aliases": [
+        "CVE-2026-19032"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-28T20:30:05.331167692Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.8.0"
+                },
+                {
+                  "fixed": "2.18.10"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-wjgm-6hv5-3cvf/GHSA-wjgm-6hv5-3cvf.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.6"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-wjgm-6hv5-3cvf/GHSA-wjgm-6hv5-3cvf.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.22.0"
+                },
+                {
+                  "fixed": "2.22.2"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-wjgm-6hv5-3cvf/GHSA-wjgm-6hv5-3cvf.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.10",
+        "2.21.6",
+        "2.22.2"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Path deserialization can resolve unintended filesystem schemes.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-wjgm-6hv5-3cvf",
+        "sha256": "8c79f303285b545bcfe2f1a350eb58dc0e9150d9dfece78f55f6976621565128",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-wjgm-6hv5-3cvf",
+        "sha256": "9d0b9607980283c8e7548b7a78cdbda9056d2b1aeaf8e5cc3984a1bd60efce19"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-wjgm-6hv5-3cvf"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/pull/6129"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/cc6756b61ed90b6b9227f670e0408d5d9bd48551"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/ce26eda3481cd796f76ba4c53ffe1da23b53f166"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/d94bb632becfe0ba96926b9909ab06d1f87aad6d"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.10"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.2"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.6"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.2"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-wv8q-qhhj-9h54",
+      "aliases": [
+        "CVE-2026-91776"
+      ],
+      "originalCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.15.4",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-09-30T15:46:18.451708212Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.0.0"
+                },
+                {
+                  "fixed": "2.18.11"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 2.18.10",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-wv8q-qhhj-9h54/GHSA-wv8q-qhhj-9h54.json"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.19.0"
+                },
+                {
+                  "fixed": "2.21.7"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-wv8q-qhhj-9h54/GHSA-wv8q-qhhj-9h54.json",
+            "last_known_affected_version_range": "<= 2.21.6"
+          }
+        },
+        {
+          "package": {
+            "name": "com.fasterxml.jackson.core:jackson-databind",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "2.22.0"
+                },
+                {
+                  "fixed": "2.22.3"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 2.22.2",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-wv8q-qhhj-9h54/GHSA-wv8q-qhhj-9h54.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "2.18.11",
+        "2.21.7",
+        "2.22.3"
+      ],
+      "candidateCoordinate": "com.fasterxml.jackson.core:jackson-databind:2.22.4",
+      "preconditions": "Repeated unknown polymorphic type identifiers retained in memory.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-wv8q-qhhj-9h54",
+        "sha256": "c6971adc2bdc03b2b8da3b8eb33e7a63572bc1c1ef6310d1b0dcefa14d2b51de",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-wv8q-qhhj-9h54",
+        "sha256": "a6d380c5f70934b4e14db09dd806330e1ad096b41c81bc0b0cf534655e207070"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/security/advisories/GHSA-wv8q-qhhj-9h54"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/issues/6203"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/commit/2870d1d6dc1b7e1c07ee11dd5b04ab71cddbb577"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/FasterXML/jackson-databind"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.18.11"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.21.7"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-2.22.3"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.1.7"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/FasterXML/jackson-databind/releases/tag/jackson-databind-3.2.3"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-xqrx-qh46-34m7",
+      "aliases": [
+        "CVE-2026-116590"
+      ],
+      "originalCoordinate": "org.xerial.snappy:snappy-java:1.1.10.7",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-10-27T15:47:25.122359555Z",
+      "affected": [
+        {
+          "package": {
+            "name": "org.xerial.snappy:snappy-java",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/org.xerial.snappy/snappy-java"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "1.1.10.9"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 1.1.10.8",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/10/GHSA-xqrx-qh46-34m7/GHSA-xqrx-qh46-34m7.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "1.1.10.9"
+      ],
+      "candidateCoordinate": "org.xerial.snappy:snappy-java:1.1.10.12",
+      "preconditions": "Unchecked Snappy copying or raw-write ranges.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/xerial/snappy-java/security/advisories/GHSA-xqrx-qh46-34m7",
+        "sha256": "1c9e0c3a8e9703f9826a78e003b6b90b3eef0843bd3c7bffbdbef393b32665d5",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-xqrx-qh46-34m7",
+        "sha256": "12ebe77e519bcef60e99c90bae2e7037c77a1bba74235d6549d9a45016b913d9"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/security/advisories/GHSA-xqrx-qh46-34m7"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/pull/741"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/commit/2d7ca71c087a98f1219fb2d51909f3891c3ce77b"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/xerial/snappy-java"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/xerial/snappy-java/releases/tag/v1.1.10.9"
+        }
+      ]
+    },
+    {
+      "id": "GHSA-xxph-c9ww-hj94",
+      "aliases": [
+        "CVE-2026-102554"
+      ],
+      "originalCoordinate": "com.google.guava:guava:33.4.8-jre",
+      "scope": "production-candidate",
+      "withdrawn": null,
+      "modified": "2026-10-27T14:45:04.803511466Z",
+      "affected": [
+        {
+          "package": {
+            "name": "com.google.guava:guava",
+            "ecosystem": "Maven",
+            "purl": "pkg:maven/com.google.guava/guava"
+          },
+          "ranges": [
+            {
+              "type": "ECOSYSTEM",
+              "events": [
+                {
+                  "introduced": "4.0"
+                },
+                {
+                  "fixed": "33.7.2"
+                }
+              ]
+            }
+          ],
+          "databaseSpecific": {
+            "last_known_affected_version_range": "<= 33.7.1",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/10/GHSA-xxph-c9ww-hj94/GHSA-xxph-c9ww-hj94.json"
+          }
+        }
+      ],
+      "feedReportedFixes": [
+        "33.7.2"
+      ],
+      "candidateCoordinate": "com.google.guava:guava:33.7.2-jre",
+      "preconditions": "Java deserialization of mutable Guava map/set internals with hostile size declarations.",
+      "applicability": "Original affected artifact is present. Feature/input reachability in future BP05 is NOT established; no waiver. Version convergence is proposed instead of retaining the affected artifact.",
+      "primarySource": {
+        "url": "https://github.com/google/guava/security/advisories/GHSA-xxph-c9ww-hj94",
+        "sha256": "819b59bf1ea1618bcfd75fb84b4e28d02780be29e6f3607ef13744438eaec3f9",
+        "httpVerified": true
+      },
+      "feedSource": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-xxph-c9ww-hj94",
+        "sha256": "b8d51c1cb3b2526a21bb4da31851483fcdf07fc13a542687c3ddbe2c3af805f1"
+      },
+      "upstreamReferences": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/google/guava/security/advisories/GHSA-xxph-c9ww-hj94"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/google/guava/commit/b931fe9d6d5cf00bc55714ad3308d086f71850fe"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/google/guava"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/google/guava/releases/tag/v33.7.2"
+        }
+      ]
+    }
+  ]
+}
