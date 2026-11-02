@@ -13,3 +13,12 @@ dependencies {
 
 // Keep real HTTP fixture pools separate from the real JDBC suite within the fixed CI PID budget.
 tasks.named('test') { mustRunAfter ':services:dev-logging:adapters-out:test' }
+
+// Isolate framework HTTP fixture classes; retain every test and the fixed runtime concurrency limits.
+tasks.named('test') { maxParallelForks = 1; forkEvery = 1 }
+
+// The two real 32-worker pools need their fixed PID envelope, without another test JVM sharing it.
+tasks.named('test') {
+    mustRunAfter ':modules:observability-support:test', ':modules:identity-contracts:test',
+        ':modules:security-micronaut:test', ':modules:authorization-catalog:test', ':architecture-tests:test'
+}

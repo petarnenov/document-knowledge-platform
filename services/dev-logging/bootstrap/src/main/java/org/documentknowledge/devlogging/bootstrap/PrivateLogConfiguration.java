@@ -44,7 +44,7 @@ final class PrivateLogConfiguration {
     byte[] cursorKey() { return cursorKey.clone(); }
     List<ConfiguredLogReaders.Grant> grants() { return grants; }
 
-    private static byte[] read(String name, int maximum) throws Exception {
+    static byte[] read(String name, int maximum) throws Exception {
         Path file = Path.of(Objects.requireNonNull(name));
         var before = Files.readAttributes(file, PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         var forbidden = EnumSet.of(PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_WRITE,

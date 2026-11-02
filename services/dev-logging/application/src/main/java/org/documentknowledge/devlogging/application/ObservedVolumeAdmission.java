@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.documentknowledge.devlogging.domain.LogFailure;
 
 /** One latest trusted observation, never a database write or recursive logging dependency. */
-public final class ObservedVolumeAdmission implements StorageAdmission {
+public final class ObservedVolumeAdmission implements StorageAdmission, LogVolumeObservation {
     private static final long MIN_FREE = 2L * 1024 * 1024 * 1024;
     private static final long MAX_WIRE_INTEGER = 9007199254740991L;
     private final String volumeIdentity;
