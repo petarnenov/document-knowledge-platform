@@ -1,0 +1,6 @@
+micronaut:
+  application:
+    name: dev-logging
+  server:
+    host: 127.0.0.1
+    port: 18087

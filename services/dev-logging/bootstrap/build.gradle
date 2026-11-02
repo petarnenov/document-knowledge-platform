@@ -1,1 +1,60 @@
-// Runtime assembly is isolated from domain/application and is not enabled by a partial slice.
+plugins { id 'application' }
+
+dependencies {
+    annotationProcessor platform(rootProject.libs.micronaut.platform)
+    annotationProcessor 'io.micronaut:micronaut-inject-java'
+    implementation platform(rootProject.libs.micronaut.platform)
+    implementation project(':services:dev-logging:application')
+    implementation project(':services:dev-logging:adapters-in')
+    implementation project(':services:dev-logging:adapters-out')
+    implementation 'io.micronaut:micronaut-runtime'
+    implementation 'io.micronaut:micronaut-http-server-netty'
+    implementation 'io.micronaut:micronaut-jackson-databind'
+    implementation 'tools.jackson.core:jackson-databind'
+    implementation 'com.zaxxer:HikariCP'
+    runtimeOnly "org.postgresql:postgresql:${rootProject.libs.versions.postgresql.jdbc.get()}"
+    runtimeOnly 'ch.qos.logback:logback-classic'
+    testImplementation "org.postgresql:postgresql:${rootProject.libs.versions.postgresql.jdbc.get()}"
+}
+application {
+    mainClass = 'org.documentknowledge.devlogging.bootstrap.Application'
+    applicationName = 'dev-logging'
+}
+tasks.named('test') { mustRunAfter ':services:dev-logging:adapters-out:test', ':services:dev-logging:adapters-in:test' }
+tasks.named('build') { dependsOn 'installDist' }
+
+// Role verification executes in the bootstrap integration JVM. Combine real execution data
+// across the service so reports do not mistake that exercised outbound code for untested code.
+def coveredLayers = ['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap']
+    .collect { project(":services:dev-logging:${it}") }
+def serviceClasses = files(coveredLayers.collect { it.sourceSets.main.output.classesDirs })
+def bootstrapChangedClasses = serviceClasses.asFileTree.matching {
+    include '**/bootstrap/Application.class', '**/bootstrap/LoggingAssembly.class',
+        '**/bootstrap/PrivateLogConfiguration.class', '**/persistence/JdbcReadRoleVerifier.class',
+        '**/persistence/JdbcLogQueries.class'
+}
+['serviceCoverage', 'readBootstrapCoverage'].each { prefix ->
+    def selectedClasses = prefix == 'serviceCoverage' ? serviceClasses : bootstrapChangedClasses
+    tasks.register("${prefix}Report", JacocoReport) {
+        dependsOn coveredLayers.collect { it.tasks.named('test') }
+        executionData.from coveredLayers.collect { it.layout.buildDirectory.file('jacoco/test.exec') }
+        sourceDirectories.from coveredLayers.collect { it.sourceSets.main.allSource.srcDirs }
+        classDirectories.from selectedClasses
+        reports {
+            xml.required = true
+            xml.outputLocation = layout.buildDirectory.file("reports/jacoco/${prefix}.xml")
+            html.required = true
+        }
+    }
+    tasks.register("${prefix}Verification", JacocoCoverageVerification) {
+        dependsOn tasks.named("${prefix}Report")
+        executionData.from coveredLayers.collect { it.layout.buildDirectory.file('jacoco/test.exec') }
+        sourceDirectories.from coveredLayers.collect { it.sourceSets.main.allSource.srcDirs }
+        classDirectories.from selectedClasses
+        violationRules { rule {
+            limit { counter = 'LINE'; minimum = 0.75 }
+            limit { counter = 'BRANCH'; minimum = 0.75 }
+        } }
+    }
+    tasks.named('check') { dependsOn "${prefix}Verification" }
+}

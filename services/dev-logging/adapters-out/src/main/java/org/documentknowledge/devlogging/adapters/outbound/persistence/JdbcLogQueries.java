@@ -24,6 +24,7 @@ public final class JdbcLogQueries implements LogQueries.Store {
     public List<LogQueries.Row> read(LogReader reader, LogQuery query, LogQueries.Position after, RequestDeadline deadline) {
         deadline.requireTime();
         try (var owned = new JdbcLogCleanup(dataSource.getConnection())) {
+            deadline.requireTime();
             var connection = owned.connection();
             network(connection, deadline);
             connection.setReadOnly(true);
