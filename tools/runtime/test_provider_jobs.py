@@ -171,10 +171,12 @@ class PublicDmObservationTests(unittest.TestCase):
             finally:events.append('original-cleanup')
         def confined(_):
             events.append('observation');raise OSError('private-sentinel')
+        class BrokenSink(io.StringIO):
+            def write(self, _):raise BrokenPipeError('private-sentinel')
         for broken_sink in (False, True):
             events.clear()
             output, errors = io.StringIO(), io.StringIO()
-            if broken_sink:output = Mock(write=Mock(side_effect=BrokenPipeError('private-sentinel')))
+            if broken_sink:output = BrokenSink()
             with patch.object(m, 'run', side_effect=run), patch.object(m.runtime, 'confined', side_effect=confined), patch.object(m.sys, 'argv', ['provider-jobs.py', '--directory', 'fresh', '--runtime-directory', 'owned']), patch.object(m.sys, 'stdout', output), patch.object(m.sys, 'stderr', errors), self.assertRaises(SystemExit) as caught:
                 m.main()
             self.assertEqual(['original-cleanup', 'observation'], events)
