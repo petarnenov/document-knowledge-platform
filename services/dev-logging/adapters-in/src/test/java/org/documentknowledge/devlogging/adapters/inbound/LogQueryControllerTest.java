@@ -9,6 +9,8 @@ import java.time.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import org.documentknowledge.devlogging.adapters.inbound.requests.DeadlineLogRequests;
+import org.documentknowledge.devlogging.adapters.inbound.requests.LogResponseExecutor;
+import org.documentknowledge.devlogging.adapters.inbound.requests.LogRouteDeadline;
 import org.documentknowledge.devlogging.application.*;
 import org.documentknowledge.devlogging.domain.*;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,7 @@ class LogQueryControllerTest {
         "https://issuer.invalid", "actor", "tenant-a"));
     final AtomicReference<byte[]> payload = new AtomicReference<>("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
     final AtomicReference<LogQuery> observed = new AtomicReference<>();
+    final AtomicReference<RequestDeadline> observedDeadline = new AtomicReference<>();
 
     class Fixture implements AutoCloseable {
         final DeadlineLogRequests requests = new DeadlineLogRequests();
@@ -43,6 +46,7 @@ class LogQueryControllerTest {
             };
             var service = new LogQueries((r,q,p,d) -> {
                 observed.set(q);
+                observedDeadline.set(d);
                 if (failure.get() != null) throw new LogFailure(failure.get());
                 var event = new LogQueries.Stored(UUID.randomUUID(), scope.get(), UUID.randomUUID(), now, payload.get());
                 return List.of(new LogQueries.Row(event, 1234567890123L), new LogQueries.Row(event, 1234567890122L));
@@ -108,6 +112,51 @@ class LogQueryControllerTest {
             }
             failure.set(null); payload.set("{".getBytes(java.nio.charset.StandardCharsets.UTF_8));
             assertEquals(503, f.get(window, "Bearer valid-reader").statusCode());
+        }
+    }
+
+    @Test void filterBudgetReachesTheDependencyUnchangedAndMissingAdmissionFailsClosed() throws Exception {
+        try (var f = new Fixture()) {
+            var request = io.micronaut.http.HttpRequest.GET("/api/v1/dev-logs/events")
+                .header("Authorization", "Bearer valid-reader");
+            request.getParameters().add("from", List.of(now.minusSeconds(60).toString()));
+            request.getParameters().add("to", List.of(now.plusSeconds(60).toString()));
+            var filter = new LogRouteDeadline(); filter.admit(request);
+            var original = LogRouteDeadline.admitted(request);
+            filter.admit(request);
+            assertSame(original, LogRouteDeadline.admitted(request), "Filter re-entry cannot renew the budget");
+            var controller = f.context.getBean(LogQueryController.class);
+            assertEquals(200, controller.events(request).code());
+            assertSame(original, observedDeadline.get());
+            var missing = io.micronaut.http.HttpRequest.GET("/api/v1/dev-logs/events?" + window)
+                .header("Authorization", "Bearer valid-reader");
+            assertEquals(503, controller.events(missing).code());
+        }
+    }
+
+    @Test void actualFrameworkDispatchRejectsAtTheNamedPoolBoundWithoutQueuing() throws Exception {
+        try (var f = new Fixture()) {
+            var executor = f.context.getBean(java.util.concurrent.ExecutorService.class,
+                io.micronaut.inject.qualifiers.Qualifiers.byName(LogResponseExecutor.NAME));
+            var entered = new java.util.concurrent.CountDownLatch(32);
+            var release = new java.util.concurrent.CountDownLatch(1);
+            var exited = new java.util.concurrent.CountDownLatch(32);
+            try {
+                for (int index = 0; index < 32; index++) executor.execute(() -> {
+                    assertTrue(Thread.currentThread().isDaemon());
+                    assertEquals(LogResponseExecutor.NAME, Thread.currentThread().getName()); entered.countDown();
+                    try { release.await(); } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+                    finally { exited.countDown(); }
+                });
+                assertTrue(entered.await(3, java.util.concurrent.TimeUnit.SECONDS));
+                assertThrows(java.util.concurrent.RejectedExecutionException.class, () -> executor.execute(() -> fail("No queued 33rd task")));
+                var response = f.get(window, "Bearer valid-reader");
+                assertEquals(429, response.statusCode()); assertEquals("{\"code\":\"LOG_RATE_LIMITED\"}", response.body());
+                assertEquals("no-store", response.headers().firstValue("Cache-Control").orElseThrow());
+                assertEquals(0, f.requests.health().activeWorkers());
+            } finally { release.countDown(); }
+            assertTrue(exited.await(3, java.util.concurrent.TimeUnit.SECONDS));
+            assertEquals(200, f.get(window, "Bearer valid-reader").statusCode());
         }
     }
 }

@@ -119,6 +119,34 @@ class JdbcLogPersistenceTest {
         return new LogQueries(new JdbcLogQueries(readerSource), new EncryptedLogCursors(new byte[32]), java.time.Clock.systemUTC());
     }
 
+    @Test void actualJdbcOperationsKeepTheAdmittedRemainingNetworkBudget() throws Exception {
+        var authority = scope("tenant-a"); var event = event(UUID.randomUUID(), "{}");
+        var timeouts = new java.util.ArrayList<Integer>();
+        var guarded = (javax.sql.DataSource) java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
+            new Class<?>[]{javax.sql.DataSource.class}, (proxy, method, arguments) -> {
+                try {
+                    Object result = method.invoke(runtime, arguments);
+                    if (result instanceof Connection real) return java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
+                        new Class<?>[]{Connection.class}, (connectionProxy, operation, parameters) -> {
+                            if (operation.getName().equals("setNetworkTimeout")) timeouts.add((Integer) parameters[1]);
+                            try { return operation.invoke(real, parameters); }
+                            catch (java.lang.reflect.InvocationTargetException failure) { throw failure.getCause(); }
+                        });
+                    return result;
+                } catch (java.lang.reflect.InvocationTargetException failure) { throw failure.getCause(); }
+            });
+        var deadline = RequestDeadline.start();
+        Thread.sleep(150); // Earlier route work must not turn into a new transaction budget.
+        long maximum = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(deadline.remainingNanos()) + 1;
+        var persistence = new JdbcLogPersistence(guarded, () -> { });
+        persistence.commit(authority, batch(event), Instant.now(), deadline);
+        persistence.receipts(authority, List.of(event.metadata().eventId()), Instant.now(), deadline);
+        assertEquals(1, new JdbcLogQueries(guarded).read(reader("tenant-a"), query(50), null, deadline).size());
+        assertFalse(timeouts.isEmpty());
+        assertTrue(timeouts.stream().allMatch(value -> value > 0 && value <= maximum), timeouts.toString());
+        assertTrue(maximum < 4900);
+    }
+
     @Test void realReaderKeysetsHideInterleavedTenantRowsAndPreserveSameTimeEvents() throws Exception {
         var a = scope("tenant-a"); var b = scope("tenant-b");
         var one = event(UUID.randomUUID(), "{}"); var two = event(UUID.randomUUID(), "{}");

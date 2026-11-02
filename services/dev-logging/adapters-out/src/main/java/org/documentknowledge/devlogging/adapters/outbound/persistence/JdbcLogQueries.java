@@ -24,10 +24,12 @@ public final class JdbcLogQueries implements LogQueries.Store {
     public List<LogQueries.Row> read(LogReader reader, LogQuery query, LogQueries.Position after, RequestDeadline deadline) {
         deadline.requireTime();
         try (var connection = dataSource.getConnection()) {
+            network(connection, deadline);
             connection.setReadOnly(true);
             connection.setAutoCommit(false);
             try {
                 limit(connection, deadline);
+                network(connection, deadline);
                 try (var statement = connection.prepareStatement("SELECT clock_timestamp()" ); var rows = statement.executeQuery()) {
                     rows.next(); reader.requireActive(rows.getTimestamp(1).toInstant());
                 }
@@ -62,6 +64,7 @@ public final class JdbcLogQueries implements LogQueries.Store {
                 }
                 sql.append(" ORDER BY received_at DESC,sequence DESC LIMIT ?"); arguments.add(query.limit() + 1);
                 limit(connection, deadline);
+                network(connection, deadline);
                 var result = new ArrayList<LogQueries.Row>();
                 try (var statement = connection.prepareStatement(sql.toString())) {
                     for (int index = 0; index < arguments.size(); index++) statement.setObject(index + 1, arguments.get(index));
@@ -95,10 +98,17 @@ public final class JdbcLogQueries implements LogQueries.Store {
     }
 
     private static void limit(Connection connection, RequestDeadline deadline) throws SQLException {
+        network(connection, deadline);
         deadline.requireTime();
         long millis = Math.max(1, TimeUnit.NANOSECONDS.toMillis(deadline.remainingNanos()));
         try (var statement = connection.prepareStatement("SELECT set_config('statement_timeout',?,true),set_config('lock_timeout',?,true)")) {
             statement.setString(1, millis + "ms"); statement.setString(2, millis + "ms"); statement.execute();
         }
+    }
+
+    private static void network(Connection connection, RequestDeadline deadline) throws SQLException {
+        deadline.requireTime();
+        connection.setNetworkTimeout(Runnable::run,
+            Math.toIntExact(Math.max(1, TimeUnit.NANOSECONDS.toMillis(deadline.remainingNanos()))));
     }
 }

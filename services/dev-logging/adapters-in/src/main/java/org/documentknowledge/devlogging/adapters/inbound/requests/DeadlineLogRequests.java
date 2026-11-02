@@ -30,8 +30,14 @@ public final class DeadlineLogRequests implements AutoCloseable {
 
     /** Call at route admission, before authentication/parsing; caller cannot supply a new deadline. */
     public <T> Request<T> submit(Function<RequestDeadline, T> action) {
+        return submit(RequestDeadline.start(), action);
+    }
+
+    /** HTTP passes the original filter-admission budget; this method never renews it. */
+    public <T> Request<T> submit(RequestDeadline deadline, Function<RequestDeadline, T> action) {
         Objects.requireNonNull(action);
-        var request = new Request<T>();
+        var request = new Request<T>(Objects.requireNonNull(deadline));
+        if (deadline.expired()) return request.reject(LogFailure.Kind.UNAVAILABLE);
         if (closed.get()) return request.reject(LogFailure.Kind.UNAVAILABLE);
         if (!slots.tryAcquire()) return request.reject(LogFailure.Kind.RATE_LIMITED);
         var task = new Task<>(request, action);
@@ -94,11 +100,11 @@ public final class DeadlineLogRequests implements AutoCloseable {
 
     /** A single response consumer; the private future never exposes callback registration. */
     public final class Request<T> {
-        private final RequestDeadline deadline = RequestDeadline.start();
+        private final RequestDeadline deadline;
         private final CompletableFuture<T> outcome = new CompletableFuture<>();
         private final AtomicBoolean consumed = new AtomicBoolean();
         private final AtomicReference<ScheduledFuture<?>> alarm = new AtomicReference<>();
-        private Request() { }
+        private Request(RequestDeadline deadline) { this.deadline = deadline; }
 
         private void arm() {
             if (outcome.isDone()) return;

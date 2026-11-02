@@ -3,19 +3,20 @@ package org.documentknowledge.devlogging.adapters.inbound;
 import io.micronaut.http.*;
 import io.micronaut.http.annotation.*;
 import io.micronaut.json.JsonMapper;
-import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.*;
 import org.documentknowledge.devlogging.adapters.inbound.requests.DeadlineLogRequests;
+import org.documentknowledge.devlogging.adapters.inbound.requests.LogRouteDeadline;
+import org.documentknowledge.devlogging.adapters.inbound.requests.LogResponseExecutor;
 import org.documentknowledge.devlogging.application.*;
 import org.documentknowledge.devlogging.domain.*;
 import org.documentknowledge.observability.Severity;
 
 /** Authenticated common query route. The separate local viewer must call this same boundary. */
 @Controller("/api/v1/dev-logs")
-@ExecuteOn(TaskExecutors.BLOCKING)
+@ExecuteOn(LogResponseExecutor.NAME)
 public final class LogQueryController {
     private static final Set<String> PARAMETERS = Set.of("buildId", "runId", "component", "minSeverity",
         "correlationId", "traceId", "from", "to", "limit", "cursor");
@@ -32,7 +33,7 @@ public final class LogQueryController {
     @Get("/events")
     public HttpResponse<?> events(HttpRequest<?> request) {
         try {
-            Object body = requests.submit(deadline -> {
+            Object body = requests.submit(LogRouteDeadline.admitted(request), deadline -> {
                 var headers = request.getHeaders().getAll(HttpHeaders.AUTHORIZATION);
                 if (headers.size() != 1 || !headers.getFirst().regionMatches(true, 0, "Bearer ", 0, 7))
                     throw new LogFailure(LogFailure.Kind.UNAUTHENTICATED);

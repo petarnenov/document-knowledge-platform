@@ -12,6 +12,7 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import org.documentknowledge.devlogging.application.LogPersistence;
 import org.documentknowledge.devlogging.application.StorageAdmission;
+import org.documentknowledge.devlogging.application.RequestDeadline;
 import org.documentknowledge.devlogging.domain.*;
 
 /** Dedicated logging DB only. Bootstrap must also bound connection acquisition and socket I/O. */
@@ -24,12 +25,23 @@ public final class JdbcLogPersistence implements LogPersistence {
         this.storage = Objects.requireNonNull(storage);
     }
 
-    @Override
+    /** Standalone owned operator/test operation only; HTTP uses the explicit deadline application port. */
     public List<Committed> commit(ProducerScope authority, LogBatch batch, Instant now) {
+        return commit(authority, batch, now, RequestDeadline.start());
+    }
+
+    /** Standalone owned operator/test operation only; HTTP cannot renew its budget through the port. */
+    public List<Receipt> receipts(ProducerScope authority, List<UUID> eventIds, Instant now) {
+        return receipts(authority, eventIds, now, RequestDeadline.start());
+    }
+
+    @Override
+    public List<Committed> commit(ProducerScope authority, LogBatch batch, Instant now, RequestDeadline deadline) {
+        deadline.requireTime();
         authority.requireActive(now);
         batch.requireBinding(authority); // Check the whole envelope before any deduplication lookup.
         storage.requireWritable();
-        return transaction((connection, budget) -> {
+        return transaction(deadline, (connection, budget) -> {
             // All registry/retention writers must acquire this same first lock.
             try (var statement = budget.prepare(connection,
                     "SELECT reserved_bytes FROM dev_logs.capacity WHERE singleton FOR UPDATE")) {
@@ -58,14 +70,15 @@ public final class JdbcLogPersistence implements LogPersistence {
     }
 
     @Override
-    public List<Receipt> receipts(ProducerScope authority, List<UUID> eventIds, Instant now) {
+    public List<Receipt> receipts(ProducerScope authority, List<UUID> eventIds, Instant now, RequestDeadline deadline) {
+        deadline.requireTime();
         authority.requireActive(now);
         var ids = List.copyOf(eventIds);
         if (ids.isEmpty() || ids.size() > 32 || new java.util.HashSet<>(ids).size() != ids.size()
                 || ids.stream().anyMatch(id -> id.equals(new UUID(0, 0)))) {
             throw new LogFailure(LogFailure.Kind.INVALID);
         }
-        return transaction((connection, budget) -> {
+        return transaction(deadline, (connection, budget) -> {
             verifyAuthority(connection, budget, authority);
             var result = new ArrayList<Receipt>();
             for (var id : ids) {
@@ -187,13 +200,16 @@ public final class JdbcLogPersistence implements LogPersistence {
         }
     }
 
-    private <T> T transaction(Work<T> work) {
-        var budget = new Budget();
+    private <T> T transaction(RequestDeadline deadline, Work<T> work) {
+        var budget = new Budget(deadline);
         try (var connection = dataSource.getConnection()) {
+            budget.network(connection);
             connection.setAutoCommit(false);
             try {
                 T result = work.apply(connection, budget);
                 budget.limit(connection);
+                budget.network(connection);
+                budget.remaining();
                 connection.commit();
                 budget.remaining(); // A lost/late commit response is UNAVAILABLE, never an invented receipt.
                 return result;
@@ -211,13 +227,17 @@ public final class JdbcLogPersistence implements LogPersistence {
 
     /** One monotonic budget across lock/statement waits, rather than five seconds per statement. */
     private static final class Budget {
-        private final long started = System.nanoTime();
+        private final RequestDeadline deadline;
+        Budget(RequestDeadline deadline) { this.deadline = Objects.requireNonNull(deadline); }
         long remaining() {
-            long milliseconds = 5000 - (System.nanoTime() - started) / 1_000_000;
-            if (milliseconds <= 0) throw new LogFailure(LogFailure.Kind.UNAVAILABLE);
-            return milliseconds;
+            deadline.requireTime();
+            return Math.max(1, java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(deadline.remainingNanos()));
+        }
+        void network(Connection connection) throws SQLException {
+            connection.setNetworkTimeout(Runnable::run, Math.toIntExact(remaining()));
         }
         void limit(Connection connection) throws SQLException {
+            network(connection);
             try (var statement = connection.prepareStatement("SELECT set_config('statement_timeout',?,true),set_config('lock_timeout',?,true)")) {
                 String limit = remaining() + "ms";
                 statement.setString(1, limit);
@@ -227,6 +247,7 @@ public final class JdbcLogPersistence implements LogPersistence {
         }
         PreparedStatement prepare(Connection connection, String sql) throws SQLException {
             limit(connection);
+            network(connection);
             return connection.prepareStatement(sql);
         }
     }

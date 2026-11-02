@@ -27,8 +27,8 @@ public interface LogPersistence {
     }
 
     /** Whole batch commits or fails; scope and current authority are rechecked transactionally. */
-    List<Committed> commit(ProducerScope authority, LogBatch batch, Instant now);
+    List<Committed> commit(ProducerScope authority, LogBatch batch, Instant now, RequestDeadline deadline);
 
     /** Outside-scope and absent IDs produce the same UNKNOWN result, without event bodies. */
-    List<Receipt> receipts(ProducerScope authority, List<UUID> eventIds, Instant now);
+    List<Receipt> receipts(ProducerScope authority, List<UUID> eventIds, Instant now, RequestDeadline deadline);
 }

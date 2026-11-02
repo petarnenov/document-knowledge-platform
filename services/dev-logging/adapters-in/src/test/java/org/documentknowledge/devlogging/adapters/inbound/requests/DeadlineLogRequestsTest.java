@@ -9,6 +9,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @Timeout(20)
 class DeadlineLogRequestsTest {
+    @Test void suppliedAdmissionBudgetIsNotReplaced() {
+        try (var requests = new DeadlineLogRequests()) {
+            var admitted = org.documentknowledge.devlogging.application.RequestDeadline.start();
+            assertSame(admitted, requests.submit(admitted, deadline -> deadline).await());
+        }
+    }
     void fails(LogFailure.Kind kind, org.junit.jupiter.api.function.Executable work) {
         assertEquals(kind, assertThrows(LogFailure.class, work).kind());
     }
@@ -43,6 +49,7 @@ class DeadlineLogRequestsTest {
     }
 
     @Test void allThirtyTwoDeadlinesRespondWithoutReleasingBusyWorkers() throws Exception {
+        var original = org.documentknowledge.devlogging.application.RequestDeadline.start();
         var release = new CountDownLatch(1);
         var entered = new CountDownLatch(32);
         try (var requests = new DeadlineLogRequests()) {
@@ -63,6 +70,9 @@ class DeadlineLogRequestsTest {
                 for (var handle : handles) fails(LogFailure.Kind.UNAVAILABLE, handle::await);
                 assertEquals(32, requests.health().activeWorkers(), "Deadline/response cancellation must not recycle workers");
                 assertEquals(32, requests.health().expiredWorkers());
+                fails(LogFailure.Kind.UNAVAILABLE, () -> requests.submit(original, deadline -> {
+                    fail("An expired route must never start another operation"); return "unreachable";
+                }).await());
                 fails(LogFailure.Kind.RATE_LIMITED, () -> requests.submit(deadline -> "must still not run").await());
                 // In-memory health remains available while every ingestion worker is occupied.
                 assertFalse(requests.health().closed());
