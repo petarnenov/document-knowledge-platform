@@ -411,5 +411,100 @@ class LoggingRuntimeTests(unittest.TestCase):
         m.gateway_config(self.directory,18087,18088)
         self.assertEqual(original,config.read_text())
 
+    def observer_install_fixture(self):
+        self.directory=self.directory.resolve();self.state['directory']=str(self.directory)
+        self.state['project']='dkp-dev-logging-acceptance-'+'a'*12
+        self.state['writerEnabled']=True
+        self.state['volumes']={self.state['project']+'-postgres-data':'b'*64}
+        self.launchagents=self.directory/'home/Library/LaunchAgents';self.launchagents.mkdir(parents=True)
+        patches=[patch.object(m.sys,'platform','darwin'),patch.object(m.Path,'home',return_value=self.directory/'home'),
+            patch.object(m,'check_resources'),patch.object(m,'container',return_value={'Id':'c'*64,'Image':'sha256:'+'d'*64}),
+            patch.object(m,'docker',return_value=b'desktop-linux\n'),patch.object(m.shutil,'which',return_value=sys.executable),
+            patch.object(m,'command',side_effect=lambda args,**kwargs:b'3.14.0\n' if args[0]!='/bin/launchctl' else b''),
+            patch.object(m,'observer_job',return_value=None)]
+        for p in patches:p.start();self.addCleanup(p.stop)
+        return Path(sys.executable).resolve()
+
+    def test_observer_install_seals_stable_owned_files_and_starts_only_dedicated_job(self):
+        python=self.observer_install_fixture()
+        result=m.install_observer(self.state,self.directory,python)
+        self.assertEqual('OBSERVER_JOB_INSTALLED',result['stage']);self.assertEqual('PENDING',result['physicalObservation'])
+        record=self.state['observer'];self.assertEqual('3.14.0',record['pythonVersion'])
+        plist=m.plistlib.loads(m.private(Path(record['plist'])))
+        self.assertEqual(record['arguments'],plist['ProgramArguments']);self.assertTrue(plist['KeepAlive']);self.assertTrue(plist['RunAtLoad'])
+        self.assertEqual(5,plist['ThrottleInterval']);self.assertEqual('/dev/null',plist['StandardErrorPath'])
+        config=json.loads(m.private(self.directory/'observer/config.json'))
+        self.assertEqual('c'*64,config['pgContainerId']);self.assertNotIn('token',config)
+        self.assertNotIn('observer-token',json.dumps(plist))
+        m.command.assert_called_with(['/bin/launchctl','bootstrap','gui/'+str(self.state['uid']),record['plist']],timeout=5)
+        self.assertEqual(record,m.observer_files(self.state,self.directory))
+        # An interrupted bootstrap resumes the sealed exact job, without rewriting files or secrets.
+        before={str(path):path.read_bytes() for path in (self.directory/'observer').iterdir()}
+        m.install_observer(self.state,self.directory,None)
+        self.assertEqual(before,{str(path):path.read_bytes() for path in (self.directory/'observer').iterdir()})
+        with patch.object(m,'observer_job',return_value=123),patch.object(m,'observer_status',return_value={'result':'PASS'}) as status:
+            m.command.reset_mock();self.assertEqual({'result':'PASS'},m.install_observer(self.state,self.directory,None))
+            status.assert_called_once();m.command.assert_not_called()
+        (self.directory/'observer/observer.py').write_bytes(b'changed')
+        with self.assertRaisesRegex(m.RuntimeFailure,'CONFIG_MISMATCH'):m.observer_files(self.state,self.directory)
+
+    def test_observer_status_requires_owned_running_job_fresh_success_not_just_disk_counters(self):
+        python=self.observer_install_fixture();m.install_observer(self.state,self.directory,python)
+        fresh={'schemaVersion':1,'ownerId':self.state['ownerId'],'sequence':1,'at':dt.datetime.now(dt.timezone.utc).isoformat(),
+               'result':'ACCEPTED','code':'OBSERVATION_ACCEPTED','freeBytes':5368709120,'totalBytes':10737418240}
+        path=self.directory/'observer/health.json'
+        def publish(value):m.write_private(path,json.dumps(value),replace=path.exists())
+        publish(fresh)
+        with patch.object(m,'observer_job',return_value=123):
+            self.assertTrue(m.observer_status(self.state,self.directory)['apiObservationAccepted'])
+            publish({**fresh,'result':'FAILED','code':'HTTP_UNAVAILABLE'})
+            self.assertEqual('FAIL',m.observer_status(self.state,self.directory)['result'])
+            publish({**fresh,'result':'DEGRADED','code':'LOW_SPACE'})
+            self.assertEqual('FAIL',m.observer_status(self.state,self.directory)['result'])
+            for value in [{**fresh,'at':(dt.datetime.now(dt.timezone.utc)-dt.timedelta(seconds=6)).isoformat()},
+                          {**fresh,'sequence':True},{**fresh,'ownerId':'foreign'},{**fresh,'result':'unknown'}]:
+                publish(value)
+                with self.assertRaises(m.RuntimeFailure):m.observer_status(self.state,self.directory)
+        for pid in [None,0]:
+            with patch.object(m,'observer_job',return_value=pid),self.assertRaisesRegex(m.RuntimeFailure,'NOT_RUNNING'):m.observer_status(self.state,self.directory)
+
+    def test_native_job_probe_rejects_foreign_arguments_and_bounds_launchctl(self):
+        python=self.observer_install_fixture();m.install_observer(self.state,self.directory,python)
+        record=self.state['observer']
+        # Use the real probe while keeping every native command mocked.
+        # patch.object above retains the original in the module file; reload a separate namespace.
+        spec=importlib.util.spec_from_file_location('observer_probe_fixture',Path(m.__file__))
+        other=importlib.util.module_from_spec(spec);spec.loader.exec_module(other)
+        text='path = '+record['plist']+'\nprogram = '+record['python']+'\narguments = {\n'+'\n'.join(record['arguments'])+'\n}\npid = 123\n'
+        with patch.object(other.subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=text.encode())) as run:
+            self.assertEqual(123,other.observer_job(record));self.assertEqual(3,run.call_args.kwargs['timeout'])
+        for output in [text.replace('pid = 123',''),text.replace('--config','--wrong')]:
+            with patch.object(other.subprocess,'run',return_value=SimpleNamespace(returncode=0,stdout=output.encode())):
+                if '--wrong' in output:
+                    with self.assertRaisesRegex(other.RuntimeFailure,'JOB_MISMATCH'):other.observer_job(record)
+                else:self.assertEqual(0,other.observer_job(record))
+        with patch.object(other.subprocess,'run',return_value=SimpleNamespace(returncode=113,stdout=b'')):self.assertIsNone(other.observer_job(record))
+        for failure in [OSError('private'),subprocess.TimeoutExpired('private',3)]:
+            with patch.object(other.subprocess,'run',side_effect=failure),self.assertRaisesRegex(other.RuntimeFailure,'SUPERVISOR_UNAVAILABLE'):other.observer_job(record)
+
+    def test_observer_install_fails_closed_without_native_supervisor_writer_or_owned_plan(self):
+        with patch.object(m.sys,'platform','linux'),self.assertRaisesRegex(m.RuntimeFailure,'NATIVE_SUPERVISOR'):m.install_observer(self.state,self.directory,None)
+        with patch.object(m.sys,'platform','darwin'),self.assertRaisesRegex(m.RuntimeFailure,'REQUIRES_WRITER'):m.install_observer(self.state,self.directory,None)
+        python=self.observer_install_fixture()
+        with self.assertRaisesRegex(m.RuntimeFailure,'PYTHON_REQUIRED'):m.install_observer(self.state,self.directory,None)
+        with patch.object(m,'observer_job',return_value=0),self.assertRaisesRegex(m.RuntimeFailure,'UNKNOWN_JOB'):m.install_observer(self.state,self.directory,python)
+        m.install_observer(self.state,self.directory,python)
+        self.state['observer']['label']='foreign'
+        with self.assertRaisesRegex(m.RuntimeFailure,'OWNER_MISMATCH'):m.observer_files(self.state,self.directory)
+
+    def test_observer_plist_parent_must_remain_owned_and_not_group_or_other_writable(self):
+        python=self.observer_install_fixture()
+        self.launchagents.chmod(0o777)
+        with self.assertRaisesRegex(m.RuntimeFailure,'PLIST_DIRECTORY'):m.install_observer(self.state,self.directory,python)
+        self.assertNotIn('observer',self.state)
+        self.launchagents.chmod(0o755);m.install_observer(self.state,self.directory,python)
+        self.launchagents.chmod(0o775)
+        with self.assertRaisesRegex(m.RuntimeFailure,'PLIST_DIRECTORY'):m.observer_status(self.state,self.directory)
+
 
 if __name__=='__main__':unittest.main()

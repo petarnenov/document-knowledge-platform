@@ -14,6 +14,8 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shutil
+import plistlib
 import stat
 import subprocess
 import sys
@@ -610,6 +612,118 @@ def local_daemon():
     require(isinstance(endpoint, str) and endpoint.startswith('unix:///'), 'LOG_RUNTIME_LOCAL_DAEMON_REQUIRED')
 
 
+def observer_job(record):
+    try:
+        result = subprocess.run(['/bin/launchctl', 'print', record['service']],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        raise RuntimeFailure('LOG_OBSERVER_SUPERVISOR_UNAVAILABLE') from None
+    if result.returncode == 113:
+        return None
+    require(result.returncode == 0 and len(result.stdout) <= 65536, 'LOG_OBSERVER_SUPERVISOR_UNAVAILABLE')
+    text = result.stdout.decode('utf-8')
+    require(re.search(r'(?m)^\s*path = ' + re.escape(record['plist']) + r'$', text)
+            and re.search(r'(?m)^\s*program = ' + re.escape(record['python']) + r'$', text), 'LOG_OBSERVER_JOB_MISMATCH')
+    arguments = re.search(r'(?ms)^\s*arguments = \{\n(.*?)^\s*\}', text)
+    require(arguments and [line.strip() for line in arguments.group(1).splitlines() if line.strip()]
+            == record['arguments'], 'LOG_OBSERVER_JOB_MISMATCH')
+    pid = re.search(r'(?m)^\s*pid = ([1-9][0-9]*)$', text)
+    return int(pid.group(1)) if pid else 0
+
+
+def observer_files(state, directory):
+    require(sys.platform == 'darwin' and 'observer' in state, 'LOG_OBSERVER_NOT_INSTALLED')
+    record = state['observer']
+    label = 'org.documentknowledge.devlogging.' + state['ownerId'] + '.observer'
+    expected = Path.home() / 'Library/LaunchAgents' / (label + '.plist')
+    require(expected.parent.resolve(strict=True) == expected.parent
+            and expected.parent.stat().st_uid == os.getuid() and not expected.parent.stat().st_mode & 0o022,
+            'LOG_OBSERVER_PLIST_DIRECTORY')
+    require(record['label'] == label and record['service'] == 'gui/' + str(state['uid']) + '/' + label
+            and record['plist'] == str(expected), 'LOG_OBSERVER_OWNER_MISMATCH')
+    for path, digest in [(directory / 'observer/observer.py', record['scriptSha256']),
+                         (directory / 'observer/config.json', record['configSha256']),
+                         (expected, record['plistSha256'])]:
+        require(hashlib.sha256(private(path)).hexdigest() == digest, 'LOG_OBSERVER_CONFIG_MISMATCH')
+    return record
+
+
+def observer_status(state, directory):
+    record = observer_files(state, directory)
+    pid = observer_job(record)
+    require(pid is not None and pid > 0, 'LOG_OBSERVER_NOT_RUNNING')
+    value = json.loads(private(directory / 'observer/health.json', 4096))
+    require(value['schemaVersion'] == 1 and value['ownerId'] == state['ownerId']
+            and type(value['sequence']) is int and value['sequence'] > 0, 'LOG_OBSERVER_HEALTH_INVALID')
+    age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(value['at'])).total_seconds()
+    require(0 <= age <= 5, 'LOG_OBSERVER_HEALTH_STALE')
+    accepted = value['result'] == 'ACCEPTED' and value['code'] == 'OBSERVATION_ACCEPTED'
+    require(value['result'] in ('ACCEPTED', 'FAILED', 'DEGRADED')
+            and value['code'] in ('OBSERVATION_ACCEPTED', 'HTTP_UNAVAILABLE', 'MEASUREMENT_UNAVAILABLE', 'LOW_SPACE'),
+            'LOG_OBSERVER_HEALTH_INVALID')
+    return {'result': 'PASS' if accepted else 'FAIL', 'stage': 'SHARED_VOLUME_OBSERVER', 'pid': pid,
+            'sequence': value['sequence'], 'code': value['code'], 'apiObservationAccepted': accepted,
+            'eventPersistence': 'NOT_ASSERTED', 'full457': 'OPEN'}
+
+
+def install_observer(state, directory, interpreter):
+    require(sys.platform == 'darwin', 'LOG_OBSERVER_NATIVE_SUPERVISOR_REQUIRED')
+    require(state.get('writerEnabled') is True, 'LOG_OBSERVER_REQUIRES_WRITER')
+    check_resources(state)
+    if 'observer' in state:
+        observer_files(state, directory)
+        if observer_job(state['observer']) is not None:
+            return observer_status(state, directory)  # No implicit restart/replacement/rotation.
+        record = state['observer']
+    else:
+        require(interpreter is not None, 'LOG_OBSERVER_PYTHON_REQUIRED')
+        python = Path(interpreter)
+        require(python.is_absolute() and python.resolve(strict=True) == python and python.is_file()
+                and os.access(python, os.X_OK) and not python.stat().st_mode & 0o022)
+        if state['project'] == 'dkp-dev-logging':
+            require(not any(python.is_relative_to(path) or directory.is_relative_to(path)
+                            for path in (ROOT, Path('/tmp'), Path('/private/tmp'), Path('/private/var/folders'))),
+                    'LOG_OBSERVER_REQUIRES_STABLE_PATHS')
+        version = command([str(python), '-I', '-c', 'import platform; print(platform.python_version())'], timeout=3).decode().strip()
+        require(re.fullmatch(r'3\.14\.[0-9]+', version), 'LOG_OBSERVER_PYTHON_VERSION')
+        binary = Path(shutil.which('docker')).resolve(strict=True)
+        context = docker('context', 'show', timeout=3).decode().strip()
+        require(re.fullmatch('[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', context))
+        pg = container(state, directory, 'postgres')
+        label = 'org.documentknowledge.devlogging.' + state['ownerId'] + '.observer'
+        plist = Path.home() / 'Library/LaunchAgents' / (label + '.plist')
+        require(plist.parent.resolve(strict=True) == plist.parent and plist.parent.stat().st_uid == os.getuid()
+                and not plist.parent.stat().st_mode & 0o022, 'LOG_OBSERVER_PLIST_DIRECTORY')
+        require(not plist.exists() and not plist.is_symlink(), 'LOG_OBSERVER_UNKNOWN_JOB')
+        record = {'label': label, 'service': 'gui/' + str(state['uid']) + '/' + label, 'plist': str(plist),
+                  'python': str(python), 'pythonVersion': version,
+                  'arguments': [str(python), '-I', str(directory / 'observer/observer.py'), '--config', str(directory / 'observer/config.json')]}
+        require(observer_job(record) is None, 'LOG_OBSERVER_UNKNOWN_JOB')
+        config = {'schemaVersion': 1, 'ownerId': state['ownerId'], 'directory': str(directory), 'project': state['project'],
+                  'pgContainerId': pg['Id'], 'pgImageId': pg['Image'],
+                  'volumeIdentity': state['volumes'][state['project'] + '-postgres-data'],
+                  'dockerBinary': str(binary), 'dockerContext': context, 'port': state['port']}
+        script = (ROOT / 'tools/runtime/log-volume-observer.py').read_bytes()
+        config_bytes = (json.dumps(config, sort_keys=True) + '\n').encode()
+        plist_bytes = plistlib.dumps({'Label': label, 'ProgramArguments': record['arguments'], 'RunAtLoad': True,
+            'KeepAlive': True, 'ThrottleInterval': 5, 'ProcessType': 'Background',
+            'WorkingDirectory': str(directory / 'observer'), 'StandardOutPath': '/dev/null', 'StandardErrorPath': '/dev/null',
+            'EnvironmentVariables': {'HOME': str(Path.home()), 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'}})
+        folder = directory / 'observer'
+        require(not folder.exists() and not folder.is_symlink(), 'LOG_OBSERVER_UNKNOWN_FILES')
+        folder.mkdir(mode=0o700)
+        for path, content in [(folder / 'observer.py', script), (folder / 'config.json', config_bytes), (plist, plist_bytes)]:
+            write_private(path, content)
+        record.update(scriptSha256=hashlib.sha256(script).hexdigest(), configSha256=hashlib.sha256(config_bytes).hexdigest(),
+                      plistSha256=hashlib.sha256(plist_bytes).hexdigest(), stage='PREPARED')
+        state['observer'] = record
+        save(directory, state)  # Durable ownership before creating any native job.
+    command(['/bin/launchctl', 'bootstrap', 'gui/' + str(state['uid']), record['plist']], timeout=5)
+    state['observer']['stage'] = 'INSTALLED'
+    save(directory, state)
+    return {'result': 'PASS', 'stage': 'OBSERVER_JOB_INSTALLED', 'physicalObservation': 'PENDING', 'full457': 'OPEN'}
+
+
 @contextmanager
 def operator_lock(directory):
     require(not directory.is_symlink())
@@ -630,12 +744,13 @@ def operator_lock(directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('action', choices=('start', 'status', 'update', 'renew-readers'))
+    parser.add_argument('action', choices=('start', 'status', 'update', 'renew-readers', 'observer-install', 'observer-status'))
     parser.add_argument('--directory', type=Path, default=ROOT / 'local-data/security/dev-logging/shared')
     parser.add_argument('--project', default='dkp-dev-logging')
     parser.add_argument('--port', type=int, default=18443)
     parser.add_argument('--idp-port', type=int, default=18444)
     parser.add_argument('--target', choices=('query','gateway','both','viewer'))
+    parser.add_argument('--observer-python', type=Path)
     args = parser.parse_args()
     if args.action == 'update' and args.target is None:
         parser.error('update requires explicit --target query|gateway|both|viewer')
@@ -650,6 +765,10 @@ def main():
                 result = verify_live(state, directory)
             elif args.action == 'renew-readers':
                 result = renew(state, directory)
+            elif args.action == 'observer-install':
+                result = install_observer(state, directory, args.observer_python)
+            elif args.action == 'observer-status':
+                result = observer_status(state, directory)
             else:
                 result = start(state, directory, update=args.action == 'update', target=args.target or 'both')
         print(json.dumps(result, sort_keys=True))
