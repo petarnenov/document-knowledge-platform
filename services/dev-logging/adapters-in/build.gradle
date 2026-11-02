@@ -1,1 +1,11 @@
 // Versioned HTTP adapter wiring follows contract generation; no public route is exposed yet.
+dependencies {
+    annotationProcessor platform(rootProject.libs.micronaut.platform)
+    annotationProcessor 'io.micronaut:micronaut-inject-java'
+    implementation platform(rootProject.libs.micronaut.platform)
+    implementation 'io.micronaut:micronaut-http-server'
+    implementation 'io.micronaut:micronaut-json-core'
+    testImplementation 'io.micronaut:micronaut-runtime'
+    testImplementation 'io.micronaut:micronaut-http-server-netty'
+    testImplementation 'io.micronaut:micronaut-jackson-databind'
+}
