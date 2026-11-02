@@ -1,9 +1,10 @@
 package org.documentknowledge.browserbff.bootstrap;
 
 import io.micronaut.context.ApplicationContext;
-import io.micronaut.http.HttpRequest;
+import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.cookie.Cookie;
+import io.micronaut.http.simple.SimpleHttpRequest;
 import io.micronaut.session.Session;
 import io.micronaut.session.SessionStore;
 import io.micronaut.session.http.CookieHttpSessionStrategy;
@@ -24,7 +25,7 @@ class BrowserSessionCookieStrategyTest {
             assertInstanceOf(BrowserSessionCookieStrategy.class, strategy);
             assertEquals(1, context.getBeansOfType(CookieHttpSessionStrategy.class).size());
             Session session = context.getBean(SessionStore.class).newSession();
-            var request = HttpRequest.GET("/api/v1/session");
+            var request = new SimpleHttpRequest<>(HttpMethod.GET, "/api/v1/session", null);
             var response = HttpResponse.ok();
             strategy.encodeId(request, response, session);
             var cookie = response.getCookie(COOKIE).orElseThrow();
@@ -35,12 +36,14 @@ class BrowserSessionCookieStrategyTest {
             assertNull(cookie.getDomain());
             assertEquals(io.micronaut.http.cookie.SameSite.Lax, cookie.getSameSite().orElseThrow());
 
-            var matching = HttpRequest.GET("/api/v1/session").cookie(Cookie.of(COOKIE, session.getId()));
+            var matching = new SimpleHttpRequest<>(HttpMethod.GET, "/api/v1/session", null)
+                .cookie(Cookie.of(COOKIE, session.getId()));
             var unchanged = HttpResponse.ok();
             strategy.encodeId(matching, unchanged, session);
             assertTrue(unchanged.getCookies().getAll().isEmpty());
 
-            var different = HttpRequest.GET("/api/v1/session").cookie(Cookie.of(COOKIE, "synthetic-prior-id"));
+            var different = new SimpleHttpRequest<>(HttpMethod.GET, "/api/v1/session", null)
+                .cookie(Cookie.of(COOKIE, "synthetic-prior-id"));
             var rotated = HttpResponse.ok();
             strategy.encodeId(different, rotated, session);
             assertTrue(session.getId().equals(rotated.getCookie(COOKIE).orElseThrow().getValue()));
