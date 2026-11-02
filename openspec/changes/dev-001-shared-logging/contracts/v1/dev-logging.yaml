@@ -24,12 +24,16 @@ paths:
       description: Requires a scoped producer credential and registered build/run/component. Maximum32768 UTF-8 body
         bytes and32 events; each sanitized event at most8192bytes. Scope derives from authenticated
         server-side grants. Claimed actor/tenant fields and unknown fields are rejected. No partial success.
-        Identical producer/eventId retries are idempotent; changed content conflicts. Unknown commit outcome
-        is reconciled by replay or receipt lookup. Never return202 as a persistence receipt. Repeated eventId
-        within a batch is400 (even identical). Canonical identity uses RFC8785 canonical JSON of validated
-        sanitized event, hashed SHA-256; producers retry the same canonical event. Zero trace/span IDs, span
-        without trace and unregistered diagnostic vocabulary are rejected. Ingest receipts contain COMMITTED
-        and receivedAt only. All grant/replay lifetimes use server time.
+        Unique(producerId,scopeId,eventId) isolates idempotency. Identical retained content within the same
+        scope is idempotent; changed content within that scope conflicts. Equal event IDs in distinct scopes
+        are independent, not a global409 oracle. Unknown commit outcome is reconciled by replay or receipt
+        lookup. Never return202 as a persistence receipt. Repeated eventId within a batch is400 (even
+        identical). Canonical identity uses RFC8785 canonical JSON of validated sanitized event, hashed
+        SHA-256; producers retry the same canonical event. Zero trace/span IDs, span without trace and
+        unregistered diagnostic vocabulary are rejected. Ingest receipts contain COMMITTED and receivedAt
+        only. All grant/replay lifetimes use server time. Validate immutable parent/scope envelope before
+        lookup. A live expired-payload tombstone returns410 LOG_EVENT_EXPIRED, not COMMITTED/recreation;
+        reject the whole batch atomically. Producers can reconcile/split bounded own-scope batches.
       requestBody:
         required: true
         content:
@@ -55,6 +59,8 @@ paths:
         "403":
           $ref: "#/components/responses/Rejected"
         "409":
+          $ref: "#/components/responses/Rejected"
+        "410":
           $ref: "#/components/responses/Rejected"
         "413":
           $ref: "#/components/responses/Rejected"
@@ -118,12 +124,24 @@ paths:
           $ref: "#/components/responses/Rejected"
         "409":
           $ref: "#/components/responses/Rejected"
+        "410":
+          $ref: "#/components/responses/Rejected"
         "413":
           $ref: "#/components/responses/Rejected"
         "429":
           $ref: "#/components/responses/Rejected"
         "503":
           $ref: "#/components/responses/Rejected"
+      parameters:
+        - &a2
+          name: Origin
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+          description: Exactly one configured same-origin value; duplicates rejected.
   /api/v1/dev-logs/events:
     get:
       operationId: queryDevLogs
@@ -266,10 +284,13 @@ paths:
       tags:
         - DevLogging
       summary: Create or read the live server-owned browser logging epoch
-      description: BFF only. Active session, single exact Origin and X-CSRF-TOKEN required. Empty bounded JSON body.
-        Bind epoch to session/verified identity/tenant and actual portal build/run. Expire at earlier
-        of5minutes or session expiry; rotate/retire atomically with identity transition. Same unchanged epoch
-        returned until expiry; old epochs never adopted by new identity.
+      description: "BFF only: active session, single exact Origin and X-CSRF-TOKEN required. Body at most1024bytes,
+        registered served portal buildId and diagnostic once-per-page runId. Server-owned identity epoch is
+        shared safely by tabs with separate bound build/runs. At most64bindings per epoch and4096globally.
+        Exact verified actor/tenant snapshot; authenticated session without tenant has
+        AUTHENTICATED_UNSELECTED operator-only scope. Epoch expires at earlier of5minutes/session expiry and
+        retires atomically on identity/tenant transition. Old browser events cannot adopt replacement epoch;
+        accepted server spools retain original scope."
       security:
         - BrowserSession: []
       requestBody:
@@ -279,8 +300,14 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: []
-              properties: {}
+              required:
+                - buildId
+                - runId
+              properties:
+                buildId:
+                  $ref: "#/components/schemas/Uuid"
+                runId:
+                  $ref: "#/components/schemas/Uuid"
       responses:
         "200":
           description: Validated operation result; no-store.
@@ -289,29 +316,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ContextView"
-        "400": &a2
+        "400": &a3
           $ref: "#/components/responses/Rejected"
-        "401": &a3
+        "401": &a4
           $ref: "#/components/responses/Rejected"
-        "403": &a4
+        "403": &a5
           $ref: "#/components/responses/Rejected"
-        "409": &a5
+        "409": &a6
           $ref: "#/components/responses/Rejected"
-        "413": &a6
+        "413": &a7
           $ref: "#/components/responses/Rejected"
-        "429": &a7
+        "429": &a8
           $ref: "#/components/responses/Rejected"
-        "503": &a8
+        "503": &a9
           $ref: "#/components/responses/Rejected"
+      parameters:
+        - *a2
+        - name: X-CSRF-TOKEN
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+          description: Current session CSRF token; constant-time equality, never logged.
   /api/v1/dev-logs/beacon/receipts:
     post:
       operationId: lookupBrowserDevLogReceipts
       tags:
         - DevLogging
       summary: Reconcile current-epoch Beacon event IDs
-      description: BFF only. Same active session/exact Origin/body CSRF/current server epoch validation as Beacon.
-        Only event IDs previously submitted under this epoch; do not permit global ID probing. Strip token
-        before delegation; retired/expired epoch403. This asynchronous reconciliation never gates UI.
+      description: "BFF only: active session/exact Origin/body CSRF/current server epoch and build/run/captureClass
+        binding. Select original scoped server credential; query checks BOTH producerId and scopeId for every
+        ID. Out-of-scope and unseen IDs both UNKNOWN, no contents/global existence/counts. No per-event
+        unbounded submitted-ID map. At most64epoch build/run bindings and4096globally. Retired epoch403;
+        expired/revoked producer or scope cannot mint new receipt authority. Asynchronous reconciliation never
+        gates UI."
       security:
         - BrowserSession: []
       requestBody:
@@ -328,13 +368,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LookupBatchReceipt"
-        "400": *a2
-        "401": *a3
-        "403": *a4
-        "409": *a5
-        "413": *a6
-        "429": *a7
-        "503": *a8
+        "400": *a3
+        "401": *a4
+        "403": *a5
+        "409": *a6
+        "413": *a7
+        "429": *a8
+        "503": *a9
+      parameters:
+        - *a2
   /api/v1/dev-logs/registrations:
     post:
       operationId: registerDevLogProducer
@@ -343,9 +385,9 @@ paths:
       summary: Register a bounded immutable build/run producer grant
       description: Operator registration authority only. Binding must match an installed reviewed build/vocabulary
         manifest by digest. Server mints new producerId; acceptUntil at most48h from server issuance. No ID
-        reuse/renewal or old-spool identity replacement. Maximum128 retained principals and accounted store
-        capacity. Credential returned once to authorized caller, never logged. Revoke via operator deletion,
-        fail closed on missing registration.
+        reuse/renewal or old-spool identity replacement. Maximum4096 retained parent principals and accounted
+        store capacity. Credential returned once to authorized caller, never logged. Revoke via operator
+        deletion, fail closed on missing registration.
       security:
         - RegistrationToken: []
       requestBody:
@@ -362,27 +404,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProducerGrant"
-        "400": *a2
-        "401": *a3
-        "403": *a4
-        "409": *a5
-        "413": *a6
-        "429": *a7
-        "503": *a8
+        "400": *a3
+        "401": *a4
+        "403": *a5
+        "409": *a6
+        "413": *a7
+        "429": *a8
+        "503": *a9
   /api/v1/dev-logs/delegations:
     post:
       operationId: delegateDevLogScope
       tags:
         - DevLogging
       summary: Create a server-attested ephemeral logging scope
-      description: Trusted server attestor only. Credential fixes component/build and issuer/tenant allowlist. BFF
-        derives scope from its verified session, never browser-supplied fields, binds current epoch and
-        expires within5minutes and session expiry. Verified backend authority context can create equivalent
-        operation-scoped grants. Subject/tenant claims accepted only from the authenticated attestor and
-        within its configured grants. OPERATOR_ONLY/UNATTRIBUTED have no actor/tenant. Resulting producerToken
-        remains on attesting server, adds no business/content authority. Common ingestion uses this token;
-        store derives trusted scope exclusively from its registration. Source registration validity/retirement
-        remains controlling; old epoch cannot renew.
+      description: Trusted server attestor only; must own parentProducerId. Returns a child scope under the SAME
+        parent, not another parent registration. Target binding must equal parent or an explicit installed
+        frontend bridge manifest allowed to BFF attestor; no arbitrary build/component. Verified scope comes
+        from server operation/session, not browser event fields. Capture at most5minutes/current authority;
+        sealed accepted batches replay until original parent expiry or scope creation+48h. Fixed
+        parent/scope/context/canonical event identity cannot be relabeled. No business/content/query
+        authority. Capacity4096parents and131072separately-accounted scopes; all within common store ceiling.
+        No raw secret output in diagnostics.
       security:
         - DelegatorToken: []
       requestBody:
@@ -398,14 +440,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProducerGrant"
-        "400": *a2
-        "401": *a3
-        "403": *a4
-        "409": *a5
-        "413": *a6
-        "429": *a7
-        "503": *a8
+                $ref: "#/components/schemas/ScopedProducerGrant"
+        "400": *a3
+        "401": *a4
+        "403": *a5
+        "409": *a6
+        "413": *a7
+        "429": *a8
+        "503": *a9
   /api/v1/dev-logs/registrations/{producerId}:
     delete:
       operationId: revokeDevLogProducer
@@ -426,13 +468,47 @@ paths:
         "204":
           description: Revoked or already unavailable; no event deletion.
           headers: *a1
-        "400": *a2
-        "401": *a3
-        "403": *a4
-        "409": *a5
-        "413": *a6
-        "429": *a7
-        "503": *a8
+        "400": *a3
+        "401": *a4
+        "403": *a5
+        "409": *a6
+        "413": *a7
+        "429": *a8
+        "503": *a9
+  /api/v1/dev-logs/storage-observation:
+    post:
+      operationId: reportDevLogStorageObservation
+      tags:
+        - DevLogging
+      summary: Refresh bounded trusted logging-volume admission state
+      description: Private owned-runtime observer only, exact configured volumeIdentity; no caller URL/path or
+        timestamp. External bounded observer measures actual dedicated PostgreSQL volume, no Docker
+        socket/data mount in service. Service stamps server receive time, validates free<=total and expected
+        volume. Latest observation valid5seconds; unavailable/missing/stale observer fails closed for
+        ingestion. This bounded in-memory health update cannot require the database or recurse into logging.
+      security:
+        - StorageObserverToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StorageObservation"
+      responses:
+        "204":
+          description: Observation accepted into bounded admission state, not a telemetry persistence receipt.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        "400": &a10
+          $ref: "#/components/responses/Rejected"
+        "401": *a10
+        "403": *a10
+        "413": *a10
+        "429": *a10
+        "503": *a10
 components:
   securitySchemes:
     ProducerToken:
@@ -458,6 +534,10 @@ components:
       scheme: bearer
       description: Server-only scope-attestor credential bound to a registered trusted component/build and allowed
         issuers/tenants; no browser access or log-read authority.
+    StorageObserverToken:
+      type: http
+      scheme: bearer
+      description: Separate trusted owned-volume observer grant, no event ingest/query/registration permission.
   responses:
     Rejected:
       description: Fixed safe failure code; never echo payloads, tokens or exception messages.
@@ -490,11 +570,12 @@ components:
                   - LOG_GRANT_EXPIRED
                   - UNREGISTERED_DIAGNOSTIC
                   - LOG_CONTEXT_EXPIRED
+                  - LOG_EVENT_EXPIRED
   schemas:
     Uuid:
       type: string
       format: uuid
-      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+      pattern: ^(?!00000000-0000-0000-0000-000000000000$)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
     Component:
       type: string
       minLength: 1
@@ -519,6 +600,7 @@ components:
         schemaVersion:
           type: integer
           const: 1
+          maximum: 9007199254740991
         events:
           type: array
           minItems: 1
@@ -608,12 +690,15 @@ components:
         durationMs:
           type: integer
           minimum: 0
+          maximum: 9007199254740991
         remainingDeadlineMs:
           type: integer
           minimum: 0
+          maximum: 9007199254740991
         attempt:
           type: integer
           minimum: 0
+          maximum: 9007199254740991
         errorCode:
           type: string
           maxLength: 96
@@ -651,12 +736,15 @@ components:
               line:
                 type: integer
                 minimum: 0
+                maximum: 9007199254740991
         redactedFields:
           type: integer
           minimum: 0
+          maximum: 9007199254740991
         truncatedFields:
           type: integer
           minimum: 0
+          maximum: 9007199254740991
         dependency:
           type: string
           maxLength: 96
@@ -676,12 +764,15 @@ components:
             bytes:
               type: integer
               minimum: 0
+              maximum: 9007199254740991
             count:
               type: integer
               minimum: 0
+              maximum: 9007199254740991
             queueDepth:
               type: integer
               minimum: 0
+              maximum: 9007199254740991
             cancelRequested:
               type: boolean
             cleanupSettled:
@@ -694,6 +785,7 @@ components:
         unregisteredSymbols:
           type: integer
           minimum: 0
+          maximum: 9007199254740991
     StoredEvent:
       type: object
       additionalProperties: false
@@ -702,6 +794,8 @@ components:
         - producerId
         - receivedAt
         - sequence
+        - scopeId
+        - scope
       properties:
         event:
           $ref: "#/components/schemas/LogEvent"
@@ -713,6 +807,10 @@ components:
         sequence:
           type: string
           pattern: ^[0-9]+$
+        scopeId:
+          $ref: "#/components/schemas/Uuid"
+        scope:
+          $ref: "#/components/schemas/TrustedLogScope"
     LookupBatchReceipt:
       type: object
       additionalProperties: false
@@ -753,6 +851,18 @@ components:
                     receivedAt:
                       type: string
                       format: date-time
+              - if:
+                  properties:
+                    state:
+                      enum:
+                        - EXPIRED
+                        - UNKNOWN
+                then:
+                  not:
+                    required:
+                      - receivedAt
+                    properties:
+                      receivedAt: {}
       description: Scope-bound lookup only. COMMITTED requires receivedAt; EXPIRED/UNKNOWN omit it. No historical
         absence inference.
     CommittedBatchReceipt:
@@ -778,7 +888,7 @@ components:
               state:
                 type: string
                 const: COMMITTED
-              receivedAt: &a9
+              receivedAt: &a11
                 type: string
                 format: date-time
     TraceId:
@@ -799,7 +909,7 @@ components:
           $ref: "#/components/schemas/Uuid"
         runId:
           $ref: "#/components/schemas/Uuid"
-        expiresAt: *a9
+        expiresAt: *a11
     BrowserReceiptRequest:
       type: object
       additionalProperties: false
@@ -807,6 +917,9 @@ components:
         - csrfToken
         - contextEpoch
         - eventIds
+        - buildId
+        - runId
+        - captureClass
       properties:
         csrfToken:
           type: string
@@ -822,6 +935,15 @@ components:
           items:
             $ref: "#/components/schemas/Uuid"
           uniqueItems: true
+        buildId:
+          $ref: "#/components/schemas/Uuid"
+        runId:
+          $ref: "#/components/schemas/Uuid"
+        captureClass:
+          type: string
+          enum:
+            - CURRENT_CONTEXT
+            - UNATTRIBUTED
     ArtifactBinding:
       type: object
       additionalProperties: false
@@ -893,6 +1015,24 @@ components:
               type: string
               minLength: 1
               maxLength: 256
+        - type: object
+          additionalProperties: false
+          required:
+            - scopeKind
+            - issuer
+            - subject
+          properties:
+            scopeKind:
+              type: string
+              const: AUTHENTICATED_UNSELECTED
+            issuer:
+              type: string
+              format: uri
+              maxLength: 512
+            subject:
+              type: string
+              minLength: 1
+              maxLength: 256
     RegistrationRequest:
       type: object
       additionalProperties: false
@@ -905,7 +1045,7 @@ components:
           $ref: "#/components/schemas/ArtifactBinding"
         scope:
           $ref: "#/components/schemas/TrustedLogScope"
-        acceptUntil: *a9
+        acceptUntil: *a11
     ProducerGrant:
       type: object
       additionalProperties: false
@@ -913,30 +1053,81 @@ components:
         - producerId
         - acceptUntil
         - producerToken
+        - scopeId
       properties:
         producerId:
           $ref: "#/components/schemas/Uuid"
-        acceptUntil: *a9
+        acceptUntil: *a11
         producerToken:
           type: string
           minLength: 1
           maxLength: 512
-          writeOnly: true
           description: Sensitive transient result to operator/BFF only. Never browser JSON, source control, diagnostic
             output or telemetry.
+          readOnly: true
+          x-sensitive: true
+        scopeId:
+          $ref: "#/components/schemas/Uuid"
     DelegationRequest:
       type: object
       additionalProperties: false
       required:
+        - parentProducerId
         - binding
         - scope
         - contextEpoch
-        - acceptUntil
+        - captureUntil
       properties:
+        parentProducerId:
+          $ref: "#/components/schemas/Uuid"
         binding:
           $ref: "#/components/schemas/ArtifactBinding"
         scope:
           $ref: "#/components/schemas/TrustedLogScope"
         contextEpoch:
           $ref: "#/components/schemas/Uuid"
-        acceptUntil: *a9
+        captureUntil: &a12
+          type: string
+          format: date-time
+    ScopedProducerGrant:
+      type: object
+      additionalProperties: false
+      required:
+        - producerId
+        - scopeId
+        - captureUntil
+        - replayUntil
+        - producerToken
+      properties:
+        producerId:
+          $ref: "#/components/schemas/Uuid"
+        scopeId:
+          $ref: "#/components/schemas/Uuid"
+        captureUntil: *a12
+        replayUntil: *a12
+        producerToken:
+          type: string
+          minLength: 1
+          maxLength: 512
+          readOnly: true
+          x-sensitive: true
+          description: Server-only scoped secret response. Never browser JSON, telemetry or sanitized event spool.
+    StorageObservation:
+      type: object
+      additionalProperties: false
+      required:
+        - volumeIdentity
+        - freeBytes
+        - totalBytes
+      properties:
+        volumeIdentity:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        freeBytes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        totalBytes:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991

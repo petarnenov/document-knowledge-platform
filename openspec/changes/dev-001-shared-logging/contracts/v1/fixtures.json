@@ -1,0 +1,366 @@
+{
+  "schemaVersion": 1,
+  "description": "Draft syntax fixtures; semanticCases require actual implementation tests and are not declared passing from schema validation.",
+  "base": {
+    "batch": {
+      "schemaVersion": 1,
+      "events": [
+        {
+          "eventId": "12345678-1234-4234-8234-000000000001",
+          "buildId": "12345678-1234-4234-8234-000000000002",
+          "runId": "12345678-1234-4234-8234-000000000003",
+          "instanceId": "12345678-1234-4234-8234-000000000004",
+          "component": "document-management",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "timestamp": "2026-11-02T14:00:00Z",
+          "severity": "DEBUG",
+          "eventName": "operation.failed",
+          "correlationId": "12345678-1234-4234-8234-000000000005",
+          "context": {
+            "phase": "SPOOL_CLAIM",
+            "outcome": "FAILED",
+            "status": 503,
+            "errorCode": "IO",
+            "exceptionClass": "java.io.IOException",
+            "causeClasses": [
+              "java.nio.file.AccessDeniedException"
+            ],
+            "stackFrames": [
+              {
+                "symbol": "FileGenericTemp.claim",
+                "source": "FileGenericTemp.java",
+                "line": 42
+              }
+            ],
+            "dependency": "postgresql",
+            "dependencyVersion": "18.6",
+            "attributes": {
+              "cleanupSettled": true
+            }
+          }
+        }
+      ]
+    },
+    "committed": {
+      "receipts": [
+        {
+          "eventId": "12345678-1234-4234-8234-000000000001",
+          "state": "COMMITTED",
+          "receivedAt": "2026-11-02T14:00:01Z"
+        }
+      ]
+    },
+    "unknown": {
+      "receipts": [
+        {
+          "eventId": "12345678-1234-4234-8234-000000000001",
+          "state": "UNKNOWN"
+        }
+      ]
+    },
+    "browserReceipt": {
+      "csrfToken": "SYNTHETIC-CSRF-NOT-A-CREDENTIAL",
+      "contextEpoch": "12345678-1234-4234-8234-000000000006",
+      "buildId": "12345678-1234-4234-8234-000000000002",
+      "runId": "12345678-1234-4234-8234-000000000003",
+      "captureClass": "CURRENT_CONTEXT",
+      "eventIds": [
+        "12345678-1234-4234-8234-000000000001"
+      ]
+    },
+    "manifest": {
+      "schemaVersion": 1,
+      "buildId": "12345678-1234-4234-8234-000000000002",
+      "component": "document-management",
+      "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "compiledAt": "2026-11-02T14:00:00Z",
+      "toolchainFingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "dependencyFingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "vocabularySha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "vocabulary": {
+        "events": [
+          "process.started",
+          "process.stopped",
+          "operation.started",
+          "operation.succeeded",
+          "operation.failed",
+          "operation.cancelled",
+          "dependency.started",
+          "dependency.succeeded",
+          "dependency.failed",
+          "build.started",
+          "build.succeeded",
+          "build.failed",
+          "ui.route.changed",
+          "ui.identity.changed",
+          "producer.delivery.degraded",
+          "producer.events.lost"
+        ],
+        "phases": [
+          "SPOOL_CLAIM"
+        ],
+        "errorCodes": [
+          "IO"
+        ],
+        "dependencies": [
+          {
+            "name": "postgresql",
+            "version": "18.6",
+            "vendorBuildProvenance": "UNKNOWN"
+          }
+        ],
+        "exceptionClasses": [
+          "java.io.IOException",
+          "java.nio.file.AccessDeniedException"
+        ],
+        "frames": [
+          {
+            "symbol": "FileGenericTemp.claim",
+            "source": "FileGenericTemp.java"
+          }
+        ]
+      },
+      "sourceFingerprintAlgorithm": "dkp-public-inputs-v1",
+      "dirty": false
+    }
+  },
+  "schemaCases": [
+    {
+      "name": "valid-batch",
+      "base": "batch",
+      "schema": "LogBatch",
+      "valid": true
+    },
+    {
+      "name": "missing-build",
+      "base": "batch",
+      "schema": "LogBatch",
+      "remove": "/events/0/buildId",
+      "valid": false
+    },
+    {
+      "name": "nil-build",
+      "base": "batch",
+      "schema": "LogBatch",
+      "replace": {
+        "path": "/events/0/buildId",
+        "value": "00000000-0000-0000-0000-000000000000"
+      },
+      "valid": false
+    },
+    {
+      "name": "forged-tenant-field",
+      "base": "batch",
+      "schema": "LogBatch",
+      "replace": {
+        "path": "/events/0/tenantId",
+        "value": "other-tenant"
+      },
+      "valid": false
+    },
+    {
+      "name": "span-without-trace",
+      "base": "batch",
+      "schema": "LogBatch",
+      "replace": {
+        "path": "/events/0/spanId",
+        "value": "aaaaaaaaaaaaaaaa"
+      },
+      "valid": false
+    },
+    {
+      "name": "zero-trace",
+      "base": "batch",
+      "schema": "LogBatch",
+      "replace": {
+        "path": "/events/0/traceId",
+        "value": "00000000000000000000000000000000"
+      },
+      "valid": false
+    },
+    {
+      "name": "uncontrolled-message",
+      "base": "batch",
+      "schema": "LogBatch",
+      "replace": {
+        "path": "/events/0/context/message",
+        "value": "SYNTHETIC_DOCUMENT_CONTENT"
+      },
+      "valid": false
+    },
+    {
+      "name": "commit-receipt",
+      "base": "committed",
+      "schema": "CommittedBatchReceipt",
+      "valid": true
+    },
+    {
+      "name": "ingest-cannot-confirm-unknown",
+      "base": "unknown",
+      "schema": "CommittedBatchReceipt",
+      "valid": false
+    },
+    {
+      "name": "lookup-unknown",
+      "base": "unknown",
+      "schema": "LookupBatchReceipt",
+      "valid": true
+    },
+    {
+      "name": "unknown-with-received-time",
+      "base": "unknown",
+      "schema": "LookupBatchReceipt",
+      "replace": {
+        "path": "/receipts/0/receivedAt",
+        "value": "2026-11-02T14:00:01Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "committed-without-time",
+      "base": "committed",
+      "schema": "CommittedBatchReceipt",
+      "remove": "/receipts/0/receivedAt",
+      "valid": false
+    },
+    {
+      "name": "browser-receipt-binds-capture-class",
+      "base": "browserReceipt",
+      "schema": "BrowserReceiptRequest",
+      "valid": true
+    },
+    {
+      "name": "browser-receipt-missing-epoch",
+      "base": "browserReceipt",
+      "schema": "BrowserReceiptRequest",
+      "remove": "/contextEpoch",
+      "valid": false
+    },
+    {
+      "name": "browser-receipt-missing-capture-class",
+      "base": "browserReceipt",
+      "schema": "BrowserReceiptRequest",
+      "remove": "/captureClass",
+      "valid": false
+    }
+  ],
+  "semanticCases": [
+    {
+      "name": "same-sha-distinct-compilations",
+      "expect": "Distinct buildIds retained; separate execution runIds; real two-build common-store query"
+    },
+    {
+      "name": "duplicate-json-properties",
+      "expect": "400 before DB dispatch; parser rejects duplicate names"
+    },
+    {
+      "name": "multibyte-and-beacon-overhead",
+      "expect": "Whole envelope at most32768 UTF-8 bytes, event8192, maximum32events; actual encoded bytes tested"
+    },
+    {
+      "name": "idempotent-unknown-commit",
+      "expect": "Same canonical event and scope returns COMMITTED without duplicate; actual PostgreSQL unknown-response test"
+    },
+    {
+      "name": "same-id-isolated-scopes",
+      "expect": "Same parent and UUID in different authorized scopes are independent; no cross-scope409/existence oracle; original accepted spool envelope cannot be relabeled"
+    },
+    {
+      "name": "six-hundred-epoch-rotations",
+      "expect": "One reusable parent,600 bounded scoped delegations; original scopes immutable"
+    },
+    {
+      "name": "stale-tab-shared-cookie",
+      "expect": "Old event epoch403 after tenant/session transition, no actor relabel"
+    },
+    {
+      "name": "parallel-tabs",
+      "expect": "Distinct browser run bindings coexist under same identity epoch; one tab does not retire another merely by registering"
+    },
+    {
+      "name": "authenticated-no-tenant",
+      "expect": "AUTHENTICATED_UNSELECTED operator-only; no tenant fabricated"
+    },
+    {
+      "name": "receipt-scope-probe",
+      "expect": "Outside scope and absent event both UNKNOWN; expired/revoked grant denied"
+    },
+    {
+      "name": "manifest-digest-and-vocabulary",
+      "expect": "Unknown/mismatched manifest or phase/class/version/code rejected; no dynamic catalog admission from errors"
+    },
+    {
+      "name": "producer-token-response",
+      "expect": "Secret returned only to authorized operator/attestor, no-store, never writeOnly omission or browser/telemetry output"
+    },
+    {
+      "name": "expired-spool",
+      "expect": "Terminal EXPIRED after original horizon; cannot re-register old producer or relabel scope"
+    },
+    {
+      "name": "delayed-beacon",
+      "expect": "Real user action completes independently of delayed ingestion response; true is not persistence"
+    },
+    {
+      "name": "raw-secret-or-document",
+      "expect": "Excluded at producer AND ingress, typed debug class/phase/source frames remain useful"
+    },
+    {
+      "name": "shared-store-restart",
+      "expect": "Two real builds FE/BE/infra retained after service restart and task-fixture cleanup"
+    },
+    {
+      "name": "same-scope-changed-content",
+      "expect": "409 only within same parent/scope/event identity; no prior contents disclosed"
+    },
+    {
+      "name": "expired-payload-tombstone-ingest",
+      "expect": "Whole batch410 LOG_EVENT_EXPIRED, never COMMITTED or recreated; own-scope lookupEXPIRED with no timestamp; bounded split/retry of other events"
+    }
+  ],
+  "manifestCases": [
+    {
+      "name": "synthetic-registered-manifest-syntax",
+      "base": "manifest",
+      "valid": true
+    },
+    {
+      "name": "arbitrary-manifest-secret-field",
+      "base": "manifest",
+      "replace": {
+        "path": "/token",
+        "value": "SYNTHETIC-NOT-A-CREDENTIAL"
+      },
+      "valid": false
+    },
+    {
+      "name": "absolute-source-path",
+      "base": "manifest",
+      "replace": {
+        "path": "/vocabulary/frames/0/source",
+        "value": "/private/home/file.java"
+      },
+      "valid": false
+    },
+    {
+      "name": "parent-path",
+      "base": "manifest",
+      "replace": {
+        "path": "/vocabulary/frames/0/source",
+        "value": "../private/file.java"
+      },
+      "valid": false
+    },
+    {
+      "name": "source-text-in-frame",
+      "base": "manifest",
+      "replace": {
+        "path": "/vocabulary/frames/0/symbol",
+        "value": "SYNTHETIC DOCUMENT CONTENT"
+      },
+      "valid": false
+    }
+  ]
+}

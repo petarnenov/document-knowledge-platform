@@ -1,10 +1,11 @@
 ## 1. Protocol and reviewed contract — #457
 
-- [ ] 1.1 Persist the owner BLOCKER requirement, all-build shared destination and Beacon semantics in the protocol and queue; independently review the exact changes.
+- [x] 1.1 Persist and independently review the owner BLOCKER requirement, all-build shared destination and Beacon semantics in the local protocol/queue (LOCAL_VERIFIED in defcb04; dev adoption remains pending).
 - [ ] 1.2 Validate official OpenSpec artifacts and versioned ingestion/query contract; resolve architecture/security review findings and record exact-revision development selection before runtime edits.
 
 ## 2. Persistent telemetry boundary — #457
 
+- [x] 2.0 Implement the separately selected framework-free build/execution/event identity foundation and dependency-purity checks. Local defcb04: independently verified60 pinned Linux tests,62/62 LINE and18/18 BRANCH; no API/database/Beacon/CI/integration claim.
 - [ ] 2.1 Implement hexagonal logging service, owned PostgreSQL schema, migration, indexed scoped queries and idempotent commit acknowledgement with negative tests.
 - [ ] 2.2 Implement scoped producer/operator credentials, Beacon ingress validation, redaction, bounds, loss/degraded reporting, retention and restart/outage tests.
 - [ ] 2.3 Implement persistent shared-runtime lifecycle independent of build/task fixtures using reviewed existing immutable image pins; preserve owned cleanup boundaries.

@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dkp:dev-logging:build-manifest:1",
+  "title": "Reviewed immutable compilation and diagnostic vocabulary manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "buildId",
+    "component",
+    "gitSha",
+    "sourceFingerprint",
+    "compiledAt",
+    "toolchainFingerprint",
+    "dependencyFingerprint",
+    "vocabularySha256",
+    "vocabulary",
+    "sourceFingerprintAlgorithm",
+    "dirty"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "buildId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[0-9a-f-]{36}$"
+    },
+    "component": {
+      "type": "string",
+      "maxLength": 96,
+      "pattern": "^[a-z][a-z0-9.-]*$"
+    },
+    "gitSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sourceFingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "compiledAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "toolchainFingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "dependencyFingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "vocabularySha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "vocabulary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "events",
+        "phases",
+        "errorCodes",
+        "dependencies",
+        "exceptionClasses",
+        "frames"
+      ],
+      "properties": {
+        "events": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 1024,
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9_.-]*$"
+          },
+          "minItems": 16
+        },
+        "phases": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 1024,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+          }
+        },
+        "errorCodes": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 1024,
+          "items": {
+            "type": "string",
+            "maxLength": 96,
+            "pattern": "^[A-Z0-9_]+$"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "version",
+              "vendorBuildProvenance"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "imageDigest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "vendorBuildProvenance": {
+                "enum": [
+                  "UNKNOWN",
+                  "VERIFIED"
+                ]
+              }
+            }
+          }
+        },
+        "exceptionClasses": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 8192,
+          "items": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9_.$]+$"
+          }
+        },
+        "frames": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 32768,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "symbol",
+              "source"
+            ],
+            "properties": {
+              "symbol": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9_.$<>-]+$"
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_./$-]+$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "sourceFingerprintAlgorithm": {
+      "const": "dkp-public-inputs-v1"
+    },
+    "dirty": {
+      "type": "boolean"
+    }
+  },
+  "$comment": "Whole manifest at most1MiB UTF-8, immutable expected SHA-256 verified against reviewed build evidence. vocabularySha256 uses RFC8785 canonical vocabulary; runtime rechecks digests, installed authority, catalogs and aggregate byte bounds. Schema alone cannot establish that strings are approved symbols."
+}
