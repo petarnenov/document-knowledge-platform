@@ -29,3 +29,7 @@
 - [ ] Run current-source full pinned Linux frontend checks and independent implementation/evidence review; source-specific historical local proofs are not a new result.
 - [ ] Verify genuine current-source identity/upload/native transitions and resolve separately tracked #159 reauthentication acceptance; retain original failures, security and all original assertions/deadlines.
 - [ ] Publish reviewed candidate once, confirm exact-source CI, integrate after independent audit and provide a fresh verified manual-test link. Old stopped previews are historical.
+
+### Source-bound local acceptance — #443 / #159 / #456
+
+On7b64f973a47127f9cfcd2ffda63df2abec0274a9, all268frontend checker inputs independently match the historicalc8 eleven-gate pass; combined pinned BFF194JUnit/41Linux cases/18floors PASS. Original current-source real-provider4journeys PASS43.3s and separate original unmodified genuine-hour1test(1.0h)/one attempt/exit0 PASS, log SHA2569418d3f7c9004c4c5738b0d49458f8394b1ffd9e787004cf269336d4dd614d64. Independent actual hour audit9efa43a6a21f3f6ba2c46949484459e4f784a3825beeb01886b88e2bb526925e confirms original assertions and source/runtime binding. Original159cause remains undetermined. Final documentation changes require unchanged-input applicability and final local receipt review; currentCI, integration and new manualURL remain pending, so the affected delivery/issue checkboxes stay open.
