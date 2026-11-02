@@ -1,0 +1,4 @@
+// The driver is confined to the real database test; bootstrap supplies production connectivity.
+dependencies {
+    testImplementation "org.postgresql:postgresql:${rootProject.libs.versions.postgresql.jdbc.get()}"
+}

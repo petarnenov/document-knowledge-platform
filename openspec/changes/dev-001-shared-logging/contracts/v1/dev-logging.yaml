@@ -149,7 +149,8 @@ paths:
         - DevLogging
       summary: Query committed events within the authenticated reader grant
       description: Explicit log-reader or operator authority required; ordinary browser sessions have no query
-        grant. Filters intersect authority and never expand it. Stable keyset ordering receivedAt/sequence;
+        grant. Filters intersect authority and never expand it. Stable internal keyset ordering receivedAt/sequence;
+        global sequence values never appear in responses or readable cursor contents.
         opaque expiring reader/filter-bound cursor. No out-of-scope counts or hints. from/to required, window
         at most24hours.
       security:
@@ -793,7 +794,6 @@ components:
         - event
         - producerId
         - receivedAt
-        - sequence
         - scopeId
         - scope
       properties:
@@ -804,9 +804,6 @@ components:
         receivedAt:
           type: string
           format: date-time
-        sequence:
-          type: string
-          pattern: ^[0-9]+$
         scopeId:
           $ref: "#/components/schemas/Uuid"
         scope:

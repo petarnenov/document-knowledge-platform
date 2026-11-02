@@ -204,8 +204,35 @@ serviceNames.each { service ->
 }
 
 // Validate project declarations as well as compiled class dependencies.
+project(':services:dev-logging:domain') {
+    dependencies { api project(':modules:observability-support') }
+}
+project(':services:dev-logging:application') {
+    dependencies { api project(':services:dev-logging:domain') }
+}
+['adapters-in', 'adapters-out'].each { layer ->
+    project(":services:dev-logging:${layer}") {
+        dependencies { implementation project(':services:dev-logging:application') }
+    }
+}
+['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap'].each { layer ->
+    project(":services:dev-logging:${layer}") {
+        tasks.named('test') { finalizedBy 'jacocoTestReport' }
+        tasks.named('jacocoTestReport') { reports { xml.required = true; html.required = true } }
+        tasks.named('jacocoTestCoverageVerification') {
+            dependsOn 'test'
+            violationRules { rule {
+                limit { counter = 'LINE'; minimum = 0.75 }
+                limit { counter = 'BRANCH'; minimum = 0.75 }
+            } }
+        }
+        tasks.named('check') { dependsOn 'jacocoTestCoverageVerification' }
+    }
+}
+
 def allowedLayerDependency = { String from, String target ->
     def f = from.tokenize(':'); def t = target.tokenize(':')
+    if (target == ':modules:observability-support') return from == ':services:dev-logging:domain'
     if (target == ':modules:identity-contracts') return from.startsWith(':services:') || from in [':modules:security-micronaut', ':modules:authorization-catalog']
     if (target == ':modules:authorization-catalog') return from in [':services:document-management:adapters-out', ':services:document-management:bootstrap']
     if (target == ':modules:security-micronaut') return f.size() == 3 && f[0] == 'services' && f[2] in ['adapters-in', 'adapters-out', 'bootstrap']
@@ -216,7 +243,7 @@ def allowedLayerDependency = { String from, String target ->
     allowed[f[2]].contains(t[2])
 }
 
-def serviceProjects = serviceNames.collectMany { service ->
+def serviceProjects = (serviceNames + ['dev-logging']).collectMany { service ->
     layerNames.collect { layer -> project(":services:${service}:${layer}") }
 }
 tasks.register('architectureDependencyTest') {
@@ -239,6 +266,9 @@ tasks.register('architectureDependencyTest') {
         assert !allowedLayerDependency(':modules:observability-support', ':modules:identity-contracts')
         assert !allowedLayerDependency(':modules:observability-support', ':services:browser-bff:application')
         assert !allowedLayerDependency(':services:browser-bff:application', ':modules:observability-support')
+        assert allowedLayerDependency(':services:dev-logging:domain', ':modules:observability-support')
+        assert !allowedLayerDependency(':services:dev-logging:domain', ':modules:security-micronaut')
+        assert !allowedLayerDependency(':services:dev-logging:application', ':services:document-management:domain')
         (serviceProjects + [project(':modules:identity-contracts'), project(':modules:security-micronaut'), project(':modules:authorization-catalog'), project(':modules:observability-support'), project(':workers:structure-inspector')]).each { p ->
                 def layer = p.name
                 p.configurations.matching { it.name in ['api', 'implementation', 'compileOnly', 'runtimeOnly'] }.each { config ->

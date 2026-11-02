@@ -14,3 +14,8 @@ include 'modules:security-micronaut'
 include 'modules:authorization-catalog'
 include 'modules:observability-support'
 include 'workers:structure-inspector'
+
+// The logging boundary is assembled incrementally; HTTP/bootstrap wiring follows its contracts.
+['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap'].each { layer ->
+    include ":services:dev-logging:${layer}"
+}

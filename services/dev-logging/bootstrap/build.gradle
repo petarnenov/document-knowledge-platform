@@ -1,0 +1,1 @@
+// Runtime assembly is isolated from domain/application and is not enabled by a partial slice.
