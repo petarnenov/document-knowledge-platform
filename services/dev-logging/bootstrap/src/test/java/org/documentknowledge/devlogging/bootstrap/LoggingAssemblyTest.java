@@ -166,4 +166,22 @@ class LoggingAssemblyTest {
             assertTrue(failure.getMessage().contains("LOG_DATABASE_UNAVAILABLE"));assertFalse(failure.getMessage().contains(password)); }
         finally {sql("REVOKE INSERT ON dev_logs.events FROM dkp_log_reader");}
     }
+    @Test void privateReviewedManifestInstallsThroughApplicationPortIntoOwnedRealDatabase() throws Exception {
+        var bytes=PrivateLogManifest.canonical(PrivateLogManifestTest.manifest(PrivateLogManifestTest.vocabulary()));
+        String digest=org.documentknowledge.devlogging.domain.VerifiedLogManifest.sha256(bytes);
+        var path=file("reviewed-manifest.json",new String(bytes,StandardCharsets.UTF_8));
+        var verified=PrivateLogManifest.read(path,digest);
+        LogManifestRegistry registry=new org.documentknowledge.devlogging.adapters.outbound.persistence.JdbcLogManifests(owner);
+        var installed=registry.install(verified,RequestDeadline.start());
+        assertEquals(digest,installed.manifestSha256());
+        assertEquals(installed,registry.install(verified,RequestDeadline.start()));
+        try(var connection=owner.getConnection();var statement=connection.prepareStatement("SELECT manifest_bytes,build_id FROM dev_logs.manifests WHERE manifest_sha=?")) {
+            statement.setString(1,digest);try(var rows=statement.executeQuery()) {
+                assertTrue(rows.next());assertArrayEquals(bytes,rows.getBytes(1));
+                assertEquals(verified.build().buildId(),rows.getObject(2,UUID.class));assertFalse(rows.next());
+            }
+        }
+        assertArrayEquals(bytes,Files.readAllBytes(path));
+    }
+
 }

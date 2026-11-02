@@ -366,4 +366,67 @@ class JdbcLogPersistenceTest {
         }
         assertEquals(0, count("SELECT count(*) FROM dev_logs.events"));
     }
+    VerifiedLogManifest manifest() {
+        byte[] bytes="{\"reviewedRegistryFixture\":true}".getBytes(StandardCharsets.UTF_8);
+        return new VerifiedLogManifest(BUILD,VerifiedLogManifest.sha256(bytes),SHA,bytes);
+    }
+
+    @Test void immutableManifestInstallCommitsOnceWithExactCapacityAndBytes() throws Exception {
+        var registry=new JdbcLogManifests(owner);var manifest=manifest();long before=count("SELECT reserved_bytes FROM dev_logs.capacity");
+        var installed=registry.install(manifest,RequestDeadline.start());
+        assertEquals(manifest.digest(),installed.manifestSha256());assertEquals(BUILD,installed.build());
+        assertEquals(before+manifest.reservedBytes(),count("SELECT reserved_bytes FROM dev_logs.capacity"));
+        assertEquals(installed,registry.install(manifest,RequestDeadline.start()));
+        assertEquals(before+manifest.reservedBytes(),count("SELECT reserved_bytes FROM dev_logs.capacity"));
+        try(var connection=owner.getConnection();var query=connection.prepareStatement("SELECT manifest_bytes,reserved_bytes,installed_at FROM dev_logs.manifests WHERE manifest_sha=?")) {
+            query.setString(1,manifest.digest());try(var rows=query.executeQuery()) {
+                assertTrue(rows.next());assertArrayEquals(manifest.bytes(),rows.getBytes(1));
+                assertEquals(manifest.reservedBytes(),rows.getLong(2));assertNotNull(rows.getTimestamp(3));
+            }
+        }
+        // Verify each persisted envelope field, not merely its digest, before idempotent success.
+        for(String column:List.of("build_id","component","git_sha","source_fingerprint","vocabulary_sha","manifest_bytes")) {
+            String changed=switch(column) {case "build_id"->"'"+UUID.randomUUID()+"'";case "component"->"'different'";
+                case "git_sha"->"'"+"d".repeat(40)+"'";case "manifest_bytes"->"decode('7b7d','hex')";default->"'"+"d".repeat(64)+"'";};
+            sql("UPDATE dev_logs.manifests SET "+column+"="+changed+" WHERE manifest_sha='"+manifest.digest()+"'");
+            fails(LogFailure.Kind.CONFLICT,()->registry.install(manifest,RequestDeadline.start()));
+            sql("DELETE FROM dev_logs.manifests WHERE manifest_sha='"+manifest.digest()+"'");
+            // Restore the fixture/accounting transactionally through the same registry.
+            sql("UPDATE dev_logs.capacity SET reserved_bytes=reserved_bytes-"+manifest.reservedBytes());
+            registry.install(manifest,RequestDeadline.start());
+        }
+    }
+
+    @Test void manifestCapacityAndInsertFailureRollbackReservationAndReaderCannotInstall() throws Exception {
+        var registry=new JdbcLogManifests(owner);var manifest=manifest();
+        sql("UPDATE dev_logs.capacity SET reserved_bytes=1073741824");
+        fails(LogFailure.Kind.CAPACITY,()->registry.install(manifest,RequestDeadline.start()));
+        assertEquals(1,count("SELECT count(*) FROM dev_logs.manifests"));assertEquals(1073741824,count("SELECT reserved_bytes FROM dev_logs.capacity"));
+        sql("UPDATE dev_logs.capacity SET reserved_bytes=2050");
+        sql("ALTER TABLE dev_logs.manifests ADD CONSTRAINT reject_manifest_test CHECK(component<>'browser-bff') NOT VALID");
+        try {
+            fails(LogFailure.Kind.UNAVAILABLE,()->registry.install(manifest,RequestDeadline.start()));
+            assertEquals(2050,count("SELECT reserved_bytes FROM dev_logs.capacity"));
+            assertEquals(1,count("SELECT count(*) FROM dev_logs.manifests"));
+        } finally { sql("ALTER TABLE dev_logs.manifests DROP CONSTRAINT reject_manifest_test"); }
+        fails(LogFailure.Kind.UNAVAILABLE,()->new JdbcLogManifests(readerSource).install(manifest,RequestDeadline.start()));
+        assertEquals(2050,count("SELECT reserved_bytes FROM dev_logs.capacity"));
+        sql("DELETE FROM dev_logs.capacity");
+        fails(LogFailure.Kind.UNAVAILABLE,()->registry.install(manifest,RequestDeadline.start()));
+    }
+
+    @Test void manifestCountCapAllowsExistingInstallButRejectsNewCatalog() throws Exception {
+        var registry=new JdbcLogManifests(owner);var manifest=manifest();registry.install(manifest,RequestDeadline.start());
+        sql("INSERT INTO dev_logs.manifests SELECT lpad(to_hex(i),64,'0'),'"+UUID.randomUUID()+"','fixture','"+"a".repeat(40)+"','"+SHA+"','"+SHA+"',decode('7b7d','hex'),1026,clock_timestamp() FROM generate_series(1,4094) i");
+        sql("UPDATE dev_logs.capacity SET reserved_bytes=reserved_bytes+4094*1026");
+        assertEquals(4096,count("SELECT count(*) FROM dev_logs.manifests"));
+        registry.install(manifest,RequestDeadline.start());long before=count("SELECT reserved_bytes FROM dev_logs.capacity");
+        byte[] bytes="{\"anotherReviewedCatalog\":true}".getBytes(StandardCharsets.UTF_8);
+        var other=new VerifiedLogManifest(BUILD,VerifiedLogManifest.sha256(bytes),SHA,bytes);
+        fails(LogFailure.Kind.CAPACITY,()->registry.install(other,RequestDeadline.start()));
+        assertEquals(before,count("SELECT reserved_bytes FROM dev_logs.capacity"));
+        var expired=RequestDeadline.start();Thread.sleep(5050);
+        fails(LogFailure.Kind.UNAVAILABLE,()->registry.install(other,expired));
+    }
+
 }
