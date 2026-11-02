@@ -88,6 +88,7 @@ CREATE TABLE dev_logs.events (
     )
 );
 CREATE INDEX log_build_page ON dev_logs.events(build_id,received_at,sequence);
+CREATE INDEX log_received_page ON dev_logs.events(received_at,sequence);
 CREATE INDEX log_run_page ON dev_logs.events(run_id,received_at,sequence);
 CREATE INDEX log_component_page ON dev_logs.events(component,received_at,sequence);
 CREATE INDEX log_correlation_page ON dev_logs.events(correlation_id,received_at,sequence);

@@ -8,6 +8,8 @@ import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.documentknowledge.devlogging.application.LogPersistence.ReceiptState;
+import org.documentknowledge.devlogging.application.LogQueries;
+import org.documentknowledge.devlogging.application.RequestDeadline;
 import org.documentknowledge.devlogging.domain.*;
 import org.documentknowledge.observability.*;
 import org.junit.jupiter.api.*;
@@ -16,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Requires an explicitly owned real PostgreSQL fixture. Missing configuration fails, never skips. */
 class JdbcLogPersistenceTest {
-    static PGSimpleDataSource owner, runtime;
+    static PGSimpleDataSource owner, runtime, readerSource;
     static JdbcLogPersistence store;
     static final AtomicBoolean writable = new AtomicBoolean(true);
     static final String PASSWORD = UUID.randomUUID().toString();
@@ -52,8 +54,13 @@ class JdbcLogPersistenceTest {
             statement.execute("GRANT UPDATE(reserved_bytes) ON dev_logs.scopes,dev_logs.capacity TO log_writer");
             statement.execute("GRANT INSERT ON dev_logs.events TO log_writer");
             statement.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA dev_logs TO log_writer");
+            statement.execute("CREATE ROLE log_reader LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '" + PASSWORD + "'");
+            statement.execute("GRANT CONNECT ON DATABASE dkp_dev_logs TO log_reader");
+            statement.execute("GRANT USAGE ON SCHEMA dev_logs TO log_reader");
+            statement.execute("GRANT SELECT ON dev_logs.events TO log_reader");
         }
         runtime = source("log_writer", PASSWORD);
+        readerSource = source("log_reader", PASSWORD);
         store = new JdbcLogPersistence(runtime, () -> {
             if (!writable.get()) throw new LogFailure(LogFailure.Kind.UNAVAILABLE);
         });
@@ -100,6 +107,82 @@ class JdbcLogPersistenceTest {
     void sql(String query) throws SQLException { try (var connection = owner.getConnection(); var statement = connection.createStatement()) { statement.execute(query); } }
     long count(String query) throws SQLException { try (var connection = owner.getConnection(); var statement = connection.createStatement(); var rows = statement.executeQuery(query)) { rows.next(); return rows.getLong(1); } }
     void fails(LogFailure.Kind kind, org.junit.jupiter.api.function.Executable call) { assertEquals(kind, assertThrows(LogFailure.class, call).kind()); }
+
+    LogReader reader(String tenant) {
+        return new LogReader(UUID.randomUUID(), tenant == null, tenant == null ? null : "https://issuer.invalid",
+            tenant, Instant.now().plusSeconds(3600));
+    }
+    LogQuery query(int limit) {
+        return new LogQuery(null, null, null, null, null, null, Instant.now().minusSeconds(60), Instant.now().plusSeconds(60), limit);
+    }
+    LogQueries queries() {
+        return new LogQueries(new JdbcLogQueries(readerSource), new EncryptedLogCursors(new byte[32]), java.time.Clock.systemUTC());
+    }
+
+    @Test void realReaderKeysetsHideInterleavedTenantRowsAndPreserveSameTimeEvents() throws Exception {
+        var a = scope("tenant-a"); var b = scope("tenant-b");
+        var one = event(UUID.randomUUID(), "{}"); var two = event(UUID.randomUUID(), "{}");
+        store.commit(a, batch(one), Instant.now());
+        store.commit(b, batch(event(UUID.randomUUID(), "{}")), Instant.now());
+        store.commit(a, batch(two), Instant.now());
+        sql("UPDATE dev_logs.events SET received_at=date_trunc('second',received_at)");
+        var reader = reader("tenant-a"); var filter = query(1); var service = queries();
+        var first = service.query(reader, filter, null, RequestDeadline.start());
+        assertEquals(two.metadata().eventId(), first.events().getFirst().eventId());
+        assertNotNull(first.nextCursor());
+        var second = service.query(reader, filter, first.nextCursor(), RequestDeadline.start());
+        assertEquals(one.metadata().eventId(), second.events().getFirst().eventId());
+        assertNull(second.nextCursor());
+        assertEquals(3, service.query(reader(null), query(50), null, RequestDeadline.start()).events().size());
+        assertTrue(service.query(reader("tenant-missing"), query(50), null, RequestDeadline.start()).events().isEmpty());
+        var differentIssuer = new LogReader(UUID.randomUUID(), false, "https://other.invalid", "tenant-a", Instant.now().plusSeconds(60));
+        assertTrue(service.query(differentIssuer, query(50), null, RequestDeadline.start()).events().isEmpty());
+        fails(LogFailure.Kind.INVALID, () -> service.query(reader("tenant-b"), filter, first.nextCursor(), RequestDeadline.start()));
+    }
+
+    @Test void realQueriesApplyAllTypedFiltersWithoutExpandingTheGrant() throws Exception {
+        var authority = scope("tenant-a"); var event = event(UUID.randomUUID(), "{}");
+        store.commit(authority, batch(event), Instant.now());
+        var bounds = query(50); var metadata = event.metadata();
+        var exact = new LogQuery(BUILD.buildId(), RUN, BUILD.component(), Severity.DEBUG,
+            metadata.correlationId(), metadata.trace().traceId(), bounds.from(), bounds.to(), 50);
+        var service = queries(); var reader = reader("tenant-a");
+        assertEquals(event.metadata().eventId(), service.query(reader, exact, null, RequestDeadline.start()).events().getFirst().eventId());
+        for (var miss : List.of(
+                new LogQuery(UUID.randomUUID(), null, null, null, null, null, bounds.from(), bounds.to(), 50),
+                new LogQuery(null, UUID.randomUUID(), null, null, null, null, bounds.from(), bounds.to(), 50),
+                new LogQuery(null, null, "other", null, null, null, bounds.from(), bounds.to(), 50),
+                new LogQuery(null, null, null, Severity.ERROR, null, null, bounds.from(), bounds.to(), 50),
+                new LogQuery(null, null, null, null, UUID.randomUUID(), null, bounds.from(), bounds.to(), 50),
+                new LogQuery(null, null, null, null, null, "f".repeat(32), bounds.from(), bounds.to(), 50)))
+            assertTrue(service.query(reader, miss, null, RequestDeadline.start()).events().isEmpty());
+    }
+
+    @Test void readerVisibilityExcludesUnattributedTombstonesAndExpiredRetention() throws Exception {
+        var authority = scope("tenant-a");
+        store.commit(authority, batch(event(UUID.randomUUID(), "{}")), Instant.now());
+        sql("UPDATE dev_logs.events SET scope_kind='UNATTRIBUTED',actor_issuer=NULL,actor_subject=NULL,tenant_id=NULL");
+        var service = queries();
+        assertTrue(service.query(reader("tenant-a"), query(50), null, RequestDeadline.start()).events().isEmpty());
+        assertEquals(1, service.query(reader(null), query(50), null, RequestDeadline.start()).events().size());
+        sql("UPDATE dev_logs.events SET canonical_payload=NULL");
+        assertTrue(service.query(reader(null), query(50), null, RequestDeadline.start()).events().isEmpty());
+        sql("UPDATE dev_logs.events SET canonical_payload=decode('7b7d','hex'),received_at=clock_timestamp()-interval '8 days',retain_until=clock_timestamp()-interval '1 day'");
+        var old = new LogQuery(null, null, null, null, null, null, Instant.now().minusSeconds(8*86400+60), Instant.now().minusSeconds(8*86400-60), 50);
+        assertTrue(service.query(reader(null), old, null, RequestDeadline.start()).events().isEmpty());
+    }
+
+    @Test void queryCredentialsCannotMutateAndFailedDatabaseNeverBecomesEmptySuccess() throws Exception {
+        try (var connection = readerSource.getConnection(); var statement = connection.createStatement()) {
+            assertEquals("42501", assertThrows(SQLException.class, () -> statement.executeUpdate("DELETE FROM dev_logs.events")).getSQLState());
+            assertEquals("42501", assertThrows(SQLException.class, () -> statement.executeQuery("SELECT * FROM dev_logs.producers")).getSQLState());
+        }
+        var wrong = source("log_reader", UUID.randomUUID().toString());
+        fails(LogFailure.Kind.UNAVAILABLE, () -> new JdbcLogQueries(wrong).read(reader(null), query(50), null, RequestDeadline.start()));
+        var expired = new LogReader(UUID.randomUUID(), true, null, null, Instant.now().minusSeconds(1));
+        fails(LogFailure.Kind.EXPIRED, () -> new JdbcLogQueries(readerSource).read(expired, query(50), null, RequestDeadline.start()));
+        assertEquals(1, count("SELECT count(*) FROM pg_indexes WHERE schemaname='dev_logs' AND indexname='log_received_page'"));
+    }
 
     @Test void actualCommitReplayAndReceiptsAreScopeBound() throws Exception {
         var a = scope("tenant-a"); var b = scope("tenant-b"); var event = event(UUID.randomUUID(), "{}");

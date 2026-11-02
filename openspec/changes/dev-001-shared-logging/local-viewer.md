@@ -1,0 +1,23 @@
+# Local read-only log viewer — #457
+
+Owner2026-11-02 requests a very basic interface without credentials, using authoritative Interactive Designv0.5 and Mantine, and explicitly confirms local-only access. This is proposed development detail before code, not a deployed endpoint or network/security/production approval.
+
+## Normal functionality
+
+Serve a dedicated local viewer at `/dev/logs`, with readonly GET `/dev/logs/api/v1/events`. Show recent real persisted records, server receivedAt (separately from untrusted event timestamp), component, severity, event name, buildId/runId and correlation. Provide buildId filter, refresh, loading/empty/unavailable states and readable expanded sanitized details. Default50 rows, maximum200, same24-hour query window and five-second query deadline as the existing authenticated read contract. No destructive controls, fake/synthetic success or login/credential input. Basic manual refresh is sufficient; no new complex dashboard or stress acceptance.
+
+Use the actual existing Mantine PortalTheme/tokens and authoritative `docs/prototypes/DKP_Interactive_Design_v0.5.html` structure/colors/spacing, preserving existing portal work (including unmerged#443), theme switching and keyboard/table readability. The viewer entry must not start an OIDC redirect or depend on business session/tenant selection.
+
+## Local boundary and ownership
+
+The viewer is a separate local-only listener/process, enabled explicitly in the development runtime. Published bind is127.0.0.1 only (optional explicit::1); container publication must also bind host loopback. Do not route it through existing network-facing BFF/business ingress or publish on0.0.0.0. Restrict Host to configured loopback authorities/port, reject foreign browser Origin, no permissive CORS and no state-changing routes. No traversal into private files; static assets come from a fixed compiled directory. No raw SQL or caller-controlled upstream URL/path/header forwarding.
+
+The browser receives no producer/reader/operator/DB credentials. A logging-owned server adapter holds a separately configured operator read credential and invokes the SAME authenticated common query API/port and SAME persistent log store. It cannot write events/manifests/registrations. Normal `/api/v1/dev-logs/events` retains ReaderToken and trusted reader/tenant filters, and normal business authentication/tenant checks remain unchanged. Ordinary remote clients gain no anonymous read grant. The explicit loopback operator viewer may read authorized retained development diagnostics across builds; incoming events still exclude secrets/document bodies and the UI renders every value as text.
+
+The viewer query adapter accepts only the closed reviewed query parameter set (`buildId`, `runId`, `component`, `minSeverity`, `correlationId`, `traceId`, `from`, `to`, `limit`, `cursor`), rejecting unknown keys and using existing typed validation; it never forwards arbitrary parameters. Reject a present Origin:null or a foreign Origin; absence is allowed for a direct local navigation. Exact configured loopback Host/port validation does not trust forwarded headers. Use compiled local assets and CSP `default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'`. Inline style allowance supports Mantine; no inline script/eval or remote asset origin is permitted.
+
+Errors are fixed safe responses with no token/config/SQL/payload echo, and responses are no-store/nosniff with an appropriate restrictive static-page CSP. Query failures show unavailable rather than fake empty success. Keep existing query/body/resource limits and an independently bounded health/observer path; no resource-stress expansion beyond selected normal profile.
+
+## Verification before delivery
+
+Basic real anonymous local browser→viewer→authenticated query→persistent DB happy path shows a known real event/time/buildId; filter isolates another build. Verify loopback publication/allowed authorities, foreignOrigin rejection, no mutation route, no credentials in HTML/assets/response, safe text rendering, normal empty/unavailable behavior and preserved main API auth/tenant rejection. Match POC styling with a rendered local screenshot and existing Mantine theme; >=75% changed source line/branch coverage, applicable contract/architecture/security checks, independent review, pinned Linux/CI/dev/postdev. Pathological network/JDBC and prolonged near-capacity matrices remain deferred in#458/#459. Do not claim this viewer exists until actual implementation and runtime proof.
