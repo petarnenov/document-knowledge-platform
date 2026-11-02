@@ -17,6 +17,12 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DocumentGatewayTest {
+    private final java.util.List<AutoCloseable> ownedClients = new java.util.ArrayList<>();
+    private <T extends AutoCloseable> T owned(T gateway) { ownedClients.add(gateway); return gateway; }
+    @org.junit.jupiter.api.AfterEach void closeOwnedClients() throws Exception {
+        for (var client : ownedClients) client.close();
+    }
+
     static final String ID = "11111111-1111-4111-8111-111111111111";
     static final String PATH = "/api/v1/documents/" + ID;
     static final Map<String,Object> UPDATE = Map.of("expectedRevision", 0, "metadata", Map.of("title", "Draft", "description", ""));
@@ -34,7 +40,7 @@ class DocumentGatewayTest {
                 if(!exchange.getRequestMethod().equals("GET")){assertEquals("retry-key",exchange.getRequestHeaders().getFirst("Idempotency-Key"));assertTrue(exchange.getRequestBody().readAllBytes().length>0);}
                 byte[] bytes=json.writeValueAsBytes(response.get());exchange.getResponseHeaders().set("Content-Type",type.get());exchange.getResponseHeaders().set("Location","http://127.0.0.1:1/steal");exchange.sendResponseHeaders(status.get(),bytes.length);try(var output=exchange.getResponseBody()){output.write(bytes);}});server.start();
             try {
-                var gateway=new FixedDocumentGateway("http://127.0.0.1:"+server.getAddress().getPort(),json);
+                var gateway=owned(new FixedDocumentGateway("http://127.0.0.1:"+server.getAddress().getPort(),json));
                 var identity=new BrowserIdentity("https://issuer.example","staff-1","Synthetic",List.of("tenant-a"),true,"synthetic-access",Instant.now().plusSeconds(120));
                 assertEquals(200,gateway.exchange("GET",PATH,Map.of(),null,null,identity,"tenant-a").status());
                 response.set(Map.of("documentId",ID,"revision",1));assertEquals(200,gateway.exchange("PATCH",PATH,Map.of(),UPDATE,"retry-key",identity,"tenant-a").status());
@@ -45,7 +51,7 @@ class DocumentGatewayTest {
                 status.set(403);for(var bad:List.of(Map.of("code","diagnostics-secret"),Map.of("code","DENIED","token","secret"))){response.set(new java.util.HashMap<>(bad));assertEquals(503,assertThrows(BffFailure.class,()->gateway.exchange("GET",PATH,Map.of(),null,null,identity,"tenant-a")).status());}
                 status.set(200);response.set(draft());type.set("text/html");assertEquals(503,assertThrows(BffFailure.class,()->gateway.exchange("GET",PATH,Map.of(),null,null,identity,"tenant-a")).status());type.set("application/json");response.get().put("tenant","tenant-b");assertEquals(503,assertThrows(BffFailure.class,()->gateway.exchange("GET",PATH,Map.of(),null,null,identity,"tenant-a")).status());
                 int before=calls.get();for(String bad:List.of("/api/v1/documents/../steal","https://evil.example","/api/v1/documents/"+ID+"/acl?url=evil"))assertThrows(BffFailure.class,()->gateway.exchange("GET",bad,Map.of(),null,null,identity,"tenant-a"));assertEquals(before,calls.get());
-                for(String invalid:List.of("", "relative", "ftp://host", "http://user:password@host", "http://host/path", "http://host?query", "http://host#fragment", "http://[", "http://127.0.0.1:1"))assertEquals(503,assertThrows(BffFailure.class,()->new FixedDocumentGateway(invalid,json).exchange("GET",PATH,Map.of(),null,null,identity,"tenant-a")).status());
+                for(String invalid:List.of("", "relative", "ftp://host", "http://user:password@host", "http://host/path", "http://host?query", "http://host#fragment", "http://[", "http://127.0.0.1:1"))assertEquals(503,assertThrows(BffFailure.class,()->owned(new FixedDocumentGateway(invalid,json)).exchange("GET",PATH,Map.of(),null,null,identity,"tenant-a")).status());
             } finally {server.stop(0);}
         }
     }

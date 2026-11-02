@@ -14,9 +14,14 @@ import org.documentknowledge.browserbff.domain.BrowserIdentity;
 @Requires(property="dkp338.failure-witness",value="true")
 final class IngressFailureWitness {
     static final AtomicReference<Throwable> failure = new AtomicReference<>();
+    private FixedUploadGateway ownedClient;
+    @jakarta.annotation.PreDestroy void closeOwnedClient() {
+        if (ownedClient != null) ownedClient.close();
+    }
     @Singleton @Replaces(FixedUploadGateway.class)
     UploadGateway gateway(@Value("${dkp.bff.upstreams.dm}")String upstream,JsonMapper json) {
         var actual=new FixedUploadGateway(upstream,json);
+        ownedClient=actual;
         return new UploadGateway() {
             public DocumentGateway.Result transfer(String path,String key,InputStream source,long length,BrowserIdentity actor,String tenant,Runnable authorize) {
                 return actual.transfer(path,key,new FilterInputStream(source){

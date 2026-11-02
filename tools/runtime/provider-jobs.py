@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import re
 import selectors
+import stat
 import subprocess
 import sys
 import time
@@ -388,6 +389,66 @@ def stop_process(process):
 DM_DIAGNOSTIC_PHASES = ('PREPARED', 'OLD_BASELINE', 'BEGIN', 'VERIFYING', 'ABORT',
                         'CRASH', 'RECOVERY', 'OLD_FACTS_AFTER_RECOVERY', 'SECOND_COMPLETE',
                         'OLD_FACTS_AFTER_COMPLETE', 'FINAL_SNAPSHOT', 'FINISH', 'BROWSER_EXIT')
+DM_DIAGNOSTIC_ERRORS = ('TIMEOUT', 'VALIDATION', 'IO', 'ERROR')
+
+
+def dm_diagnostic(value):
+    closed(value, ('schemaVersion', 'phase', 'errorClass'))
+    if (type(value['schemaVersion']) is not int or value['schemaVersion'] != 1
+            or value['phase'] not in DM_DIAGNOSTIC_PHASES
+            or value['errorClass'] not in DM_DIAGNOSTIC_ERRORS):
+        raise ValueError('Closed parent diagnostic required')
+    return {key: value[key] for key in ('schemaVersion', 'phase', 'errorClass')}
+
+
+def diagnostic_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:raise ValueError('Duplicate diagnostic field')
+        value[key] = item
+    return value
+
+
+def private_diagnostic(directory_fd, name, validate):
+    try:
+        descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd)
+        try:
+            info = os.fstat(descriptor)
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                    or info.st_mode & 0o077 or info.st_size > 8192):return None
+            with os.fdopen(descriptor, 'rb', closefd=False) as stream:
+                raw = stream.read(8192)
+            if len(raw) == 8192:return None
+            return validate(json.loads(raw.decode('utf-8'), object_pairs_hook=diagnostic_object))
+        finally:
+            os.close(descriptor)
+    except Exception:
+        return None
+
+
+def emit_dm_observation(directory):
+    # The browser snapshot is the latest retained observation, never a cause.
+    record = {'schemaVersion': 1, 'issue': 305, 'stage': 'DM_BOUNDARY',
+              'cause': 'UNDETERMINED', 'parentFailure': None, 'browserLastObservation': None}
+    try:
+        work = runtime.confined(directory)
+        descriptor = os.open(work, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            info = os.fstat(descriptor)
+            if info.st_uid == os.getuid() and not info.st_mode & 0o077:
+                record['parentFailure'] = private_diagnostic(descriptor, 'dm-boundary-diagnostic.json', dm_diagnostic)
+                observed = private_diagnostic(descriptor, 'browser-diagnostic.json', browser_diagnostic)
+                if observed is not None:
+                    record['browserLastObservation'] = {key: observed[key] for key in
+                        ('schemaVersion', 'phase', 'errorClass', 'expectedStatus', 'actualStatus')}
+        finally:
+            os.close(descriptor)
+    except Exception:
+        pass
+    try:
+        print('DKP305_DM_BOUNDARY_DETAIL ' + json.dumps(record, separators=(',', ':')), flush=True)
+    except Exception:
+        pass  # Diagnostic I/O cannot replace the original acceptance failure.
 
 
 def retain_dm_diagnostic(work, phase, error):
@@ -512,6 +573,8 @@ def main():
     try:
         with checkpoint(AcceptanceStage.LAUNCH):print(json.dumps(run(args.directory, args.runtime_directory)))
     except Exception as failure:
+        if isinstance(failure, AcceptanceFailure) and failure.stage is AcceptanceStage.DM_BOUNDARY:
+            emit_dm_observation(args.directory)
         print(json.dumps(failure_receipt(failure), separators=(',', ':')), file=sys.stderr)
         raise SystemExit('Owned provider job acceptance failed closed; private evidence retained') from None
 

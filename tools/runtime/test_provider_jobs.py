@@ -15,6 +15,190 @@ spec = importlib.util.spec_from_file_location('provider_jobs', Path(__file__).wi
 m = importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 
 
+class PublicDmObservationTests(unittest.TestCase):
+    parent = {'schemaVersion': 1, 'phase': 'CRASH', 'errorClass': 'TIMEOUT'}
+    browser = {'schemaVersion': 1, 'phase': 'ABORT', 'errorClass': 'NONE',
+               'expectedStatus': 202, 'actualStatus': 202}
+
+    def write(self, directory, name, value):
+        path = directory / name
+        path.write_bytes(value if isinstance(value, bytes) else json.dumps(value).encode())
+        path.chmod(0o600)
+        return path
+
+    def observe(self, directory):
+        output = io.StringIO()
+        with patch.object(m.runtime, 'confined', return_value=directory), patch.object(m.sys, 'stdout', output), patch.object(m.runtime, 'command') as command:
+            m.emit_dm_observation('owned')
+        command.assert_not_called()
+        lines = output.getvalue().splitlines()
+        self.assertEqual(1, len(lines))
+        self.assertTrue(lines[0].startswith('DKP305_DM_BOUNDARY_DETAIL '))
+        self.assertLess(len(lines[0]), 512)
+        value = json.loads(lines[0].split(' ', 1)[1])
+        self.assertEqual({'schemaVersion', 'issue', 'stage', 'cause', 'parentFailure', 'browserLastObservation'}, set(value))
+        self.assertEqual((1, 305, 'DM_BOUNDARY', 'UNDETERMINED'), tuple(value[k] for k in ('schemaVersion', 'issue', 'stage', 'cause')))
+        self.assertNotIn('private-sentinel', lines[0])
+        return value
+
+    def test_independent_optional_records_and_closed_finite_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            self.assertIsNone(self.observe(directory)['parentFailure'])
+            parent = self.write(directory, 'dm-boundary-diagnostic.json', self.parent)
+            self.assertEqual(self.parent, self.observe(directory)['parentFailure'])
+            self.assertIsNone(self.observe(directory)['browserLastObservation'])
+            self.write(directory, 'browser-diagnostic.json', self.browser)
+            self.assertEqual(self.browser, self.observe(directory)['browserLastObservation'])
+            parent.unlink()
+            self.assertIsNone(self.observe(directory)['parentFailure'])
+            self.assertEqual(self.browser, self.observe(directory)['browserLastObservation'])
+        for phase in m.DM_DIAGNOSTIC_PHASES:
+            for error in m.DM_DIAGNOSTIC_ERRORS:
+                value = {**self.parent, 'phase': phase, 'errorClass': error}
+                self.assertEqual(value, m.dm_diagnostic(value))
+
+    def test_malformed_private_records_cannot_add_public_fields_or_caller_data(self):
+        common = [b'\xff', b'{', b'null', b'[]', b'{"schemaVersion":0,"schemaVersion":1,"phase":"CRASH","errorClass":"TIMEOUT"}']
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            for name, base, field in [('dm-boundary-diagnostic.json', self.parent, 'parentFailure'), ('browser-diagnostic.json', self.browser, 'browserLastObservation')]:
+                bad = common + [{**base, 'private-sentinel': 'private-sentinel'},
+                                {**base, 'schemaVersion': True}, {**base, 'schemaVersion': 1.0},
+                                {**base, 'schemaVersion': 2}, {**base, 'phase': 'private-sentinel'},
+                                {**base, 'errorClass': 'private-sentinel'}, {**base, 'phase': []}]
+                if field == 'browserLastObservation':
+                    bad += [{**base, key: status} for key in ('expectedStatus', 'actualStatus') for status in (True, 202.0, 99, 600, 'private-sentinel')]
+                for value in bad:
+                    with self.subTest(name=name, value=value):
+                        self.write(directory, name, value)
+                        self.assertIsNone(self.observe(directory)[field])
+
+    def test_exact_byte_limit_and_no_follow_regular_private_file_boundary(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as outside:
+            directory = Path(tmp)
+            encoded = json.dumps(self.parent).encode()
+            path = self.write(directory, 'dm-boundary-diagnostic.json', encoded + b' ' * (8192-len(encoded)))
+            self.assertIsNone(self.observe(directory)['parentFailure'])
+            path.write_bytes(path.read_bytes() + b' ')
+            self.assertIsNone(self.observe(directory)['parentFailure'])
+            path.unlink()
+            target = self.write(Path(outside), 'private-sentinel', self.parent)
+            path.symlink_to(target)
+            self.assertIsNone(self.observe(directory)['parentFailure'])
+            path.unlink()
+            path.mkdir(mode=0o700)
+            self.assertIsNone(self.observe(directory)['parentFailure'])
+            path.rmdir()
+            os.mkfifo(path, 0o600)
+            self.assertIsNone(self.observe(directory)['parentFailure'])
+            path.unlink()
+            self.write(directory, path.name, self.parent)
+            for mode in (0o640, 0o602, 0o601):
+                path.chmod(mode)
+                self.assertIsNone(self.observe(directory)['parentFailure'])
+            path.chmod(0o600)
+            directory.chmod(0o750)
+            self.assertIsNone(self.observe(directory)['parentFailure'])
+            directory.chmod(0o700)
+            link = Path(outside) / 'linked-directory'
+            link.symlink_to(directory, target_is_directory=True)
+            self.assertIsNone(self.observe(link)['parentFailure'])
+
+    def test_read_request_is_bounded_when_file_grows_after_metadata_check(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            path = self.write(directory, 'dm-boundary-diagnostic.json', self.parent)
+            requests = []
+            original_fdopen = os.fdopen
+            class GrowingStream:
+                def __init__(self, fd, *args, **kwargs):
+                    self.stream = original_fdopen(fd, *args, **kwargs)
+                def __enter__(self):return self
+                def read(self, size):
+                    requests.append(size)
+                    path.write_bytes(json.dumps(PublicDmObservationTests.parent).encode() + b' ' * 8192)
+                    return self.stream.read(size)
+                def __exit__(self, *_):self.stream.close()
+            with patch.object(m.os, 'fdopen', side_effect=GrowingStream):
+                self.assertIsNone(self.observe(directory)['parentFailure'])
+            self.assertEqual([8192], requests)
+
+    def test_foreign_ownership_read_errors_and_confinement_fail_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            self.write(directory, 'dm-boundary-diagnostic.json', self.parent)
+            original = os.fstat
+            for foreign_directory in (True, False):
+                def foreign(fd):
+                    info = original(fd)
+                    if m.stat.S_ISDIR(info.st_mode) == foreign_directory:
+                        fields = list(info); fields[4] = os.getuid() + 1
+                        return os.stat_result(fields)
+                    return info
+                with patch.object(m.os, 'fstat', side_effect=foreign):
+                    self.assertIsNone(self.observe(directory)['parentFailure'])
+            with patch.object(m.os, 'fdopen', side_effect=OSError('private-sentinel')):
+                self.assertIsNone(self.observe(directory)['parentFailure'])
+            output = io.StringIO()
+            with patch.object(m.runtime, 'confined', side_effect=ValueError('private-sentinel')), patch.object(m.sys, 'stdout', output):
+                m.emit_dm_observation(directory)
+            self.assertNotIn('private-sentinel', output.getvalue())
+            self.assertIsNone(json.loads(output.getvalue().split(' ', 1)[1])['parentFailure'])
+
+    def test_descriptors_close_on_parse_read_and_metadata_failures(self):
+        original_open = os.open
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            for failure in ('parse', 'read', 'metadata'):
+                self.write(directory, 'dm-boundary-diagnostic.json', b'{' if failure == 'parse' else self.parent)
+                opened = []
+                def track(*args, **kwargs):
+                    fd = original_open(*args, **kwargs); opened.append(fd); return fd
+                with ExitStack() as stack:
+                    stack.enter_context(patch.object(m.os, 'open', side_effect=track))
+                    if failure == 'read':stack.enter_context(patch.object(m.os, 'fdopen', side_effect=OSError('private-sentinel')))
+                    if failure == 'metadata':stack.enter_context(patch.object(m.os, 'fstat', side_effect=OSError('private-sentinel')))
+                    self.assertIsNone(self.observe(directory)['parentFailure'])
+                self.assertTrue(opened)
+                for fd in opened:
+                    with self.assertRaises(OSError):os.fstat(fd)
+
+    def test_cli_failure_receipt_and_cleanup_precedence_survive_broken_diagnostic_sink(self):
+        events = []
+        def run(*_):
+            try:raise m.AcceptanceFailure(m.AcceptanceStage.DM_BOUNDARY)
+            finally:events.append('original-cleanup')
+        def confined(_):
+            events.append('observation');raise OSError('private-sentinel')
+        class BrokenSink(io.StringIO):
+            def write(self, _):raise BrokenPipeError('private-sentinel')
+        for broken_sink in (False, True):
+            events.clear()
+            output, errors = io.StringIO(), io.StringIO()
+            if broken_sink:output = BrokenSink()
+            with patch.object(m, 'run', side_effect=run), patch.object(m.runtime, 'confined', side_effect=confined), patch.object(m.sys, 'argv', ['provider-jobs.py', '--directory', 'fresh', '--runtime-directory', 'owned']), patch.object(m.sys, 'stdout', output), patch.object(m.sys, 'stderr', errors), self.assertRaises(SystemExit) as caught:
+                m.main()
+            self.assertEqual(['original-cleanup', 'observation'], events)
+            self.assertEqual('{"schemaVersion":1,"issue":305,"result":"FAIL","stage":"DM_BOUNDARY","cause":"UNDETERMINED"}\n', errors.getvalue())
+            self.assertEqual('Owned provider job acceptance failed closed; private evidence retained', str(caught.exception))
+
+    def test_success_and_other_stages_never_read_or_emit_dm_observation(self):
+        for stage in (None, *[s for s in m.AcceptanceStage if s is not m.AcceptanceStage.DM_BOUNDARY]):
+            with ExitStack() as stack:
+                stack.enter_context(patch.object(m.sys, 'argv', ['provider-jobs.py', '--directory', 'fresh', '--runtime-directory', 'owned']))
+                output = stack.enter_context(patch.object(m.sys, 'stdout', new_callable=io.StringIO))
+                stack.enter_context(patch.object(m.sys, 'stderr', new_callable=io.StringIO))
+                observer = stack.enter_context(patch.object(m, 'emit_dm_observation'))
+                stack.enter_context(patch.object(m, 'run', return_value={'result': 'PASS'}, side_effect=None if stage is None else m.AcceptanceFailure(stage)))
+                if stage is None:
+                    m.main();self.assertEqual({'result': 'PASS'}, json.loads(output.getvalue()))
+                else:
+                    with self.assertRaises(SystemExit):m.main()
+                    self.assertEqual('', output.getvalue())
+                observer.assert_not_called()
+
+
 class JobsTests(unittest.TestCase):
     def test_failure_stages_are_closed_and_never_expose_exception_or_caller_data(self):
         private = 'private-path credential provider-output exception-detail'

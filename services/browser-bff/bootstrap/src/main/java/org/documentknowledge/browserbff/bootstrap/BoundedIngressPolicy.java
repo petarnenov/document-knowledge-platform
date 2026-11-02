@@ -2,6 +2,8 @@ package org.documentknowledge.browserbff.bootstrap;
 
 import io.micronaut.context.event.BeanCreatedEvent;
 import io.micronaut.context.event.BeanCreatedEventListener;
+import io.micronaut.runtime.event.annotation.EventListener;
+import io.micronaut.http.context.event.HttpRequestReceivedEvent;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.http.HttpVersion;
 import io.micronaut.http.HttpRequest;
@@ -18,7 +20,11 @@ import io.micronaut.http.ssl.ServerSslConfiguration;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelPromise;
+import io.netty.channel.WriteBufferWaterMark;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.channel.ChannelPipelineException;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.http.HttpContent;
@@ -39,10 +45,15 @@ public final class BoundedIngressPolicy implements BeanCreatedEventListener<Nett
     static final int RECEIVE_BYTES = 8192;
     private static final AttributeKey<java.util.function.BooleanSupplier> VALIDATOR =
         AttributeKey.valueOf(BoundedIngressPolicy.class, "validator");
+    private static final AttributeKey<Connection> CONNECTION =
+        AttributeKey.valueOf(BoundedIngressPolicy.class, "connection");
+    private final IngressAdmission admission = new IngressAdmission();
+    private final OutboundAdmission outbound = new OutboundAdmission();
     private final NettyHttpServerConfiguration configuration;
     private final ServerSslConfiguration ssl;
     private final Readiness readiness;
     private PinnedIngressReadback readback;
+    private PinnedIngressSettlement settlement;
     private boolean channelAttested;
     private boolean failed;
 
@@ -55,19 +66,53 @@ public final class BoundedIngressPolicy implements BeanCreatedEventListener<Nett
 
     @Override public int getOrder() { return Ordered.HIGHEST_PRECEDENCE; }
 
+    IngressAdmission.Snapshot admissionSnapshot() { return admission.snapshot(); }
+    OutboundAdmission.Snapshot outboundSnapshot() { return outbound.snapshot(); }
+
+    @EventListener
+    public void requestReceived(HttpRequestReceivedEvent event) {
+        if (event.getSource() instanceof NettyHttpRequest<?> request) {
+            var channel = request.getChannelHandlerContext().channel();
+            var connection = channel.attr(CONNECTION).get();
+            Runnable disposal = connection == null ? null : connection.lease.bind(request.getNativeRequest());
+            if (disposal == null) channel.close();
+            else {
+                final java.util.function.BooleanSupplier rootSettled;
+                try { rootSettled = settlement.capture(request.byteBody(), channel.eventLoop()); }
+                catch (RuntimeException unsupported) { reject(channel); return; }
+                request.addDisposalResource(() -> {
+                // body.close may enqueue discard/subscribe on the channel event loop.
+                // Always queue behind that work, including disposal invoked on-loop.
+                try { channel.eventLoop().execute(() -> {
+                    if (rootSettled.getAsBoolean()) disposal.run();
+                    else reject(channel);
+                }); }
+                catch (java.util.concurrent.RejectedExecutionException shutdown) {
+                    // No completed barrier: conservatively retain this body charge.
+                    unavailable();
+                    channel.close();
+                }
+                });
+            }
+        }
+    }
+
     @RequestFilter
     public void beforeDispatch(HttpRequest<?> request) {
         if (request instanceof NettyHttpRequest<?> netty) {
             var channel = netty.getChannelHandlerContext().channel();
             var validator = channel.attr(VALIDATOR).get();
-            if (validator != null && validator.getAsBoolean()) return;
+            if (!outbound.failed() && validator != null && validator.getAsBoolean()) return;
             reject(channel);
         } else unavailable();
         throw new HttpStatusException(HttpStatus.SERVICE_UNAVAILABLE, "BFF_INGRESS_POLICY_UNAVAILABLE");
     }
 
     @Override public NettyEmbeddedServer onCreated(BeanCreatedEvent<NettyEmbeddedServer> event) {
-        try { readback = new PinnedIngressReadback(); }
+        try {
+            readback = new PinnedIngressReadback();
+            settlement = new PinnedIngressSettlement();
+        }
         catch (RuntimeException unavailable) { readiness.markUnavailable(); throw unavailable; }
         readiness.markUnavailable();
         if (!configured()) {
@@ -82,16 +127,32 @@ public final class BoundedIngressPolicy implements BeanCreatedEventListener<Nett
         return new NettyServerCustomizer() {
             @Override public NettyServerCustomizer specializeForChannel(Channel channel, ChannelRole role) {
                 if (role == ChannelRole.LISTENER) return this;
-                if (role != ChannelRole.CONNECTION || !(channel instanceof SocketChannel)) {
+                if (role != ChannelRole.CONNECTION || !(channel instanceof SocketChannel)
+                    || channel.getClass() != NioSocketChannel.class) {
                     reject(channel);
+                    return this;
+                }
+                if (outbound.failed()) { channel.close(); return this; }
+                var lease = admission.tryOpen();
+                if (lease == null) {
+                    channel.config().setAutoRead(false);
+                    channel.close();
                     return this;
                 }
                 // This callback runs during channel initialization, before its first receive handle/read.
                 var allocator = new PolicyAllocator();
                 allocator.maxMessagesPerRead(1);
                 channel.config().setRecvByteBufAllocator(allocator);
+                channel.config().setWriteBufferWaterMark(new WriteBufferWaterMark(
+                    OutboundWrites.LOW_WATERMARK, OutboundWrites.HIGH_WATERMARK));
                 channel.config().setAutoRead(false);
-                return new Connection(channel, allocator);
+                var connection = new Connection(channel, allocator, lease);
+                channel.attr(CONNECTION).set(connection);
+                channel.closeFuture().addListener(closed -> {
+                    // Before guard installation no request can have entered the body owner.
+                    if (closed.isSuccess() && !connection.guardsInstalled) lease.confirmTeardown();
+                });
+                return connection;
             }
         };
     }
@@ -140,21 +201,29 @@ public final class BoundedIngressPolicy implements BeanCreatedEventListener<Nett
     private final class Connection implements NettyServerCustomizer {
         private final Channel channel;
         private final PolicyAllocator allocator;
+        private final IngressAdmission.Connection lease;
+        private final OutboundWrites writes;
         private HttpServerCodec codec;
         private PipeliningServerHandler embedded;
         private boolean initial;
         private boolean guardsInstalled;
         private Guard rawGuard;
         private Guard decodedGuard;
+        private ChannelHandlerContext embeddedContext;
+        private boolean teardownArmed;
+        private boolean cleanupFailed;
 
-        Connection(Channel channel, PolicyAllocator allocator) {
+        Connection(Channel channel, PolicyAllocator allocator, IngressAdmission.Connection lease) {
             this.channel = channel;
             this.allocator = allocator;
+            this.lease = lease;
+            this.writes = new OutboundWrites(outbound, this::valid, () -> reject(channel));
         }
 
         @Override public void onInitialPipelineBuilt() {
             codec = channel.pipeline().get(HttpServerCodec.class);
             embedded = channel.pipeline().get(PipeliningServerHandler.class);
+            embeddedContext = embedded == null ? null : channel.pipeline().context(embedded);
             initial = true;
             if (!valid()) { reject(channel); return; }
             rawGuard = new Guard(false);
@@ -172,7 +241,10 @@ public final class BoundedIngressPolicy implements BeanCreatedEventListener<Nett
         }
 
         private boolean valid() {
-            return channel.eventLoop().inEventLoop() && configured() && codec != null
+            return channel.eventLoop().inEventLoop() && channel.getClass() == NioSocketChannel.class
+                && channel.config().getWriteBufferLowWaterMark() == OutboundWrites.LOW_WATERMARK
+                && channel.config().getWriteBufferHighWaterMark() == OutboundWrites.HIGH_WATERMARK
+                && configured() && codec != null
                 && embedded != null && readback != null && readback.matches(embedded)
                 && channel.pipeline().get(PipeliningServerHandler.class) == embedded
                 && channel.pipeline().get(HttpServerCodec.class) == codec
@@ -195,16 +267,21 @@ public final class BoundedIngressPolicy implements BeanCreatedEventListener<Nett
             int decode = names.indexOf(pipeline.context(codec).name());
             int guard = names.indexOf(pipeline.context(decodedGuard).name());
             int target = names.indexOf(pipeline.context(embedded).name());
-            if (!(raw >= 0 && raw < decode && decode < guard && guard + 1 == target)) return false;
+            if (!(raw == 0 && raw < decode && decode < guard && guard + 1 == target)) return false;
             for (int i = raw; i <= target; i++) {
                 if (pipeline.context(names.get(i)).executor() != channel.eventLoop()) return false;
             }
             return true;
         }
 
-        private final class Guard extends ChannelInboundHandlerAdapter {
+        private final class Guard extends ChannelDuplexHandler {
             private final boolean decoded;
             Guard(boolean decoded) { this.decoded = decoded; }
+
+            @Override public void write(ChannelHandlerContext context, Object message, ChannelPromise promise) {
+                if (decoded) context.write(message, promise);
+                else writes.write(context, message, promise);
+            }
 
             @Override public void channelReadComplete(ChannelHandlerContext context) {
                 if (valid()) context.fireChannelReadComplete();
@@ -212,12 +289,32 @@ public final class BoundedIngressPolicy implements BeanCreatedEventListener<Nett
             }
 
             @Override public void exceptionCaught(ChannelHandlerContext context, Throwable failure) {
+                // Netty sets ctx.isRemoved even when handlerRemoved throws. Latch before
+                // forwarding or closing: reentrant teardown must never mistake failure for discard.
+                if (failure instanceof ChannelPipelineException) cleanupFailed = true;
                 if (valid()) context.fireExceptionCaught(failure);
                 else reject(context.channel());
             }
 
+            @Override public void channelUnregistered(ChannelHandlerContext context) {
+                boolean candidate = !decoded && channel.eventLoop().inEventLoop()
+                    && channel.closeFuture().isSuccess() && valid()
+                    && channel.pipeline().firstContext() == context;
+                context.fireChannelUnregistered();
+                // Arm only after downstream callbacks return with both exact handlers intact.
+                // The pinned pipeline then destroys tail-to-head on this same event loop.
+                if (candidate && !cleanupFailed && channel.pipeline().firstContext() == context
+                    && channel.pipeline().context(embedded) == embeddedContext) teardownArmed = true;
+            }
+
+            @Override public void handlerRemoved(ChannelHandlerContext context) {
+                if (!decoded && teardownArmed && !cleanupFailed && channel.eventLoop().inEventLoop()
+                    && channel.closeFuture().isSuccess() && embeddedContext.isRemoved()
+                    && channel.pipeline().context(embedded) == null) lease.confirmTeardown();
+            }
+
             @Override public void channelRead(ChannelHandlerContext context, Object message) {
-                boolean accepted = valid();
+                boolean accepted = valid() && !outbound.failed();
                 if (decoded && message instanceof io.netty.handler.codec.http.HttpRequest request) {
                     accepted &= request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1);
                 }
@@ -228,6 +325,10 @@ public final class BoundedIngressPolicy implements BeanCreatedEventListener<Nett
                 if (!accepted) {
                     ReferenceCountUtil.release(message);
                     reject(context.channel());
+                } else if (decoded && message instanceof io.netty.handler.codec.http.HttpRequest request
+                    && !lease.tryRetain(request)) {
+                    ReferenceCountUtil.release(message);
+                    channel.close();
                 } else context.fireChannelRead(message);
             }
         }

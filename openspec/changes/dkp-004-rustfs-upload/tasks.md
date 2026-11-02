@@ -1,4 +1,14 @@
-## Current execution checkpoint — #312 — 2026-11-01 05:11 UTC
+## Current delivery checkpoint — #141 / #222 / #224 — 2026-11-01 18:03 UTC
+
+PR267 is merged into dev as `0d63008c774fd5a8d2f9e3c0f023270472e970a4`, after independent review and all13 terminal-success checks on published `2a443823c85c40b66115010c575c3f4b28c5ab2c`. Foundation41329695245 passed all11 jobs, including the entire genuine-provider/browser/COPY-FENCE/quota/scanner/inspector/DM sequence. Post-dev Foundation41332195752 FAILED at provider step17 consumed append replay before the DM read-only fault; actual HTTP status/cause is unknown and original failure evidence remains under166/237. Final INTEGRATED status is not established.
+
+Partial222 timer-retention correction is locally verified in the pinned Linux/JDK environment:71 affected BFF tests/26 ingress cases pass; all floors and original deadlines/assertions remain. Original-default timer control1001retained tasks becomes1; changed factory has100% line coverage. The common targeted command serializes test JVMs at unchanged2GB/256PID limits. Source fingerprint/log evidence and retained runner failures are recorded in docs/implementation/dkp-004-status.md. Publication, scoped CI and integration remain pending; global admission/aggregate readiness is not implemented by this timer correction. The owner requires only222 affected checks, with no new whole Foundation/provider/hour run.
+
+BP03 remains OPEN. Final audit222/224 must reconcile the original28requirements/63scenarios and supplementary26requirements/33scenarios. In particular, bounded-ingress contract clauses4–5 require separately accounted overhead/transport/edge buffers and aggregate retained-request/connection accounting. The147456-byte allowance is per request; ten domain slots do not bound pre-auth connections. Per-namespace or per-request proofs alone cannot close this aggregate development gate. Reviewed archive141 follows successful acceptance and integration, not merely green CI.
+
+The original77d genuine3618.382035-second expiry proof remains source-labelled77d. Independent224 verified unchanged runtime/acceptance/expiry inputs through2a; this is not a new2a-hour run. Broader parity427 and retained-log completeness430 remain explicit open follow-ups. Preserve BP05 legacy append compatibility and architecture/security/CID/production gates. Historical checklists below retain their recorded states and do not override this checkpoint.
+
+## Historical execution checkpoint — #312 — 2026-11-01 05:11 UTC
 
 - [ ] #344: repair actual Linux OS-lock exclusion after failed same-JVM contention; retain causal baseline failure and independently verify corrected public SYSTEM constructors. Earlier14-case #335/#337 proof is narrower.
 - [ ] #328: complete approved generic temporary-file roles, physical ownership/fault evidence, coverage and independent review before integration.
@@ -33,7 +43,7 @@ Runtime issues91–99 were created before execution. Development specification a
 
 - [ ] 3.1 [issues #110/#111; created before review, in progress] Independent implementation security/architecture review; resolve issues before PR merge dev, require applicable checks green and actual evidence.
 - [ ] 3.2 [issue #141; created before delivery, in progress] Reviewed PR into dev, integration checks and verified issue closures, resumable handoff plus actual current-session /compact or honest pending marker.
-- [ ] 3.3 [issue UNCREATED; unstarted] Requirement audit and reviewed archive after integration; retain BP05 legacy-version/append compatibility obligation, next BP04 queue and open CID07/CID15/production gates.
+- [ ] 3.3 [existing issues #222/#224 for final audit; #141 for reviewed archive] Requirement audit and reviewed archive after integration; retain BP05 legacy-version/append compatibility obligation, owner-directed frontend catch-up before subsequent backend work, and open CID07/CID15/production gates. Reuse these existing tasks rather than creating another audit issue.
 
 ## 4. Consolidated specification review corrections — #88
 
@@ -246,3 +256,10 @@ Current41269335770 combined COPY/fence step, including required real60-second st
 PR146 integrated as62a73f0 after final-head CI and the distinct genuine60-minute expiry PASS. Full requirement audit222/239, integrated-dev checks and verified archive remain open. Production/CID gates remain separate.
 
 - [ ] [#454](https://github.com/petarnenov/document-knowledge-platform/issues/454) P1: serialize concurrent service-build writers to the shared Gradle cache with BuildKit `sharing=locked`. Preserve the original CI daemon-timeout evidence; two original local four-service builds passed, so the hosted failure cause remains unproven. Verify real cold and warm-cache builds, independent review, exact-source CI and dev integration before closure; preserve all provider and real-hour acceptance gates.
+
+## Bounded DM acceptance observation — #433 / #384 — 2026-11-02
+
+- [x] [#433](https://github.com/petarnenov/document-knowledge-platform/issues/433): retain original adeb884 Foundation41363536700 DM_BOUNDARY failure and eight verified artifacts. Independently audit unchanged local three-phase PASS, post-runtime verification and pre-cleanup private evidence; original cause remains unknown. First different local PRIVATE_CONTROL timeout is retained under #413, not reported as original DM reproduction.
+- [x] [#433](https://github.com/petarnenov/document-knowledge-platform/issues/433) / [#384](https://github.com/petarnenov/document-knowledge-platform/issues/384): independent exact two-file proposal review and standing bounded development approval recorded before implementation (review SHA25635f05aa7b75aa216f134323070ad0474122c4e66ca4056056931608c3d55dc24; strict18PASS). Existing receipt, private-data boundary, commands/assertions/deadlines and cleanup stay unchanged; final implementation verification/review remains pending.
+- [ ] #433 / #384: implement only the reviewed diagnostic and meaningful negative/privacy/error-precedence tests; run full affected pinned Linux Python checks, receipt validation and existing source/branch coverage floors.
+- [ ] [#224](https://github.com/petarnenov/document-knowledge-platform/issues/224): independently review exact source/evidence/applicability before one justified diagnostic CI publication through PR455. Preserve original failure evidence; neither a diagnostic PASS nor unchanged local PASS proves its cause or full BP03 acceptance.
