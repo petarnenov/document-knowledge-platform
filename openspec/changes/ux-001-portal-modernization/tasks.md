@@ -5,7 +5,7 @@
 - [ ] #436 Review and integrate library/draft/upload UX with real existing contracts.
 - [ ] #437 Review lifecycle adapters and compatibility matrix; retain unknown/unavailable capabilities.
 - [ ] #434 Run combined pinned local CI checks, coverage, accessibility and affected real E2E with source-bound evidence.
-- [ ] #434 Obtain independent implementation review, publish PR, confirm exact-source CI and applicable acceptance, then prepare reviewed integration under the latest no-auto-merge instruction.
+- [ ] #434 Obtain independent implementation review, publish PR, confirm exact-source CI and applicable acceptance, then integrate under standing owner dev-merge authorization after every applicable check has terminal success.
 - [ ] #434 Synchronize Blueprint implementation status, queue and remaining collection/advanced-capability dependencies; close only fulfilled tasks.
 
 - [ ] #439 Verify the shared pinned Linux frontend commands locally and in CI.
@@ -21,3 +21,11 @@
 - [x] #448 Independently review `workspace-selector-448.md` before implementing shared identity-command ownership for the inline authenticated workspace selector.
 - [ ] #448 Implement and verify real inline selection, competing-control arbitration, authority/cache cancellation and accessible states; retain host-versus-pinned-Linux evidence limits and complete PR/CI/acceptance gates before closure.
 - [ ] #446 Integrate the reviewed Collections unavailable workspace using shared shell tokens; preserve unknown/denied/conflict and no implied content authority. Existing metadata presentation is not an operational collection adapter; real supported-contract integration remains separately pending.
+
+## Existing frontend continuation — #443 / #434 — 2026-11-02
+
+- [x] Independently review bounded dev-sync plan before edits (review SHA256da6ec6a3c4406b428da44763141be7f2e572a66324474fdfb61eebd213beb540); preserve interactivev0.5/Mantine/TanStack implementation and inherited assertions.
+- [x] Merge verified dev4b79ba6, preserve inherited observer coverage as a separate shared local/CI gate and add meaningful gate-order/failure regression;19 supplementary runner tests PASS.
+- [ ] Run current-source full pinned Linux frontend checks and independent implementation/evidence review; source-specific historical local proofs are not a new result.
+- [ ] Verify genuine current-source identity/upload/native transitions and resolve separately tracked #159 reauthentication acceptance; retain original failures, security and all original assertions/deadlines.
+- [ ] Publish reviewed candidate once, confirm exact-source CI, integrate after independent audit and provide a fresh verified manual-test link. Old stopped previews are historical.

@@ -1,6 +1,12 @@
 # Frontend modernization implementation status
 
-Current local candidate: `feat/dkp-443-provider-integration`, checkpoint `846a27abf481e5cdef3f46ce444f23b43bc6a73a`. Tracking #434 / #443, with #448 workspace selection and #446 unavailable Collections presentation. The visual implementation began on dev `de279657e6bb954c5f4f3703617f693c1f89c347`; the earlier functional foundation used `85c4454`. Required inputs remain UI/UX Blueprint v0.7.0 and Frontend Rework Instructions v1.0.0. This is unpublished incremental work, not dev integration, BP-14 or full-project completion. Historical results below remain bound to their recorded sources.
+## Current continuation checkpoint — #434 / #443 — 2026-11-02
+
+Existing PR453/a6ca84c implementation is preserved and locally synchronized with verified dev4b79ba6. Merge04e700f retains both reviewed UX interactions and the inherited constant256Bps/finite observer corrections; the shared pinned local/CI checker preserves separate observer coverage and all four75% floors. Supplementary runner19tests pass, including a meaningful failure control that prevents later browser gates. Current complete pinned Linux and genuine-provider/frontend verification are pending; no new-source CI or frontend integration is claimed.
+
+The full BP00–BP17 goal follows interactive Designv0.5. Implementation-first delivery is authorized from the independently verified backend checkpoint; final measurements remain OPEN. Separate #159 reauthentication failure retains its original failed-hour evidence and needs affected FE verification. Both old manual stacks are stopped; historical24443/25443 links below are not live current previews. New verified manual links require fresh task-owned environments. Further backend expansion follows frontend catch-up. Earlier checkpoints below retain their original source scope.
+
+Historical pre-sync local candidate: `feat/dkp-443-provider-integration`, checkpoint `846a27abf481e5cdef3f46ce444f23b43bc6a73a`. Tracking #434 / #443, with #448 workspace selection and #446 unavailable Collections presentation. The visual implementation began on dev `de279657e6bb954c5f4f3703617f693c1f89c347`; the earlier functional foundation used `85c4454`. Required inputs remain UI/UX Blueprint v0.7.0 and Frontend Rework Instructions v1.0.0. This is unpublished incremental work, not dev integration, BP-14 or full-project completion. Historical results below remain bound to their recorded sources.
 
 | Blueprint area | Work item | Actual state | Remaining gates |
 | --- | --- | --- | --- |

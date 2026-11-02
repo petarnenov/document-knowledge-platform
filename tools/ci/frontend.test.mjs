@@ -134,13 +134,23 @@ test('a failed gate preserves reports, returns its status and stops later comman
 
 test('inherited observer coverage keeps exact scope and blocks later browser gates on failure', (t) => {
   const root = fixture(t);
-  const observer = commands.find(([name]) => name === 'boundary-observer-coverage')[1];
+  const observer = commands.find(
+    ([name]) => name === 'boundary-observer-coverage',
+  )[1];
   assert.deepEqual(observer.slice(0, 5), [
-    '--filter', 'admin-portal', 'exec', 'vitest', 'run',
+    '--filter',
+    'admin-portal',
+    'exec',
+    'vitest',
+    'run',
   ]);
   assert(observer.includes('src/boundary-event-observer.test.tsx'));
-  assert(observer.includes('--coverage.include=e2e-real/boundary-event-observer.ts'));
-  assert(observer.includes('--coverage.reportsDirectory=coverage/boundary-observer'));
+  assert(
+    observer.includes('--coverage.include=e2e-real/boundary-event-observer.ts'),
+  );
+  assert(
+    observer.includes('--coverage.reportsDirectory=coverage/boundary-observer'),
+  );
   for (const metric of ['lines', 'branches', 'functions', 'statements'])
     assert(observer.includes(`--coverage.thresholds.${metric}=75`));
   const seen = [];
