@@ -123,6 +123,8 @@ def check_mounts(item, state, service):
     expected = ({'/var/lib/postgresql': ('volume', state['project'] + '-postgres-data', True),
                  '/run/secrets': ('volume', state['project'] + '-postgres-secrets', False)} if service == 'postgres'
                 else {'/run/dkp/log-query': ('bind', str(Path(state['directory']) / 'query'), False)})
+    if service == 'viewer':
+        expected = {'/run/dkp/viewer/read-token': ('bind', str(Path(state['directory']) / 'operator/read-token'), False)}
     if service == 'gateway':
         expected = {'/run/dkp/gateway/' + name: ('bind', str(Path(state['directory']) / ('gateway' if name.endswith('.conf') else 'gateway-pki') / name), False) for name in ('server.conf','log-proxy.conf','portal.crt','portal.key','idp.crt','idp.key','ca.crt')}
     actual = {}
@@ -155,7 +157,7 @@ def check_resources(state):
         item = inspect('container', identity)
         owned(item, state)
         service = item['Config']['Labels'].get('com.docker.compose.service')
-        require(service in ('postgres', 'query', 'gateway'))
+        require(service in (('postgres','query','gateway','viewer') if state.get('viewerEnabled') else ('postgres','query','gateway')))
         check_mounts(item, state, service)
 
 
@@ -259,10 +261,11 @@ def create_pki(directory, port, idp_port):
     security_bootstrap().generate(directory / 'gateway-pki', portal_port=port, idp_port=idp_port)
 
 
-def gateway_config(directory, port, idp_port):
+def gateway_config(directory, port, idp_port, viewer=False):
     (directory / 'gateway').mkdir(mode=0o700, exist_ok=True)
     for name, template in [('server.conf','dev-logging-gateway-server.template.conf'),('log-proxy.conf','dev-logging-log-proxy.template.conf')]:
-        value = COMPOSE.with_name(template).read_text().replace('__PORTAL_PORT__', str(port)).replace('__IDP_PORT__', str(idp_port))
+        routes = COMPOSE.with_name('dev-logging-viewer-routes.template.conf').read_text() if viewer else 'location = /dev/logs { return 404; }\nlocation ^~ /dev/logs/ { return 404; }\nlocation = /logs.html { return 404; }'
+        value = COMPOSE.with_name(template).read_text().replace('__VIEWER_ROUTES__',routes).replace('__PORTAL_PORT__', str(port)).replace('__IDP_PORT__', str(idp_port))
         write_private(directory / 'gateway' / name, value, replace=(directory / 'gateway' / name).exists())
 
 
@@ -316,7 +319,7 @@ def build_image(state, directory, component='query'):
         source = verify.snapshot(ROOT, Path(temporary))
         image = state['project'] + '-' + component + ':' + source['fingerprint'][:16]
         args = ['build', '--platform', 'linux/amd64', '--tag', image,
-                '--file', str(COMPOSE.with_name('dev-logging-gateway.Dockerfile' if component == 'gateway' else 'dev-logging.Dockerfile'))]
+                '--file', str(COMPOSE.with_name('dev-logging-'+component+'.Dockerfile' if component != 'query' else 'dev-logging.Dockerfile'))]
         for key, value in {**labels(state), 'dkp.logging.source': source['fingerprint']}.items():
             args.extend(['--label', key + '=' + value])
         if exists('image', image):
@@ -325,6 +328,8 @@ def build_image(state, directory, component='query'):
     item = inspect('image', image)
     owned(item, state)
     require(item['Os'] == 'linux' and item['Architecture'] == 'amd64')
+    if component == 'viewer':
+        return {'viewerImage': image, 'viewerImageId': item['Id'], 'viewerSourceFingerprint': source['fingerprint']}
     if component == 'gateway':
         return {'gatewayImage': image, 'gatewayImageId': item['Id'], 'gatewaySourceFingerprint': source['fingerprint']}
     return {'image': image, 'imageId': item['Id'], 'sourceFingerprint': source['fingerprint']}
@@ -332,6 +337,8 @@ def build_image(state, directory, component='query'):
 
 def environment(state, directory):
     values = {'DKP_LOG_PROJECT': state['project'], 'DKP_LOG_OWNER_ID': state['ownerId'],
+              'DKP_LOG_VIEWER_IMAGE': state.get('viewerImage','dkp-disabled-viewer:unselected'),
+              'DKP_LOG_VIEWER_TOKEN': str(directory / 'operator/read-token'),
               'DKP_LOG_QUERY_IMAGE': state['image'], 'DKP_LOG_GATEWAY_IMAGE': state['gatewayImage'],
               'DKP_LOG_DATA_SUBNET': state['subnets']['data'], 'DKP_LOG_EDGE_SUBNET': state['subnets']['edge'],
               'DKP_LOG_PORT': str(state['port']), 'DKP_LOG_IDP_PORT': str(state['idpPort']),
@@ -436,12 +443,16 @@ def gateway_digest(directory):
     return digest.hexdigest()
 
 
-def probe(state, directory):
+def viewer_digest(directory,state):
+    return hashlib.sha256(str(state['port']).encode()+b'\0'+private(directory/'operator/read-token',512)).hexdigest()
+
+
+def probe(state, directory, viewer=False):
     now = dt.datetime.now(dt.timezone.utc)
     window = 'from=' + (now - dt.timedelta(minutes=5)).isoformat().replace('+00:00', 'Z') + '&to=' + (now + dt.timedelta(minutes=1)).isoformat().replace('+00:00', 'Z')
     token = private(directory / 'operator/read-token', 512).decode()
-    request = urllib.request.Request('https://localhost:' + str(state['port']) + '/api/v1/dev-logs/events?' + window,
-                                     headers={'Authorization': 'Bearer ' + token})
+    request = urllib.request.Request('https://localhost:' + str(state['port']) + ('/dev/logs/api/v1/events?' if viewer else '/api/v1/dev-logs/events?') + window,
+                                     headers={} if viewer else {'Authorization': 'Bearer ' + token})
     try:
         with urllib.request.urlopen(request, timeout=5, context=ssl.create_default_context(cafile=directory / 'gateway-pki/ca.crt')) as response:
             require(response.status == 200 and isinstance(json.loads(response.read(1024 * 1024)).get('events'), list))
@@ -459,12 +470,19 @@ def verify_live(state, directory):
     owned(gateway_image, state)
     require(gateway_image['Config']['Labels'].get('dkp.logging.source') == state['gatewaySourceFingerprint'])
     require(gateway_digest(directory) == state['gatewayConfigSha256'], 'LOG_RUNTIME_CONFIG_UPDATE_REQUIRED')
-    for service in ('postgres', 'query', 'gateway'):
+    if state.get('viewerEnabled'):
+        viewer_image = inspect('image', state['viewerImageId']);owned(viewer_image,state)
+        require(viewer_image['Config']['Labels'].get('dkp.logging.source') == state['viewerSourceFingerprint'])
+        require(viewer_digest(directory,state) == state['viewerConfigSha256'], 'LOG_RUNTIME_VIEWER_UPDATE_REQUIRED')
+    for service in (('postgres','query','gateway','viewer') if state.get('viewerEnabled') else ('postgres','query','gateway')):
         item = container(state, directory, service)
         require(item['State']['Running'] and item['HostConfig']['RestartPolicy']['Name'] == 'unless-stopped')
         require(item['HostConfig']['ReadonlyRootfs'] and 'ALL' in item['HostConfig']['CapDrop'])
+        memory,cpu,pids = {'postgres':(768*1024*1024,2_000_000_000,128),'query':(3*1024*1024*1024,2_000_000_000,256),'gateway':(768*1024*1024,2_000_000_000,128),'viewer':(384*1024*1024,1_000_000_000,32)}[service]
+        require((item['HostConfig']['Memory'],item['HostConfig']['NanoCpus'],item['HostConfig']['PidsLimit']) == (memory,cpu,pids))
+        require('no-new-privileges:true' in item['HostConfig']['SecurityOpt'])
         require(item['Config']['User'] == ('999:999' if service == 'postgres' else str(state['uid']) + ':' + str(state['gid'])))
-        expected_networks = {'postgres': {'data'}, 'query': {'data','edge'}, 'gateway': {'edge'}}[service]
+        expected_networks = {'postgres': {'data'}, 'query': {'data','edge'}, 'gateway': {'edge'}, 'viewer': {'edge'}}[service]
         require(set(item['NetworkSettings']['Networks']) == {state['project'] + '-' + name for name in expected_networks})
         if service == 'gateway':
             require(item['Image'] == state['gatewayImageId'], 'LOG_RUNTIME_IMAGE_MISMATCH')
@@ -474,11 +492,13 @@ def verify_live(state, directory):
             require(all(item['NetworkSettings']['Ports'].get(port) for port in ('8443/tcp','8444/tcp')), 'LOG_RUNTIME_PUBLICATION_MISSING')
         else:
             require(not item['HostConfig'].get('PortBindings'))
-            require(item['Image'] == state['imageId'] if service == 'query' else item['Config']['Image'] == PG)
+            require(item['Image'] == state['imageId'] if service == 'query' else item['Image'] == state['viewerImageId'] if service == 'viewer' else item['Config']['Image'] == PG)
         check_mounts(item, state, service)
     assert_schema(state, directory)  # Status is read-only even for an incomplete initial state.
     probe(state, directory)
-    return {'result': 'PASS', 'stage': 'SHARED_READ_RUNTIME', 'url': 'https://localhost:' + str(state['port']),
+    if state.get('viewerEnabled'):
+        probe(state,directory,viewer=True)
+    return {'viewer': 'ENABLED' if state.get('viewerEnabled') else 'NOT_ENABLED', 'result': 'PASS', 'stage': 'SHARED_READ_RUNTIME', 'url': 'https://localhost:' + str(state['port']),
             'project': state['project'], 'sourceFingerprint': state['sourceFingerprint'], 'imageId': state['imageId'],
             'gatewayImageId': state['gatewayImageId'], 'gatewaySourceFingerprint': state['gatewaySourceFingerprint'],
             'ingestion': 'NOT_IMPLEMENTED', 'full457': 'OPEN'}
@@ -486,17 +506,22 @@ def verify_live(state, directory):
 
 def start(state, directory, update=False, target='both'):
     check_resources(state)
-    require(target in ('query','gateway','both'))
+    require(target in ('query','gateway','both','viewer'))
     if state['stage'] == 'READY' and not update:
         return verify_live(state, directory)
     initial = state['stage'] != 'READY'
+    require(target != 'viewer' or not initial, 'LOG_RUNTIME_VIEWER_REQUIRES_READY_READ_RUNTIME')
     if not initial:
         assert_schema(state, directory)
-        if target == 'gateway':
+        if target in ('gateway','viewer'):
             require(config_digest(directory) == state['configSha256'], 'LOG_RUNTIME_QUERY_UPDATE_REQUIRED')
         if target == 'query':
             require(gateway_digest(directory) == state['gatewayConfigSha256'], 'LOG_RUNTIME_GATEWAY_UPDATE_REQUIRED')
-    components = ('query','gateway') if initial or target == 'both' else (target,)
+    if state.get('viewerEnabled') and target != 'viewer':
+        require(viewer_digest(directory,state) == state['viewerConfigSha256'], 'LOG_RUNTIME_VIEWER_UPDATE_REQUIRED')
+    components = ('viewer','gateway') if target == 'viewer' else ('query','gateway') if initial or target == 'both' else (target,)
+    if target == 'viewer':
+        state['viewerEnabled'] = True
     for component in components:
         state.update(build_image(state, directory, component=component))
         save(directory, state)
@@ -513,17 +538,21 @@ def start(state, directory, update=False, target='both'):
     disk(state, directory)
     provision(state, directory)
     if update and 'gateway' in components:
-        gateway_config(directory, state['port'], state['idpPort'])
+        gateway_config(directory, state['port'], state['idpPort'], viewer=state.get('viewerEnabled',False))
     for component in components:
         compose(state, directory, 'up', '--detach', '--wait', '--no-deps', '--force-recreate' if update else '--no-recreate', component)
     if 'query' in components:
         state['configSha256'] = config_digest(directory)
     if 'gateway' in components:
         state['gatewayConfigSha256'] = gateway_digest(directory)
+    if 'viewer' in components:
+        state['viewerConfigSha256'] = viewer_digest(directory,state)
     ready_until = time.monotonic() + 60
     while True:
         try:
             probe(state, directory)
+            if state.get('viewerEnabled'):
+                probe(state,directory,viewer=True)
             break
         except RuntimeFailure:
             if time.monotonic() >= ready_until:
@@ -577,10 +606,10 @@ def main():
     parser.add_argument('--project', default='dkp-dev-logging')
     parser.add_argument('--port', type=int, default=18443)
     parser.add_argument('--idp-port', type=int, default=18444)
-    parser.add_argument('--target', choices=('query','gateway','both'))
+    parser.add_argument('--target', choices=('query','gateway','both','viewer'))
     args = parser.parse_args()
     if args.action == 'update' and args.target is None:
-        parser.error('update requires explicit --target query|gateway|both')
+        parser.error('update requires explicit --target query|gateway|both|viewer')
     try:
         local_daemon()
         with operator_lock(args.directory):

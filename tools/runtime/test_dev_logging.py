@@ -52,7 +52,7 @@ class LoggingRuntimeTests(unittest.TestCase):
         return {'Id':service,'Image':self.state.get('gatewayImageId' if service=='gateway' else 'imageId'),'Config':{'Image':m.PG if service=='postgres' else self.state.get('image'),
                 'User':'999:999' if service=='postgres' else str(os.getuid())+':'+str(os.getgid()),
                 'Labels':{**m.labels(self.state),'com.docker.compose.service':service}},'State':{'Running':True},'Mounts':mounts,
-                'NetworkSettings':{'Networks':{'dkp-dev-logging-'+name:{} for name in networks},'Ports':ports},'HostConfig':{'ReadonlyRootfs':True,'CapDrop':['ALL'],
+                'NetworkSettings':{'Networks':{'dkp-dev-logging-'+name:{} for name in networks},'Ports':ports},'HostConfig':{'ReadonlyRootfs':True,'CapDrop':['ALL'],'Memory':768*1024*1024 if service!='query' else 3*1024*1024*1024,'NanoCpus':2_000_000_000,'PidsLimit':256 if service=='query' else 128,'SecurityOpt':['no-new-privileges:true'],
                 'RestartPolicy':{'Name':'unless-stopped'},'PortBindings':ports}}
 
     def test_generated_credentials_are_separate_private_and_repeated_initialize_preserves_them(self):
@@ -324,6 +324,32 @@ class LoggingRuntimeTests(unittest.TestCase):
             cls.capture_container(item,'combined')
         path=self.directory/'combined.private.log'
         self.assertEqual(b'normal-outputfatal-detail',path.read_bytes());self.assertEqual(0,path.stat().st_mode&0o077)
+
+    def test_explicit_viewer_enable_builds_only_viewer_gateway_and_preserves_query_data_and_token(self):
+        self.ready();before=self.state['imageId'];token=m.private(self.directory/'operator/read-token')
+        def build(state,directory,component):
+            prefix='viewer' if component=='viewer' else 'gateway'
+            return {prefix+'Image':prefix+':new',prefix+'ImageId':'sha256:'+prefix,prefix+'SourceFingerprint':'f'*64}
+        with patch.object(m,'check_resources'),patch.object(m,'assert_schema'),patch.object(m,'build_image',side_effect=build) as images,patch.object(m,'compose') as compose,patch.object(m,'disk'),patch.object(m,'provision'),patch.object(m,'probe') as probe,patch.object(m,'verify_live',return_value={'result':'PASS'}):
+            m.start(self.state,self.directory,update=True,target='viewer')
+            self.assertEqual(['viewer','gateway'],[call.kwargs['component'] for call in images.call_args_list])
+            self.assertEqual(['viewer','gateway'],[call.args[-1] for call in compose.call_args_list if '--force-recreate' in call.args])
+            self.assertEqual(before,self.state['imageId']);self.assertTrue(self.state['viewerEnabled'])
+            self.assertEqual(m.viewer_digest(self.directory,self.state),self.state['viewerConfigSha256'])
+            self.assertEqual(token,m.private(self.directory/'operator/read-token'))
+            self.assertTrue(any(call.kwargs.get('viewer') for call in probe.call_args_list))
+        with patch.object(m,'check_resources'):
+            self.state['stage']='NEW'
+            with self.assertRaisesRegex(m.RuntimeFailure,'VIEWER_REQUIRES_READY'):m.start(self.state,self.directory,update=True,target='viewer')
+
+    def test_gateway_templates_publish_viewer_routes_only_after_explicit_enable(self):
+        config=self.directory/'gateway/server.conf'
+        self.assertNotIn('alias /usr/share/nginx/html/logs.html',config.read_text())
+        self.assertIn('location = /dev/logs { return 404; }',config.read_text())
+        m.gateway_config(self.directory,18087,18088,viewer=True)
+        self.assertIn('alias /usr/share/nginx/html/logs.html',config.read_text())
+        self.assertIn('http://viewer:18088',config.read_text())
+        self.assertNotIn('__VIEWER_ROUTES__',config.read_text())
 
 
 if __name__=='__main__':unittest.main()

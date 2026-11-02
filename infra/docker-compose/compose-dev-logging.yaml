@@ -54,6 +54,22 @@ services:
     networks: [data, edge]
     depends_on:
       postgres: {condition: service_healthy}
+  viewer:
+    <<: *restrictions
+    profiles: [viewer]
+    image: ${DKP_LOG_VIEWER_IMAGE:-dkp-disabled-viewer:unselected}
+    labels: *labels
+    user: "${DKP_LOG_UID:?Use dev-logging.py}:${DKP_LOG_GID:?Use dev-logging.py}"
+    mem_limit: 384m
+    cpus: 1
+    pids_limit: 32
+    tmpfs: ["/tmp"]
+    environment:
+      DKP_LOG_VIEWER_TOKEN_FILE: /run/dkp/viewer/read-token
+      DKP_LOG_VIEWER_AUTHORITY: localhost:${DKP_LOG_PORT:?Use dev-logging.py}
+    volumes:
+      - ${DKP_LOG_VIEWER_TOKEN:?Use dev-logging.py}:/run/dkp/viewer/read-token:ro
+    networks: [edge]
   gateway:
     <<: *restrictions
     image: ${DKP_LOG_GATEWAY_IMAGE:?Use dev-logging.py}

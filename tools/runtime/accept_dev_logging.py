@@ -1,5 +1,5 @@
 """Explicit real disposable Docker acceptance; never run against the shared project."""
-import copy
+import tempfile
 import http.client
 import datetime as dt
 import importlib.util
@@ -102,7 +102,7 @@ class SharedLoggingAcceptance(unittest.TestCase):
             name=cls.project+'-'+suffix
             if m.exists('network',name):
                 m.owned(m.inspect('network',name),cls.state);m.docker('network','rm',name)
-        for name,identity in [('image','imageId'),('gatewayImage','gatewayImageId')]:
+        for name,identity in [('image','imageId'),('gatewayImage','gatewayImageId'),('viewerImage','viewerImageId'),('browserImage','browserImageId')]:
             if name in cls.state:
                 item=m.inspect('image',cls.state[name]);m.owned(item,cls.state)
                 m.require(item['Id']==cls.state[identity]);m.docker('image','rm',cls.state[name])
@@ -169,6 +169,103 @@ class SharedLoggingAcceptance(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as denied:self.query(False)
         self.assertEqual(401,denied.exception.code)
 
+    def viewer_get(self,path='/dev/logs/api/v1/events',headers=None,method='GET'):
+        if path == '/dev/logs/api/v1/events':
+            now=dt.datetime.now(dt.timezone.utc)
+            path+='?'+urllib.parse.urlencode({'from':(now-dt.timedelta(hours=24)).isoformat(),'to':now.isoformat()})
+        request=urllib.request.Request('https://localhost:'+str(self.port)+path,headers=headers or {},method=method)
+        return urllib.request.urlopen(request,context=ssl.create_default_context(cafile=self.directory/'gateway-pki/ca.crt'),timeout=8)
+
+    def browser_acceptance(self,mode='NORMAL'):
+        if 'browserImage' not in self.state:
+            import sys
+            sys.path.insert(0,str(m.ROOT/'tools/ci'))
+            import verify
+            with tempfile.TemporaryDirectory(prefix='dkp-viewer-browser-public-') as temporary:
+                source=verify.snapshot(m.ROOT,Path(temporary))
+                image=self.project+'-browser:'+source['fingerprint'][:16]
+                args=['build','--platform','linux/amd64','--tag',image,'--file',str(m.COMPOSE.with_name('identity-e2e.Dockerfile'))]
+                for key,value in m.labels(self.state).items():args+=['--label',key+'='+value]
+                m.docker(*args,temporary,timeout=900)
+            self.state.update(browserImage=image,browserImageId=m.inspect('image',image)['Id'])
+            m.save(self.directory,self.state)
+        script=r"""
+set -euo pipefail
+umask 077
+install -m 0644 /run/dkp/ca.crt /usr/local/share/ca-certificates/dkp-local.crt
+update-ca-certificates >/dev/null 2>&1
+export NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/dkp-local.crt
+exec runuser -u pwuser -- /bin/bash <<'BROWSER'
+set -euo pipefail
+for nss in /home/pwuser/.local/share/pki/nssdb /home/pwuser/.pki/nssdb; do
+ mkdir -p "$nss"
+ certutil -N -d "sql:$nss" --empty-password
+ certutil -A -d "sql:$nss" -n dkp-local -t 'C,,' -i /usr/local/share/ca-certificates/dkp-local.crt
+done
+cd /workspace/apps/admin-portal
+exec node e2e-real/log-viewer.runtime.mjs
+BROWSER
+"""
+        args=['create','--platform','linux/amd64','--network',self.project+'-edge','--user','0:0','--cap-drop','ALL',
+              '--cap-add','SETUID','--cap-add','SETGID','--security-opt','no-new-privileges:true',
+              '--memory','2g','--cpus','2','--pids-limit','256','--shm-size','512m',
+              '--volume',str(self.directory/'gateway-pki/ca.crt')+':/run/dkp/ca.crt:ro',
+              '--env','DKP_LOG_PORT='+str(self.port),'--env','DKP_LOG_BROWSER_MODE='+mode,'--entrypoint','/bin/bash']
+        for key,value in m.labels(self.state).items():args+=['--label',key+'='+value]
+        identity=m.docker(*args,self.state['browserImage'],'-c',script).decode().strip();self.fixture_ids.append(identity)
+        result=m.subprocess.run(['docker','start','--attach',identity],capture_output=True,timeout=180)
+        m.write_private(self.directory/('browser-'+mode.lower()+'.private.log'),result.stdout+result.stderr)
+        item=m.inspect('container',identity);m.owned(item,self.state)
+        self.assertEqual(0,result.returncode);self.assertEqual(0,item['State']['ExitCode'])
+        if mode=='NORMAL':
+            target=self.directory/'browser-artifacts';target.mkdir(mode=0o700)
+            m.docker('cp',identity+':/workspace/apps/admin-portal/test-results',str(target))
+
+    def viewer_acceptance(self):
+        with self.assertRaises(urllib.error.HTTPError) as disabled:self.viewer_get('/dev/logs')
+        self.assertEqual(404,disabled.exception.code)
+        before={name:m.container(self.state,self.directory,name)['Id'] for name in ('query','postgres','gateway')}
+        token=m.private(self.directory/'operator/read-token');volumes=dict(self.state['volumes'])
+        pki={name:m.private(self.directory/'gateway-pki'/name) for name in ('portal.crt','portal.key','idp.crt','idp.key','ca.crt')}
+        m.start(self.state,self.directory,update=True,target='viewer')
+        self.assertEqual(before['query'],m.container(self.state,self.directory,'query')['Id'])
+        self.assertEqual(before['postgres'],m.container(self.state,self.directory,'postgres')['Id'])
+        self.assertNotEqual(before['gateway'],m.container(self.state,self.directory,'gateway')['Id'])
+        self.assertEqual(volumes,self.state['volumes']);self.assertEqual(token,m.private(self.directory/'operator/read-token'))
+        self.assertEqual(pki,{name:m.private(self.directory/'gateway-pki'/name) for name in pki})
+        # Normal updates must retain the enabled viewer and replace only selected services.
+        update_targets={'query':{'query'},'gateway':{'gateway'},'both':{'query','gateway'},'viewer':{'viewer','gateway'}}
+        for target,replaced in update_targets.items():
+            previous={name:m.container(self.state,self.directory,name)['Id'] for name in ('postgres','query','gateway','viewer')}
+            m.start(self.state,self.directory,update=True,target=target)
+            for name,identity in previous.items():
+                current=m.container(self.state,self.directory,name)['Id']
+                if name in replaced:self.assertNotEqual(identity,current,(target,name))
+                else:self.assertEqual(identity,current,(target,name))
+            self.assertTrue(self.state['viewerEnabled']);self.assertEqual(volumes,self.state['volumes'])
+            self.assertEqual(token,m.private(self.directory/'operator/read-token'))
+            self.assertEqual(pki,{name:m.private(self.directory/'gateway-pki'/name) for name in pki})
+            with self.viewer_get() as response:self.assertEqual(1,len(json.loads(response.read())['events']))
+        m.sql(self.state,self.directory,(m.SQL.parents[2]/'test/resources/db/logging-acceptance/viewer-other-build.sql').read_bytes())
+        with self.viewer_get() as response:
+            body=response.read();self.assertEqual(2,len(json.loads(body)['events']));self.assertNotIn(token,body)
+        with self.viewer_get('/dev/logs') as response:
+            html=response.read();self.assertIn(b'logs-',html);self.assertNotIn(token,html)
+            self.assertIn("frame-ancestors 'none'",response.headers['Content-Security-Policy'])
+        for path,headers,method,status in [('/dev/logs',{'Origin':'https://evil.invalid'},'GET',403),('/dev/logs',{'Origin':'null'},'GET',403),('/dev/logs/api/v1/events',{'Origin':'https://evil.invalid'},'GET',403),('/dev/logs/api/v1/events',{},'POST',405),('/dev/logs/unknown',{},'GET',404),('/logs.html',{},'GET',404)]:
+            with self.assertRaises(urllib.error.HTTPError) as failure:self.viewer_get(path,headers,method)
+            self.assertEqual(status,failure.exception.code)
+        with self.assertRaises(urllib.error.HTTPError) as failure:self.query(False)
+        self.assertEqual(401,failure.exception.code)
+        viewer=m.container(self.state,self.directory,'viewer');m.docker('restart','--time','2',viewer['Id'])
+        m.verify_live(self.state,self.directory)
+        self.browser_acceptance()
+        m.docker('stop','--time','2',viewer['Id'])
+        self.browser_acceptance('UNAVAILABLE')
+        m.docker('start',viewer['Id'])
+        m.verify_live(self.state,self.directory)
+        m.write_private(self.directory/'viewer-acceptance.json',json.dumps({'result':'PASS','anonymousRead':True,'mainApiAuthenticationPreserved':True,'queryAndDatabasePreserved':True,'privateTokenAndPkiPreserved':True,'realBrowser':True,'enabledViewerUpdateTargets':list(update_targets)}))
+
     def test_persistent_owned_query_lifecycle(self):
         self.assertEqual('PASS',self.result['result'])
         before={service:m.container(self.state,self.directory,service)['Id'] for service in ('postgres','query','gateway')}
@@ -193,7 +290,7 @@ class SharedLoggingAcceptance(unittest.TestCase):
         # Controlled application and database restarts retain volume, data and credential identity.
         for service in ('query','postgres','gateway'):
             m.docker('restart','--time','5',before[service],timeout=30)
-            self.assertEqual('retained',self.recovered()['events'][0]['event']['fixture'])
+            self.assertEqual('runtime.started',self.recovered()['events'][0]['event']['eventName'])
         self.assertEqual(volumes,self.state['volumes'])
         m.verify_live(self.state,self.directory)
         # Ordinary crash recovery uses the configured restart policy, without harness assistance.
@@ -204,7 +301,7 @@ class SharedLoggingAcceptance(unittest.TestCase):
             time.sleep(.25)
         # Signal the JVM from inside its owned container: a Docker kill is an operator stop.
         m.docker('exec',query['Id'],'/bin/sh','-c','kill -SEGV 1')
-        self.assertEqual('retained',self.recovered()['events'][0]['event']['fixture'])
+        self.assertEqual('runtime.started',self.recovered()['events'][0]['event']['eventName'])
         recovered_query=m.container(self.state,self.directory,'query')
         self.assertEqual(query['Id'],recovered_query['Id'])
         self.assertGreater(recovered_query['RestartCount'],query['RestartCount'])
@@ -215,7 +312,7 @@ class SharedLoggingAcceptance(unittest.TestCase):
         self.assertEqual(before['gateway'],m.container(self.state,self.directory,'gateway')['Id'])
         self.assertNotEqual(before['query'],m.container(self.state,self.directory,'query')['Id'])
         self.assertEqual(before['postgres'],m.container(self.state,self.directory,'postgres')['Id'])
-        self.assertEqual('retained',self.recovered()['events'][0]['event']['fixture'])
+        self.assertEqual('runtime.started',self.recovered()['events'][0]['event']['eventName'])
         self.assertEqual(volumes,self.state['volumes'])
         current_query=m.container(self.state,self.directory,'query')['Id']
         m.start(self.state,self.directory,update=True,target='gateway')
@@ -238,11 +335,12 @@ class SharedLoggingAcceptance(unittest.TestCase):
             m.sql(self.state,self.directory,restore);m.verify_live(self.state,self.directory)
         m.renew(self.state,self.directory)
         self.assertEqual(token,m.private(self.directory/'operator/read-token'))
-        self.assertEqual('retained',self.recovered()['events'][0]['event']['fixture'])
+        self.assertEqual('runtime.started',self.recovered()['events'][0]['event']['eventName'])
         result=m.verify_live(self.state,self.directory)
         m.write_private(self.directory/'acceptance-result.json',json.dumps({**result,'result':'PASS','normalRestart':True,'crashRecovery':True,'dataRetained':True,'idempotentStart':True,'schemaDriftRejected':True,'queryOnlyUpdate':True,'readerRenewalPreservedIdentity':True}))
+        self.viewer_acceptance()
         # Removed storage is not recreated by update, even when an owner label was previously recorded.
-        for service in ('query','postgres','gateway'):
+        for service in ('query','postgres','gateway','viewer'):
             identity=m.container(self.state,self.directory,service)['Id'];m.docker('rm','--force','--volumes',identity)
         name=self.project+'-postgres-secrets';m.owned(m.inspect('volume',name),self.state);m.docker('volume','rm',name)
         with patch.object(m,'build_image',side_effect=AssertionError('must reject before build')):
