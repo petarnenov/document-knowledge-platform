@@ -95,6 +95,21 @@ The evidence directory must be fresh and outside the acceptance runtime. The run
 
 This profile covers Python runtime/bootstrap tests and their applicable coverage floors. It does not execute Java service suites, browser tests, real provider integration or the long expiry scenario; those remain separately required using their own pinned shared commands. The new pinned Python environment is a deliberate reproducible baseline, not a claim to reconstruct the unknown Python patch/core of historical CI.
 
+## Shared BP-03 aggregate ingress profile (#222)
+
+For affected BFF ingress/timer changes, stage intended public files and use the same controller locally and in the feature-branch CI workflow:
+
+```bash
+python3 tools/ci/bp03-aggregate-linux.py run --source /absolute/source-checkout --evidence /private/tmp/task-owned-new-evidence
+python3 tools/ci/bp03-aggregate-linux.py validate --source /absolute/source-checkout --evidence /private/tmp/task-owned-new-evidence
+```
+
+The controller seals tracked working source, binds its own source and the declared Java pin, and builds the immutable Temurin25.0.5_8 Linux/amd64 image. It runs `bash tools/ci/bp03-aggregate-check.sh` without network, host mounts, credentials or Docker socket, as nonroot with2GB/2CPU/256PID. The command rebuilds the affected BFF tests/coverage and runs all41 explicit Linux ingress/delivery cases plus the actual HTTP upload-source lifecycle/capacity cases in the affected adapter JUnit suite. Validation requires passing non-skipped JUnit results for the three executed layers, fourteen separate75% line/branch floors (including upload source lifecycle/admission, bridge Arena allocation, production download producer and specialized writer), the complete ordered Linux case set, unchanged source/index/commit, retained logs and confirmed exact-owned-container removal. Keep failed attempts; source or index changes invalidate the receipt.
+
+The controller's own negative/unit tests run separately in the pinned Python3.14.10/coverage7.17.0 image defined by `tools/ci/bp03-aggregate-selftest.Dockerfile`, using the shared `bp03-aggregate-selftest.sh` command and separate75% line/branch floors. These orchestration fixtures do not replace the mandatory real Java/socket checks. Host `python3` only orchestrates Docker; its actual version is recorded as `operatorPython`, separately from pinned test runtimes.
+
+The additional `.github/workflows/bp03-aggregate.yml` runs on matching feature-branch pushes or manual dispatch. It preserves the existing Foundation workflow and its PR/dev gates; a successful targeted run establishes only this profile's **CI_VERIFIED** evidence. It does not establish full BP-03 acceptance, provider/OIDC/expiry acceptance, all process-memory pools, PR readiness or dev integration. Keep the genuine long acceptance and all other applicable checks mandatory. Its artifacts contain only sealed-source, isolated-test evidence; no manual-acceptance stack is accessed.
+
 ## Owner-selected object store
 
 Owner decision on 2026-10-31: use **RustFS** when the project first introduces object storage. Tracking: [#53](https://github.com/petarnenov/document-knowledge-platform/issues/53), implementation [BP-03 / #35](https://github.com/petarnenov/document-knowledge-platform/issues/35). Keep the storage port S3-compatible; validate the exact required operations against the [official S3 compatibility guidance](https://github.com/rustfs/docs.rustfs.com/blob/main/content/en/administration/protocols/s3.md) and [official container documentation](https://docs.rustfs.com/en/installation/container) when integrating. Select a maintained version and immutable image digest during BP-03, with actual quarantine/private-bucket/scoped-credential/content-access and failure tests. This selection does not waive upload scanning, tenant isolation, retention or production gates. BP-02 may define verified-artifact contracts without starting an object-store runtime.

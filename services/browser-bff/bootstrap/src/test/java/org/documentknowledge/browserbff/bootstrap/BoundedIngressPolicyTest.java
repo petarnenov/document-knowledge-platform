@@ -78,11 +78,14 @@ class BoundedIngressPolicyTest {
             var properties = new HashMap<String,Object>(change);
             properties.put("micronaut.server.port", -1);
             properties.put("micronaut.server.host", "127.0.0.1");
-            assertThrows(RuntimeException.class, () -> {
-                try (var ignored = ApplicationContext.run(EmbeddedServer.class, properties)) {
+            // Own the context before startup: server creation can throw before run returns a handle.
+            try (var context = ApplicationContext.builder().properties(properties).build()) {
+                assertThrows(RuntimeException.class, () -> {
+                    context.start();
+                    context.getBean(EmbeddedServer.class).start();
                     fail("Unsupported ingress policy started");
-                }
-            });
+                });
+            }
         }
     }
 }

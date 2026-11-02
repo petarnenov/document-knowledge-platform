@@ -49,7 +49,7 @@ final class IngressBodyWitness {
         var channel=nativeRequest.getChannelHandlerContext().channel();channels.add(channel);
         channel.eventLoop().submit(()->{
             if(channel.pipeline().get("dkp338-counter-witness")==null)
-                channel.pipeline().addFirst("dkp338-counter-witness",new ChannelInboundHandlerAdapter(){
+                channel.pipeline().addAfter("dkp-ingress-receive-policy", "dkp338-counter-witness",new ChannelInboundHandlerAdapter(){
                     @Override public void channelRead(ChannelHandlerContext ctx,Object value)throws Exception {
                         if(value instanceof io.netty.buffer.ByteBuf bytes)rawHigh.accumulateAndGet(bytes.readableBytes(),Math::max);
                         super.channelRead(ctx,value);
@@ -58,6 +58,13 @@ final class IngressBodyWitness {
                         super.channelReadComplete(ctx);sample(channel);
                     }
                 });
+            var names = channel.pipeline().names();
+            org.junit.jupiter.api.Assertions.assertEquals("dkp-ingress-receive-policy", names.getFirst());
+            org.junit.jupiter.api.Assertions.assertEquals("dkp338-counter-witness", names.get(1));
+            org.junit.jupiter.api.Assertions.assertTrue(names.indexOf("dkp338-counter-witness")
+                < names.indexOf(channel.pipeline().context(io.netty.handler.codec.http.HttpServerCodec.class).name()));
+            org.junit.jupiter.api.Assertions.assertSame(channel.eventLoop(),
+                channel.pipeline().context("dkp338-counter-witness").executor());
             sample(channel);
         }).sync();
         if(!begin.await(5,TimeUnit.SECONDS))throw new IOException("TEST_CONSUMER_NOT_RELEASED");
