@@ -263,7 +263,7 @@ def write_output(root, component, build_id, name, value):
     """Only explicit ignored build outputs; never edits compilation inputs."""
     root = Path(root); require(root.resolve(strict=True) == root)
     text(component, '[a-z][a-z0-9.-]*', 96)
-    require(name in ('prepared.json','manifest.json','finalized.json','receipt.json','distribution.json'))
+    require(name in ('prepared.json','manifest.json','finalized.json','receipt.json','distribution.json','compiler-catalog.json'))
     identifier(build_id)
     require(type(value) is dict)
     identity = value.get('manifest', {}) if name == 'finalized.json' else value

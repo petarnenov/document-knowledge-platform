@@ -12,6 +12,8 @@ import zipfile
 
 spec = importlib.util.spec_from_file_location('log_build_manifest', Path(__file__).with_name('log-build-manifest.py'))
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+catalog_spec=importlib.util.spec_from_file_location('log_java_catalog',Path(__file__).with_name('log-java-catalog.py'))
+catalog=importlib.util.module_from_spec(catalog_spec);catalog_spec.loader.exec_module(catalog)
 COMPONENTS = frozenset(('document-management','knowledge-base','knowledge-search','browser-bff'))
 RESOURCE = 'META-INF/dkp-logging/manifest.json'
 
@@ -76,10 +78,10 @@ def build(root, component, java_home):
     prefix = ':services:'+component+':bootstrap:'
     run(root, java_home, directory, [prefix+'compileJava',prefix+'recordDevelopmentLogBuild'], 'compile.private.log')
     record_path = directory/'build-record.json'
-    require(not record_path.is_symlink() and record_path.is_file() and record_path.stat().st_size <= 65536)
+    require(not record_path.is_symlink() and record_path.is_file() and record_path.stat().st_size <= 1024*1024)
     record = json.loads(record_path.read_bytes(), object_pairs_hook=unique)
-    require(type(record) is dict and record.keys() == {'schemaVersion','component','toolchain','dependencies'}
-        and type(record['schemaVersion']) is int and record['schemaVersion'] == 1 and record['component'] == component)
+    require(type(record) is dict and record.keys() == {'schemaVersion','component','toolchain','dependencies','compilation'}
+        and type(record['schemaVersion']) is int and record['schemaVersion'] == 2 and record['component'] == component)
     m.dependencies(record['toolchain']); m.dependencies(record['dependencies'])
     require({row['name'] for row in record['toolchain']} == {'java','gradle'}
         and len(record['toolchain']) == 2)
@@ -88,9 +90,11 @@ def build(root, component, java_home):
     require(re.fullmatch(r'25\.0\.5\+8(?:-LTS)?', java) is not None)
     wrapper = (root/'gradle/wrapper/gradle-wrapper.properties').read_text()
     require('distributionUrl=https\\://services.gradle.org/distributions/gradle-'+gradle+'-bin.zip' in wrapper.splitlines())
-    vocabulary = {'events':sorted(m.EVENTS),'phases':['STARTUP','SHUTDOWN'],'errorCodes':[],
-        'dependencies':[],'exceptionClasses':[],'frames':[]}
-    finalized = m.finalize(root, prepared, vocabulary, record['toolchain'], record['dependencies'])
+    compiled = catalog.extract(root, record, java_home, directory)
+    dependency_record = record['dependencies']+[row for row in record['toolchain'] if row['name']=='java']
+    finalized = m.finalize(root, prepared, compiled['vocabulary'], record['toolchain'], dependency_record)
+    m.write_output(root, component, prepared['buildId'], 'compiler-catalog.json',
+        {'schemaVersion':1, 'component':component, 'buildId':prepared['buildId'], **compiled})
     m.write_output(root, component, prepared['buildId'], 'finalized.json', finalized)
     manifest_path = m.write_output(root, component, prepared['buildId'], 'manifest.json', finalized['manifest'])
     run(root, java_home, directory, [prefix+'installDist'], 'package.private.log')
@@ -103,7 +107,9 @@ def build(root, component, java_home):
     m.write_output(root, component, prepared['buildId'], 'distribution.json',
         {'schemaVersion':1, 'component':component, 'buildId':prepared['buildId'],
          'manifestSha256':finalized['manifestSha256'], 'files':inventory})
+    catalog.revalidate(compiled['bindings'])
     receipt = m.seal(root, prepared, finalized, jars[0])
+    catalog.revalidate(compiled['bindings'])
     receipt_path = m.write_output(root, component, prepared['buildId'], 'receipt.json', receipt)
     return {'result':'BUILT','component':component,'buildId':prepared['buildId'],
         'manifest':str(manifest_path),'manifestSha256':hashlib.sha256(manifest_path.read_bytes()).hexdigest(),

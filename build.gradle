@@ -296,7 +296,7 @@ tasks.register('architectureDependencyTest') {
 
 tasks.register('architectureTest') {
     group = 'verification'
-    dependsOn 'architectureDependencyTest', ':architecture-tests:test'
+    dependsOn 'architectureDependencyTest', ':architecture-tests:test', ':architecture-tests:compilerMetadataCoverageVerification'
 }
 tasks.named('check') { dependsOn 'architectureTest' }
 subprojects {

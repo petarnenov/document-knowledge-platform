@@ -26,10 +26,15 @@ class JavaBuildTest(unittest.TestCase):
         (self.root/'source.txt').write_text('original')
         wrapper = self.root/'gradle/wrapper/gradle-wrapper.properties'; wrapper.parent.mkdir(parents=True)
         wrapper.write_text('distributionUrl=https\\://services.gradle.org/distributions/gradle-9.8.2-bin.zip\n')
-        self.settings = {'record':{'schemaVersion':1,'component':'knowledge-search',
+        self.settings = {'record':{'schemaVersion':2,'component':'knowledge-search',
             'toolchain':[{'name':'java','version':'25.0.5+8-LTS','vendorBuildProvenance':'UNKNOWN'},
                          {'name':'gradle','version':'9.8.2','vendorBuildProvenance':'UNKNOWN'}],
-            'dependencies':[{'name':'fixture.library','version':'1.0','vendorBuildProvenance':'UNKNOWN'}]}}
+            'dependencies':[{'name':'fixture.library','version':'1.0','vendorBuildProvenance':'UNKNOWN'}], 'compilation':{}}}
+        # Orchestration fixture only; real javac extraction is covered by test_log_java_catalog.
+        vocabulary={'events':sorted(m.m.EVENTS),'phases':['STARTUP','SHUTDOWN'],'errorCodes':[],
+            'dependencies':[],'exceptionClasses':[],'frames':[]}
+        self.extract_patch=patch.object(m.catalog,'extract',return_value={'vocabulary':vocabulary,'bindings':[], 'counts':{}})
+        self.extract_patch.start();self.addCleanup(self.extract_patch.stop)
         self.save()
         script = self.root/'gradlew'
         script.write_text('#!/bin/sh\nexec '+shlex.quote(sys.executable)+' fixture-gradle.py "$@"\n')

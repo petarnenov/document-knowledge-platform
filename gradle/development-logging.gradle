@@ -3,6 +3,9 @@ import groovy.json.JsonSlurper
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.PosixFilePermissions
+import java.nio.file.attribute.BasicFileAttributes
+import java.security.MessageDigest
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 
 // Trusted build inputs only. No runtime credentials or registration authority.
 def component = project.parent.name
@@ -18,10 +21,12 @@ def selectedDirectory = {
 }
 
 tasks.register('recordDevelopmentLogBuild') {
+    dependsOn 'compileJava', configurations.runtimeClasspath
     mustRunAfter 'compileJava'
     doLast {
         def directory = selectedDirectory()
-        def records = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.collect {
+        def artifacts = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts
+        def records = artifacts.collect {
             def id = it.moduleVersion.id
             [name: "${id.group}.${id.name}".toString(), version: id.version, vendorBuildProvenance: 'UNKNOWN']
         }.unique().sort { a, b -> a.name <=> b.name }
@@ -31,9 +36,74 @@ tasks.register('recordDevelopmentLogBuild') {
         if (compiler.languageVersion.asInt() != 25) throw new GradleException('LOG_BUILD_TOOLCHAIN_INVALID')
         def toolchain = [[name: 'java', version: compiler.javaRuntimeVersion, vendorBuildProvenance: 'UNKNOWN'],
                          [name: 'gradle', version: gradle.gradleVersion, vendorBuildProvenance: 'UNKNOWN']]
-        def raw = JsonOutput.toJson([schemaVersion: 1, component: component,
-            toolchain: toolchain, dependencies: records]).getBytes('UTF-8')
-        if (raw.length > 65536) throw new GradleException('LOG_BUILD_RECORD_TOO_LARGE')
+        def stableFile = { File input, long maximum ->
+            def path = input.toPath().toAbsolutePath().normalize()
+            if (path.toRealPath() != path || Files.isSymbolicLink(path))
+                throw new GradleException('LOG_BUILD_COMPILED_INPUT_INVALID')
+            def before = Files.readAttributes(path, BasicFileAttributes)
+            if (!before.isRegularFile() || before.size() <= 0 || before.size() > maximum)
+                throw new GradleException('LOG_BUILD_COMPILED_INPUT_INVALID')
+            def digest = MessageDigest.getInstance('SHA-256'); long size = 0
+            Files.newInputStream(path).withCloseable { stream ->
+                byte[] buffer = new byte[65536]; int count
+                while ((count = stream.read(buffer)) != -1) {
+                    size += count
+                    if (size > maximum) throw new GradleException('LOG_BUILD_COMPILED_INPUT_INVALID')
+                    digest.update(buffer, 0, count)
+                }
+            }
+            def after = Files.readAttributes(path, BasicFileAttributes)
+            if (size != before.size() || size != after.size() || before.fileKey() != after.fileKey()
+                    || before.lastModifiedTime() != after.lastModifiedTime())
+                throw new GradleException('LOG_BUILD_COMPILED_INPUT_CHANGED')
+            [path: path.toString(), sha256: HexFormat.of().formatHex(digest.digest()), bytes: size]
+        }
+        def selectedProjects = [project]
+        artifacts.each { artifact ->
+            def id = artifact.id.componentIdentifier
+            if (id instanceof ProjectComponentIdentifier) selectedProjects.add(rootProject.project(id.projectPath))
+        }
+        selectedProjects = selectedProjects.unique { it.path }.sort { a, b -> a.path <=> b.path }
+        def projectInputs = []; def classes = []; long classBytes = 0
+        selectedProjects.each { selected ->
+            def sourceRoots = selected.sourceSets.main.java.srcDirs.findAll { it.isDirectory() }.collect {
+                def path = it.toPath().toAbsolutePath().normalize()
+                if (path.toRealPath() != path || !path.startsWith(rootProject.projectDir.toPath()))
+                    throw new GradleException('LOG_BUILD_SOURCE_ROOT_INVALID')
+                path.toString()
+            }.unique().sort()
+            def classRoots = selected.sourceSets.main.output.classesDirs.files.findAll { it.isDirectory() }.collect {
+                def path = it.toPath().toAbsolutePath().normalize()
+                if (path.toRealPath() != path || !path.startsWith(selected.layout.buildDirectory.get().asFile.toPath()))
+                    throw new GradleException('LOG_BUILD_CLASS_ROOT_INVALID')
+                path
+            }.unique().sort { a, b -> a.toString() <=> b.toString() }
+            projectInputs.add([project: selected.path, sourceRoots: sourceRoots, classRoots: classRoots*.toString()])
+            classRoots.each { classRoot ->
+                Files.walk(classRoot).withCloseable { paths ->
+                    paths.sorted().forEach { path ->
+                        if (Files.isSymbolicLink(path)) throw new GradleException('LOG_BUILD_COMPILED_INPUT_INVALID')
+                        if (path.fileName.toString().endsWith('.class')) {
+                            if (classes.size() >= 4096) throw new GradleException('LOG_BUILD_CLASS_LIMIT')
+                            def row = stableFile(path.toFile(), 8L*1024*1024)
+                            classBytes += row.bytes
+                            if (classBytes > 128L*1024*1024) throw new GradleException('LOG_BUILD_CLASS_LIMIT')
+                            classes.add([project: selected.path, *:row])
+                        }
+                    }
+                }
+            }
+        }
+        def runtimeArtifacts = artifacts.collect { artifact ->
+            def id = artifact.moduleVersion.id
+            [name: "${id.group}.${id.name}".toString(), version: id.version, *:stableFile(artifact.file,64L*1024*1024)]
+        }.sort { a, b -> a.name <=> b.name }
+        if (runtimeArtifacts.size() > 256 || classes*.path.toSet().size() != classes.size())
+            throw new GradleException('LOG_BUILD_COMPILED_INPUT_INVALID')
+        def raw = JsonOutput.toJson([schemaVersion: 2, component: component,
+            toolchain: toolchain, dependencies: records,
+            compilation: [projects: projectInputs, classes: classes, artifacts: runtimeArtifacts]]).getBytes('UTF-8')
+        if (raw.length > 1048576) throw new GradleException('LOG_BUILD_RECORD_TOO_LARGE')
         def output = directory.resolve('build-record.json')
         Files.createFile(output, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString('rw-------')))
         Files.write(output, raw, StandardOpenOption.WRITE)

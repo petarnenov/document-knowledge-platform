@@ -22,3 +22,25 @@ tasks.named('test') {
     mustRunAfter ':services:dev-logging:adapters-out:test', ':services:dev-logging:adapters-in:test',
         ':services:dev-logging:bootstrap:test', ':modules:observability-java-sdk:test'
 }
+
+// Build-only tooling stays outside every application distribution and runtime dependency graph.
+sourceSets {
+    compilerMetadata { java.srcDir rootProject.file('tools/runtime/java') }
+}
+sourceSets.test.compileClasspath += sourceSets.compilerMetadata.output
+sourceSets.test.runtimeClasspath += sourceSets.compilerMetadata.output
+
+tasks.register('compilerMetadataJacocoReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    executionData.from layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.from sourceSets.compilerMetadata.output.classesDirs
+    sourceDirectories.from sourceSets.compilerMetadata.allJava.srcDirs
+    reports { xml.required = true; html.required = true }
+}
+tasks.register('compilerMetadataCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('compilerMetadataJacocoReport')
+    executionData.from layout.buildDirectory.file('jacoco/test.exec')
+    classDirectories.from sourceSets.compilerMetadata.output.classesDirs
+    violationRules { rule { limit { counter = 'LINE'; minimum = 0.75 }; limit { counter = 'BRANCH'; minimum = 0.75 } } }
+}
+tasks.named('check') { dependsOn 'compilerMetadataCoverageVerification' }
