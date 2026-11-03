@@ -101,6 +101,30 @@ class JavaCatalogTest(unittest.TestCase):
         directory=self.project/'build/duplicate-dependency';directory.mkdir()
         with self.assertRaises(ValueError):c.extract(self.root,self.record,self.java,directory)
 
+    def test_selected_modeled_subclass_uses_dependency_bytes_without_initialization(self):
+        # Explicit unit dependency fixtures; real SDK denial is verified separately.
+        helper=self.root/'tools/runtime/java/org/documentknowledge/loggingbuild/LogJavaClassMetadata.java'
+        helper.parent.mkdir(parents=True);shutil.copyfile(REPOSITORY/'tools/runtime/java/org/documentknowledge/loggingbuild/LogJavaClassMetadata.java',helper)
+        package='software.amazon.awssdk.services.s3.model'
+        names={'S3Exception':'java.lang.RuntimeException','AccessDeniedException':'S3Exception','UnselectedFailure':'AccessDeniedException'}
+        sources=[]
+        for name,parent in names.items():
+            source=self.project/'build'/(name+'.java')
+            source.write_text('package '+package+'; public class '+name+' extends '+parent+' { static { if (true) throw new Error("NEVER_INITIALIZE"); } }')
+            sources.append(str(source))
+        output=self.project/'build/modeled';output.mkdir()
+        subprocess.run([str(self.java/'bin/javac'),'-proc:none','-d',str(output),*sources],check=True,capture_output=True)
+        with zipfile.ZipFile(self.jar,'w') as archive:
+            for path in output.rglob('*.class'):archive.writestr(path.relative_to(output).as_posix(),path.read_bytes())
+        self.record['compilation']['artifacts'][0].update(c.original_file(self.jar,64*1024*1024))
+        directory=self.project/'build/modeled-catalog';directory.mkdir()
+        subprocess.run(['git','-C',str(self.root),'add','.'],check=True,capture_output=True)
+        result=c.extract(self.root,self.record,self.java,directory)
+        self.assertIn(package+'.S3Exception',result['vocabulary']['exceptionClasses'])
+        self.assertIn(package+'.AccessDeniedException',result['vocabulary']['exceptionClasses'])
+        self.assertNotIn(package+'.UnselectedFailure',result['vocabulary']['exceptionClasses'])
+        c.revalidate(result['bindings'])
+
     def test_actual_compiled_source_inner_overload_exception_and_exact_dependency_values(self):
         result=self.assemble();v=result['vocabulary'];self.assertIn('example.ActualFailure',v['exceptionClasses'])
         self.assertNotIn('example.ActualFailure$Nested',v['exceptionClasses'])
@@ -110,7 +134,7 @@ class JavaCatalogTest(unittest.TestCase):
         self.assertEqual(1,len([row for row in v['frames'] if row['symbol']=='example.ActualFailure.operation']))
         self.assertEqual(self.record['dependencies'][0],next(row for row in v['dependencies'] if row['name']=='fixture.library'))
         self.assertTrue(all(row['vendorBuildProvenance']=='UNKNOWN' for row in v['dependencies']))
-        self.assertEqual(5,result['counts']['missingOptionalExceptions']);self.assertEqual(0,result['counts']['missingSources'])
+        self.assertEqual(6,result['counts']['missingOptionalExceptions']);self.assertEqual(0,result['counts']['missingSources'])
 
     def test_missing_source_is_visible_and_unknown_catalog_values_are_not_guessed(self):
         first=self.metadata['classes'][0];first['sourceFile']='Unregistered.java'

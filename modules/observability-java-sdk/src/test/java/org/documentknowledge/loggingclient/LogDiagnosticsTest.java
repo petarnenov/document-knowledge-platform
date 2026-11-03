@@ -48,6 +48,20 @@ class LogDiagnosticsTest {
         first.setStackTrace(new StackTraceElement[0]);
         assertEquals(1,LogExceptionCapture.capture(first,CATALOG).counts().truncatedFields());
     }
+    @Test void registeredSuperclassDoesNotReplaceActualModeledSubclass() {
+        var failure=new java.io.FileNotFoundException("private-modeled-failure-canary");
+        failure.setStackTrace(new StackTraceElement[0]);
+        var before=LogExceptionCapture.capture(failure,CATALOG);
+        assertNull(before.failure().exceptionClass());
+        assertEquals(1,before.counts().unregisteredSymbols());
+        var selected=new LogDiagnosticCatalog(Set.of(),Map.of(),
+            Set.of(IOException.class.getName(),java.io.FileNotFoundException.class.getName()),Set.of());
+        var after=LogExceptionCapture.capture(failure,selected);
+        assertEquals(java.io.FileNotFoundException.class.getName(),after.failure().exceptionClass());
+        assertEquals(0,after.counts().unregisteredSymbols());
+        assertFalse(after.toString().contains("canary"));
+        assertFalse(CATALOG.exceptionClasses().contains(java.io.FileNotFoundException.class.getName()));
+    }
     @Test void nativeAndSourceLessFramesKeepOnlyRegisteredSymbols() {
         var failure=caught();
         failure.setStackTrace(new StackTraceElement[]{

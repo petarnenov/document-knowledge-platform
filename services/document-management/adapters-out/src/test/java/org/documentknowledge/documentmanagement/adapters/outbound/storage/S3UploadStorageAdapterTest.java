@@ -232,7 +232,10 @@ class S3UploadStorageAdapterTest {
         assertUnavailable(()->adapter.copy(OBJECT,ORIGINAL));try(var phase=new CompleteBudget(java.time.Clock.systemUTC()).phase(CompleteBudget.Kind.STORAGE)){assertUnavailable(()->adapter.copy(OBJECT,ORIGINAL,phase));assertUnavailable(()->adapter.copy(OBJECT,ORIGINAL,phase,null));}assertEquals(0,calls.get());
     }
     @Test void observedPutAndOpenPreserveRawProviderCauseBeforePublicMapping() throws Exception {
-        var original=failure(403,"AccessDenied","request-put");var observation=new ProviderObservation();var calls=new AtomicInteger();
+        var original=AccessDeniedException.builder().statusCode(403).requestId("request-put")
+            .awsErrorDetails(AwsErrorDetails.builder().errorCode("AccessDenied").build()).build();
+        assertEquals(AccessDeniedException.class,original.getClass());
+        var observation=new ProviderObservation();var calls=new AtomicInteger();
         var denied=adapter((method,args)->{calls.incrementAndGet();throw original;});
         assertUnavailable(()->denied.put(QUARANTINE,source(BYTES),BYTES.length,hash(BYTES),
             new GenericTempBudget(java.time.Clock.systemUTC(),GenericTempPort.Role.TRANSFER),observation));
