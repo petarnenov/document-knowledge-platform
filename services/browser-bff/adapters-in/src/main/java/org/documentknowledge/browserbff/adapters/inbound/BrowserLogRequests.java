@@ -26,8 +26,8 @@ public final class BrowserLogRequests implements AutoCloseable {
     public <T> Request<T> submit(BrowserLogDeadline deadline, Function<BrowserLogDeadline, T> action) {
         Objects.requireNonNull(action);
         var request = new Request<T>(Objects.requireNonNull(deadline));
-        if (closed.get() || deadline.expired()) return request.reject(503, "LOG_STORE_UNAVAILABLE");
-        if (!slots.tryAcquire()) return request.reject(429, "LOG_RATE_LIMITED");
+        if (closed.get() || deadline.expired()) return request.unadmitted(503, "LOG_STORE_UNAVAILABLE");
+        if (!slots.tryAcquire()) return request.unadmitted(429, "LOG_RATE_LIMITED");
         var task = new Task<>(request, action); active.add(task);
         try { request.arm(); workers.execute(task); }
         catch (RejectedExecutionException unavailable) {
@@ -78,12 +78,14 @@ public final class BrowserLogRequests implements AutoCloseable {
         void finish() {
             if (!released.compareAndSet(false, true)) return;
             request.cancelTimer(); active.remove(this); slots.release();
+            request.exited.countDown();
         }
     }
     /** Private future prevents callbacks or HTTP serialization from executing on the deadline scheduler. */
     public final class Request<T> {
         private final BrowserLogDeadline deadline;
         private final CompletableFuture<T> outcome = new CompletableFuture<>();
+        private final CountDownLatch exited = new CountDownLatch(1);
         private final AtomicBoolean consumed = new AtomicBoolean();
         private final AtomicReference<ScheduledFuture<?>> alarm = new AtomicReference<>();
         private Request(BrowserLogDeadline deadline) { this.deadline = deadline; }
@@ -94,11 +96,20 @@ public final class BrowserLogRequests implements AutoCloseable {
         private Request<T> reject(int status, String code) {
             outcome.completeExceptionally(new BffFailure(status, code)); cancelTimer(); return this;
         }
+        private Request<T> unadmitted(int status, String code) {
+            reject(status, code); exited.countDown(); return this;
+        }
         private void cancelTimer() {
             var scheduled = alarm.getAndSet(null); if (scheduled != null) scheduled.cancel(false);
         }
         public void cancel() { reject(503, "LOG_STORE_UNAVAILABLE"); }
         public boolean responseDecided() { return outcome.isDone(); }
+        /** Completion of actual owned work, independent of a decided response/timeout/cancellation. */
+        public boolean awaitExit(Duration budget) throws InterruptedException {
+            long nanos = Objects.requireNonNull(budget).toNanos();
+            if (nanos < 0) throw new IllegalArgumentException("INVALID_LOG_EXIT_BUDGET");
+            return exited.await(nanos, TimeUnit.NANOSECONDS);
+        }
         public T await() {
             if (!consumed.compareAndSet(false, true)) throw new IllegalStateException("LOG_RESPONSE_ALREADY_CONSUMED");
             try { return outcome.get(deadline.remainingNanos(), TimeUnit.NANOSECONDS); }

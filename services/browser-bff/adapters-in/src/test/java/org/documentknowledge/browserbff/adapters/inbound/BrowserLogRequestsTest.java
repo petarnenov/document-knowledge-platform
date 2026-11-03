@@ -38,16 +38,21 @@ final class BrowserLogRequestsTest {
             var queuedCalls = new AtomicInteger();
             for (int i = 0; i < 16; i++) active.add(requests.submit(BrowserLogDeadline.start(), ignored -> queuedCalls.incrementAndGet()));
             assertEquals(18, requests.health().chargedTasks()); assertEquals(16, requests.health().queuedTasks());
-            status(429, requests.submit(BrowserLogDeadline.start(), ignored -> 99));
+            var refused = requests.submit(BrowserLogDeadline.start(), ignored -> 99);
+            status(429, refused); assertTrue(refused.awaitExit(Duration.ZERO));
             active.getFirst().cancel(); assertTrue(active.getFirst().responseDecided()); status(503, active.getFirst());
             assertEquals(18, requests.health().chargedTasks()); assertEquals(2, requests.health().runningWorkers());
+            assertFalse(active.getFirst().awaitExit(Duration.ZERO));
             // Real five-second total deadline expires independently while actual workers remain held.
             long started = System.nanoTime(); status(503, active.get(1));
             assertTrue(System.nanoTime() - started < TimeUnit.SECONDS.toNanos(6));
             assertEquals(18, requests.health().chargedTasks()); assertTrue(requests.health().expiredTasks() >= 2);
-            status(503, requests.submit(original, ignored -> fail("Expired work must not dispatch")));
+            assertFalse(active.get(1).awaitExit(Duration.ZERO));
+            var expired = requests.submit(original, ignored -> fail("Expired work must not dispatch"));
+            status(503, expired); assertTrue(expired.awaitExit(Duration.ZERO));
             waitFor(() -> active.stream().allMatch(BrowserLogRequests.Request::responseDecided));
             release.countDown(); waitFor(() -> requests.health().chargedTasks() == 0);
+            for (var request : active) assertTrue(request.awaitExit(Duration.ofSeconds(2)));
             assertEquals(0, queuedCalls.get());
             for (int i = 2; i < active.size(); i++) status(503, active.get(i));
             assertEquals(7, requests.submit(BrowserLogDeadline.start(), ignored -> 7).await());
@@ -65,8 +70,10 @@ final class BrowserLogRequestsTest {
             assertTrue(requests.health().closed()); assertEquals(2, requests.health().chargedTasks());
             assertEquals(0, requests.health().queuedTasks()); assertEquals(0, requests.health().pendingAlarms());
             assertFalse(requests.awaitClosed(Duration.ZERO)); assertEquals(0, calls.get());
-            for (var request : queued) status(503, request);
-            status(503, requests.submit(BrowserLogDeadline.start(), ignored -> 3));
+            for (var request : queued) { status(503, request); assertTrue(request.awaitExit(Duration.ZERO)); }
+            var refused = requests.submit(BrowserLogDeadline.start(), ignored -> 3);
+            status(503, refused); assertTrue(refused.awaitExit(Duration.ZERO));
+            assertThrows(IllegalArgumentException.class, () -> refused.awaitExit(Duration.ofNanos(-1)));
             assertThrows(IllegalArgumentException.class, () -> requests.awaitClosed(Duration.ofNanos(-1)));
         } finally { release.countDown(); requests.close(); assertTrue(requests.awaitClosed(Duration.ofSeconds(2))); }
         assertEquals(0, requests.health().chargedTasks());

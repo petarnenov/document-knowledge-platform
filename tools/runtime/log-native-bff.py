@@ -66,8 +66,13 @@ def inputs(settings_file, directory, *, verify_shared=True):
         'endpoint','producerToken','caFile','spoolDirectory'} and type(producer_config['schemaVersion']) is int and producer_config['schemaVersion'] == 1
         and producer_config['manifestSha256'] == installed['manifestSha256'] and producer_config['spoolDirectory'] == str(directory/'producer-spool'))
     i.m.identifier(producer_config['runId']);i.m.identifier(producer_config['instanceId'])
-    require(type(browser_config) is dict and browser_config.keys() == {'schemaVersion','endpoint','parentProducerId','delegatorToken','caFile','portalManifests'}
+    require(type(browser_config) is dict and browser_config.keys() == {'schemaVersion','endpoint','parentProducerId','delegatorToken','caFile','portalManifests','spoolDirectory'}
         and type(browser_config['schemaVersion']) is int and browser_config['schemaVersion'] == 1)
+    spool = directory/'browser-spool'
+    require(browser_config['spoolDirectory'] == str(spool))
+    if directory.exists():
+        require(spool.is_dir() and not spool.is_symlink() and spool.resolve(strict=True) == spool
+            and spool.stat().st_uid == os.getuid() and spool.stat().st_mode & 0o7777 == 0o700)
     i.m.identifier(browser_config['parentProducerId'])
     require(isinstance(producer_config['producerToken'],str) and re.fullmatch('[A-Za-z0-9_-]{32,512}',producer_config['producerToken'])
         and isinstance(browser_config['delegatorToken'],str) and re.fullmatch('[A-Za-z0-9_-]{32,512}',browser_config['delegatorToken'])
@@ -151,6 +156,7 @@ def start(settings_file, directory):
     current = inputs(settings_file,directory)
     with socket.socket() as listener: listener.bind(('127.0.0.1',current['port']))
     directory.mkdir(mode=0o700)
+    (directory/'browser-spool').mkdir(mode=0o700)
     r.write_private(directory/'java.options',current['options'])
     record = {'schemaVersion':1,'ownerId':str(uuid.uuid4()),'stage':'PREPARED','references':current['references'],
         'installation':current['installed'],'sharedOwnerId':current['sharedOwnerId'],'port':current['port'],

@@ -196,6 +196,21 @@ class DurableBrowserLogGatewayTest {
             }
         } finally { finish.countDown(); gateway.close(); worker.shutdownNow(); assertTrue(worker.awaitTermination(3, TimeUnit.SECONDS)); }
     }
+    @Test void interruptedCloseAndForwardCleanupPreserveTheInterruptWithoutPoisoningFinalHealth() throws Exception {
+        var transport = new Transport(); var grant = grant(); var scope = transport.delegate(grant, BrowserLogDeadline.start());
+        transport.mode = Mode.TRANSIENT;
+        var gateway = new DurableBrowserLogGateway(transport, file());
+        try {
+            transport.before = () -> Thread.currentThread().interrupt();
+            unavailable(() -> gateway.ingest(scope, batch(grant, UUID.randomUUID()), BrowserLogDeadline.start()));
+            assertTrue(Thread.interrupted()); assertFalse(gateway.status().storageUncertain());
+            Thread.currentThread().interrupt(); gateway.close(); assertTrue(Thread.interrupted());
+            assertFalse(gateway.status().storageUncertain());
+            var health = JSON.readValue(Files.readAllBytes(directory.resolve("health.json")), Map.class);
+            assertEquals(true, health.get("closed")); assertEquals(false, health.get("storageUncertain")); assertEquals(1, health.get("pendingEvents"));
+            try (var recovered = file()) { assertEquals(1, recovered.load().size()); }
+        } finally { Thread.interrupted(); gateway.close(); }
+    }
     enum Mode { NORMAL, TRANSIENT, AFTER_COMMIT, TERMINAL }
     static final class MemoryStore implements BrowserLogPendingStore {
         List<Entry> entries = List.of(); int writes, failWrite; boolean closed;

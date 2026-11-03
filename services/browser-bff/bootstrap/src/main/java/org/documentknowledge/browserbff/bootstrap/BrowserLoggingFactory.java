@@ -15,7 +15,6 @@ import java.time.*;
 import java.util.*;
 import javax.net.ssl.*;
 import org.documentknowledge.browserbff.adapters.inbound.*;
-import org.documentknowledge.browserbff.adapters.outbound.HttpsBrowserLogGateway;
 import org.documentknowledge.browserbff.application.*;
 import tools.jackson.core.StreamReadConstraints;
 import tools.jackson.core.StreamReadFeature;
@@ -32,28 +31,33 @@ public final class BrowserLoggingFactory {
         .streamReadConstraints(StreamReadConstraints.builder().maxDocumentLength(1048576).maxNestingDepth(16)
             .maxStringLength(4096).maxNumberLength(16).build()).build())
         .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
-    record Settings(URI endpoint, UUID parent, String delegator, SSLContext tls,
+    record Settings(URI endpoint, UUID parent, String delegator, SSLContext tls, String caSha256, Path spoolDirectory,
                     Map<UUID, BrowserLogContexts.Artifact> artifacts, Map<UUID, BrowserLogJson.Catalog> catalogs) {
         @Override public String toString() { return "BrowserLoggingSettings[REDACTED]"; }
     }
     private final Settings settings;
     public BrowserLoggingFactory(@Value("${dkp.logging.browser-config}") String path) throws IOException { settings = read(Path.of(path)); }
-    @Singleton @Bean(preDestroy = "close") public HttpsBrowserLogGateway gateway() {
-        return new HttpsBrowserLogGateway(settings.endpoint(), settings.parent(), settings.delegator(), settings.tls(), Clock.systemUTC());
+    @Singleton @Bean(preDestroy = "close") BrowserLoggingRuntime runtime(BrowserLogRequests requests) throws IOException {
+        return new BrowserLoggingRuntime(settings, requests);
     }
+    @Singleton public BrowserLogGateway gateway(BrowserLoggingRuntime runtime) { return runtime.gateway(); }
     @Singleton public BrowserLogContexts contexts() { return new BrowserLogContexts(Clock.systemUTC(), settings.artifacts()); }
     @Singleton public BrowserLogCatalogs catalogs() { return new BrowserLogCatalogs(settings.catalogs()); }
     @Singleton @Bean(preDestroy = "close") public BrowserLogRequests requests() { return new BrowserLogRequests(); }
 
     static Settings read(Path path) throws IOException {
         try {
-            var config = object(parse(privateBytes(path, 32768)), Set.of("schemaVersion", "endpoint", "parentProducerId", "delegatorToken", "caFile", "portalManifests"));
+            var config = object(parse(privateBytes(path, 32768)), Set.of("schemaVersion", "endpoint", "parentProducerId", "delegatorToken", "caFile", "portalManifests", "spoolDirectory"));
             require(Integer.valueOf(1).equals(config.get("schemaVersion")));
             URI endpoint = URI.create(text(config, "endpoint"));
             require("https".equals(endpoint.getScheme()) && endpoint.getHost() != null && endpoint.getUserInfo() == null
                 && endpoint.getRawQuery() == null && endpoint.getRawFragment() == null && "/api/v1/dev-logs".equals(endpoint.getRawPath()));
             UUID parent = BrowserLogJson.id(config.get("parentProducerId")); String delegator = text(config, "delegatorToken");
             require(delegator.matches("[A-Za-z0-9_-]{32,512}"));
+            Path spool = Path.of(text(config, "spoolDirectory"));
+            require(spool.isAbsolute() && spool.toRealPath().equals(spool) && Files.isDirectory(spool, LinkOption.NOFOLLOW_LINKS)
+                && Files.getPosixFilePermissions(spool, LinkOption.NOFOLLOW_LINKS).equals(PosixFilePermissions.fromString("rwx------"))
+                && ((Number) Files.getAttribute(spool, "unix:uid", LinkOption.NOFOLLOW_LINKS)).longValue() == new UnixSystem().getUid());
             var artifacts = new HashMap<UUID, BrowserLogContexts.Artifact>(); var catalogs = new HashMap<UUID, BrowserLogJson.Catalog>();
             require(config.get("portalManifests") instanceof List<?> manifests && !manifests.isEmpty() && manifests.size() <= 64);
             for (Object value : (List<?>) config.get("portalManifests")) {
@@ -75,12 +79,13 @@ public final class BrowserLoggingFactory {
                 require(artifacts.putIfAbsent(build, artifact) == null); catalogs.put(build, catalog);
             }
             var trust = KeyStore.getInstance(KeyStore.getDefaultType()); trust.load(null, null);
-            try (var input = new ByteArrayInputStream(privateBytes(Path.of(text(config, "caFile")), 16384))) {
+            byte[] ca = privateBytes(Path.of(text(config, "caFile")), 16384);
+            try (var input = new ByteArrayInputStream(ca)) {
                 trust.setCertificateEntry("logging-root", CertificateFactory.getInstance("X.509").generateCertificate(input));
             }
             var manager = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); manager.init(trust);
             var tls = SSLContext.getInstance("TLS"); tls.init(null, manager.getTrustManagers(), null);
-            return new Settings(endpoint, parent, delegator, tls, Map.copyOf(artifacts), Map.copyOf(catalogs));
+            return new Settings(endpoint, parent, delegator, tls, sha(ca), spool, Map.copyOf(artifacts), Map.copyOf(catalogs));
         } catch (Exception invalid) { throw new IOException("INVALID_BROWSER_LOG_CONFIGURATION"); }
     }
     private static Object sorted(Object value) {

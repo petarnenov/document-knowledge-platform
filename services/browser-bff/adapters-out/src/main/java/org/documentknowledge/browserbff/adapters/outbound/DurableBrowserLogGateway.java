@@ -126,7 +126,9 @@ public final class DurableBrowserLogGateway implements BrowserLogGateway, AutoCl
         if (storageUncertain) { work.claimed = false; activeWriters--; throw unavailable(); }
     }
     private synchronized void release(Pending work) {
-        work.claimed = false; publishHealth(); activeWriters--; closeStoreWhenIdle();
+        boolean interrupted = Thread.interrupted();
+        try { work.claimed = false; publishHealth(); activeWriters--; closeStoreWhenIdle(); }
+        finally { if (interrupted) Thread.currentThread().interrupt(); }
     }
     private void finish(Pending work) {
         try { beforeRelease.run(); } finally { release(work); }
@@ -156,7 +158,9 @@ public final class DurableBrowserLogGateway implements BrowserLogGateway, AutoCl
     private void available() { availableStorage(); if (closed) throw unavailable(); }
     @Override public synchronized void close() {
         if (closed) return;
-        closed = true; publishHealth(); closeStoreWhenIdle();
+        boolean interrupted = Thread.interrupted();
+        try { closed = true; publishHealth(); closeStoreWhenIdle(); }
+        finally { if (interrupted) Thread.currentThread().interrupt(); }
     }
     private void publishHealth() {
         var value = status();

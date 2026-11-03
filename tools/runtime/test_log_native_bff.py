@@ -42,6 +42,7 @@ class NativeBffTest(unittest.TestCase):
             'spoolDirectory':str(self.directory/'producer-spool')}
         self.browser_value={'schemaVersion':1,'endpoint':self.producer_value['endpoint'],'parentProducerId':str(uuid.uuid4()),
             'delegatorToken':'d'*48,'caFile':self.producer_value['caFile'],
+            'spoolDirectory':str(self.directory/'browser-spool'),
             'portalManifests':[{'file':str(self.portal),'sha256':m.digest(self.portal.read_bytes())}]}
         self.private(self.producer,self.producer_value);self.private(self.browser,self.browser_value)
         self.private(self.shared/'gateway-pki/runtime.env','OIDC_CLIENT_SECRET='+'c'*48+'\nDKP_TRUSTSTORE_PASSWORD='+'t'*48+'\nUNRELATED_SECRET=must-not-inherit\n')
@@ -102,6 +103,18 @@ class NativeBffTest(unittest.TestCase):
         with self.assertRaises(ValueError):m.status(self.settings,self.directory)
         self.assertEqual(1,m.spawn.call_count)
 
+    def test_browser_spool_is_explicit_private_first_use_and_missing_storage_is_not_recreated(self):
+        m.start(self.settings,self.directory);spool=self.directory/'browser-spool'
+        self.assertEqual(0o700,spool.stat().st_mode & 0o7777)
+        spool.rmdir()
+        with self.assertRaises(ValueError):m.start(self.settings,self.directory)
+        self.assertFalse(spool.exists());self.assertEqual(1,m.spawn.call_count)
+        foreign=self.parent/'foreign-spool';foreign.mkdir(mode=0o700);spool.symlink_to(foreign,target_is_directory=True)
+        with self.assertRaises(ValueError):m.status(self.settings,self.directory)
+        self.assertTrue(spool.is_symlink());spool.unlink();spool.mkdir(mode=0o755)
+        with self.assertRaises(ValueError):m.status(self.settings,self.directory)
+        self.assertEqual(1,m.spawn.call_count)
+
     def test_exited_or_unready_process_retains_owned_start_evidence_without_killing_anything(self):
         self.app.poll.return_value=1
         with self.assertRaises(ValueError):m.start(self.settings,self.directory)
@@ -110,6 +123,7 @@ class NativeBffTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             with patch.object(m,'listening',side_effect=ValueError('not ready')),patch.object(m.time,'monotonic',side_effect=[0,30]):
                 fresh=self.parent/'second';self.producer_value['spoolDirectory']=str(fresh/'producer-spool');self.private(self.producer,self.producer_value)
+                self.browser_value['spoolDirectory']=str(fresh/'browser-spool');self.private(self.browser,self.browser_value)
                 self.argv=m.inputs(self.settings,fresh)['command'];self.app.poll.return_value=None;m.start(self.settings,fresh)
         self.assertEqual('STARTING',json.loads((self.parent/'second/state.json').read_text())['stage'])
 
@@ -121,7 +135,7 @@ class NativeBffTest(unittest.TestCase):
         self.private(self.settings,original)
         for path,original_config,cases in ((self.producer,self.producer_value,[{'endpoint':'http://foreign.invalid'},
                 {'caFile':'/foreign'},{'manifestSha256':'b'*64},{'spoolDirectory':'/foreign'},{'producerToken':'short'}]),
-                (self.browser,self.browser_value,[{'delegatorToken':'p'*43},{'portalManifests':[]},
+                (self.browser,self.browser_value,[{'delegatorToken':'p'*43},{'portalManifests':[]},{'spoolDirectory':'/foreign'},
                 {'portalManifests':[{'file':str(self.portal),'sha256':'wrong'}]}])):
             for case in cases:
                 self.private(path,{**original_config,**case})

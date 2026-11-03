@@ -10,7 +10,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import org.documentknowledge.browserbff.adapters.inbound.*;
-import org.documentknowledge.browserbff.adapters.outbound.HttpsBrowserLogGateway;
+import org.documentknowledge.browserbff.adapters.outbound.DurableBrowserLogGateway;
 import org.documentknowledge.browserbff.application.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
@@ -49,8 +49,11 @@ class BrowserLoggingConfigurationTest {
     }
     Map<String, Object> config(Map<String, Object> manifest) throws Exception {
         byte[] raw = JSON.writeValueAsBytes(manifest); var path = write("portal.json", raw); var caPath = write("ca.pem", ca);
+        Path spool = temporary.toRealPath().resolve("browser-spool");
+        if (!Files.exists(spool)) Files.createDirectory(spool, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
         return new HashMap<>(Map.of("schemaVersion", 1, "endpoint", "https://localhost:18443/api/v1/dev-logs", "parentProducerId", UUID.randomUUID().toString(),
-            "delegatorToken", TOKEN, "caFile", caPath.toString(), "portalManifests", List.of(Map.of("file", path.toString(), "sha256", sha(raw)))));
+            "delegatorToken", TOKEN, "caFile", caPath.toString(), "spoolDirectory", spool.toString(),
+            "portalManifests", List.of(Map.of("file", path.toString(), "sha256", sha(raw)))));
     }
     static void invalid(Path path) {
         var failure = assertThrows(IOException.class, () -> BrowserLoggingFactory.read(path));
@@ -63,18 +66,20 @@ class BrowserLoggingConfigurationTest {
         assertEquals(manifest.get("sourceFingerprint"), settings.artifacts().get(build).sourceFingerprint());
         assertEquals(manifest.get("vocabularySha256"), settings.artifacts().get(build).vocabularySha256());
         assertThrows(UnsupportedOperationException.class, () -> settings.artifacts().clear());
-        HttpsBrowserLogGateway gateway; BrowserLogRequests requests;
+        BrowserLoggingRuntime runtime; BrowserLogRequests requests;
         try (var context = ApplicationContext.run(Map.of("dkp.logging.browser-config", path.toString()))) {
-            gateway = (HttpsBrowserLogGateway) context.getBean(BrowserLogGateway.class); requests = context.getBean(BrowserLogRequests.class);
+            assertInstanceOf(DurableBrowserLogGateway.class, context.getBean(BrowserLogGateway.class));
+            runtime = context.getBean(BrowserLoggingRuntime.class); requests = context.getBean(BrowserLogRequests.class);
             assertNotNull(context.getBean(BrowserLogController.class)); assertNotNull(context.getBean(BrowserLogContexts.class));
             assertTrue(context.getBean(BrowserLogCatalogs.class).require(build).events().contains("process.started"));
         }
-        assertTrue(gateway.awaitClosed(Duration.ofSeconds(2))); assertTrue(requests.awaitClosed(Duration.ofSeconds(2))); assertTrue(requests.health().closed());
+        assertTrue(runtime.awaitClosed(Duration.ofSeconds(2))); assertTrue(runtime.status().stopped()); assertFalse(runtime.status().incompleteShutdown());
+        assertTrue(requests.awaitClosed(Duration.ofSeconds(2))); assertTrue(requests.health().closed());
         try (var disabled = ApplicationContext.run()) { assertFalse(disabled.containsBean(BrowserLogGateway.class)); }
     }
     @Test void malformedAndCallerAuthorityConfigurationNeverEnablesBrowserLogging() throws Exception {
         var config = config(manifest());
-        for (String field : List.of("endpoint", "parentProducerId", "delegatorToken", "caFile", "portalManifests", "schemaVersion")) {
+        for (String field : List.of("endpoint", "parentProducerId", "delegatorToken", "caFile", "portalManifests", "schemaVersion", "spoolDirectory")) {
             var copy = new HashMap<>(config); copy.remove(field); invalid(write("configuration.json", JSON.writeValueAsBytes(copy)));
         }
         for (Object value : List.of("http://localhost/api/v1/dev-logs", "https://user:secret@localhost/api/v1/dev-logs", "https://localhost/api/v1/dev-logs?x", "https://localhost/api/v1/dev-logs#x", "https://localhost/other")) {
@@ -115,5 +120,44 @@ class BrowserLoggingConfigurationTest {
         config = config(manifest()); path = write("configuration.json", JSON.writeValueAsBytes(config));
         Files.write(temporary.toRealPath().resolve("portal.json"), new byte[1048577]); invalid(path);
         write("portal.json", new byte[0]); invalid(path);
+    }
+    @Test void spoolMustAlreadyExistBeCanonicalAndPrivateAndCorruptStateIsPreserved() throws Exception {
+        var config = config(manifest()); var path = write("configuration.json", JSON.writeValueAsBytes(config));
+        Path spool = Path.of((String)config.get("spoolDirectory"));
+        for (String invalid : List.of("relative", temporary.toRealPath().resolve("missing").toString(), path.toString())) {
+            var copy = new HashMap<>(config); copy.put("spoolDirectory", invalid); invalid(write("configuration.json", JSON.writeValueAsBytes(copy)));
+        }
+        Path alias = temporary.toRealPath().resolve("spool-link"); Files.createSymbolicLink(alias, spool);
+        var copy = new HashMap<>(config); copy.put("spoolDirectory", alias.toString()); invalid(write("configuration.json", JSON.writeValueAsBytes(copy)));
+        Files.setPosixFilePermissions(spool, PosixFilePermissions.fromString("rwxr-xr-x")); invalid(write("configuration.json", JSON.writeValueAsBytes(config)));
+        Files.setPosixFilePermissions(spool, PosixFilePermissions.fromString("rwx------"));
+        var settings = BrowserLoggingFactory.read(write("configuration.json", JSON.writeValueAsBytes(config)));
+        assertEquals(sha(ca), settings.caSha256());
+        var requests = new BrowserLogRequests();
+        try (var runtime = new BrowserLoggingRuntime(settings, requests)) { assertEquals(0, runtime.status().queue().pendingEvents()); }
+        Files.write(spool.resolve("pending.bin"), new byte[]{1, 2, 3});
+        Files.setPosixFilePermissions(spool.resolve("pending.bin"), PosixFilePermissions.fromString("rw-------"));
+        try (var otherRequests = new BrowserLogRequests()) {
+            var failure = assertThrows(IOException.class, () -> new BrowserLoggingRuntime(settings, otherRequests));
+            assertEquals("INVALID_BROWSER_LOG_CONFIGURATION", failure.getMessage());
+        }
+        assertArrayEquals(new byte[]{1, 2, 3}, Files.readAllBytes(spool.resolve("pending.bin")));
+    }
+    @Test void interruptedCloseReportsIncompleteUntilAllActualDispatcherWorkersExit() throws Exception {
+        var config = config(manifest()); var settings = BrowserLoggingFactory.read(write("configuration.json", JSON.writeValueAsBytes(config)));
+        var requests = new BrowserLogRequests(); var entered = new java.util.concurrent.CountDownLatch(1); var release = new java.util.concurrent.CountDownLatch(1);
+        var runtime = new BrowserLoggingRuntime(settings, requests);
+        try {
+            requests.submit(BrowserLogDeadline.start(), deadline -> {
+                entered.countDown(); boolean interrupted = false;
+                for (;;) try { release.await(); break; } catch (InterruptedException signal) { interrupted = true; }
+                if (interrupted) Thread.currentThread().interrupt(); return 1;
+            });
+            assertTrue(entered.await(2, TimeUnit.SECONDS)); Thread.currentThread().interrupt(); runtime.close();
+            assertTrue(Thread.interrupted()); assertTrue(runtime.status().incompleteShutdown()); assertFalse(runtime.status().stopped());
+            assertFalse(runtime.status().queue().storageUncertain());
+            assertFalse(runtime.awaitClosed(Duration.ofMillis(1100))); release.countDown();
+            assertTrue(runtime.awaitClosed(Duration.ofSeconds(2))); assertTrue(runtime.status().stopped()); assertFalse(runtime.status().incompleteShutdown());
+        } finally { release.countDown(); runtime.close(); assertTrue(requests.awaitClosed(Duration.ofSeconds(2))); }
     }
 }
