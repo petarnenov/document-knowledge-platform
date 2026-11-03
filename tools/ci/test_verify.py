@@ -75,6 +75,17 @@ class CheckTests(unittest.TestCase):
             bad=copy.deepcopy(report);bad['files']['/workspace/tools/runtime/clam-definitions.py']['summary'][key]=value
             with self.assertRaises(ValueError):inside.floors(bad,self.source)
 
+    def test_python_sdk_modules_require_separate_line_and_branch_floors(self):
+        report=self.helper_report()
+        for name in inside.SDK_HELPERS:
+            path=self.source/'sdks/python'/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('public')
+            with self.assertRaises(ValueError):inside.floors(report,self.source)
+            report['files']['/workspace/sdks/python/'+name]={'summary':{'covered_lines':3,'num_statements':4,'covered_branches':3,'num_branches':4}}
+        self.assertTrue(set(inside.SDK_HELPERS)<=set(inside.floors(report,self.source)))
+        bad=copy.deepcopy(report)
+        bad['files']['/workspace/sdks/python/'+inside.SDK_HELPERS[0]]['summary']['covered_branches']=2
+        with self.assertRaises(ValueError):inside.floors(bad,self.source)
+
     def test_evidence_rejects_source_log_command_environment_and_cleanup_drift(self):
         record=self.receipt();path=self.evidence/'receipt.json';path.write_text(json.dumps(record));self.assertEqual(record,v.validate(self.source,self.evidence))
         for key,bad in [('result','FAIL'),('cleanup','UNKNOWN'),('platform','linux/arm64'),('imageId','tag')]:
