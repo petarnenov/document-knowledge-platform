@@ -36,8 +36,20 @@ class JavaInstallTest(unittest.TestCase):
             self.assertEqual(entry['mode'], installed.stat().st_mode & 0o777)
             self.assertEqual(len(installed.read_bytes()), entry['bytes'])
         self.assertEqual(result, json.loads((self.output/'install.json').read_text()))
+        self.assertEqual(result,m.verify_installed(self.output))
         self.assertEqual(0, (self.output/'install.json').stat().st_mode & 0o077)
         with self.assertRaises(ValueError): self.install()
+
+    def test_installed_copy_recheck_survives_workspace_changes_and_rejects_content_or_mode_drift(self):
+        installed=self.install()
+        (self.root/'source.txt').write_text('later development revision')
+        self.assertEqual(installed,m.verify_installed(self.output))
+        jar=self.output/'distribution/lib/fixture-library.jar';raw=jar.read_bytes();jar.write_bytes(b'tampered')
+        with self.assertRaises(ValueError):m.verify_installed(self.output)
+        jar.write_bytes(raw);jar.chmod(0o644)
+        with self.assertRaises(ValueError):m.verify_installed(self.output)
+        jar.chmod(0o600);(self.output/'manifest.json').write_bytes(b'wrong manifest')
+        with self.assertRaises(ValueError):m.verify_installed(self.output)
 
     def test_source_receipt_artifact_manifest_and_distribution_mismatch_refuse_output(self):
         for path in (self.root/'source.txt', self.receipt, Path(self.built['artifact']), Path(self.built['manifest']), self.dist/'lib/bootstrap.jar'):

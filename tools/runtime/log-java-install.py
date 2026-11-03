@@ -99,6 +99,38 @@ def install(root, receipt_file, output):
     return record
 
 
+def verify_installed(output):
+    """Recheck a private installed artifact independently of later workspace/HEAD changes."""
+    output = Path(output)
+    require(output.is_absolute() and output.resolve(strict=True) == output and output.is_dir()
+        and output.stat().st_uid == os.getuid() and not output.stat().st_mode & 0o077)
+    record = document(output/'install.json', 2*m.MAX_MANIFEST)
+    require(type(record) is dict and record.keys() == {'schemaVersion','result','component','buildId','manifestSha256',
+        'artifact','files','process','sharedStoreDelivery'} and type(record['schemaVersion']) is int
+        and record['schemaVersion'] == 1 and record['result'] == 'INSTALLED' and record['component'] in j.COMPONENTS
+        and record['process'] == 'NOT_STARTED' and record['sharedStoreDelivery'] == 'NOT_STARTED')
+    m.identifier(record['buildId'])
+    raw = read(output/'manifest.json',m.MAX_MANIFEST,True)
+    require(hashlib.sha256(raw).hexdigest() == record['manifestSha256'])
+    manifest = json.loads(raw,object_pairs_hook=j.unique)
+    require(manifest['component'] == record['component'] and manifest['buildId'] == record['buildId'])
+    files = distribution(output/'distribution',record['component'])
+    actual = {}
+    for name,data in files.items():
+        mode = 0o700 if name == 'bin/'+record['component'] else 0o600
+        require(stat.S_IMODE((output/'distribution'/name).stat().st_mode) == mode)
+        actual[name] = {'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data),'mode':mode}
+    require(actual == record['files'])
+    artifact = record['artifact']
+    require(type(artifact) is dict and artifact.keys() == {'path','sha256','bytes'})
+    name = m.path_name(artifact['path']); parts = Path(name).parts
+    require(len(parts) == 6 and parts[:5] == ('services',record['component'],'bootstrap','build','libs') and parts[-1].endswith('.jar'))
+    require(actual.get('lib/'+parts[-1],{}).get('sha256') == artifact['sha256']
+        and actual['lib/'+parts[-1]]['bytes'] == artifact['bytes'])
+    j.verify_jar(output/'distribution/lib'/parts[-1],manifest)
+    return record
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', required=True, type=Path)
