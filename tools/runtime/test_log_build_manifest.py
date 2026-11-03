@@ -231,6 +231,8 @@ class BuildManifestTest(unittest.TestCase):
     def test_output_rejects_source_mutation_unknown_names_existing_files_and_symlinks(self):
         prepared=m.prepare(self.root,'runtime-tools')
         value={'buildId':prepared['buildId'],'component':'runtime-tools'}
+        inventory=m.write_output(self.root,'runtime-tools',prepared['buildId'],'distribution.json',value)
+        self.assertEqual(value,json.loads(inventory.read_text()));self.assertEqual(0,inventory.stat().st_mode & 0o077)
         with self.assertRaises(ValueError): m.write_output(self.root,'runtime-tools',prepared['buildId'],'manifest.json',[])
         for name in ('source.txt','../manifest.json'):
             with self.assertRaises(ValueError): m.write_output(self.root,'runtime-tools',prepared['buildId'],name,value)

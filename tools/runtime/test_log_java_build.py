@@ -33,7 +33,7 @@ class JavaBuildTest(unittest.TestCase):
         self.save()
         script = self.root/'gradlew'
         script.write_text('#!/bin/sh\nexec '+shlex.quote(sys.executable)+' fixture-gradle.py "$@"\n')
-        (self.root/'fixture-gradle.py').write_text('''import json,sys,zipfile
+        (self.root/'fixture-gradle.py').write_text('''import json,sys,zipfile,shutil
 from pathlib import Path
 root=Path.cwd();cfg=json.loads((root/'fixture.json').read_text())
 directory=Path(next(a.split('=',1)[1] for a in sys.argv if a.startswith('-PdkpLogBuildDirectory=')))
@@ -50,6 +50,12 @@ else:
   name='META-INF/dkp-logging/manifest.json'
   if cfg.get('jar')!='missing':archive.writestr(name, b'wrong' if cfg.get('jar')=='wrong' else (directory/'manifest.json').read_bytes())
   if cfg.get('jar')=='duplicate':archive.writestr(name,b'duplicate')
+ dist=root/'services/knowledge-search/bootstrap/build/install/knowledge-search'
+ (dist/'bin').mkdir(parents=True,exist_ok=True);(dist/'lib').mkdir(exist_ok=True)
+ (dist/'bin/knowledge-search').write_text('#!/bin/sh\\n# simulated fixture only\\n')
+ (dist/'bin/knowledge-search.bat').write_text('@rem simulated fixture only\\n')
+ shutil.copyfile(output/'bootstrap.jar',dist/'lib/bootstrap.jar')
+ (dist/'lib/fixture-library.jar').write_bytes(b'fixture dependency bytes')
 '''); script.chmod(0o755)
         for command in (['init','-q'],['add','.'],['-c','core.hooksPath=/dev/null','-c','commit.gpgsign=false',
                 '-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture']):
@@ -65,6 +71,8 @@ else:
         self.assertEqual(a['sourceFingerprint'],b['sourceFingerprint'])
         self.assertEqual('25.0.5+8-LTS',json.loads(Path(first['manifest']).with_name('finalized.json').read_text())['toolchainRecord'][0]['version'])
         self.assertEqual(first['manifestSha256'],json.loads(Path(first['receipt']).read_text())['manifestSha256'])
+        dist=json.loads(Path(first['receipt']).with_name('distribution.json').read_text())
+        self.assertEqual(first['buildId'],dist['buildId']);self.assertIn('lib/fixture-library.jar',dist['files'])
         self.assertNotIn('runId',a); self.assertEqual('NOT_STARTED',first['sharedStoreDelivery'])
         for path in Path(first['manifest']).parent.iterdir(): self.assertEqual(0,path.stat().st_mode & 0o077)
 

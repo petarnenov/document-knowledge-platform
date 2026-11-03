@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import stat
 import zipfile
 
 spec = importlib.util.spec_from_file_location('log_build_manifest', Path(__file__).with_name('log-build-manifest.py'))
@@ -48,6 +49,22 @@ def verify_jar(path, manifest):
         require(raw == m.canonical(manifest))
 
 
+def distribution_inventory(directory):
+    require(directory.is_absolute() and directory.resolve(strict=True) == directory and directory.is_dir())
+    result = {}; total = 0
+    for path in sorted(directory.rglob('*')):
+        require(not path.is_symlink() and path.resolve(strict=True) == path)
+        if path.is_dir(): continue
+        info = path.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and not info.st_mode & 0o022
+            and 0 < info.st_size <= 64*1024*1024 and len(result) < 512)
+        with path.open('rb') as stream: raw = stream.read(64*1024*1024+1)
+        total += len(raw); require(len(raw) <= 64*1024*1024 and total <= 128*1024*1024)
+        result[m.path_name(path.relative_to(directory).as_posix())] = {'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw)}
+    require(result)
+    return result
+
+
 def build(root, component, java_home):
     root = Path(root); java_home = Path(java_home)
     require(component in COMPONENTS and root.is_absolute() and root.resolve(strict=True) == root)
@@ -80,6 +97,12 @@ def build(root, component, java_home):
     jars = list((root/'services'/component/'bootstrap/build/libs').glob('*.jar'))
     require(len(jars) == 1)
     verify_jar(jars[0], finalized['manifest'])
+    distribution = root/'services'/component/'bootstrap/build/install'/component
+    inventory = distribution_inventory(distribution)
+    require(inventory.get('lib/'+jars[0].name) == {'sha256':hashlib.sha256(jars[0].read_bytes()).hexdigest(), 'bytes':jars[0].stat().st_size})
+    m.write_output(root, component, prepared['buildId'], 'distribution.json',
+        {'schemaVersion':1, 'component':component, 'buildId':prepared['buildId'],
+         'manifestSha256':finalized['manifestSha256'], 'files':inventory})
     receipt = m.seal(root, prepared, finalized, jars[0])
     receipt_path = m.write_output(root, component, prepared['buildId'], 'receipt.json', receipt)
     return {'result':'BUILT','component':component,'buildId':prepared['buildId'],
