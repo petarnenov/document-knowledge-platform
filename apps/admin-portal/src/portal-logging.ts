@@ -95,9 +95,30 @@ export class PortalLogging {
   record(phase: Phase, eventName: LifecycleInput['eventName'] = 'operation.succeeded', severity: LifecycleInput['severity'] = 'DEBUG',
     outcome: LifecycleInput['outcome'] = 'SUCCEEDED', count = 1) {
     if (!this.#producer) return;
+    this.#emit(this.#producer, phase, eventName, severity, outcome, count, crypto.randomUUID(), 0);
+  }
+
+  /** A completion remains tied to the producer that captured its start. */
+  begin(phase: 'HTTP' | 'QUERY' | 'MUTATION') {
+    if (!this.#producer) return () => {};
+    const producer = this.#producer, correlationId = crypto.randomUUID(), started = performance.now();
+    this.#emit(producer, phase, 'operation.started', 'DEBUG', 'STARTED', 1, correlationId, 0);
+    let settled = false;
+    return (outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED') => {
+      if (settled) return;
+      settled = true;
+      if (this.#producer !== producer) return;
+      this.#emit(producer, phase, outcome === 'SUCCEEDED' ? 'operation.succeeded' : outcome === 'FAILED' ? 'operation.failed' : 'operation.cancelled',
+        outcome === 'FAILED' ? 'ERROR' : 'DEBUG', outcome, 1, correlationId, Math.max(0, Math.round(performance.now() - started)));
+    };
+  }
+
+  #emit(producer: Producer | undefined, phase: Phase, eventName: LifecycleInput['eventName'], severity: LifecycleInput['severity'],
+    outcome: LifecycleInput['outcome'], count: number, correlationId: string, durationMs: number) {
+    if (!producer) return;
     try {
-      const result = this.#producer.emit({ eventId: crypto.randomUUID(), timestamp: new Date().toISOString(), severity, eventName,
-        correlationId: crypto.randomUUID(), phase, outcome, durationMs: 0, attempt: 1, count, cleanupSettled: true });
+      const result = producer.emit({ eventId: crypto.randomUUID(), timestamp: new Date().toISOString(), severity, eventName,
+        correlationId, phase, outcome, durationMs, attempt: 1, count, cleanupSettled: true });
       if (result !== 'ACCEPTED') this.#errors++;
     } catch { this.#errors++; }
   }

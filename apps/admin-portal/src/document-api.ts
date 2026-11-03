@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { portalFetch } from './portal-http';
 import type { CommandReceipt } from '../../../generated-clients/typescript/types/models/CommandReceipt';
 import type { AclChange } from '../../../generated-clients/typescript/types/models/AclChange';
 import type { SessionView } from './identity-api';
@@ -126,7 +127,7 @@ async function request<T>(
 ): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`/api/v1/dm/documents${path}`, {
+    response = await portalFetch(`/api/v1/dm/documents${path}`, {
       method: mutation?.method ?? 'GET',
       credentials: 'same-origin',
       cache: 'no-store',

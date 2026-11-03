@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { portalLogging } from './portal-logging';
+import { portalFetch } from './portal-http';
 import type { BrowserSession } from '../../../generated-clients/typescript/types/models/BrowserSession';
 import type { SecurityContext } from '../../../generated-clients/typescript/types/models/SecurityContext';
 
@@ -45,7 +46,7 @@ async function request(
 ): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetch(path, {
+    response = await portalFetch(path, {
       method: mutation ? 'POST' : 'GET',
       credentials: 'same-origin',
       cache: 'no-store',

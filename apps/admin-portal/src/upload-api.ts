@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { portalFetch } from './portal-http';
 import type { SessionView } from './identity-api';
 import { DocumentRequestError } from './document-api';
 
@@ -102,7 +103,7 @@ async function bytes(
 async function send(path: string, signal: AbortSignal, init: RequestInit = {}) {
   let response: Response;
   try {
-    response = await fetch(`${root}${path}`, {
+    response = await portalFetch(`${root}${path}`, {
       ...init,
       signal: AbortSignal.any([signal, AbortSignal.timeout(300_000)]),
       credentials: 'same-origin',

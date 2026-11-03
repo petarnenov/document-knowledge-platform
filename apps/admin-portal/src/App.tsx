@@ -13,6 +13,8 @@ import { Link, NavLink, Route, Routes } from 'react-router-dom';
 import { Identity } from './Identity';
 import { Documents } from './Documents';
 import { ServerState } from './query';
+import { LoggingStatus } from './LoggingStatus';
+import { RouteLogging } from './RouteLogging';
 
 export function App() {
   return (
@@ -29,6 +31,7 @@ function Shell() {
 
   return (
     <Box className="shell">
+      <RouteLogging />
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -89,6 +92,7 @@ function Shell() {
       <footer>
         Independent platform · Drafts and verified uploads · Publication
         unavailable
+        <LoggingStatus />
       </footer>
     </Box>
   );

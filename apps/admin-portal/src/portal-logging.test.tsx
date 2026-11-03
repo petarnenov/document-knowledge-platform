@@ -33,6 +33,23 @@ function createProducer() {
 }
 
 describe('portal logging composition', () => {
+  it('correlates lifecycle pairs once and never completes an old operation under a new context', async () => {
+    const f = fixture();
+    f.runtime.begin('HTTP')('SUCCEEDED'); f.start(); f.runtime.session(session); await settle();
+    const producer = f.producers[1]!; producer.emit.mockClear();
+    const done = f.runtime.begin('HTTP'); done('SUCCEEDED'); done('FAILED');
+    const [start, end] = producer.emit.mock.calls.map(([event]) => event);
+    expect(producer.emit).toHaveBeenCalledTimes(2);
+    expect(start?.outcome).toBe('STARTED'); expect(end?.outcome).toBe('SUCCEEDED');
+    expect(start?.correlationId).toBe(end?.correlationId); expect(start?.eventId).not.toBe(end?.eventId);
+    expect(end!.durationMs).toBeGreaterThanOrEqual(0);
+    f.runtime.begin('QUERY')('FAILED'); f.runtime.begin('MUTATION')('CANCELLED');
+    expect(producer.emit.mock.calls.at(-1)?.[0].eventName).toBe('operation.cancelled');
+    const oldFinish = f.runtime.begin('HTTP'); f.runtime.retire();
+    f.runtime.session({ ...session, selectedTenant: 'changed', csrfToken: 'new' }); await settle();
+    const before = f.producers[2]!.emit.mock.calls.length; oldFinish('FAILED');
+    expect(f.producers[2]!.emit).toHaveBeenCalledTimes(before);
+  });
   it('uses original build identity and one page run across session rotations; waits only inside logging', async () => {
     const f = fixture(); f.start(); f.start();
     expect(f.factory).toHaveBeenCalledTimes(1); expect(f.producers[0]!.close).toHaveBeenCalledOnce();
