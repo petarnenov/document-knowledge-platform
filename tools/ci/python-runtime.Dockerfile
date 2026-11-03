@@ -1,6 +1,8 @@
 FROM eclipse-temurin:25.0.5_8-jdk@sha256:83f4a7fc27df94dcc7b8de04d14cbbba8da14406f921e966969c3b09000aa507 AS jdk
+FROM node:24.22.1-bookworm-slim@sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c AS node
 FROM python:3.14.10-trixie@sha256:faf7953db05ee8e060aa9fda8a389e5779cdba26a22e1363379861023e910830
 COPY --from=jdk /opt/java/openjdk /opt/java/openjdk
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY python-runtime-requirements.txt /opt/dkp/requirements.txt
 RUN python -m pip install --no-cache-dir --disable-pip-version-check --only-binary=:all: --require-hashes -r /opt/dkp/requirements.txt
 COPY --chmod=0444 python_runtime_inside.py verify.py test_verify.py python-runtime-pins.json python-runtime.Dockerfile python-runtime-requirements.txt /opt/dkp/

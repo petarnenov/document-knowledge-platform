@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 HELPERS=('clam-definitions.py','rustfs-runtime.py','upload-runtime.py','upload-durability.py','upload-accounting-acceptance.py','upload-acceptance.py','upload-faults.py')
-FEATURE_HELPERS=('provider-jobs.py','application-provenance.py','provider-job-control-acceptance.py','dev-logging.py','dev-log-viewer.py','log-volume-observer.py','log-build-manifest.py','log-java-build.py','log-portal-build.py','log-portal-image.py','log-java-install.py','log-native-bff.py','log-portal-adopt.py','log-identity-peer.py','log-python-build.py','log-python-compile.py','log-python-deliver.py')
+FEATURE_HELPERS=('provider-jobs.py','application-provenance.py','provider-job-control-acceptance.py','dev-logging.py','dev-log-viewer.py','log-volume-observer.py','log-build-manifest.py','log-java-build.py','log-portal-build.py','log-portal-image.py','log-java-install.py','log-native-bff.py','log-portal-adopt.py','log-identity-peer.py','log-python-build.py','log-python-compile.py','log-python-deliver.py','log-node-build.py')
 SDK_HELPERS=('dkp_logging/wire.py','dkp_logging/producer.py','dkp_logging/https.py','dkp_logging/spool.py')
 RUNNER_HELPERS=('verify.py','python_runtime_inside.py')
 COMMANDS=[['python','-m','coverage','run','--branch','--data-file=/tmp/runner.coverage','-m','unittest','discover','-s','/opt/dkp','-p','test_verify.py'],
@@ -16,7 +16,10 @@ COMMANDS=[['python','-m','coverage','run','--branch','--data-file=/tmp/runner.co
           ['python','-m','coverage','run','--branch','--append','-m','unittest','discover','-s','infra/docker-compose','-p','test_*.py'],
           ['python','-m','coverage','run','--branch','--append','-m','unittest','discover','-s','sdks/python/tests','-p','test_*.py'],
           ['python','-m','coverage','report','--include=*/smoke.py,*/bootstrap-security.py,*/identity-provider-check.py,*/document-database-check.py','--fail-under=75'],
-          ['python','-m','coverage','json','-o','/tmp/coverage.json']]
+          ['python','-m','coverage','json','-o','/tmp/coverage.json'],
+          ['node','--experimental-test-coverage','--test-coverage-include=tools/runtime/log-node-package.mjs',
+           '--test-coverage-lines=75','--test-coverage-branches=75','--test-coverage-functions=75',
+           '--test','tools/runtime/log-node-package.test.mjs']]
 
 def helper_names(source=Path('.')):
     return (HELPERS+tuple(name for name in FEATURE_HELPERS if (source/'tools/runtime'/name).is_file())

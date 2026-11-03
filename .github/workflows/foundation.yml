@@ -168,6 +168,7 @@ jobs:
         with:
           node-version: '24.22.1'
       - run: node --experimental-test-coverage --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test tools/runtime/identity-e2e.test.mjs
+      - run: node --experimental-test-coverage --test-coverage-include=tools/runtime/log-node-package.mjs --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test tools/runtime/log-node-package.test.mjs
       - name: Fast versus real-time upload expiry selector
         run: >-
           node --test --experimental-test-coverage

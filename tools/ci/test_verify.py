@@ -104,6 +104,17 @@ class CheckTests(unittest.TestCase):
         self.assertIn('dkp_logging/wire.py', inside.SDK_HELPERS)
         self.assertIn('log-python-deliver.py', inside.FEATURE_HELPERS)
 
+    def test_node_build_requires_python_floor_and_actual_node_helper_coverage(self):
+        self.assertIn('log-node-build.py', inside.FEATURE_HELPERS)
+        command = inside.COMMANDS[-1]
+        self.assertEqual('node', command[0])
+        self.assertIn('--test-coverage-include=tools/runtime/log-node-package.mjs', command)
+        self.assertIn('--test-coverage-branches=75', command)
+        self.assertEqual('tools/runtime/log-node-package.test.mjs', command[-1])
+        pins = json.loads((HERE / 'python-runtime-pins.json').read_text())
+        self.assertEqual('24.22.1', pins['node'])
+        self.assertIn('@sha256:', pins['nodeImage'])
+
     def test_owned_cleanup_never_guesses_foreign_container(self):
         item={'Id':'a'*64,'Image':'sha256:'+'b'*64,'Config':{'Labels':{'dkp.check.run':'c','dkp.issue':'427'}}}
         with patch.object(v,'inspect',return_value=item):self.assertEqual(item,v.owned('a'*64,'c','sha256:'+'b'*64))
