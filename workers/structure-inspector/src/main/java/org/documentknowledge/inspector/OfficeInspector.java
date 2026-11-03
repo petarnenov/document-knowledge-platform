@@ -105,7 +105,7 @@ final class OfficeInspector {
                 }
                 if(roots!=1 || depth!=0)fail("INVALID_FILE");
             } finally { reader.close(); }
-        } catch(XMLStreamException malformed) { fail("INVALID_FILE"); }
+        } catch(XMLStreamException malformed) {throw new InspectionFailure("INVALID_FILE",malformed);}
     }
     private static String attribute(XMLStreamReader reader,String name) {String value=reader.getAttributeValue(null,name);if(value==null || value.isBlank())throw new InspectionFailure("INVALID_FILE");return value;}
     private static String resolveRelationship(String name,String target) {

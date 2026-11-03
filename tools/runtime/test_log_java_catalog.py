@@ -63,6 +63,21 @@ class JavaCatalogTest(unittest.TestCase):
                 'classes':[{'project':':services:knowledge-search:bootstrap',**c.original_file(path,8*1024*1024)} for path in paths],
                 'artifacts':[{'name':'fixture.library','version':'1.0',**c.original_file(self.jar,64*1024*1024)}]}}
 
+    def test_worker_original_compiler_catalog_and_foreign_project_selection(self):
+        old=self.project;worker=self.root/'workers/structure-inspector';worker.parent.mkdir()
+        shutil.move(str(old),str(worker))
+        self.record=json.loads(json.dumps(self.record).replace(str(old),str(worker)).replace(':services:knowledge-search:bootstrap',':workers:structure-inspector'))
+        self.record['component']='structure-inspector'
+        metadata=json.loads(json.dumps(self.metadata).replace(str(old),str(worker)))
+        subprocess.run(['git','-C',str(self.root),'add','--all'],check=True,capture_output=True)
+        result=c.assemble(self.root,self.record,metadata,self.hierarchy)
+        self.assertIn('example.ActualFailure',result['vocabulary']['exceptionClasses'])
+        self.assertTrue(any(row['source'].startswith('workers/structure-inspector/src/main/java/') for row in result['vocabulary']['frames']))
+        self.assertTrue(c.compilation_inputs(self.root,self.record))
+        for component in ('knowledge-search','foreign-worker'):
+            changed={**self.record,'component':component}
+            with self.assertRaises(ValueError):c.compilation_inputs(self.root,changed)
+
     def assemble(self):return c.assemble(self.root,self.record,self.metadata,self.hierarchy)
 
     def test_private_reader_extracts_actual_jdk_hierarchy_and_revalidates_original_bytes(self):

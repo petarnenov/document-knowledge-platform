@@ -118,7 +118,7 @@ public final class UploadService {
     var source=completeSpool(caller.diagnostics(),claimed.quarantine(),workspace,budget);
     if(!source.sha256().equals(claimed.bodySha256()))throw UploadPolicy.unavailable();ArtifactSource artifact=new ArtifactSource(source.path(),claimed.format(),source.size(),source.sha256());
     ScanEvidence scan;try(var phase=budget.phase(CompleteBudget.Kind.SCAN);var use=workspace.retain(phase)){scan=observations(caller.diagnostics()).call(UploadDiagnosticsPort.Operation.PROVIDER_SCAN,()->UploadObservations.remaining(phase.diagnosticRemainingMs()),observer->scanner.scan(artifact,phase,observer));phase.check();validateScan(scan,artifact);}
-    InspectionEvidence inspection;try(var phase=budget.phase(CompleteBudget.Kind.INSPECT);var use=workspace.retain(phase)){inspection=observations(caller.diagnostics()).call(UploadDiagnosticsPort.Operation.PROVIDER_INSPECT,()->UploadObservations.remaining(phase.diagnosticRemainingMs()),observer->inspector.inspect(artifact,phase,observer));phase.check();validateInspection(inspection,artifact);}
+    InspectionEvidence inspection;try(var phase=budget.phase(CompleteBudget.Kind.INSPECT);var use=workspace.retain(phase)){inspection=observations(caller.diagnostics()).call(UploadDiagnosticsPort.Operation.PROVIDER_INSPECT,()->UploadObservations.remaining(phase.diagnosticRemainingMs()),observer->inspector.inspect(artifact,phase,observer,caller.diagnostics()));phase.check();validateInspection(inspection,artifact);}
     budget.check();
     try(var copying=budget.phase(CompleteBudget.Kind.STORAGE)){
     ObjectKey target=UploadSupport.key(caller.tenant(),document,UUID.randomUUID(),true);

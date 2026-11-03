@@ -56,7 +56,10 @@ def compilation_inputs(root,record):
         require(type(row) is dict and row.keys()=={'project','sourceRoots','classRoots'})
         name=m.text(row['project'],r':(?:[a-z][a-z0-9-]*:)*[a-z][a-z0-9-]*',256);require(name not in indexed)
         project=root/str(name[1:]).replace(':','/');require(project.is_dir() and project.resolve()==project)
-        if name.startswith(':services:'):require(name.startswith(':services:'+record['component']+':'))
+        if name.startswith(':services:'):
+            require(record['component']!='structure-inspector' and name.startswith(':services:'+record['component']+':'))
+        elif name.startswith(':workers:'):
+            require(record['component']=='structure-inspector' and name==':workers:structure-inspector')
         else:require(name.startswith(':modules:'))
         for key in ('sourceRoots','classRoots'):
             require(type(row[key]) is list and len(row[key])<=16 and len(set(row[key]))==len(row[key]))

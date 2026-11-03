@@ -11,17 +11,20 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import static org.junit.jupiter.api.Assertions.*;
+import org.documentknowledge.inspector.diagnostics.InspectorDiagnostics;
+import org.documentknowledge.inspector.diagnostics.InspectorDiagnostics.*;
 
 class InspectorServerTest {
     @TempDir Path temp;
     private TlsFixture tls;
+    private final StructureDiagnosticsTest.Recording diagnostics=new StructureDiagnosticsTest.Recording();
     private InspectorServer server;
     private HttpClient client;
     private String base;
     private final byte[] key=new byte[32];
     @BeforeEach void start() throws Exception {
         tls=new TlsFixture(temp);Path spool=Files.createDirectory(temp.resolve("spool"));
-        server=new InspectorServer(new InetSocketAddress("127.0.0.1",0),tls.server,key,new StructureInspector(spool));server.start();base="https://localhost:"+server.port();
+        server=new InspectorServer(new InetSocketAddress("127.0.0.1",0),tls.server,key,new StructureInspector(spool,diagnostics),diagnostics);server.start();base="https://localhost:"+server.port();
         client=HttpClient.newBuilder().sslContext(tls.client).followRedirects(HttpClient.Redirect.NEVER).build();
     }
     @AfterEach void close(){client.shutdownNow();server.close();}
@@ -50,6 +53,28 @@ class InspectorServerTest {
         assertEquals(422,post("/internal/v1/inspect",auth(),"application/octet-stream","PDF","%PDF-malformed".getBytes()).statusCode());assertEquals(400,post("/internal/v1/inspect",auth(),"application/octet-stream","PDF",new byte[0]).statusCode());
         try(var untrusted=HttpClient.newHttpClient()){assertThrows(javax.net.ssl.SSLHandshakeException.class,()->untrusted.send(request("/health/liveness").GET().build(),HttpResponse.BodyHandlers.ofString()));}
     }
+    @Test void realTlsRequestParserAndCleanupPreserveCallerCorrelationAndSafePublicFailure() throws Exception {
+        String id="851327c1-8fbb-4c88-a4b9-4aff15000628",trace="1".repeat(32),span="2".repeat(16);
+        var request=request("/internal/v1/inspect").header("Authorization",auth()).header("Content-Type","application/octet-stream").header("X-DKP-Format","PDF").header("X-Correlation-Id",id).header("traceparent","00-"+trace+"-"+span+"-01");
+        var result=client.send(request.POST(HttpRequest.BodyPublishers.ofByteArray(Fixtures.pdf(1))).build(),HttpResponse.BodyHandlers.ofString());assertEquals(200,result.statusCode());
+        awaitRequest();
+        for(Phase phase:List.of(Phase.REQUEST,Phase.OPERATION,Phase.CLEANUP)){var event=diagnostics.one(phase);assertEquals(UUID.fromString(id),event.context.correlationId());assertEquals(trace,event.context.traceId());assertEquals(span,event.context.spanId());assertEquals(Outcome.SUCCEEDED,event.outcome);}
+        assertEquals(200,diagnostics.one(Phase.REQUEST).facts.status());
+        diagnostics.seen.clear();
+        var invalid=request("/internal/v1/inspect").header("Authorization",auth()).header("Content-Type","application/octet-stream").header("X-DKP-Format","PDF").header("X-Correlation-Id","PRIVATE_INVALID_HEADER").header("traceparent","PRIVATE_INVALID_TRACE");
+        result=client.send(invalid.POST(HttpRequest.BodyPublishers.ofString("PRIVATE_NOT_A_DOCUMENT")).build(),HttpResponse.BodyHandlers.ofString());assertEquals(422,result.statusCode());assertEquals("{\"code\":\"INVALID_FILE\"}",result.body());awaitRequest();
+        var event=diagnostics.one(Phase.REQUEST);assertEquals(Outcome.FAILED,event.outcome);assertEquals(422,event.facts.status());assertNotNull(event.failure);assertNotEquals(UUID.fromString(id),event.context.correlationId());assertNull(event.context.traceId());assertEquals(event.context,diagnostics.one(Phase.OPERATION).context);assertNotNull(diagnostics.one(Phase.OPERATION).failure);
+    }
+    @Test void healthProbesDoNotFloodDiagnosticsButRejectedRoutesHaveActualStatus() throws Exception {
+        assertEquals(200,client.send(request("/health/readiness").GET().build(),HttpResponse.BodyHandlers.ofString()).statusCode());assertTrue(diagnostics.seen.isEmpty());
+        assertEquals(401,post("/internal/v1/inspect",null,"application/octet-stream","PDF",Fixtures.pdf(1)).statusCode());awaitRequest();
+        assertEquals(401,diagnostics.one(Phase.REQUEST).facts.status());assertEquals(InspectorDiagnostics.Error.UNAUTHENTICATED,diagnostics.one(Phase.REQUEST).facts.error());assertEquals(1,diagnostics.seen.size());
+    }
+    private void awaitRequest() throws Exception {
+        long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(2);
+        while(diagnostics.seen.stream().noneMatch(e->e.phase==Phase.REQUEST&&e.outcome!=null)&&System.nanoTime()<end)Thread.sleep(5);
+        assertTrue(diagnostics.seen.stream().anyMatch(e->e.phase==Phase.REQUEST&&e.outcome!=null));
+    }
     private javax.net.ssl.SSLSocket partialRequest(byte[] pdf) throws Exception {
         var socket=(javax.net.ssl.SSLSocket)tls.client.getSocketFactory().createSocket("localhost",server.port());socket.setSoTimeout(5000);var parameters=socket.getSSLParameters();parameters.setEndpointIdentificationAlgorithm("HTTPS");socket.setSSLParameters(parameters);socket.startHandshake();
         String headers="POST /internal/v1/inspect HTTP/1.1\r\nHost: localhost\r\nAuthorization: "+auth()+"\r\nContent-Type: application/octet-stream\r\nX-DKP-Format: PDF\r\nContent-Length: "+pdf.length+"\r\nConnection: close\r\n\r\n";
@@ -68,7 +93,7 @@ class InspectorServerTest {
     }
     @Test void hardDeadlineWatchdogFiresForUnresponsiveBodyWithoutRuntimeOverride() throws Exception {
         server.close();var expired=new CountDownLatch(1);
-        server=new InspectorServer(new InetSocketAddress("127.0.0.1",0),tls.server,key,new StructureInspector(temp.resolve("spool")),Duration.ofMillis(20),expired::countDown);server.start();base="https://localhost:"+server.port();
-        byte[] pdf=Fixtures.pdf(1);try(var socket=partialRequest(pdf)){assertTrue(expired.await(2,TimeUnit.SECONDS));finish(socket,pdf);}
+        server=new InspectorServer(new InetSocketAddress("127.0.0.1",0),tls.server,key,new StructureInspector(temp.resolve("spool")),Duration.ofMillis(20),expired::countDown,diagnostics);server.start();base="https://localhost:"+server.port();
+        byte[] pdf=Fixtures.pdf(1);try(var socket=partialRequest(pdf)){assertTrue(expired.await(2,TimeUnit.SECONDS));finish(socket,pdf);var event=diagnostics.one(Phase.DEADLINE);assertEquals(Outcome.FAILED,event.outcome);assertEquals(0,event.facts.remainingDeadlineMs());assertNull(event.facts.status());assertEquals(InspectorDiagnostics.Error.DEADLINE_EXCEEDED,event.facts.error());}
     }
 }

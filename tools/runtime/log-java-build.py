@@ -14,7 +14,10 @@ spec = importlib.util.spec_from_file_location('log_build_manifest', Path(__file_
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 catalog_spec=importlib.util.spec_from_file_location('log_java_catalog',Path(__file__).with_name('log-java-catalog.py'))
 catalog=importlib.util.module_from_spec(catalog_spec);catalog_spec.loader.exec_module(catalog)
-COMPONENTS = frozenset(('document-management','knowledge-base','knowledge-search','browser-bff'))
+PROJECTS = {name: ('services', name, 'bootstrap') for name in
+    ('document-management','knowledge-base','knowledge-search','browser-bff')}
+PROJECTS['structure-inspector'] = ('workers', 'structure-inspector')
+COMPONENTS = frozenset(PROJECTS)
 RESOURCE = 'META-INF/dkp-logging/manifest.json'
 
 
@@ -75,7 +78,8 @@ def build(root, component, java_home):
     prepared = m.prepare(root, component)
     prepared_path = m.write_output(root, component, prepared['buildId'], 'prepared.json', prepared)
     directory = prepared_path.parent
-    prefix = ':services:'+component+':bootstrap:'
+    project = root.joinpath(*PROJECTS[component])
+    prefix = ':'+':'.join(PROJECTS[component])+':'
     run(root, java_home, directory, [prefix+'compileJava',prefix+'recordDevelopmentLogBuild'], 'compile.private.log')
     record_path = directory/'build-record.json'
     require(not record_path.is_symlink() and record_path.is_file() and record_path.stat().st_size <= 1024*1024)
@@ -98,10 +102,10 @@ def build(root, component, java_home):
     m.write_output(root, component, prepared['buildId'], 'finalized.json', finalized)
     manifest_path = m.write_output(root, component, prepared['buildId'], 'manifest.json', finalized['manifest'])
     run(root, java_home, directory, [prefix+'installDist'], 'package.private.log')
-    jars = list((root/'services'/component/'bootstrap/build/libs').glob('*.jar'))
+    jars = list((project/'build/libs').glob('*.jar'))
     require(len(jars) == 1)
     verify_jar(jars[0], finalized['manifest'])
-    distribution = root/'services'/component/'bootstrap/build/install'/component
+    distribution = project/'build/install'/component
     inventory = distribution_inventory(distribution)
     require(inventory.get('lib/'+jars[0].name) == {'sha256':hashlib.sha256(jars[0].read_bytes()).hexdigest(), 'bytes':jars[0].stat().st_size})
     m.write_output(root, component, prepared['buildId'], 'distribution.json',

@@ -8,7 +8,7 @@ import java.security.MessageDigest
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 
 // Trusted build inputs only. No runtime credentials or registration authority.
-def component = project.parent.name
+def component = project.path == ':workers:structure-inspector' ? project.name : project.parent.name
 def selectedDirectory = {
     def value = providers.gradleProperty('dkpLogBuildDirectory').orNull
     if (value == null) throw new GradleException('LOG_BUILD_DIRECTORY_REQUIRED')

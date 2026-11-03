@@ -12,6 +12,7 @@ import tools.jackson.core.StreamReadFeature;
 import tools.jackson.databind.*;
 import tools.jackson.databind.json.JsonMapper;
 import org.documentknowledge.documentmanagement.application.DmFailure;
+import org.documentknowledge.documentmanagement.application.DiagnosticContext;
 import org.documentknowledge.documentmanagement.application.upload.*;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.InspectionEvidence;
 
@@ -41,11 +42,17 @@ public final class IsolatedInspectionAdapter implements StructureInspectionPort,
         return inspect(source,phase,UploadDiagnosticsPort.NONE);
     }
     @Override public InspectionEvidence inspect(ArtifactSource source,CompleteBudget.Phase phase,UploadDiagnosticsPort.FailureObserver observer) {
+        return inspect(source,phase,observer,DiagnosticContext.fresh());
+    }
+    @Override public InspectionEvidence inspect(ArtifactSource source,CompleteBudget.Phase phase,UploadDiagnosticsPort.FailureObserver observer,DiagnosticContext context) {
         CompletableFuture<HttpResponse<byte[]>> pending=null;AutoCloseable registration=null;
         try {
             if(Files.isSymbolicLink(source.path()) || !Files.isRegularFile(source.path(),LinkOption.NOFOLLOW_LINKS) || Files.size(source.path())!=source.sizeBytes())throw unavailable();
             Duration remaining=phase==null?deadline:Duration.ofNanos(Math.min(deadline.toNanos(),phase.remaining().toNanos()));
-            var request=HttpRequest.newBuilder(endpoint).timeout(remaining).header("Authorization",authorization).header("Content-Type","application/octet-stream").header("X-DKP-Format",source.format().name()).POST(HttpRequest.BodyPublishers.ofFile(source.path())).build();
+            Objects.requireNonNull(context);
+            var builder=HttpRequest.newBuilder(endpoint).timeout(remaining).header("Authorization",authorization).header("Content-Type","application/octet-stream").header("X-DKP-Format",source.format().name()).header("X-Correlation-Id",context.correlationId().toString());
+            if(context.traceId()!=null && context.spanId()!=null)builder.header("traceparent","00-"+context.traceId()+"-"+context.spanId()+"-01");
+            var request=builder.POST(HttpRequest.BodyPublishers.ofFile(source.path())).build();
             // JDK25 cancels HttpRequest's timer when headers arrive. Bound the entire
             // asynchronous exchange, including the body, and cancel transport on failure.
             pending=client.sendAsync(request,ignored->new BoundedInspectionResponse());

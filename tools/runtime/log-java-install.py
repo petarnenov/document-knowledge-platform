@@ -59,11 +59,12 @@ def original(root, receipt_file):
     finalized = document(directory/'finalized.json', 2 * m.MAX_MANIFEST)
     require(type(receipt.get('artifact')) is dict)
     artifact = root/m.path_name(receipt['artifact'].get('path'))
-    require(artifact.parent == root/'services'/component/'bootstrap/build/libs' and artifact.suffix == '.jar')
+    project = root.joinpath(*j.PROJECTS[component])
+    require(artifact.parent == project/'build/libs' and artifact.suffix == '.jar')
     require(receipt == m.seal(root, prepared, finalized, artifact))
     raw = read(directory/'manifest.json', m.MAX_MANIFEST, True)
     require(raw == m.canonical(finalized['manifest']))
-    files = distribution(root/'services'/component/'bootstrap/build/install'/component, component)
+    files = distribution(project/'build/install'/component, component)
     captured = document(directory/'distribution.json', 2 * m.MAX_MANIFEST)
     require(type(captured) is dict and type(captured.get('schemaVersion')) is int)
     require(captured == {'schemaVersion':1, 'component':component, 'buildId':build,
@@ -124,7 +125,8 @@ def verify_installed(output):
     artifact = record['artifact']
     require(type(artifact) is dict and artifact.keys() == {'path','sha256','bytes'})
     name = m.path_name(artifact['path']); parts = Path(name).parts
-    require(len(parts) == 6 and parts[:5] == ('services',record['component'],'bootstrap','build','libs') and parts[-1].endswith('.jar'))
+    expected = j.PROJECTS[record['component']] + ('build', 'libs')
+    require(len(parts) == len(expected)+1 and parts[:-1] == expected and parts[-1].endswith('.jar'))
     require(actual.get('lib/'+parts[-1],{}).get('sha256') == artifact['sha256']
         and actual['lib/'+parts[-1]]['bytes'] == artifact['bytes'])
     j.verify_jar(output/'distribution/lib'/parts[-1],manifest)

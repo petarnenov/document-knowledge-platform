@@ -1,4 +1,4 @@
-"""Closed v1 lifecycle codec. Never accepts raw messages or identity authority."""
+"""Closed v1 lifecycle and original-catalog diagnostic codec. Never accepts raw messages or identity authority."""
 import datetime
 import json
 import re
@@ -58,6 +58,150 @@ def queue_binding(identity, credential_fingerprint):
     return result
 
 
+CATALOG_FIELDS = frozenset(('errorCodes', 'dependencies', 'exceptionClasses', 'frames'))
+SCALAR_DIAGNOSTICS = frozenset(('status', 'remainingDeadlineMs', 'errorCode', 'sqlState'))
+COUNTS = frozenset(('redactedFields', 'truncatedFields', 'unregisteredSymbols'))
+ATTRIBUTE_DIAGNOSTICS = frozenset(('bytes', 'queueDepth', 'cancelRequested'))
+CONTEXT_DIAGNOSTICS = SCALAR_DIAGNOSTICS | COUNTS | frozenset(('dependency', 'dependencyVersion',
+    'dependencyImageDigest', 'exceptionClass', 'causeClasses', 'stackFrames'))
+CLASS = r'[A-Za-z0-9_.$]+'
+SYMBOL = r'[A-Za-z0-9_.$<>-]+'
+
+
+def number(value):
+    require(type(value) is int and 0 <= value <= MAX_INTEGER)
+
+
+def symbol(value, pattern, maximum):
+    require(type(value) is str and 0 < len(value) <= maximum and matches(value, pattern))
+
+
+def source_path(value):
+    symbol(value, r'[A-Za-z0-9_./$-]+', 256)
+    require(not value.startswith('/') and all(part not in ('', '.', '..') for part in value.split('/')))
+
+
+def dependency(value):
+    closed(value, frozenset(('name', 'version', 'vendorBuildProvenance')), frozenset(('imageDigest',)))
+    symbol(value['name'], r'[A-Za-z][A-Za-z0-9_.-]*', 128)
+    symbol(value['version'], r'[\s\S]+', 128)
+    require(type(value['vendorBuildProvenance']) is str and value['vendorBuildProvenance'] in ('VERIFIED', 'UNKNOWN'))
+    if 'imageDigest' in value:
+        symbol(value['imageDigest'], r'sha256:[0-9a-f]{64}', 71)
+    return dict(value)
+
+
+def diagnostic_catalog(value):
+    result = {}
+    for key, limit, pattern, maximum in (('errorCodes', 1024, r'[A-Z0-9_]+', 96),
+            ('exceptionClasses', 8192, CLASS, 256)):
+        values=value.get(key, [])
+        require(type(values) is list and len(values) <= limit)
+        for item in values:
+            symbol(item, pattern, maximum)
+        require(len(set(values)) == len(values));result[key]=frozenset(values)
+    rows=value.get('dependencies', [])
+    require(type(rows) is list and len(rows) <= 256)
+    result['dependencies']={}
+    for row in rows:
+        copied=dependency(row)
+        require(copied['name'] not in result['dependencies']);result['dependencies'][copied['name']]=copied
+    rows=value.get('frames', [])
+    require(type(rows) is list and len(rows) <= 32768)
+    result['frames']={}
+    for row in rows:
+        closed(row, frozenset(('symbol', 'source')));symbol(row['symbol'], SYMBOL, 256);source_path(row['source'])
+        require(row['symbol'] not in result['frames']);result['frames'][row['symbol']]=row['source']
+    return result
+
+
+def apply_diagnostics(context, value, catalog):
+    closed(value, frozenset(), SCALAR_DIAGNOSTICS | frozenset(('dependency', 'failure', 'attributes', 'counts')))
+    if 'status' in value:
+        number(value['status']);require(100 <= value['status'] <= 599)
+    if 'remainingDeadlineMs' in value:
+        number(value['remainingDeadlineMs'])
+    if 'errorCode' in value:
+        require(type(value['errorCode']) is str and value['errorCode'] in catalog['errorCodes'])
+    if 'sqlState' in value:
+        symbol(value['sqlState'], r'[A-Z0-9]{5}', 5)
+    context.update({key:value[key] for key in SCALAR_DIAGNOSTICS if key in value})
+    attributes=context['attributes']
+    if 'dependency' in value:
+        item=dependency(value['dependency']);require(item == catalog['dependencies'].get(item['name']))
+        # Original catalog names are broader than the existing v1 emitted context.
+        symbol(item['name'], r'[a-z][a-z0-9.-]*', 96)
+        context.update(dependency=item['name'], dependencyVersion=item['version'])
+        if 'imageDigest' in item:
+            context['dependencyImageDigest']=item['imageDigest']
+        attributes['vendorBuildProvenance']=item['vendorBuildProvenance']
+    if 'attributes' in value:
+        extra=value['attributes'];closed(extra, frozenset(), ATTRIBUTE_DIAGNOSTICS)
+        for key in ('bytes', 'queueDepth'):
+            if key in extra:
+                number(extra[key])
+        if 'cancelRequested' in extra:
+            require(type(extra['cancelRequested']) is bool)
+        attributes.update(extra)
+    omitted=0
+    if 'failure' in value:
+        failure=value['failure'];closed(failure, frozenset(('causeClasses', 'stackFrames')), frozenset(('exceptionClass',)))
+        if 'exceptionClass' in failure:
+            name=failure['exceptionClass'];symbol(name, CLASS, 256)
+            if name in catalog['exceptionClasses']:
+                context['exceptionClass']=name
+            else:
+                omitted+=1
+        causes=failure['causeClasses'];frames=failure['stackFrames']
+        require(type(causes) is list and len(causes) <= 4 and type(frames) is list and len(frames) <= 32)
+        context['causeClasses']=[];context['stackFrames']=[]
+        for name in causes:
+            symbol(name, CLASS, 256)
+            if name in catalog['exceptionClasses']:
+                context['causeClasses'].append(name)
+            else:
+                omitted+=1
+        for frame in frames:
+            closed(frame, frozenset(('symbol',)), frozenset(('source', 'line')));symbol(frame['symbol'], SYMBOL, 256)
+            if 'source' in frame:
+                source_path(frame['source'])
+            if 'line' in frame:
+                number(frame['line'])
+            known=catalog['frames'].get(frame['symbol'])
+            if known is None or ('source' in frame and frame['source'] != known):
+                omitted+=1
+            else:
+                context['stackFrames'].append(dict(frame))
+    counts=value.get('counts', {});closed(counts, frozenset(), COUNTS)
+    for key in COUNTS:
+        total=counts.get(key, 0);number(total)
+        if key == 'unregisteredSymbols':
+            total+=omitted;number(total)
+        if total:
+            context[key]=total
+
+
+def restore_diagnostics(context):
+    result={key:context[key] for key in SCALAR_DIAGNOSTICS if key in context}
+    attributes=context['attributes']
+    if any(key in context for key in ('dependency', 'dependencyVersion', 'dependencyImageDigest')) or 'vendorBuildProvenance' in attributes:
+        require('dependency' in context and 'dependencyVersion' in context and 'vendorBuildProvenance' in attributes)
+        item=dict(name=context['dependency'], version=context['dependencyVersion'], vendorBuildProvenance=attributes['vendorBuildProvenance'])
+        if 'dependencyImageDigest' in context:
+            item['imageDigest']=context['dependencyImageDigest']
+        result['dependency']=item
+    if any(key in context for key in ('exceptionClass', 'causeClasses', 'stackFrames')):
+        require('causeClasses' in context and 'stackFrames' in context)
+        result['failure']={key:context[key] for key in ('exceptionClass', 'causeClasses', 'stackFrames') if key in context}
+    extra={key:attributes[key] for key in ATTRIBUTE_DIAGNOSTICS if key in attributes}
+    if extra:
+        result['attributes']=extra
+    counts={key:context[key] for key in COUNTS if key in context}
+    if counts:
+        result['counts']=counts
+    return result
+
+
 @dataclass(frozen=True)
 class Prepared:
     event_id: str
@@ -72,7 +216,7 @@ class Wire:
         require(matches(identity['component'], r'[a-z][a-z0-9.-]{0,95}'))
         require(matches(identity['gitSha'], r'[0-9a-f]{40}'))
         require(matches(identity['sourceFingerprint'], r'[0-9a-f]{64}'))
-        closed(vocabulary, frozenset(('events', 'phases')))
+        closed(vocabulary, frozenset(('events', 'phases')), CATALOG_FIELDS)
         events, phases = vocabulary['events'], vocabulary['phases']
         require(type(events) is list and 0 < len(events) <= len(EVENTS))
         require(type(phases) is list and 0 < len(phases) <= 256)
@@ -81,9 +225,10 @@ class Wire:
         require(len(set(events)) == len(events) and len(set(phases)) == len(phases))
         self._identity = dict(identity)
         self._events, self._phases = frozenset(events), frozenset(phases)
+        self._catalog = diagnostic_catalog(vocabulary)
 
     def prepare(self, value):
-        closed(value, INPUT, frozenset(('traceId', 'spanId')))
+        closed(value, INPUT, frozenset(('traceId', 'spanId', 'diagnostics')))
         require(identifier(value['eventId']) and identifier(value['correlationId']) and timestamp(value['timestamp']))
         require(type(value['severity']) is str and value['severity'] in ('TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'))
         require(type(value['eventName']) is str and value['eventName'] in self._events)
@@ -101,6 +246,8 @@ class Wire:
                 row[key] = value[key]
         row['context'] = {key: value[key] for key in ('phase', 'outcome', 'durationMs', 'attempt')}
         row['context']['attributes'] = {key: value[key] for key in ('count', 'cleanupSettled')}
+        if 'diagnostics' in value:
+            apply_diagnostics(row['context'], value['diagnostics'], self._catalog)
         data = encode(row)
         require(len(data) <= EVENT_BYTES)
         return Prepared(value['eventId'], data)
@@ -112,11 +259,14 @@ class Wire:
         closed(row, fields, frozenset(('traceId', 'spanId')))
         require({key: row[key] for key in IDENTITY} == self._identity)
         context = row['context']
-        closed(context, frozenset(('phase', 'outcome', 'durationMs', 'attempt', 'attributes')))
-        closed(context['attributes'], frozenset(('count', 'cleanupSettled')))
+        closed(context, frozenset(('phase', 'outcome', 'durationMs', 'attempt', 'attributes')), CONTEXT_DIAGNOSTICS)
+        closed(context['attributes'], frozenset(('count', 'cleanupSettled')), ATTRIBUTE_DIAGNOSTICS | frozenset(('vendorBuildProvenance',)))
         value = {key: row[key] for key in ('eventId', 'timestamp', 'severity', 'eventName', 'correlationId')}
         value.update({key: context[key] for key in ('phase', 'outcome', 'durationMs', 'attempt')})
-        value.update(context['attributes'])
+        value.update({key:context['attributes'][key] for key in ('count', 'cleanupSettled')})
+        diagnostics = restore_diagnostics(context)
+        if diagnostics:
+            value['diagnostics'] = diagnostics
         for key in ('traceId', 'spanId'):
             if key in row:
                 value[key] = row[key]

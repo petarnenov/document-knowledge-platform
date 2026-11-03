@@ -1,0 +1,392 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://documentknowledge.org/contracts/v1/inspector-log-record.schema.json",
+  "title": "Bounded original structure-inspector diagnostic stdout record v1",
+  "description": "Development #457 port. Fixed DKP-INSPECTOR-LOG/1 prefix then UTF8 JSON and LF. Maximum full record8192 bytes and event6144 bytes enforced before parsing/queue admission. Original identity/catalog binding, public-source allowlist and monotonic loss counters are additionally verified by the runtime adapters. No credentials, authority, document content or free text. This schema does not grant outbound network authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "buildId": {
+      "type": "string",
+      "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$",
+      "minLength": 1,
+      "maxLength": 36
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$",
+      "minLength": 1,
+      "maxLength": 36
+    },
+    "instanceId": {
+      "type": "string",
+      "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$",
+      "minLength": 1,
+      "maxLength": 36
+    },
+    "manifestSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "event": {
+      "$ref": "#/$defs/event"
+    },
+    "loss": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dropped": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "writerFailures": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "dropped",
+        "rejected",
+        "writerFailures"
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "buildId",
+    "runId",
+    "instanceId",
+    "manifestSha256",
+    "event",
+    "loss"
+  ],
+  "$defs": {
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$",
+          "minLength": 1,
+          "maxLength": 36
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$",
+          "maxLength": 40
+        },
+        "severity": {
+          "enum": [
+            "TRACE",
+            "DEBUG",
+            "INFO",
+            "WARN",
+            "ERROR",
+            "FATAL"
+          ]
+        },
+        "eventName": {
+          "enum": [
+            "process.started",
+            "process.stopped",
+            "operation.started",
+            "operation.succeeded",
+            "operation.failed",
+            "operation.cancelled",
+            "dependency.started",
+            "dependency.succeeded",
+            "dependency.failed",
+            "build.started",
+            "build.succeeded",
+            "build.failed",
+            "ui.route.changed",
+            "ui.identity.changed",
+            "producer.delivery.degraded",
+            "producer.events.lost"
+          ]
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$",
+          "minLength": 1,
+          "maxLength": 36
+        },
+        "phase": {
+          "enum": [
+            "STARTUP",
+            "SHUTDOWN",
+            "REQUEST",
+            "OPERATION",
+            "DATABASE",
+            "PROVIDER",
+            "RETRY",
+            "DEADLINE",
+            "CANCELLATION",
+            "CLEANUP",
+            "PROVIDER_STORAGE_PUT",
+            "PROVIDER_STORAGE_OPEN",
+            "PROVIDER_STORAGE_READ",
+            "PROVIDER_STORAGE_CLOSE",
+            "PROVIDER_STORAGE_COPY",
+            "PROVIDER_STORAGE_VERSIONS",
+            "PROVIDER_STORAGE_DELETE",
+            "PROVIDER_SCAN",
+            "PROVIDER_INSPECT"
+          ]
+        },
+        "outcome": {
+          "enum": [
+            "STARTED",
+            "SUCCEEDED",
+            "FAILED",
+            "CANCELLED",
+            "RETRYING",
+            "REJECTED",
+            "UNKNOWN"
+          ]
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cleanupSettled": {
+          "type": "boolean"
+        },
+        "traceId": {
+          "type": "string",
+          "pattern": "^(?!0{32}$)[0-9a-f]{32}$",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "spanId": {
+          "type": "string",
+          "pattern": "^(?!0{16}$)[0-9a-f]{16}$",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "diagnostics": {
+          "$ref": "#/$defs/diagnostics"
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "severity",
+        "eventName",
+        "correlationId",
+        "phase",
+        "outcome",
+        "durationMs",
+        "attempt",
+        "count",
+        "cleanupSettled"
+      ],
+      "dependentRequired": {
+        "spanId": [
+          "traceId"
+        ]
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "remainingDeadlineMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "errorCode": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+$",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "sqlState": {
+          "type": "string",
+          "pattern": "^[A-Z0-9]{5}$",
+          "minLength": 1,
+          "maxLength": 5
+        },
+        "dependency": {
+          "$ref": "#/$defs/dependency"
+        },
+        "failure": {
+          "$ref": "#/$defs/failure"
+        },
+        "attributes": {
+          "$ref": "#/$defs/attributes"
+        },
+        "counts": {
+          "$ref": "#/$defs/counts"
+        }
+      },
+      "required": []
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "redactedFields": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "truncatedFields": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "unregisteredSymbols": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": []
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "vendorBuildProvenance": {
+          "enum": [
+            "VERIFIED",
+            "UNKNOWN"
+          ]
+        },
+        "imageDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "minLength": 1,
+          "maxLength": 71
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "vendorBuildProvenance"
+      ]
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.$<>-]+$",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "source": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*\\/$)[A-Za-z0-9_./$-]+$",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "symbol"
+      ]
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exceptionClass": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.$]+$",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "causeClasses": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.$]+$",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "stackFrames": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/frame"
+          }
+        }
+      },
+      "required": [
+        "causeClasses",
+        "stackFrames"
+      ]
+    },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "queueDepth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cancelRequested": {
+          "type": "boolean"
+        }
+      },
+      "required": []
+    }
+  }
+}

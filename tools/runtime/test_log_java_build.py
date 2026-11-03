@@ -26,6 +26,7 @@ class JavaBuildTest(unittest.TestCase):
         (self.root/'source.txt').write_text('original')
         wrapper = self.root/'gradle/wrapper/gradle-wrapper.properties'; wrapper.parent.mkdir(parents=True)
         wrapper.write_text('distributionUrl=https\\://services.gradle.org/distributions/gradle-9.8.2-bin.zip\n')
+        self.component = 'knowledge-search'
         self.settings = {'record':{'schemaVersion':2,'component':'knowledge-search',
             'toolchain':[{'name':'java','version':'25.0.5+8-LTS','vendorBuildProvenance':'UNKNOWN'},
                          {'name':'gradle','version':'9.8.2','vendorBuildProvenance':'UNKNOWN'}],
@@ -41,6 +42,9 @@ class JavaBuildTest(unittest.TestCase):
         (self.root/'fixture-gradle.py').write_text('''import json,sys,zipfile,shutil
 from pathlib import Path
 root=Path.cwd();cfg=json.loads((root/'fixture.json').read_text())
+component=cfg['record']['component'];project=root/'workers/structure-inspector' if component=='structure-inspector' else root/'services'/component/'bootstrap'
+prefix=':workers:structure-inspector:' if component=='structure-inspector' else ':services:'+component+':bootstrap:'
+if any(a.startswith(':') and not a.startswith(prefix) for a in sys.argv[1:]):sys.exit(7)
 directory=Path(next(a.split('=',1)[1] for a in sys.argv if a.startswith('-PdkpLogBuildDirectory=')))
 if any(a.endswith(':compileJava') for a in sys.argv):
  if cfg.get('exit'):sys.exit(2)
@@ -50,15 +54,15 @@ if any(a.endswith(':compileJava') for a in sys.argv):
  else:target.write_text(cfg.get('raw',json.dumps(cfg['record'])));target.chmod(0o600)
 else:
  if cfg.get('packageExit'):sys.exit(3)
- output=root/'services/knowledge-search/bootstrap/build/libs';output.mkdir(parents=True,exist_ok=True)
+ output=project/'build/libs';output.mkdir(parents=True,exist_ok=True)
  with zipfile.ZipFile(output/'bootstrap.jar','w') as archive:
   name='META-INF/dkp-logging/manifest.json'
   if cfg.get('jar')!='missing':archive.writestr(name, b'wrong' if cfg.get('jar')=='wrong' else (directory/'manifest.json').read_bytes())
   if cfg.get('jar')=='duplicate':archive.writestr(name,b'duplicate')
- dist=root/'services/knowledge-search/bootstrap/build/install/knowledge-search'
+ dist=project/'build/install'/component
  (dist/'bin').mkdir(parents=True,exist_ok=True);(dist/'lib').mkdir(exist_ok=True)
- (dist/'bin/knowledge-search').write_text('#!/bin/sh\\n# simulated fixture only\\n')
- (dist/'bin/knowledge-search.bat').write_text('@rem simulated fixture only\\n')
+ (dist/'bin'/component).write_text('#!/bin/sh\\n# simulated fixture only\\n')
+ (dist/'bin'/(component+'.bat')).write_text('@rem simulated fixture only\\n')
  shutil.copyfile(output/'bootstrap.jar',dist/'lib/bootstrap.jar')
  (dist/'lib/fixture-library.jar').write_bytes(b'fixture dependency bytes')
 '''); script.chmod(0o755)
@@ -67,7 +71,7 @@ else:
             subprocess.run(['git','-C',str(self.root),*command],check=True,capture_output=True)
 
     def save(self): (self.root/'fixture.json').write_text(json.dumps(self.settings))
-    def build(self): self.save(); return m.build(self.root,'knowledge-search',self.java)
+    def build(self): self.save(); return m.build(self.root,self.component,self.java)
 
     def test_actual_manifest_embedded_and_sealed_with_distinct_original_compilations(self):
         first=self.build();second=self.build()
@@ -80,6 +84,17 @@ else:
         self.assertEqual(first['buildId'],dist['buildId']);self.assertIn('lib/fixture-library.jar',dist['files'])
         self.assertNotIn('runId',a); self.assertEqual('NOT_STARTED',first['sharedStoreDelivery'])
         for path in Path(first['manifest']).parent.iterdir(): self.assertEqual(0,path.stat().st_mode & 0o077)
+
+    def test_worker_uses_original_worker_project_and_embedded_distribution(self):
+        self.component='structure-inspector';self.settings['record']['component']=self.component
+        first=self.build();second=self.build()
+        self.assertNotEqual(first['buildId'],second['buildId'])
+        self.assertEqual(self.root/'workers/structure-inspector/build/libs/bootstrap.jar',Path(first['artifact']))
+        manifest=json.loads(Path(first['manifest']).read_text())
+        self.assertEqual('structure-inspector',manifest['component'])
+        self.assertEqual('NOT_STARTED',first['sharedStoreDelivery'])
+        self.assertTrue((self.root/'workers/structure-inspector/build/install/structure-inspector/bin/structure-inspector').is_file())
+        self.assertFalse((self.root/'services/structure-inspector').exists())
 
     def test_compile_and_package_failure_do_not_seal_success(self):
         for flag in ('exit','packageExit'):

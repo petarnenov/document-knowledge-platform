@@ -25,7 +25,7 @@ final class PdfInspector {
                 COSBase value=super.parseObjectDynamically(key,required);
                 if(value==null && document.getXrefTable().containsKey(key))throw new InspectionFailure("INVALID_FILE");
                 return value;
-            }catch(IOException malformed){throw new InspectionFailure("INVALID_FILE");}
+            }catch(IOException malformed){throw new InspectionFailure("INVALID_FILE",malformed);}
         }
 
     }

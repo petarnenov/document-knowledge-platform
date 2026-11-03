@@ -25,6 +25,23 @@ class JavaInstallTest(unittest.TestCase):
 
     def install(self): return m.install(self.root, self.receipt, self.output)
 
+    def test_worker_original_distribution_install_and_service_path_substitution_rejection(self):
+        self.fixture.component='structure-inspector'
+        self.fixture.settings['record']['component']='structure-inspector'
+        self.built=self.fixture.build();self.receipt=Path(self.built['receipt'])
+        self.dist=self.root/'workers/structure-inspector/build/install/structure-inspector'
+        result=self.install()
+        self.assertEqual('structure-inspector',result['component'])
+        self.assertEqual('workers/structure-inspector/build/libs/bootstrap.jar',result['artifact']['path'])
+        self.assertEqual(result,m.verify_installed(self.output))
+        record=self.output/'install.json'
+        for invalid in ('services/structure-inspector/bootstrap/build/libs/bootstrap.jar','workers/foreign/build/libs/bootstrap.jar'):
+            changed=json.loads(json.dumps(result));changed['artifact']['path']=invalid
+            record.write_bytes(m.m.canonical(changed))
+            with self.assertRaises(ValueError):m.verify_installed(self.output)
+        record.write_bytes(m.m.canonical(result))
+        self.assertEqual(result,m.verify_installed(self.output))
+
     def test_exact_distribution_private_manifest_inventory_and_no_process_start(self):
         result = self.install()
         self.assertEqual('INSTALLED', result['result']); self.assertEqual(self.built['buildId'], result['buildId'])

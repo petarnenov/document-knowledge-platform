@@ -40,6 +40,18 @@ class IsolatedInspectionAdapterTest {
             worker.start();try(var adapter=adapter(worker.port());var phase=new org.documentknowledge.documentmanagement.application.upload.CompleteBudget(VerificationFixtures.CLOCK).phase(org.documentknowledge.documentmanagement.application.upload.CompleteBudget.Kind.INSPECT)){var observation=new VerificationObservation();var evidence=adapter.inspect(source,phase,observation);assertEquals(source.format(),evidence.format());assertEquals(source.sha256(),evidence.sha256());assertEquals(source.sizeBytes(),evidence.sizeBytes());assertEquals(source.format().mime(),evidence.mimeType());assertNull(evidence.pageCount());assertEquals(IMAGE,evidence.imageDigest());assertEquals(StructureInspector.PROFILE_DIGEST,evidence.profileDigest());assertEquals(VerificationFixtures.CLOCK.instant(),evidence.inspectedAt());assertEquals(List.of(200),observation.statuses);assertTrue(observation.failures.isEmpty());assertEquals(0,observation.cancellations.get());}
         }
     }
+    @Test void explicitCallerCorrelationCrossesActualTlsBoundaryWithoutForwardingAuthority() throws Exception {
+        var observed=new java.util.concurrent.CopyOnWriteArrayList<org.documentknowledge.inspector.diagnostics.InspectorDiagnostics.Context>();
+        org.documentknowledge.inspector.diagnostics.InspectorDiagnostics diagnostics=(context,phase)->{observed.add(context);return org.documentknowledge.inspector.diagnostics.InspectorDiagnostics.NONE;};
+        try(var worker=new InspectorServer(new InetSocketAddress("127.0.0.1",0),serverTls,new byte[32],new StructureInspector(temp,diagnostics),diagnostics)) {
+            worker.start();try(var adapter=adapter(worker.port())) {
+                for(var caller:List.of(new org.documentknowledge.documentmanagement.application.DiagnosticContext(UUID.randomUUID(),"1".repeat(32),"2".repeat(16)),new org.documentknowledge.documentmanagement.application.DiagnosticContext(UUID.randomUUID(),"1".repeat(32),null),org.documentknowledge.documentmanagement.application.DiagnosticContext.fresh())) {
+                    observed.clear();assertEquals(source.sizeBytes(),adapter.inspect(source,null,org.documentknowledge.documentmanagement.application.upload.UploadDiagnosticsPort.NONE,caller).sizeBytes());
+                    assertFalse(observed.isEmpty());for(var actual:observed){assertEquals(caller.correlationId(),actual.correlationId());assertEquals(caller.spanId(),actual.spanId());assertEquals(caller.spanId()==null?null:caller.traceId(),actual.traceId());}
+                }
+            }
+        }
+    }
     @Test void wrongCaKeyProfileSourceAndUnavailableWorkerAreNotEvidence() throws Exception {
         try(var worker=new InspectorServer(new InetSocketAddress("127.0.0.1",0),serverTls,new byte[32],new StructureInspector(temp))) {
             worker.start();byte[] wrongKey=new byte[32];wrongKey[0]=1;
