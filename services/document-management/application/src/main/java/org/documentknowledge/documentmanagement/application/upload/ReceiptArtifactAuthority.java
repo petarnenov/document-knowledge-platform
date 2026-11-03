@@ -6,12 +6,13 @@ import org.documentknowledge.documentmanagement.application.*;
 import org.documentknowledge.identity.Actor;
 /** Real storage preflight OUTSIDE SQL. Consumption is mandatory in DocumentService's later UoW. */
 public final class ReceiptArtifactAuthority implements VerifiedArtifactAuthorityPort {
- private final DocumentUnitOfWork transactions;private final UploadStoragePort storage;private final Clock clock;private final GenericTempPort genericTemps;
+ private final DocumentUnitOfWork transactions;private final UploadStoragePort storage;private final Clock clock;private final GenericTempPort genericTemps;private final UploadDiagnosticsPort diagnostics;
  public ReceiptArtifactAuthority(DocumentUnitOfWork transactions,UploadStoragePort storage,Clock clock,Path temporary){this(transactions,storage,clock,GenericTempPort.unavailable());java.util.Objects.requireNonNull(temporary);}
- public ReceiptArtifactAuthority(DocumentUnitOfWork transactions,UploadStoragePort storage,Clock clock,GenericTempPort genericTemps){this.transactions=java.util.Objects.requireNonNull(transactions);this.storage=java.util.Objects.requireNonNull(storage);this.clock=java.util.Objects.requireNonNull(clock);this.genericTemps=java.util.Objects.requireNonNull(genericTemps);}
+ public ReceiptArtifactAuthority(DocumentUnitOfWork transactions,UploadStoragePort storage,Clock clock,GenericTempPort genericTemps){this(transactions,storage,clock,genericTemps,UploadDiagnosticsPort.NOOP);}
+ public ReceiptArtifactAuthority(DocumentUnitOfWork transactions,UploadStoragePort storage,Clock clock,GenericTempPort genericTemps,UploadDiagnosticsPort diagnostics){this.diagnostics=java.util.Objects.requireNonNull(diagnostics);this.transactions=java.util.Objects.requireNonNull(transactions);this.storage=java.util.Objects.requireNonNull(storage);this.clock=java.util.Objects.requireNonNull(clock);this.genericTemps=java.util.Objects.requireNonNull(genericTemps);}
  @Override public VerifiedArtifact verify(Actor actor,String tenant,UUID document,String identifier){return verify(DiagnosticContext.fresh(),actor,tenant,document,identifier);}
  @Override public VerifiedArtifact verify(DiagnosticContext context,Actor actor,String tenant,UUID document,String identifier){
-  java.util.Objects.requireNonNull(context);var budget=new GenericTempBudget(clock,GenericTempPort.Role.PREAPPEND);return budget.execute(()->verifyBounded(context,actor,tenant,document,identifier,budget));
+  java.util.Objects.requireNonNull(context);var budget=new GenericTempBudget(clock,GenericTempPort.Role.PREAPPEND,context,diagnostics);return budget.execute(()->verifyBounded(context,actor,tenant,document,identifier,budget));
  }
  private VerifiedArtifact verifyBounded(DiagnosticContext context,Actor actor,String tenant,UUID document,String identifier,GenericTempBudget budget){
   budget.check();
@@ -22,11 +23,11 @@ public final class ReceiptArtifactAuthority implements VerifiedArtifactAuthority
    boolean cleanupAttempted=false;
    try {
     GenericTempPort.ArtifactFile source;
-    try(var input=storage.open(receipt.original(),budget);var abort=budget.onCancel(()->{try{input.close();}catch(java.io.IOException ignored){}})){source=workspace.write(input,budget);budget.check();}
+    try(var input=new UploadObservations(diagnostics,context).open(()->UploadObservations.remaining(budget.diagnosticRemainingMs()),observer->storage.open(receipt.original(),budget,observer));var abort=budget.onCancel(()->{try{input.close();}catch(java.io.IOException ignored){}})){source=workspace.write(input,budget);budget.check();}
     if(!source.sha256().equals(receipt.sha256()))throw UploadPolicy.unavailable();
-    cleanupAttempted=true;workspace.finish(budget);budget.check();
+    cleanupAttempted=true;new UploadObservations(diagnostics,context).call(UploadDiagnosticsPort.Operation.CLEANUP,()->UploadObservations.remaining(budget.diagnosticRemainingMs()),observer->{workspace.finish(budget);return null;});budget.check();
     return new VerifiedArtifact(receipt.sha256(),receipt.format().mime(),receipt.receiptId().toString(),"dkp-upload-v1");
-   }catch(java.io.IOException|RuntimeException failure){if(!cleanupAttempted){cleanupAttempted=true;workspace.finish(budget);}throw failure instanceof RuntimeException runtime?runtime:UploadPolicy.unavailable();}
+   }catch(java.io.IOException|RuntimeException failure){if(!cleanupAttempted){cleanupAttempted=true;new UploadObservations(diagnostics,context).call(UploadDiagnosticsPort.Operation.CLEANUP,()->UploadObservations.remaining(budget.diagnosticRemainingMs()),observer->{workspace.finish(budget);return null;});}throw failure instanceof RuntimeException runtime?runtime:UploadPolicy.unavailable();}
   }
  }
 }

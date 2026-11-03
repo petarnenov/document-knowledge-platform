@@ -13,15 +13,17 @@ import static org.documentknowledge.documentmanagement.domain.upload.UploadModel
 /** Exact immutable source verified before transmission; bounded disk and new-boundary authorization per request. */
 public final class ContentService implements AutoCloseable {
  private final DocumentUnitOfWork transactions;private final UploadPolicy policy;private final UploadStoragePort storage;private final Clock clock;private final Path temporary;
+ private final UploadDiagnosticsPort diagnostics;
  private ContentSpoolStore spools;private boolean stopped;private final Set<ContentResponse> responses=ConcurrentHashMap.newKeySet();private final Set<InputStream> sources=ConcurrentHashMap.newKeySet();
  private synchronized ContentSpoolStore spools(){if(stopped)throw UploadPolicy.unavailable();if(spools==null)spools=new ContentSpoolStore(temporary);return spools;}
- public ContentService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,Clock clock,Path temporary){this.transactions=Objects.requireNonNull(transactions);policy=new UploadPolicy(grants);this.storage=Objects.requireNonNull(storage);this.clock=Objects.requireNonNull(clock);this.temporary=Objects.requireNonNull(temporary);}
+ public ContentService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,Clock clock,Path temporary){this(transactions,grants,storage,clock,temporary,UploadDiagnosticsPort.NOOP);}
+ public ContentService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,Clock clock,Path temporary,UploadDiagnosticsPort diagnostics){this.diagnostics=Objects.requireNonNull(diagnostics);this.transactions=Objects.requireNonNull(transactions);policy=new UploadPolicy(grants);this.storage=Objects.requireNonNull(storage);this.clock=Objects.requireNonNull(clock);this.temporary=Objects.requireNonNull(temporary);}
  public ContentResponse open(DocumentCaller caller,UUID document,UUID version,String range){
   policy.route(caller,Action.CONTENT_REVIEW,document,true);UploadReceipt receipt=resolve(caller,document,version);
   ByteRange bytes=ByteRange.parse(range,receipt.sizeBytes());String actor=UploadSupport.fingerprint(caller.actor().issuer(),caller.actor().subject());
   ContentSpoolStore.Lease lease=spools().reserve(actor);
   try{
-   String hash;try(var source=storage.open(receipt.original())){synchronized(this){if(stopped)throw UploadPolicy.unavailable();sources.add(source);}try{hash=lease.write(source,receipt.sizeBytes(),clock);}finally{sources.remove(source);}}
+   String hash;try(var source=new UploadObservations(diagnostics,caller.diagnostics()).open(()->UploadDiagnosticsPort.Facts.EMPTY,observer->storage.open(receipt.original(),observer))){synchronized(this){if(stopped)throw UploadPolicy.unavailable();sources.add(source);}try{hash=lease.write(source,receipt.sizeBytes(),clock);}finally{sources.remove(source);}}
    if(!hash.equals(receipt.sha256()))throw UploadPolicy.unavailable();resolve(caller,document,version);
    var response=new ContentResponse(bytes.partial()?206:200,receipt.format().mime(),version+"."+receipt.format().extension(),bytes.length(),bytes.partial()?"bytes "+bytes.start()+"-"+bytes.end()+"/"+receipt.sizeBytes():null,lease,bytes,()->{UploadReceipt current=resolve(caller,document,version);if(!current.equals(receipt))throw UploadPolicy.unavailable();},clock);
    synchronized(this){if(stopped)throw UploadPolicy.unavailable();responses.add(response);}return response;

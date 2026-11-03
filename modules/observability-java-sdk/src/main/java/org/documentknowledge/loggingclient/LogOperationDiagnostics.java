@@ -10,7 +10,20 @@ import org.documentknowledge.observability.*;
 
 /** Bounded technical observations on the original producer; no raw failure is retained by a token. */
 public final class LogOperationDiagnostics {
-    private static final Set<String> PHASES=Set.of("OPERATION","DATABASE","PROVIDER","RETRY","DEADLINE","CANCELLATION","CLEANUP");
+    private static final Set<String> PHASES=Set.of("OPERATION","DATABASE","PROVIDER","RETRY","DEADLINE","CANCELLATION","CLEANUP",
+        "PROVIDER_STORAGE_PUT","PROVIDER_STORAGE_OPEN","PROVIDER_STORAGE_READ","PROVIDER_STORAGE_CLOSE",
+        "PROVIDER_STORAGE_COPY","PROVIDER_STORAGE_VERSIONS","PROVIDER_STORAGE_DELETE","PROVIDER_SCAN","PROVIDER_INSPECT");
+    /** Closed existing-v1 facts. A policy limit uses count; no arbitrary attributes are accepted. */
+    public record Facts(Integer status,Long remainingDeadlineMs,LogDiagnosticCatalog.Dependency dependency,
+                        long attempt,long count,boolean cleanupSettled,Boolean cancelRequested,String errorCode) {
+        public static final Facts EMPTY=new Facts(null,null,null,0,1,false,null,null);
+        public Facts {
+            new LogDiagnostics(status,remainingDeadlineMs,errorCode,null,dependency,null,
+                new LogDiagnostics.Attributes(null,null,cancelRequested),LogDiagnostics.Counts.ZERO);
+            LogDiagnosticCatalog.require(attempt>=0 && attempt<=LifecycleEvent.MAX_INTEGER
+                && count>=0 && count<=LifecycleEvent.MAX_INTEGER);
+        }
+    }
     private record Observed(LogExceptionCapture.Captured captured,String sqlState,boolean sqlFailure) { }
     public static final class Token {
         private final LogOperationDiagnostics owner;
@@ -34,11 +47,14 @@ public final class LogOperationDiagnostics {
     /** An adapter failed to produce a diagnostic; retain visible loss in the existing producer status. */
     public LogProducer.Admission reportRejected() {return producer.reject();}
     public Token started(UUID correlation,TraceContext trace,String phase) {
+        return started(correlation,trace,phase,Facts.EMPTY);
+    }
+    public Token started(UUID correlation,TraceContext trace,String phase,Facts facts) {
         Objects.requireNonNull(correlation);Objects.requireNonNull(trace);
         if((correlation.getMostSignificantBits()==0 && correlation.getLeastSignificantBits()==0) || !PHASES.contains(phase))
             throw new IllegalArgumentException("INVALID_LOG_OPERATION");
-        var token=new Token(this,correlation,trace,phase);
-        emit(token,EventCode.OPERATION_STARTED,Severity.TRACE,LifecycleEvent.Outcome.STARTED,null);
+        validate(facts);var token=new Token(this,correlation,trace,phase);
+        emit(token,EventCode.OPERATION_STARTED,Severity.TRACE,LifecycleEvent.Outcome.STARTED,diagnostics(facts,null,null),facts);
         return token;
     }
     /** Call before converting a technical failure; only its bounded sanitized snapshot survives this call. */
@@ -50,21 +66,42 @@ public final class LogOperationDiagnostics {
         }
     }
     public LogProducer.Admission completed(Token token,Throwable failure) {
+        return completed(token,failure,failure instanceof CancellationException?LifecycleEvent.Outcome.CANCELLED:
+            failure==null?LifecycleEvent.Outcome.SUCCEEDED:LifecycleEvent.Outcome.FAILED,Facts.EMPTY);
+    }
+    /** The caller supplies observed outcomes; UNKNOWN is incomplete consumption, never invented failure/cancellation. */
+    public LogProducer.Admission completed(Token token,Throwable failure,LifecycleEvent.Outcome outcome,Facts facts) {
         owned(token);Observed observed;
+        Objects.requireNonNull(outcome);validate(facts);
+        LogDiagnosticCatalog.require(outcome!=LifecycleEvent.Outcome.STARTED
+            && (outcome!=LifecycleEvent.Outcome.SUCCEEDED || failure==null));
+        boolean failed=outcome==LifecycleEvent.Outcome.FAILED,cancelled=outcome==LifecycleEvent.Outcome.CANCELLED;
         synchronized(token) {
             if(token.terminal)return LogProducer.Admission.DUPLICATE;
-            observed=failure==null?null:token.observed==null?capture(failure):token.observed;
+            observed=outcome==LifecycleEvent.Outcome.SUCCEEDED?null:token.observed!=null?token.observed:failure==null?null:capture(failure);
             token.observed=null;token.terminal=true;
         }
-        boolean cancelled=failure instanceof CancellationException,failed=failure!=null;
-        var code=cancelled?EventCode.OPERATION_CANCELLED:failed?EventCode.OPERATION_FAILED:EventCode.OPERATION_SUCCEEDED;
-        var outcome=cancelled?LifecycleEvent.Outcome.CANCELLED:failed?LifecycleEvent.Outcome.FAILED:LifecycleEvent.Outcome.SUCCEEDED;
-        String error=cancelled?"CANCELLED":failed?observed.sqlFailure()?"DB_UNAVAILABLE":"OPERATION_FAILED":null;
+        var code=cancelled?EventCode.OPERATION_CANCELLED:outcome==LifecycleEvent.Outcome.SUCCEEDED?
+            EventCode.OPERATION_SUCCEEDED:EventCode.OPERATION_FAILED;
+        String error=facts.errorCode()!=null?facts.errorCode():cancelled?"CANCELLED":failed?
+            observed!=null && observed.sqlFailure()?"DB_UNAVAILABLE":"OPERATION_FAILED":null;
         if(error!=null && !catalog.errorCodes().contains(error))error=null;
-        var diagnostics=new LogDiagnostics(null,null,error,observed==null?null:observed.sqlState(),null,
-            observed==null?null:observed.captured().failure(),cancelled?new LogDiagnostics.Attributes(null,null,true):null,
+        var terminalFacts=cancelled?new Facts(facts.status(),facts.remainingDeadlineMs(),facts.dependency(),
+            facts.attempt(),facts.count(),facts.cleanupSettled(),true,facts.errorCode()):facts;
+        return emit(token,code,failed||cancelled?Severity.ERROR:Severity.DEBUG,outcome,
+            diagnostics(terminalFacts,observed,error),terminalFacts);
+    }
+    /** Exact original tuple only; missing remote/provider metadata stays unknown. */
+    public LogDiagnosticCatalog.Dependency dependency(String name) {return catalog.dependencies().get(Objects.requireNonNull(name));}
+    private void validate(Facts facts) {
+        Objects.requireNonNull(facts);
+        LogDiagnosticCatalog.require(facts.dependency()==null || facts.dependency().equals(catalog.dependencies().get(facts.dependency().name())));
+        LogDiagnosticCatalog.require(facts.errorCode()==null || catalog.errorCodes().contains(facts.errorCode()));
+    }
+    private LogDiagnostics diagnostics(Facts facts,Observed observed,String error) {
+        return new LogDiagnostics(facts.status(),facts.remainingDeadlineMs(),error,observed==null?null:observed.sqlState(),facts.dependency(),
+            observed==null?null:observed.captured().failure(),new LogDiagnostics.Attributes(null,null,facts.cancelRequested()),
             observed==null?LogDiagnostics.Counts.ZERO:observed.captured().counts());
-        return emit(token,code,failed?Severity.ERROR:Severity.DEBUG,outcome,diagnostics);
     }
     private Observed capture(Throwable failure) {
         var captured=LogExceptionCapture.capture(failure,catalog);String state=null;
@@ -81,9 +118,9 @@ public final class LogOperationDiagnostics {
     private void owned(Token token) {
         if(token==null || token.owner!=this)throw new IllegalArgumentException("INVALID_LOG_OPERATION");
     }
-    private LogProducer.Admission emit(Token token,EventCode code,Severity severity,LifecycleEvent.Outcome outcome,LogDiagnostics diagnostics) {
+    private LogProducer.Admission emit(Token token,EventCode code,Severity severity,LifecycleEvent.Outcome outcome,LogDiagnostics diagnostics,Facts facts) {
         var metadata=new EventMetadata(UUID.randomUUID(),execution,Instant.now(),severity,code,token.correlation,token.trace);
         return producer.emit(new LifecycleEvent(metadata,token.phase,outcome,
-            Math.max(0,(System.nanoTime()-token.openedAt)/1000000),0,1,false,diagnostics));
+            Math.max(0,(System.nanoTime()-token.openedAt)/1000000),facts.attempt(),facts.count(),facts.cleanupSettled(),diagnostics));
     }
 }

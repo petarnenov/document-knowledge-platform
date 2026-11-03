@@ -18,6 +18,31 @@ class ClamAvScanAdapterTest {
     @Test void actualLengthFramingAndHashBindProtocolCleanEvidence() throws Exception {
         try(var server=new VerificationFixtures.FakeClamd()) {var evidence=adapter(server).scan(source);assertArrayEquals(Files.readAllBytes(source.path()),server.streamed.get());assertEquals(source.sha256(),evidence.sourceSha256());assertEquals(source.sizeBytes(),evidence.sizeBytes());assertEquals("1.5.4",evidence.engineVersion());assertEquals("27930",evidence.databaseVersion());assertEquals(VerificationFixtures.CLOCK.instant(),evidence.databaseUpdatedAt());assertEquals(VerificationFixtures.CLOCK.instant(),evidence.scannedAt());}
     }
+    @Test void originalExchangeEofIsObservedBeforeUnavailableMapping() throws Exception {
+        try(var listener=new java.net.ServerSocket(0,1,java.net.InetAddress.getLoopbackAddress());
+            var executor=java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var peer=executor.submit(()->{try(var socket=listener.accept()) {
+                socket.setSoTimeout(2000);while(socket.getInputStream().read()>0) { }
+                // Close the actual exchange without sending a scanner response.
+            }return null;});
+            var scanner=new ClamAvScanAdapter(new java.net.InetSocketAddress(java.net.InetAddress.getLoopbackAddress(),listener.getLocalPort()),
+                new StandardDefinitions(temp.resolve("defs"),VerificationFixtures.CLOCK),VerificationFixtures.CLOCK);
+            var observation=new VerificationObservation();
+            assertEquals(503,assertThrows(DmFailure.class,()->scanner.scan(source,null,observation)).status());
+            peer.get(3,java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals(1,observation.failures.size());assertInstanceOf(java.io.EOFException.class,observation.failures.getFirst());
+            assertTrue(observation.statuses.isEmpty());assertEquals(0,observation.cancellations.get());
+        }
+    }
+    @Test void actualProtocolRejectionIsRetainedWithoutChangingBusinessFailure() throws Exception {
+        try(var server=new VerificationFixtures.FakeClamd()) {
+            var clean=new VerificationObservation();assertEquals(source.sha256(),adapter(server).scan(source,null,clean).sourceSha256());
+            assertTrue(clean.failures.isEmpty());assertTrue(clean.statuses.isEmpty());
+            server.scan="stream: Win.Test.EICAR FOUND";var rejected=new VerificationObservation();
+            var failure=assertThrows(DmFailure.class,()->adapter(server).scan(source,null,rejected));
+            assertEquals(422,failure.status());assertEquals(java.util.List.of(failure),rejected.failures);
+        }
+    }
     @Test void infectedLimitErrorPartialAndUnsupportedEngineAreNeverClean() throws Exception {
         for(String reply:new String[]{"stream: Win.Test.EICAR FOUND","stream: Heuristics.Limits.Exceeded FOUND","stream: size limit exceeded. ERROR","stream: O","OK","stream: OK extra","stream: OK\0stream: unexpected FOUND","stream: OK\n","x".repeat(1025)})try(var server=new VerificationFixtures.FakeClamd()){server.scan=reply;assertThrows(DmFailure.class,()->adapter(server).scan(source));}
         try(var server=new VerificationFixtures.FakeClamd()){server.partial=true;assertThrows(DmFailure.class,()->adapter(server).scan(source));}
@@ -73,9 +98,13 @@ class ClamAvScanAdapterTest {
         var budget=new org.documentknowledge.documentmanagement.application.upload.CompleteBudget(VerificationFixtures.CLOCK);
         try(var phase=budget.phase(org.documentknowledge.documentmanagement.application.upload.CompleteBudget.Kind.SCAN);var listener=new java.net.ServerSocket(0,1,java.net.InetAddress.getLoopbackAddress());var executor=java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()){
             var scanner=new ClamAvScanAdapter(new java.net.InetSocketAddress(java.net.InetAddress.getLoopbackAddress(),listener.getLocalPort()),new StandardDefinitions(temp.resolve("defs"),VerificationFixtures.CLOCK),VerificationFixtures.CLOCK);
-            var pending=executor.submit(()->assertThrows(DmFailure.class,()->scanner.scan(source,phase)));
+            var observation=new VerificationObservation();
+            var pending=executor.submit(()->assertThrows(DmFailure.class,()->scanner.scan(source,phase,observation)));
             try(var peer=listener.accept()){peer.setSoTimeout(2000);var command=new ByteArrayOutputStream();int c;while((c=peer.getInputStream().read())>0)command.write(c);assertEquals("zVERSION",command.toString(java.nio.charset.StandardCharsets.US_ASCII));budget.cancel();assertEquals(-1,peer.getInputStream().read());}
             assertEquals(503,pending.get(2,java.util.concurrent.TimeUnit.SECONDS).status());
+            long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
+            while(observation.cancellations.get()==0 && System.nanoTime()<deadline)Thread.sleep(5);
+            assertEquals(1,observation.cancellations.get());assertFalse(observation.failures.isEmpty());
         }
         try(var server=new VerificationFixtures.FakeClamd();var phase=new org.documentknowledge.documentmanagement.application.upload.CompleteBudget(VerificationFixtures.CLOCK).phase(org.documentknowledge.documentmanagement.application.upload.CompleteBudget.Kind.SCAN)){
             assertEquals(source.sha256(),adapter(server).scan(source,phase).sourceSha256());

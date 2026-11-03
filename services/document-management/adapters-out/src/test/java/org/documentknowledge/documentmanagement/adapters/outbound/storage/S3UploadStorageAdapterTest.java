@@ -231,6 +231,47 @@ class S3UploadStorageAdapterTest {
         var calls=new AtomicInteger();var adapter=adapter((m,a)->{calls.incrementAndGet();throw new AssertionError("No provider call");});
         assertUnavailable(()->adapter.copy(OBJECT,ORIGINAL));try(var phase=new CompleteBudget(java.time.Clock.systemUTC()).phase(CompleteBudget.Kind.STORAGE)){assertUnavailable(()->adapter.copy(OBJECT,ORIGINAL,phase));assertUnavailable(()->adapter.copy(OBJECT,ORIGINAL,phase,null));}assertEquals(0,calls.get());
     }
+    @Test void observedPutAndOpenPreserveRawProviderCauseBeforePublicMapping() throws Exception {
+        var original=failure(403,"AccessDenied","request-put");var observation=new ProviderObservation();var calls=new AtomicInteger();
+        var denied=adapter((method,args)->{calls.incrementAndGet();throw original;});
+        assertUnavailable(()->denied.put(QUARANTINE,source(BYTES),BYTES.length,hash(BYTES),
+            new GenericTempBudget(java.time.Clock.systemUTC(),GenericTempPort.Role.TRANSFER),observation));
+        assertEquals(1,calls.get());assertEquals(List.of(original),observation.failures);assertEquals(List.of(403),observation.statuses);
+        var timeout=SdkClientException.create("synthetic get timeout",new java.net.SocketTimeoutException());var read=new ProviderObservation();
+        assertUnavailable(()->adapter((method,args)->{throw timeout;}).open(OBJECT,read));
+        assertEquals(List.of(timeout),read.failures);assertTrue(read.statuses.isEmpty());
+    }
+
+    @Test void observedReadKeepsInvocationStatusCancellationAndOriginalSharedClientAlive() throws Exception {
+        var observation=new ProviderObservation();var aborted=new java.util.concurrent.CountDownLatch(1);
+        var budget=new GenericTempBudget(java.time.Clock.systemUTC(),GenericTempPort.Role.TRANSFER);
+        var adapter=adapter((method,args)->new ResponseInputStream<>(GetObjectResponse.builder().versionId("exact-version")
+            .contentLength((long)BYTES.length).sdkHttpResponse(SdkHttpResponse.builder().statusCode(200).build()).build(),
+            AbortableInputStream.create(new ByteArrayInputStream(BYTES),aborted::countDown)));
+        try(var input=adapter.open(OBJECT,budget,observation)) {
+            assertEquals(BYTES[0],input.read());budget.cancel();assertTrue(aborted.await(2,java.util.concurrent.TimeUnit.SECONDS));
+            assertThrows(DmFailure.class,input::read);
+            long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
+            while(observation.cancellations.get()==0 && System.nanoTime()<deadline)Thread.sleep(5);
+            assertEquals(1,observation.cancellations.get());
+        }
+        assertEquals(List.of(200),observation.statuses);assertTrue(observation.failures.isEmpty());
+        try(var input=adapter.open(OBJECT,new ProviderObservation())){assertArrayEquals(BYTES,input.readAllBytes());}
+    }
+
+    @Test void faultyBoundaryObserversCannotChangeStorageResultsOrMappedFailures() throws Exception {
+        var faulty=new org.documentknowledge.documentmanagement.application.upload.UploadDiagnosticsPort.FailureObserver(){
+            public void failure(Throwable failure){throw new IllegalStateException("observer");}
+            public void status(int status){throw new IllegalStateException("observer");}
+            public void cancelRequested(){throw new IllegalStateException("observer");}
+        };
+        try(var input=adapter((method,args)->body(BYTES,"exact-version",BYTES.length)).open(OBJECT,faulty)){assertArrayEquals(BYTES,input.readAllBytes());}
+        assertUnavailable(()->adapter((method,args)->{throw failure(403,"AccessDenied","request-1");}).open(OBJECT,faulty));
+        var response=ListObjectVersionsResponse.builder().isTruncated(false)
+            .versions(ObjectVersion.builder().key(KEY).versionId("exact-version").build()).sdkHttpResponse(SdkHttpResponse.builder().statusCode(200).build()).build();
+        assertEquals(List.of(OBJECT),adapter((method,args)->response).versions(QUARANTINE,faulty));
+    }
+
     private S3UploadStorageAdapter adapter(BiFunction<String, Object[], Object> implementation) {
         var client = (S3Client) Proxy.newProxyInstance(S3Client.class.getClassLoader(), new Class<?>[] {S3Client.class},
             (proxy, method, args) -> {

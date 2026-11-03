@@ -19,6 +19,13 @@ public interface UploadStoragePort {
  default ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,VerificationWorkspacePort.Workspace workspace){throw new org.documentknowledge.documentmanagement.application.DmFailure(503,"UNAVAILABLE");}
  /** Recovery only: writer settlement must be proven before cleanup can consume these identities. */
  List<ObjectIdentity> versions(ObjectKey key);
+ /** Per-invocation raw failure/status observations; no callback is installed on a singleton client. */
+ default ObjectIdentity put(ObjectKey key,Path source,long size,String hash,GenericTempBudget budget,UploadDiagnosticsPort.FailureObserver observer){return put(key,source,size,hash,budget);}
+ default InputStream open(ObjectIdentity object,UploadDiagnosticsPort.FailureObserver observer){return open(object);}
+ default InputStream open(ObjectIdentity object,GenericTempBudget budget,UploadDiagnosticsPort.FailureObserver observer){return open(object,budget);}
+ default InputStream open(ObjectIdentity object,CompleteBudget.Phase phase,UploadDiagnosticsPort.FailureObserver observer){return open(object,phase);}
+ default ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,VerificationWorkspacePort.Workspace workspace,UploadDiagnosticsPort.FailureObserver observer){return copy(source,target,phase,workspace);}
+ default List<ObjectIdentity> versions(ObjectKey key,UploadDiagnosticsPort.FailureObserver observer){return versions(key);}
  record DeletionResult(UUID attemptId,ObjectIdentity object,String requestId,boolean terminal,
      boolean noFurtherExecution,boolean absent,boolean successful) { }
 }

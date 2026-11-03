@@ -110,7 +110,7 @@ class JavaCatalogTest(unittest.TestCase):
         self.assertEqual(1,len([row for row in v['frames'] if row['symbol']=='example.ActualFailure.operation']))
         self.assertEqual(self.record['dependencies'][0],next(row for row in v['dependencies'] if row['name']=='fixture.library'))
         self.assertTrue(all(row['vendorBuildProvenance']=='UNKNOWN' for row in v['dependencies']))
-        self.assertEqual(1,result['counts']['missingOptionalExceptions']);self.assertEqual(0,result['counts']['missingSources'])
+        self.assertEqual(5,result['counts']['missingOptionalExceptions']);self.assertEqual(0,result['counts']['missingSources'])
 
     def test_missing_source_is_visible_and_unknown_catalog_values_are_not_guessed(self):
         first=self.metadata['classes'][0];first['sourceFile']='Unregistered.java'

@@ -7,4 +7,6 @@ import org.documentknowledge.documentmanagement.domain.upload.UploadModels.*;
 public interface CleanupStoragePort {
     List<ObjectIdentity> versions(ObjectKey key);
     UploadStoragePort.DeletionResult deleteOnce(DeletionFence attempt);
+    default List<ObjectIdentity> cleanupVersions(ObjectKey key,UploadDiagnosticsPort.FailureObserver observer){return versions(key);}
+    default UploadStoragePort.DeletionResult deleteOnce(DeletionFence attempt,UploadDiagnosticsPort.FailureObserver observer){return deleteOnce(attempt);}
 }

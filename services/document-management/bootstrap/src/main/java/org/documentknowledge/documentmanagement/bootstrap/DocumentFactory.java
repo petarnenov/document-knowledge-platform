@@ -21,7 +21,7 @@ public final class DocumentFactory {
     public DocumentService documents(Environment environment,BeanProvider<DataSource> runtime) {
         return documents(bindings(environment,runtime));
     }
-    record Bindings(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,DelegationPolicyPort delegation,DocumentCursorPort cursors,UploadRuntime uploads) implements AutoCloseable {public void close(){uploads.close();}}
+    record Bindings(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,DelegationPolicyPort delegation,DocumentCursorPort cursors,UploadRuntime uploads,UploadDiagnosticsPort diagnostics) implements AutoCloseable {Bindings(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,DelegationPolicyPort delegation,DocumentCursorPort cursors,UploadRuntime uploads){this(transactions,grants,delegation,cursors,uploads,UploadDiagnosticsPort.NOOP);}public void close(){uploads.close();}}
     @Singleton
     @Bean(preDestroy="close")
     Bindings bindings(Environment environment,@Named("default") BeanProvider<DataSource> runtime,BeanProvider<DevelopmentLogging> logging) {
@@ -42,17 +42,17 @@ public final class DocumentFactory {
             public PagePosition decode(String cursor,Actor actor,String tenant){return cursor(secret).decode(cursor,actor,tenant);}
             public String encode(PagePosition position,Actor actor,String tenant){return cursor(secret).encode(position,actor,tenant);}
         };
-        return new Bindings(transactions,grants,delegation,cursors,new UploadRuntime(environment,Clock.systemUTC()));
+        return new Bindings(transactions,grants,delegation,cursors,new UploadRuntime(environment,Clock.systemUTC()),LoggingUploadDiagnostics.compose(logging));
     }
     @Singleton
-    public DocumentService documents(Bindings bindings){return new DocumentService(bindings.transactions(),bindings.grants(),bindings.delegation(),new ReceiptArtifactAuthority(bindings.transactions(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().generic()),bindings.cursors(),Clock.systemUTC());}
+    public DocumentService documents(Bindings bindings){return new DocumentService(bindings.transactions(),bindings.grants(),bindings.delegation(),new ReceiptArtifactAuthority(bindings.transactions(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().generic(),bindings.diagnostics()),bindings.cursors(),Clock.systemUTC());}
     @Singleton
-    public UploadService uploads(Bindings bindings){return new UploadService(bindings.transactions(),bindings.grants(),bindings.uploads(),bindings.uploads(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool(),bindings.uploads().verification(),bindings.uploads().generic());}
+    public UploadService uploads(Bindings bindings){return new UploadService(bindings.transactions(),bindings.grants(),bindings.uploads(),bindings.uploads(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool(),bindings.uploads().verification(),bindings.uploads().generic(),bindings.diagnostics());}
     @Singleton
     @Bean(preDestroy="close")
-    public ContentService content(Bindings bindings){return new ContentService(bindings.transactions(),bindings.grants(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool());}
+    public ContentService content(Bindings bindings){return new ContentService(bindings.transactions(),bindings.grants(),bindings.uploads(),Clock.systemUTC(),bindings.uploads().spool(),bindings.diagnostics());}
     @Singleton
-    public UploadCleanupService cleanup(Bindings bindings){return new UploadCleanupService(bindings.transactions(),bindings.uploads().cleanup(),Clock.systemUTC());}
+    public UploadCleanupService cleanup(Bindings bindings){return new UploadCleanupService(bindings.transactions(),bindings.uploads().cleanup(),Clock.systemUTC(),bindings.diagnostics());}
     private static Path path(Environment environment,String name,String fallback){try{return Path.of(environment.getProperty(name,String.class).orElse(fallback));}catch(RuntimeException invalid){return null;}}
     private static HmacDocumentCursor cursor(Path path){
         try {

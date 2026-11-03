@@ -27,22 +27,53 @@ class UploadLifecycleTest {
  final ResourceAuthorizationPort grants=(a,t,x,r)->{grantHook.run();return override!=null?override:allowed.contains(Action.parse(x))?AuthorityDecision.ALLOW:AuthorityDecision.DENY;};
  MalwareScanPort scanner=source->new ScanEvidence(source.sha256(),source.sizeBytes(),"1.5.4","standard-main+daily",clock.instant().minusSeconds(30),"d".repeat(64),clock.instant());
  StructureInspectionPort inspector=source->new InspectionEvidence(source.format(),source.format().mime(),source.sizeBytes(),source.sha256(),source.format()==UploadFormat.PDF?1:null,"1","f".repeat(64),"sha256:"+"a".repeat(64),clock.instant());
+ UploadDiagnosticsPort diagnostics=UploadDiagnosticsPort.NOOP;
  UUID document;
- DocumentService documents(){return new DocumentService(store,grants,new DelegationPolicyPort(){public AuthorityDecision targetGrant(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}public AuthorityDecision ceiling(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}},new ReceiptArtifactAuthority(store,storage,clock,generic()),new DocumentCursorPort(){public PagePosition decode(String c,Actor a,String t){throw new IllegalArgumentException();}public String encode(PagePosition p,Actor a,String t){return "cursor";}},clock);}
+ DocumentService documents(){return new DocumentService(store,grants,new DelegationPolicyPort(){public AuthorityDecision targetGrant(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}public AuthorityDecision ceiling(Actor a,String t,Action x){return AuthorityDecision.ALLOW;}},new ReceiptArtifactAuthority(store,storage,clock,generic(),diagnostics),new DocumentCursorPort(){public PagePosition decode(String c,Actor a,String t){throw new IllegalArgumentException();}public String encode(PagePosition p,Actor a,String t){return "cursor";}},clock);}
  java.util.function.Consumer<Path> completeCleanup;
  VerificationWorkspacePort testWorkspace;GenericTempPort genericTemp;
  GenericTempPort generic(){if(genericTemp==null)genericTemp=UploadServiceTestFactory.generic(temporary,clock);return genericTemp;}
- UploadService uploads(){if(testWorkspace==null)testWorkspace=UploadServiceTestFactory.workspace(temporary,clock,path->{if(completeCleanup!=null)completeCleanup.accept(path);else try{Files.deleteIfExists(path);}catch(IOException failure){throw new UncheckedIOException(failure);}});return UploadServiceTestFactory.create(store,grants,storage,scanner,inspector,clock,temporary,testWorkspace,generic());}
+ UploadService uploads(){if(testWorkspace==null)testWorkspace=UploadServiceTestFactory.workspace(temporary,clock,path->{if(completeCleanup!=null)completeCleanup.accept(path);else try{Files.deleteIfExists(path);}catch(IOException failure){throw new UncheckedIOException(failure);}});return UploadServiceTestFactory.create(store,grants,storage,scanner,inspector,clock,temporary,testWorkspace,generic(),diagnostics);}
  ContentService contentService;
- ContentService content(){if(contentService==null)contentService=new ContentService(store,grants,storage,clock,temporary);return contentService;}
+ ContentService content(){if(contentService==null)contentService=new ContentService(store,grants,storage,clock,temporary,diagnostics);return contentService;}
  @AfterEach void closeContent(){if(contentService!=null)contentService.close();if(testWorkspace!=null)testWorkspace.close();if(genericTemp!=null)genericTemp.close();}
- UploadCleanupService cleanup(){return new UploadCleanupService(store,storage,clock);}
+ UploadCleanupService cleanup(){return new UploadCleanupService(store,storage,clock,diagnostics);}
  @BeforeEach void create(){document=documents().create(caller,"create",new Metadata("Synthetic draft","")).documentId();}
  void failure(int status,String code,Runnable call){var failure=assertThrows(DmFailure.class,call::run);assertEquals(status,failure.status());assertEquals(code,failure.code());}
  String shaBytes(byte[] bytes){try{return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));}catch(java.security.NoSuchAlgorithmException impossible){throw new AssertionError(impossible);}}
  byte[] bytes(){return "explicit synthetic UNIT fixture only".getBytes(java.nio.charset.StandardCharsets.UTF_8);}
  UUID admitted(UploadService app,UploadFormat format){return app.initialize(caller,UUID.randomUUID().toString(),document,store.docs.get(document).revision(),format,bytes().length).uploadId();}
  UploadService.CompleteReceipt verified(UploadService app,UploadFormat format){UUID slot=admitted(app,format);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));return app.complete(caller,slot,"complete");}
+ @Test void diagnosticOperationsKeepCallerAndSystemSweepContextsAcrossTheWholeNormalUnitLifecycle()throws Exception{
+  var recorder=new RecordingUploadDiagnostics();diagnostics=recorder;diagnosticContexts.clear();
+  var app=uploads();var receipt=verified(app,UploadFormat.PDF);documents().appendVersion(caller,document,0,"observed-append",receipt.receiptId().toString());
+  var mapping=app.discover(caller,document,receipt.receiptId());
+  try(var response=content().open(caller,document,mapping.versionId(),null);var input=response.openStream()){assertArrayEquals(bytes(),input.readAllBytes());}
+  for(var entry:recorder.entries){assertSame(caller.diagnostics(),entry.context);assertEquals(1,entry.completions.get());}
+  assertTrue(recorder.entries.stream().map(e->e.operation).collect(java.util.stream.Collectors.toSet()).containsAll(Set.of(UploadDiagnosticsPort.Operation.PROVIDER_STORAGE_PUT,UploadDiagnosticsPort.Operation.PROVIDER_STORAGE_COPY,UploadDiagnosticsPort.Operation.PROVIDER_SCAN,UploadDiagnosticsPort.Operation.PROVIDER_INSPECT,UploadDiagnosticsPort.Operation.PROVIDER_STORAGE_READ,UploadDiagnosticsPort.Operation.PROVIDER_STORAGE_CLOSE,UploadDiagnosticsPort.Operation.RETRY,UploadDiagnosticsPort.Operation.CLEANUP)));
+  assertTrue(recorder.entries.stream().anyMatch(e->e.operation==UploadDiagnosticsPort.Operation.RETRY&&e.facts.count()==3&&e.facts.attempt()==1));
+  assertTrue(recorder.entries.stream().anyMatch(e->e.operation==UploadDiagnosticsPort.Operation.RETRY&&e.facts.count()==1&&e.facts.attempt()==0));
+  int first=recorder.entries.size();diagnosticContexts.clear();var system=DiagnosticContext.fresh();
+  var swept=cleanup().sweep(system,UUID.randomUUID(),50);assertEquals(1,swept.cleaned());
+  for(var entry:recorder.entries.subList(first,recorder.entries.size()))assertSame(system,entry.context);
+  for(var context:diagnosticContexts)assertSame(system,context);
+  assertTrue(recorder.entries.subList(first,recorder.entries.size()).stream().anyMatch(e->e.operation==UploadDiagnosticsPort.Operation.PROVIDER_STORAGE_DELETE&&e.outcome==UploadDiagnosticsPort.Outcome.SUCCEEDED));
+ }
+ @Test void diagnosticRetryRefusalUsesPersistedThreeAttemptLimitAndNeverDispatchesAFourthScan(){
+  var recorder=new RecordingUploadDiagnostics();diagnostics=recorder;scanner=source->{throw new IllegalStateException("synthetic unit provider failure");};
+  var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));
+  for(int attempt=0;attempt<3;attempt++){String key="observed-attempt"+attempt;failure(503,"UNAVAILABLE",()->app.complete(caller,slot,key));}
+  failure(409,"UPLOAD_STATE_CONFLICT",()->app.complete(caller,slot,"observed-refused"));
+  assertEquals(3,recorder.entries.stream().filter(e->e.operation==UploadDiagnosticsPort.Operation.PROVIDER_SCAN).count());
+  assertTrue(recorder.entries.stream().anyMatch(e->e.operation==UploadDiagnosticsPort.Operation.RETRY&&e.outcome==UploadDiagnosticsPort.Outcome.REJECTED&&e.facts.attempt()==3&&e.facts.count()==3));
+  assertTrue(store.uploads.receiptForUpload(caller.tenant(),slot).isEmpty());
+  for(var entry:recorder.entries)assertSame(caller.diagnostics(),entry.context);
+ }
+ @Test void faultyDiagnosticsNeverChangeVerifiedUploadAndAppendBusinessResults(){
+  diagnostics=(context,operation,facts)->{throw new IllegalStateException("owned broken observer");};
+  var receipt=verified(uploads(),UploadFormat.PDF);var appended=documents().appendVersion(caller,document,0,"observer-failure-append",receipt.receiptId().toString());
+  assertEquals(1,appended.revision());assertEquals(UploadState.CONSUMED,store.uploads.slot(caller.tenant(),receipt.uploadId()).orElseThrow().state());
+ }
  @Test void callerCorrelationSurvivesUploadWorkersAndPreAppendVerification(){
   diagnosticContexts.clear();diagnosticThreads.clear();
   var receipt=verified(uploads(),UploadFormat.PDF);
@@ -206,7 +237,7 @@ class UploadLifecycleTest {
  @Test void timeoutFenceBlocksNewHoldAndRetryAcrossRestartWhileKnownSettlementRecovers(){
   var receipt=verified(uploads(),UploadFormat.PDF);var work=store.uploads.pendingCleanup(caller.tenant(),receipt.uploadId()).getFirst();storage.deleteUnknown=true;
   failure(503,"UNAVAILABLE",()->cleanup().cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));assertTrue(store.uploads.unresolvedFence(caller.tenant(),document).isPresent());
-  failure(503,"UNAVAILABLE",()->documents().placeHold(caller,document,0,"newhold","reason"));failure(503,"UNAVAILABLE",()->new UploadCleanupService(store,storage,clock).cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));
+  failure(503,"UNAVAILABLE",()->documents().placeHold(caller,document,0,"newhold","reason"));failure(503,"UNAVAILABLE",()->new UploadCleanupService(store,storage,clock,diagnostics).cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));
   storage.objects.remove(store.uploads.unresolvedFence(caller.tenant(),document).orElseThrow().object());failure(503,"UNAVAILABLE",()->documents().placeHold(caller,document,0,"after-delayed-delete","reason"));assertTrue(store.docs.get(document).holds().isEmpty());assertEquals(0,store.docs.get(document).revision());assertEquals(2*bytes().length,store.uploads.global.transientBytes());assertEquals(1,storage.deleteCalls);
  }
  @Test void holdFirstBlocksRemoteDeleteAndAuthorizedOriginalReplayPrecedesFence(){
@@ -222,6 +253,24 @@ class UploadLifecycleTest {
  @Test void initializedExpiryReleasesAdmissionWithoutInventingRemoteDeletion(){
   var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);cleanup().expire(caller.tenant(),slot);assertEquals(UploadState.INITIALIZED,app.status(caller,slot).state());clock.advance(3601);cleanup().expire(caller.tenant(),slot);cleanup().expire(caller.tenant(),slot);assertEquals(0,store.uploads.global.admittedCount());assertEquals(0,store.uploads.global.transientBytes());assertEquals(0,storage.deleteCalls);
  }
+ @Test void shutdownAfterStorageOpenClosesUnreadSourceAndNeverClaimsSuccessfulConsumption()throws Exception{
+  var app=uploads();var receipt=verified(app,UploadFormat.PDF);
+  documents().appendVersion(caller,document,0,"append",receipt.receiptId().toString());
+  UUID version=app.discover(caller,document,receipt.receiptId()).versionId();
+  var recorder=new RecordingUploadDiagnostics();diagnostics=recorder;var gateway=content();
+  var opens=new java.util.concurrent.atomic.AtomicInteger();storage.onOpen=()->{opens.incrementAndGet();gateway.close();};
+  failure(503,"UNAVAILABLE",()->gateway.open(caller,document,version,null));
+  assertEquals(1,opens.get());
+  assertEquals(List.of(UploadDiagnosticsPort.Operation.PROVIDER_STORAGE_OPEN,UploadDiagnosticsPort.Operation.PROVIDER_STORAGE_READ,
+   UploadDiagnosticsPort.Operation.PROVIDER_STORAGE_CLOSE),recorder.entries.stream().map(e->e.operation).toList());
+  assertEquals(UploadDiagnosticsPort.Outcome.SUCCEEDED,recorder.entries.get(0).outcome);
+  assertEquals(UploadDiagnosticsPort.Outcome.UNKNOWN,recorder.entries.get(1).outcome);
+  assertEquals(UploadDiagnosticsPort.Outcome.SUCCEEDED,recorder.entries.get(2).outcome);
+  for(var entry:recorder.entries){assertSame(caller.diagnostics(),entry.context);assertEquals(1,entry.completions.get());assertNull(entry.failure);}
+  assertNull(recorder.entries.get(1).facts.error());assertNull(recorder.entries.get(1).facts.cancelRequested());
+  failure(503,"UNAVAILABLE",()->gateway.open(caller,document,version,null));assertEquals(1,opens.get());
+ }
+
  @Test void malformedRangesAndFinalContentRevocationNeverExposeBytes()throws Exception{
   var app=uploads();var receipt=verified(app,UploadFormat.PDF);documents().appendVersion(caller,document,0,"append",receipt.receiptId().toString());UUID version=app.discover(caller,document,receipt.receiptId()).versionId();var gateway=content();
   for(String range:List.of("bytes=1-3","bytes=2-","bytes=-3","bytes=-9999"))try(var response=gateway.open(caller,document,version,range);var body=response.openStream()){assertEquals(206,response.status());assertEquals(response.length(),body.readAllBytes().length);assertNotNull(response.contentRange());}
@@ -332,7 +381,7 @@ class UploadLifecycleTest {
   failure(503,"UNAVAILABLE",()->cleanup().cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));
   var fence=store.uploads.unresolvedFence(caller.tenant(),document).orElseThrow();assertEquals(FencePhase.DISPATCHED,fence.phase());assertFalse(storage.objects.containsKey(fence.object()));
   clock.advance(3601);
-  failure(503,"UNAVAILABLE",()->new UploadCleanupService(store,storage,clock).cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));
+  failure(503,"UNAVAILABLE",()->new UploadCleanupService(store,storage,clock,diagnostics).cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));
   failure(503,"UNAVAILABLE",()->documents().placeHold(caller,document,0,"latehold","Synthetic reason"));
   assertEquals(fence,store.uploads.unresolvedFence(caller.tenant(),document).orElseThrow());assertEquals(accounts,store.uploads.global);
   assertEquals(1,accounts.admittedCount());assertEquals(2*bytes().length,accounts.transientBytes());assertEquals(bytes().length,accounts.promisedBytes());
@@ -359,7 +408,7 @@ class UploadLifecycleTest {
   assertThrows(IllegalArgumentException.class,()->cleanup().sweep(UUID.randomUUID(),0));assertThrows(IllegalArgumentException.class,()->cleanup().sweep(UUID.randomUUID(),51));
  }
  @Test void storageCorruptionIsRejectedByPreflightAndContentBeforeAnyBytes()throws Exception{
-  var app=uploads();var receipt=verified(app,UploadFormat.PDF);var authority=new ReceiptArtifactAuthority(store,storage,clock,generic());
+  var app=uploads();var receipt=verified(app,UploadFormat.PDF);var authority=new ReceiptArtifactAuthority(store,storage,clock,generic(),diagnostics);
   failure(404,"NOT_FOUND",()->authority.verify(actor,caller.tenant(),document,"bad"));failure(404,"NOT_FOUND",()->authority.verify(new Actor("https://different.example",actor.subject()),caller.tenant(),document,receipt.receiptId().toString()));failure(404,"NOT_FOUND",()->authority.verify(new Actor(actor.issuer(),"other"),caller.tenant(),document,receipt.receiptId().toString()));failure(404,"NOT_FOUND",()->authority.verify(actor,caller.tenant(),UUID.randomUUID(),receipt.receiptId().toString()));
   var stored=store.uploads.receipt(caller.tenant(),receipt.receiptId()).orElseThrow();byte[] original=storage.objects.get(stored.original());byte[] corrupt=original.clone();corrupt[0]++;storage.objects.put(stored.original(),corrupt);failure(503,"UNAVAILABLE",()->authority.verify(actor,caller.tenant(),document,receipt.receiptId().toString()));storage.objects.put(stored.original(),original);
   documents().appendVersion(caller,document,0,"append",receipt.receiptId().toString());UUID version=app.discover(caller,document,receipt.receiptId()).versionId();storage.objects.put(stored.original(),corrupt);failure(503,"UNAVAILABLE",()->content().open(caller,document,version,null));storage.objects.put(stored.original(),original);
@@ -398,7 +447,7 @@ class UploadLifecycleTest {
  @Test void crashesBeforeDispatchAndBeforeSettlementNeverTransferDeletionAuthority(){
   for(boolean beforeDispatch:List.of(true,false)){resetUploads();var receipt=verified(uploads(),UploadFormat.PDF);var work=store.uploads.pendingCleanup(caller.tenant(),receipt.uploadId()).getFirst();store.uploads.failDispatch=beforeDispatch;store.uploads.failSettle=!beforeDispatch;
    assertThrows(IllegalStateException.class,()->cleanup().cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));var fence=store.uploads.unresolvedFence(caller.tenant(),document).orElseThrow();assertEquals(beforeDispatch?FencePhase.AUTHORIZED:FencePhase.DISPATCHED,fence.phase());assertEquals(2*bytes().length,store.uploads.global.transientBytes());
-   failure(503,"UNAVAILABLE",()->documents().placeHold(caller,document,0,"hold","reason"));int calls=storage.deleteCalls;failure(503,"UNAVAILABLE",()->new UploadCleanupService(store,storage,clock).cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));assertEquals(calls,storage.deleteCalls);store.uploads.failDispatch=false;store.uploads.failSettle=false;
+   failure(503,"UNAVAILABLE",()->documents().placeHold(caller,document,0,"hold","reason"));int calls=storage.deleteCalls;failure(503,"UNAVAILABLE",()->new UploadCleanupService(store,storage,clock,diagnostics).cleanup(caller.tenant(),work.workId(),UUID.randomUUID()));assertEquals(calls,storage.deleteCalls);store.uploads.failDispatch=false;store.uploads.failSettle=false;
   }
  }
 

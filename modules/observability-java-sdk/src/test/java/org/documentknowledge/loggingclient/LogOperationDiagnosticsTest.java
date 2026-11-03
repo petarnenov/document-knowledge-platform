@@ -10,7 +10,9 @@ import tools.jackson.databind.json.JsonMapper;
 import static org.junit.jupiter.api.Assertions.*;
 
 class LogOperationDiagnosticsTest {
-    static final Set<String> PHASES=Set.of("OPERATION","DATABASE","PROVIDER","RETRY","DEADLINE","CANCELLATION","CLEANUP");
+    static final Set<String> PHASES=Set.of("OPERATION","DATABASE","PROVIDER","RETRY","DEADLINE","CANCELLATION","CLEANUP",
+        "PROVIDER_STORAGE_PUT","PROVIDER_STORAGE_OPEN","PROVIDER_STORAGE_READ","PROVIDER_STORAGE_CLOSE",
+        "PROVIDER_STORAGE_COPY","PROVIDER_STORAGE_VERSIONS","PROVIDER_STORAGE_DELETE","PROVIDER_SCAN","PROVIDER_INSPECT");
     static final String SYMBOL=LogOperationDiagnosticsTest.class.getName()+".actualSqlFailure";
     static final String SOURCE="modules/observability-java-sdk/src/test/java/org/documentknowledge/loggingclient/LogOperationDiagnosticsTest.java";
     static final LogDiagnosticCatalog CATALOG=new LogDiagnosticCatalog(Set.of("DB_UNAVAILABLE","OPERATION_FAILED","CANCELLED"),Map.of(),
@@ -130,6 +132,85 @@ class LogOperationDiagnosticsTest {
             assertEquals(0,h.producer.status().committed());assertEquals(2,h.producer.status().pendingEvents());
             assertEquals(LogProducer.Admission.REJECTED,h.operations.reportRejected());assertEquals(1,h.producer.status().rejected());
             h.release.countDown();h.await(2);
+        }
+    }
+    @Test void providerFactsPreserveActualStatusDeadlineDependencyAndOriginalCause() throws Exception {
+        var dependency=new LogDiagnosticCatalog.Dependency("aws.s3","2.0",null,LogDiagnosticCatalog.Provenance.UNKNOWN);
+        var catalog=new LogDiagnosticCatalog(Set.of("PROVIDER_UNAVAILABLE"),Map.of("aws.s3",dependency),
+            Set.of(java.net.ConnectException.class.getName()),Set.of());
+        try(var h=new Harness(catalog,false)) {
+            assertEquals(dependency,h.operations.dependency("aws.s3"));assertNull(h.operations.dependency("rustfs"));
+            var start=new LogOperationDiagnostics.Facts(null,60000L,dependency,1,1,false,null,null);
+            var token=h.operations.started(UUID.randomUUID(),new TraceContext(null,null),"PROVIDER_STORAGE_PUT",start);
+            h.operations.recordFailure(token,new java.net.ConnectException("private-provider-message-canary"));
+            var terminal=new LogOperationDiagnostics.Facts(503,59000L,dependency,1,1,false,false,"PROVIDER_UNAVAILABLE");
+            h.operations.completed(token,new IllegalStateException("mapped-canary"),LifecycleEvent.Outcome.FAILED,terminal);
+            h.await(2);var first=context(h.rows.getFirst());var last=context(h.rows.getLast());
+            assertEquals(60000,((Number)first.get("remainingDeadlineMs")).intValue());assertFalse(first.containsKey("status"));
+            assertEquals(503,last.get("status"));assertEquals(59000,((Number)last.get("remainingDeadlineMs")).intValue());
+            assertEquals("aws.s3",last.get("dependency"));assertEquals("2.0",last.get("dependencyVersion"));
+            assertEquals("UNKNOWN",((Map<?,?>)last.get("attributes")).get("vendorBuildProvenance"));assertFalse(last.containsKey("dependencyImageDigest"));
+            assertEquals(java.net.ConnectException.class.getName(),last.get("exceptionClass"));
+            assertEquals("PROVIDER_UNAVAILABLE",last.get("errorCode"));assertEquals(1,((Number)last.get("attempt")).intValue());
+            assertFalse(JSON.writeValueAsString(h.rows).contains("canary"));
+        }
+    }
+    @Test void incompleteReadAndActualPolicyDecisionsHaveNoInventedFailureOrCancellation() throws Exception {
+        try(var h=new Harness(CATALOG,false)) {
+            var read=h.operations.started(UUID.randomUUID(),new TraceContext(null,null),"PROVIDER_STORAGE_READ");
+            h.operations.completed(read,null,LifecycleEvent.Outcome.UNKNOWN,LogOperationDiagnostics.Facts.EMPTY);
+            var retry=h.operations.started(UUID.randomUUID(),new TraceContext(null,null),"RETRY");
+            h.operations.completed(retry,null,LifecycleEvent.Outcome.REJECTED,new LogOperationDiagnostics.Facts(null,null,null,3,3,false,null,null));
+            var defer=h.operations.started(UUID.randomUUID(),new TraceContext(null,null),"RETRY");
+            h.operations.completed(defer,null,LifecycleEvent.Outcome.RETRYING,new LogOperationDiagnostics.Facts(null,null,null,1,3,false,null,null));
+            h.await(6);var terminals=h.rows.stream().filter(row->row.get("eventName").equals("operation.failed")).toList();
+            assertEquals(List.of("UNKNOWN","REJECTED","RETRYING"),terminals.stream().map(LogOperationDiagnosticsTest::context).map(row->row.get("outcome")).toList());
+            for(var row:terminals) {
+                assertEquals("DEBUG",row.get("severity"));assertFalse(context(row).containsKey("errorCode"));assertFalse(context(row).containsKey("exceptionClass"));
+                assertFalse(((Map<?,?>)context(row).get("attributes")).containsKey("cancelRequested"));
+            }
+            assertEquals(3,((Number)context(terminals.get(1)).get("attempt")).intValue());
+            assertEquals(3,((Number)((Map<?,?>)context(terminals.get(1)).get("attributes")).get("count")).intValue());
+        }
+    }
+    @Test void invalidFactsCannotConsumeTerminalAndConcurrentCompletionEmitsOnlyOne() throws Exception {
+        try(var h=new Harness(CATALOG,false)) {
+            var token=h.operations.started(UUID.randomUUID(),new TraceContext(null,null),"CLEANUP");
+            assertThrows(IllegalArgumentException.class,()->new LogOperationDiagnostics.Facts(99,null,null,0,1,false,null,null));
+            assertThrows(IllegalArgumentException.class,()->new LogOperationDiagnostics.Facts(null,-1L,null,0,1,false,null,null));
+            assertThrows(IllegalArgumentException.class,()->new LogOperationDiagnostics.Facts(null,null,null,-1,1,false,null,null));
+            assertThrows(IllegalArgumentException.class,()->new LogOperationDiagnostics.Facts(null,null,null,0,LifecycleEvent.MAX_INTEGER+1,false,null,null));
+            var invented=new LogDiagnosticCatalog.Dependency("unregistered","1",null,LogDiagnosticCatalog.Provenance.UNKNOWN);
+            assertThrows(IllegalArgumentException.class,()->h.operations.completed(token,null,LifecycleEvent.Outcome.UNKNOWN,new LogOperationDiagnostics.Facts(null,null,invented,0,1,false,null,null)));
+            assertThrows(IllegalArgumentException.class,()->h.operations.completed(token,null,LifecycleEvent.Outcome.UNKNOWN,new LogOperationDiagnostics.Facts(null,null,null,0,1,false,null,"UNREGISTERED")));
+            assertThrows(IllegalArgumentException.class,()->h.operations.completed(token,null,LifecycleEvent.Outcome.STARTED,LogOperationDiagnostics.Facts.EMPTY));
+            assertThrows(IllegalArgumentException.class,()->h.operations.completed(token,new IllegalStateException(),LifecycleEvent.Outcome.SUCCEEDED,LogOperationDiagnostics.Facts.EMPTY));
+            assertThrows(NullPointerException.class,()->h.operations.started(UUID.randomUUID(),new TraceContext(null,null),"CLEANUP",null));
+            assertThrows(NullPointerException.class,()->h.operations.dependency(null));
+            try(var executor=Executors.newVirtualThreadPerTaskExecutor()) {
+                var tasks=new ArrayList<Future<LogProducer.Admission>>();
+                for(int index=0;index<16;index++)tasks.add(executor.submit(()->h.operations.completed(token,null,LifecycleEvent.Outcome.SUCCEEDED,
+                    new LogOperationDiagnostics.Facts(null,10L,null,0,1,true,null,null))));
+                int accepted=0;for(var task:tasks)if(task.get()==LogProducer.Admission.ACCEPTED)accepted++;
+                assertEquals(1,accepted);
+            }
+            h.await(2);assertEquals(true,((Map<?,?>)context(h.rows.getLast()).get("attributes")).get("cleanupSettled"));
+        }
+    }
+    @Test void unknownRemoteOutcomeStillKeepsTheActualObservedTimeoutWithoutInventingSettlement()throws Exception {
+        var catalog=new LogDiagnosticCatalog(Set.of("PROVIDER_UNAVAILABLE","DEADLINE_EXCEEDED"),Map.of(),Set.of(java.net.SocketTimeoutException.class.getName()),Set.of());
+        try(var h=new Harness(catalog,false)) {
+            var token=h.operations.started(UUID.randomUUID(),new TraceContext(null,null),"PROVIDER_STORAGE_DELETE");
+            h.operations.recordFailure(token,new java.net.SocketTimeoutException("private-response-canary"));
+            h.operations.completed(token,null,LifecycleEvent.Outcome.UNKNOWN,new LogOperationDiagnostics.Facts(null,0L,null,1,1,false,null,"PROVIDER_UNAVAILABLE"));
+            var deadline=h.operations.started(UUID.randomUUID(),new TraceContext(null,null),"DEADLINE");
+            h.operations.completed(deadline,null,LifecycleEvent.Outcome.FAILED,new LogOperationDiagnostics.Facts(null,0L,null,0,1,false,null,"DEADLINE_EXCEEDED"));
+            h.await(4);var unknown=h.rows.stream().filter(row->context(row).get("outcome").equals("UNKNOWN")).findFirst().orElseThrow();
+            assertEquals("java.net.SocketTimeoutException",context(unknown).get("exceptionClass"));assertEquals("PROVIDER_UNAVAILABLE",context(unknown).get("errorCode"));
+            assertEquals(false,((Map<?,?>)context(unknown).get("attributes")).get("cleanupSettled"));assertFalse(context(unknown).containsKey("status"));
+            assertFalse(((Map<?,?>)context(unknown).get("attributes")).containsKey("cancelRequested"));
+            assertFalse(JSON.writeValueAsString(h.rows).contains("canary"));
+            var failed=context(h.rows.getLast());assertEquals("DEADLINE_EXCEEDED",failed.get("errorCode"));assertFalse(failed.containsKey("exceptionClass"));
         }
     }
 }

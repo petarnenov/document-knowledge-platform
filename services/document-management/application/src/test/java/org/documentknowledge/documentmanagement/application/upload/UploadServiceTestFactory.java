@@ -16,6 +16,7 @@ public final class UploadServiceTestFactory {
  public static UploadService create(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path root,VerificationWorkspacePort workspace,GenericTempPort generic){
   return new UploadService(transactions,grants,storage,scanner,inspector,clock,root,workspace,generic);
  }
+ public static UploadService create(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path root,VerificationWorkspacePort workspace,GenericTempPort generic,UploadDiagnosticsPort diagnostics){return new UploadService(transactions,grants,storage,scanner,inspector,clock,root,workspace,generic,diagnostics);}
  public static VerificationWorkspacePort workspace(Path root,Clock clock,Consumer<Path> cleanup){return new UnitWorkspace(root,clock,cleanup);}
  private static final class UnitWorkspace implements VerificationWorkspacePort {
   final Path root;final Clock clock;final Consumer<Path> cleanup;UnitOperation current;boolean active,closed;

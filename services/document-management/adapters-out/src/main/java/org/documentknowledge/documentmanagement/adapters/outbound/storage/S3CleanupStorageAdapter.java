@@ -3,6 +3,7 @@ package org.documentknowledge.documentmanagement.adapters.outbound.storage;
 import java.util.List;
 import org.documentknowledge.documentmanagement.application.DmFailure;
 import org.documentknowledge.documentmanagement.application.upload.CleanupStoragePort;
+import org.documentknowledge.documentmanagement.application.upload.UploadDiagnosticsPort;
 import org.documentknowledge.documentmanagement.application.upload.UploadStoragePort.DeletionResult;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.*;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -15,43 +16,55 @@ public final class S3CleanupStorageAdapter implements CleanupStoragePort, AutoCl
     public static S3CleanupStorageAdapter connect(S3UploadStorageAdapter.Configuration configuration) {
         return new S3CleanupStorageAdapter(S3UploadStorageAdapter.client(configuration, "cleanup"));
     }
+    public static S3CleanupStorageAdapter connect(S3UploadStorageAdapter.Configuration configuration,UploadDiagnosticsPort.FailureObserver observer) {
+        return new S3CleanupStorageAdapter(S3UploadStorageAdapter.client(configuration,"cleanup",observer));
+    }
     S3CleanupStorageAdapter(S3Client client) { this.client = java.util.Objects.requireNonNull(client); }
     public boolean ready() { return S3UploadStorageAdapter.ready(client); }
     @Override public List<ObjectIdentity> versions(ObjectKey key) { return S3UploadStorageAdapter.versions(client,key); }
+    @Override public List<ObjectIdentity> cleanupVersions(ObjectKey key,UploadDiagnosticsPort.FailureObserver observer){return S3UploadStorageAdapter.versions(client,key,observer);}
     @Override
     public DeletionResult deleteOnce(DeletionFence fence) {
+        return deleteOnce(fence,UploadDiagnosticsPort.NONE);
+    }
+    @Override public DeletionResult deleteOnce(DeletionFence fence,UploadDiagnosticsPort.FailureObserver observer) {
         if (fence.phase() != FencePhase.DISPATCHED) throw unavailable();
         var object = fence.object();
         try {
             var key = object.objectKey();
             var response = client.deleteObject(DeleteObjectRequest.builder().bucket(key.bucket()).key(key.key())
                 .versionId(object.versionId()).build());
+            S3UploadStorageAdapter.observedStatus(observer,response);
             String requestId = response.responseMetadata().requestId();
             if (response.sdkHttpResponse().statusCode() != 204 || !requestId(requestId)
                     || (response.versionId() != null && !response.versionId().equals(object.versionId()))) {
                 return unknown(fence);
             }
-            boolean absent = absent(object);
+            boolean absent = absent(object,observer);
             return new DeletionResult(fence.attemptId(), object, requestId, true, true, absent, true);
         } catch (S3Exception failure) {
+            S3UploadStorageAdapter.observe(observer,failure);
             // A validated terminal 4xx is a rejected one-shot attempt, not proof of deletion.
             if (failure.statusCode() >= 400 && failure.statusCode() < 500 && requestId(failure.requestId())) {
                 return new DeletionResult(fence.attemptId(), object, failure.requestId(), true, true, false, false);
             }
             return unknown(fence);
         } catch (SdkClientException failure) {
+            S3UploadStorageAdapter.observe(observer,failure);
             return unknown(fence); // Timeout/lost response must never clear the durable fence.
         }
     }
 
-    private boolean absent(ObjectIdentity object) {
+    private boolean absent(ObjectIdentity object,UploadDiagnosticsPort.FailureObserver observer) {
         try {
             client.headObject(HeadObjectRequest.builder().bucket(object.objectKey().bucket())
                 .key(object.objectKey().key()).versionId(object.versionId()).build());
             return false;
         } catch (S3Exception failure) {
-            return failure.statusCode() == 404 && failure.awsErrorDetails() != null
+            boolean absent=failure.statusCode() == 404 && failure.awsErrorDetails() != null
                 && List.of("NoSuchKey", "NoSuchVersion", "NotFound").contains(failure.awsErrorDetails().errorCode());
+            if(!absent)S3UploadStorageAdapter.observe(observer,failure);
+            return absent;
         }
     }
 

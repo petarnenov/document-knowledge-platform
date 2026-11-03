@@ -82,6 +82,46 @@ class S3CleanupStorageAdapterTest {
         assertEquals(1,calls.get());
     }
 
+    @Test void observedDeleteKeepsOriginalTimeoutAndNeverClaimsRemoteSettlement() {
+        var timeout=SdkClientException.create("synthetic lost response",new java.net.SocketTimeoutException());
+        var observation=new ProviderObservation();var calls=new AtomicInteger();
+        var result=adapter((method,args)->{assertEquals("deleteObject",method);calls.incrementAndGet();throw timeout;})
+            .deleteOnce(fence(FencePhase.DISPATCHED),observation);
+        assertEquals(List.of(timeout),observation.failures);assertTrue(observation.statuses.isEmpty());
+        assertFalse(result.terminal());assertFalse(result.successful());assertFalse(result.absent());
+        assertFalse(result.noFurtherExecution());assertEquals(1,calls.get());
+    }
+
+    @Test void observedDeleteDistinguishesActualRejectionFromExpectedAbsence() {
+        var denied=failure(403,"AccessDenied","request-denied");var observation=new ProviderObservation();
+        var result=adapter((method,args)->{throw denied;}).deleteOnce(fence(FencePhase.DISPATCHED),observation);
+        assertEquals(List.of(denied),observation.failures);assertEquals(List.of(403),observation.statuses);
+        assertTrue(result.terminal());assertFalse(result.successful());assertFalse(result.absent());
+        var successful=new ProviderObservation();var calls=new AtomicInteger();
+        result=adapter((method,args)->{calls.incrementAndGet();if(method.equals("deleteObject"))return deleted("request-delete","exact-version");
+            assertEquals("headObject",method);throw failure(404,"NoSuchVersion","request-head");})
+            .deleteOnce(fence(FencePhase.DISPATCHED),successful);
+        assertTrue(result.successful());assertTrue(result.absent());assertEquals(2,calls.get());
+        assertEquals(List.of(204),successful.statuses);assertTrue(successful.failures.isEmpty());
+        var headFailure=failure(503,"Unavailable","request-head-failed");var uncertain=new ProviderObservation();
+        result=adapter((method,args)->{if(method.equals("deleteObject"))return deleted("request-delete","exact-version");throw headFailure;})
+            .deleteOnce(fence(FencePhase.DISPATCHED),uncertain);
+        assertEquals(List.of(headFailure),uncertain.failures);assertEquals(List.of(204,503),uncertain.statuses);
+        // DELETE was acknowledged; failed reconciliation still cannot prove absence or settle cleanup.
+        assertTrue(result.successful());assertFalse(result.absent());
+    }
+
+    @Test void observedCleanupReconciliationReportsActualStatusAndRawFailureBeforeMapping() {
+        var observation=new ProviderObservation();var response=ListObjectVersionsResponse.builder().isTruncated(false)
+            .versions(ObjectVersion.builder().key(KEY).versionId("exact-version").build())
+            .sdkHttpResponse(SdkHttpResponse.builder().statusCode(200).build()).build();
+        assertEquals(List.of(OBJECT),adapter((method,args)->response).cleanupVersions(QUARANTINE,observation));
+        assertEquals(List.of(200),observation.statuses);assertTrue(observation.failures.isEmpty());
+        var original=failure(403,"AccessDenied","request-list");
+        assertUnavailable(()->adapter((method,args)->{throw original;}).cleanupVersions(QUARANTINE,observation));
+        assertEquals(List.of(original),observation.failures);assertEquals(List.of(200,403),observation.statuses);
+    }
+
     private static DeletionFence fence(FencePhase phase) {
         return new DeletionFence(UUID.randomUUID(), "synthetic-tenant", UUID.randomUUID(), UUID.randomUUID(),
             OBJECT, UUID.randomUUID(), Instant.parse("2026-10-31T18:00:00Z"), phase);

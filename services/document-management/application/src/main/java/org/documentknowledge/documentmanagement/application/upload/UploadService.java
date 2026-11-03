@@ -17,7 +17,7 @@ import static org.documentknowledge.documentmanagement.application.upload.Upload
 public final class UploadService {
  private final DocumentUnitOfWork transactions;private final UploadPolicy policy;private final UploadStoragePort storage;
  private final MalwareScanPort scanner;private final StructureInspectionPort inspector;private final Clock clock;private final Path temporary;
- private final VerificationWorkspacePort workspaces;private final GenericTempPort genericTemps;
+ private final VerificationWorkspacePort workspaces;private final GenericTempPort genericTemps;private final UploadDiagnosticsPort diagnostics;
  private final Semaphore verification=new Semaphore(1),transfers=new Semaphore(10);
  private final Set<UUID> transferring=java.util.concurrent.ConcurrentHashMap.newKeySet();
  public UploadService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,
@@ -28,6 +28,11 @@ public final class UploadService {
      MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path temporary,VerificationWorkspacePort workspaces){this(transactions,grants,storage,scanner,inspector,clock,temporary,workspaces,GenericTempPort.unavailable());}
  public UploadService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,
      MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path temporary,VerificationWorkspacePort workspaces,GenericTempPort genericTemps){
+  this(transactions,grants,storage,scanner,inspector,clock,temporary,workspaces,genericTemps,UploadDiagnosticsPort.NOOP);
+ }
+ public UploadService(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,UploadStoragePort storage,
+     MalwareScanPort scanner,StructureInspectionPort inspector,Clock clock,Path temporary,VerificationWorkspacePort workspaces,GenericTempPort genericTemps,UploadDiagnosticsPort diagnostics){
+  this.diagnostics=Objects.requireNonNull(diagnostics);
   this.genericTemps=Objects.requireNonNull(genericTemps);this.workspaces=Objects.requireNonNull(workspaces);
   this.transactions=Objects.requireNonNull(transactions);policy=new UploadPolicy(grants);this.storage=Objects.requireNonNull(storage);
   this.scanner=Objects.requireNonNull(scanner);this.inspector=Objects.requireNonNull(inspector);this.clock=Objects.requireNonNull(clock);this.temporary=Objects.requireNonNull(temporary);
@@ -51,7 +56,7 @@ public final class UploadService {
   });
  }
  public SlotReceipt transfer(DocumentCaller caller,UUID uploadId,String key,InputStream input){
-  var budget=new GenericTempBudget(clock,GenericTempPort.Role.TRANSFER);return budget.execute(()->transferOwned(caller,uploadId,key,input,budget));
+  var budget=new GenericTempBudget(clock,GenericTempPort.Role.TRANSFER,caller.diagnostics(),diagnostics);return budget.execute(()->transferOwned(caller,uploadId,key,input,budget));
  }
  private SlotReceipt transferOwned(DocumentCaller caller,UUID uploadId,String key,InputStream input,GenericTempBudget budget){
   budget.check();UUID document=locate(caller,uploadId,false,budget);read(caller,document,uploadId,false,budget);budget.check();
@@ -64,26 +69,27 @@ public final class UploadService {
   budget.check();TransferPlan plan=transactions.execute(caller.diagnostics(),repository->{budget.check();boundary(budget,()->repository.lockCommand(command));var u=repository.uploads();checked(budget,()->u.lockAccounts(caller.tenant()));policy.document(repository,caller,document,Action.VERSION_APPEND,false,budget::check);var slot=owned(u,caller,uploadId,budget);live(slot);var previous=checked(budget,()->u.command(command));
    if(previous.isPresent())return new TransferPlan(slot,previous.get());
    if(slot.state()==UploadState.RECEIVING&&!slot.writerSettled()&&(slot.failureCode()!=null||!now().isBefore(slot.leaseUntil())))throw UploadPolicy.unavailable();
-   if(slot.state()!=UploadState.INITIALIZED||slot.transferAttempts()>=3)throw conflict();var next=slot.receiving(UUID.randomUUID(),lease(slot,300),key);boundary(budget,()->u.updateSlot(next,slot.revision()));return new TransferPlan(next,null);
+   if(slot.state()!=UploadState.INITIALIZED)throw conflict();if(slot.transferAttempts()>=3){retry(caller.diagnostics(),UploadDiagnosticsPort.Outcome.REJECTED,slot.transferAttempts(),3);throw conflict();}var next=slot.receiving(UUID.randomUUID(),lease(slot,300),key);boundary(budget,()->u.updateSlot(next,slot.revision()));return new TransferPlan(next,null);
   });
+  if(plan.previous()==null)retry(caller.diagnostics(),UploadDiagnosticsPort.Outcome.SUCCEEDED,plan.slot().transferAttempts(),3);
   boolean attemptedWrite=false;ObjectIdentity object=null;ObjectKey target=UploadSupport.key(caller.tenant(),document,uploadId,false);
   try {budget.check();try(var workspace=genericTemps.reserve(GenericTempPort.Role.TRANSFER,GenericTempPort.Identity.of(caller.tenant(),caller.actor(),document,uploadId,null,plan.slot().declaredSize()),budget)){
    boolean cleanupAttempted=false;
    try {
     var spool=workspace.write(input,budget);String fingerprint=UploadSupport.fingerprint(spool.sha256(),spool.size());
-    if(plan.previous()!=null){same(plan.previous(),fingerprint);read(caller,document,uploadId,false,budget);cleanupAttempted=true;workspace.finish(budget);budget.check();return new SlotReceipt(uploadId);}
-    budget.check();attemptedWrite=true;
-    try(var reader=workspace.retain(budget)){object=storage.put(target,spool.path(),spool.size(),spool.sha256(),budget);}
+    if(plan.previous()!=null){same(plan.previous(),fingerprint);read(caller,document,uploadId,false,budget);cleanupAttempted=true;finish(caller.diagnostics(),workspace,budget);budget.check();return new SlotReceipt(uploadId);}
+    budget.check();attemptedWrite=true;retry(caller.diagnostics(),UploadDiagnosticsPort.Outcome.SUCCEEDED,0,1);
+    try(var reader=workspace.retain(budget)){object=observations(caller.diagnostics()).call(UploadDiagnosticsPort.Operation.PROVIDER_STORAGE_PUT,()->UploadObservations.remaining(budget.diagnosticRemainingMs()),observer->storage.put(target,spool.path(),spool.size(),spool.sha256(),budget,observer));}
     if(object==null||!object.objectKey().equals(target))throw UploadPolicy.unavailable();ObjectIdentity stored=object;
-    cleanupAttempted=true;workspace.finish(budget);budget.check();
+    cleanupAttempted=true;finish(caller.diagnostics(),workspace,budget);budget.check();
     return transactions.execute(caller.diagnostics(),repository->{budget.check();boundary(budget,()->repository.lockCommand(command));var u=repository.uploads();checked(budget,()->u.lockAccounts(caller.tenant()));policy.document(repository,caller,document,Action.VERSION_APPEND,false,budget::check);var current=owned(u,caller,uploadId,budget);sameLease(current,plan.slot());live(current);var next=current.quarantined(stored,spool.sha256());policy.document(repository,caller,document,Action.VERSION_APPEND,false,budget::check);boundary(budget,()->u.updateSlot(next,current.revision()));boundary(budget,()->u.record(new UploadOutcome(command,fingerprint,200,uploadId,null),audit(next,"upload.transfer",null)));budget.check();return new SlotReceipt(uploadId);});
-   }catch(RuntimeException failure){if(!cleanupAttempted){cleanupAttempted=true;workspace.finish(budget);}throw failure;}
+   }catch(RuntimeException failure){if(!cleanupAttempted){cleanupAttempted=true;finish(caller.diagnostics(),workspace,budget);}throw failure;}
   }}catch(RuntimeException failure){if(plan.previous()==null){if(!attemptedWrite)resetTransfer(caller.diagnostics(),plan.slot());else transferFailure(caller.diagnostics(),plan.slot(),target,object);}throw safe(failure);}
  }
  private record TransferPlan(UploadSlot slot,UploadOutcome previous) { }
  private void resetTransfer(DiagnosticContext context,UploadSlot claimed){transactions.execute(context,r->{var u=r.uploads();u.lockAccounts(claimed.tenant());r.find(claimed.tenant(),claimed.documentId()).orElseThrow(UploadPolicy::hidden);var current=u.slot(claimed.tenant(),claimed.uploadId()).orElseThrow(UploadPolicy::hidden);sameLeaseIdentity(current,claimed);u.updateSlot(current.transferReset(),current.revision());return null;});}
  public CompleteReceipt complete(DocumentCaller caller,UUID uploadId,String key){
-  var budget=new CompleteBudget(clock);
+  var budget=new CompleteBudget(clock,caller.diagnostics(),diagnostics);
   return budget.execute(()->completeBounded(caller,uploadId,key,budget));
  }
  private CompleteReceipt completeBounded(DocumentCaller caller,UUID uploadId,String key,CompleteBudget budget){
@@ -92,38 +98,40 @@ public final class UploadService {
   preparation.check();if(!verification.tryAcquire())throw new DmFailure(429,"QUOTA_EXCEEDED");
   UploadSlot claimed=null;
   try {
+   var admitted=new java.util.concurrent.atomic.AtomicBoolean();
    preparation.check();claimed=transactions.execute(caller.diagnostics(),repository->{preparation.check();boundary(preparation,()->repository.lockCommand(command));var u=repository.uploads();checked(preparation,()->u.lockAccounts(caller.tenant()));policy.document(repository,caller,document,Action.VERSION_APPEND,false,preparation::check);
     var slot=owned(u,caller,uploadId,preparation);live(slot);var previous=checked(preparation,()->u.command(command));
     if(previous.isPresent()){same(previous.get(),fingerprint);if(checked(preparation,()->u.consumption(caller.tenant(),previous.get().receiptId())).isPresent())throw new DmFailure(409,"RECEIPT_CONSUMED");policy.document(repository,caller,document,Action.VERSION_APPEND,false,preparation::check);preparation.check();return slot;}
     boolean unresolved=slot.possibleOriginal()!=null&&!(slot.writerSettled()&&slot.copyCleanupConfirmed());
     if(unresolved&&(slot.failureCode()!=null||slot.leaseUntil()!=null&&!now().isBefore(slot.leaseUntil())))throw UploadPolicy.unavailable();
-    if(slot.state()!=UploadState.QUARANTINED||slot.verificationAttempts()>=3)throw conflict();
+    if(slot.state()!=UploadState.QUARANTINED)throw conflict();if(slot.verificationAttempts()>=3){retry(caller.diagnostics(),UploadDiagnosticsPort.Outcome.REJECTED,slot.verificationAttempts(),3);throw conflict();}
     if(unresolved)throw UploadPolicy.unavailable();
-    var next=slot.verifying(UUID.randomUUID(),lease(slot,300));boundary(preparation,()->u.updateSlot(next,slot.revision()));return next;
+    var next=slot.verifying(UUID.randomUUID(),lease(slot,300));boundary(preparation,()->u.updateSlot(next,slot.revision()));admitted.set(true);return next;
    });
+   if(admitted.get())retry(caller.diagnostics(),UploadDiagnosticsPort.Outcome.SUCCEEDED,claimed.verificationAttempts(),3);
    preparation.check();preparation.close();budget.check();
    if(claimed.state()==UploadState.VERIFIED){try(var replay=budget.phase(CompleteBudget.Kind.STORAGE)){replay.check();var receipt=transactions.execute(caller.diagnostics(),r->{replay.check();policy.document(r,caller,document,Action.VERSION_APPEND,false,replay::check);var u=r.uploads();var value=checked(replay,()->u.receiptForUpload(caller.tenant(),uploadId)).orElseThrow(UploadPolicy::unavailable);if(checked(replay,()->u.consumption(caller.tenant(),value.receiptId())).isPresent())throw new DmFailure(409,"RECEIPT_CONSUMED");policy.document(r,caller,document,Action.VERSION_APPEND,false,replay::check);replay.check();return value;});replay.check();return new CompleteReceipt(uploadId,receipt.receiptId());}}
    UploadSlot lease=claimed;
    try(var workspace=reserveWorkspace(caller,claimed,budget)) {
    boolean cleanupAttempted=false;
    try {
-    var source=completeSpool(claimed.quarantine(),workspace,budget);
+    var source=completeSpool(caller.diagnostics(),claimed.quarantine(),workspace,budget);
     if(!source.sha256().equals(claimed.bodySha256()))throw UploadPolicy.unavailable();ArtifactSource artifact=new ArtifactSource(source.path(),claimed.format(),source.size(),source.sha256());
-    ScanEvidence scan;try(var phase=budget.phase(CompleteBudget.Kind.SCAN);var use=workspace.retain(phase)){scan=scanner.scan(artifact,phase);phase.check();validateScan(scan,artifact);}
-    InspectionEvidence inspection;try(var phase=budget.phase(CompleteBudget.Kind.INSPECT);var use=workspace.retain(phase)){inspection=inspector.inspect(artifact,phase);phase.check();validateInspection(inspection,artifact);}
+    ScanEvidence scan;try(var phase=budget.phase(CompleteBudget.Kind.SCAN);var use=workspace.retain(phase)){scan=observations(caller.diagnostics()).call(UploadDiagnosticsPort.Operation.PROVIDER_SCAN,()->UploadObservations.remaining(phase.diagnosticRemainingMs()),observer->scanner.scan(artifact,phase,observer));phase.check();validateScan(scan,artifact);}
+    InspectionEvidence inspection;try(var phase=budget.phase(CompleteBudget.Kind.INSPECT);var use=workspace.retain(phase)){inspection=observations(caller.diagnostics()).call(UploadDiagnosticsPort.Operation.PROVIDER_INSPECT,()->UploadObservations.remaining(phase.diagnosticRemainingMs()),observer->inspector.inspect(artifact,phase,observer));phase.check();validateInspection(inspection,artifact);}
     budget.check();
     try(var copying=budget.phase(CompleteBudget.Kind.STORAGE)){
     ObjectKey target=UploadSupport.key(caller.tenant(),document,UUID.randomUUID(),true);
     copying.check();transactions.execute(caller.diagnostics(),repository->{copying.check();var u=repository.uploads();checked(copying,()->u.lockAccounts(caller.tenant()));policy.document(repository,caller,document,Action.VERSION_APPEND,false,copying::check);var current=owned(u,caller,uploadId,copying);sameLease(current,lease);live(current);boundary(copying,()->u.updateSlot(current.possibleCopy(target),current.revision()));return null;});
-    copying.check();ObjectIdentity original=storage.copy(claimed.quarantine(),target,copying,workspace);if(original==null||!original.objectKey().equals(target))throw UploadPolicy.unavailable();
+    copying.check();retry(caller.diagnostics(),UploadDiagnosticsPort.Outcome.SUCCEEDED,0,1);ObjectIdentity original=observations(caller.diagnostics()).call(UploadDiagnosticsPort.Operation.PROVIDER_STORAGE_COPY,()->UploadObservations.remaining(copying.diagnosticRemainingMs()),observer->storage.copy(lease.quarantine(),target,copying,workspace,observer));if(original==null||!original.objectKey().equals(target))throw UploadPolicy.unavailable();
     // Settlement-only binding of a known remote write; not receipt publication or a rollback claim.
     transactions.execute(caller.diagnostics(),repository->{var u=repository.uploads();u.lockAccounts(caller.tenant());repository.find(caller.tenant(),document).orElseThrow(UploadPolicy::hidden);var current=owned(u,caller,uploadId);sameLeaseIdentity(current,lease);u.updateSlot(current.copied(original),current.revision());return null;});
     copying.check();freshLease(lease);
     var readbackBuffer=workspace.scratch(VerificationWorkspacePort.Role.READBACK,copying);
-    try(var readback=storage.open(original,copying);var abort=copying.onCancel(()->closeStream(readback))){var checked=readbackBuffer.write(readback,copying);copying.check();if(!checked.sha256().equals(source.sha256()))throw UploadPolicy.unavailable();}
-    readbackBuffer.cleanup(copying);
+    try(var readback=observations(caller.diagnostics()).open(()->UploadObservations.remaining(copying.diagnosticRemainingMs()),observer->storage.open(original,copying,observer));var abort=copying.onCancel(()->closeStream(readback))){var checked=readbackBuffer.write(readback,copying);copying.check();if(!checked.sha256().equals(source.sha256()))throw UploadPolicy.unavailable();}
+    observations(caller.diagnostics()).call(UploadDiagnosticsPort.Operation.CLEANUP,()->UploadObservations.remaining(copying.diagnosticRemainingMs()),observer->{readbackBuffer.cleanup(copying);return null;});
     // Confirm all local absence and durable ownership release BEFORE receipt publication.
-    cleanupAttempted=true;workspace.finish(copying);copying.check();
+    cleanupAttempted=true;finish(caller.diagnostics(),workspace,copying);copying.check();
     copying.close();
     try(var persistence=budget.phase(CompleteBudget.Kind.STORAGE)){
     persistence.check();return transactions.execute(caller.diagnostics(),repository->{persistence.check();boundary(persistence,()->repository.lockCommand(command));var u=repository.uploads();checked(persistence,()->u.lockAccounts(caller.tenant()));policy.document(repository,caller,document,Action.VERSION_APPEND,false,persistence::check);
@@ -136,7 +144,7 @@ public final class UploadService {
     });}
     }
    }catch(RuntimeException|java.io.IOException failure){
-    if(!cleanupAttempted){cleanupAttempted=true;try(var cleanup=budget.phase(CompleteBudget.Kind.STORAGE)){workspace.finish(cleanup);cleanup.check();}}
+    if(!cleanupAttempted){cleanupAttempted=true;try(var cleanup=budget.phase(CompleteBudget.Kind.STORAGE)){finish(caller.diagnostics(),workspace,cleanup);cleanup.check();}}
     throw failure instanceof RuntimeException runtime?runtime:UploadPolicy.unavailable();
    }
    }
@@ -147,11 +155,15 @@ public final class UploadService {
  private VerificationWorkspacePort.Workspace reserveWorkspace(DocumentCaller caller,UploadSlot slot,CompleteBudget budget){
   try(var phase=budget.phase(CompleteBudget.Kind.STORAGE)){var result=workspaces.reserve(VerificationWorkspacePort.Identity.of(caller.tenant(),caller.actor(),slot.documentId(),slot.uploadId(),slot.declaredSize()),phase);try{phase.check();return result;}catch(RuntimeException failure){result.close();throw failure;}}
  }
- private VerificationWorkspacePort.ArtifactFile completeSpool(ObjectIdentity object,VerificationWorkspacePort.Workspace workspace,CompleteBudget budget){
-  try(var phase=budget.phase(CompleteBudget.Kind.STORAGE);var input=storage.open(object,phase);var abort=phase.onCancel(()->closeStream(input))){
+ private VerificationWorkspacePort.ArtifactFile completeSpool(DiagnosticContext context,ObjectIdentity object,VerificationWorkspacePort.Workspace workspace,CompleteBudget budget){
+  try(var phase=budget.phase(CompleteBudget.Kind.STORAGE);var input=observations(context).open(()->UploadObservations.remaining(phase.diagnosticRemainingMs()),observer->storage.open(object,phase,observer));var abort=phase.onCancel(()->closeStream(input))){
    var spool=workspace.source().write(input,phase);phase.check();return spool;
   }catch(java.io.IOException failure){throw UploadPolicy.unavailable();}
  }
+ private void retry(DiagnosticContext context,UploadDiagnosticsPort.Outcome outcome,long attempt,long limit){observations(context).decision(UploadDiagnosticsPort.Operation.RETRY,outcome,new UploadDiagnosticsPort.Facts(null,null,attempt,limit,false,null,null));}
+ private UploadObservations observations(DiagnosticContext context){return new UploadObservations(diagnostics,context);}
+ private void finish(DiagnosticContext context,GenericTempPort.Workspace workspace,GenericTempBudget budget){observations(context).call(UploadDiagnosticsPort.Operation.CLEANUP,()->UploadObservations.remaining(budget.diagnosticRemainingMs()),observer->{workspace.finish(budget);return null;});}
+ private void finish(DiagnosticContext context,VerificationWorkspacePort.Workspace workspace,CompleteBudget.Phase phase){observations(context).call(UploadDiagnosticsPort.Operation.CLEANUP,()->UploadObservations.remaining(phase.diagnosticRemainingMs()),observer->{workspace.finish(phase);return null;});}
  private static void closeStream(InputStream stream){try{stream.close();}catch(java.io.IOException ignored){}}
  public Status status(DocumentCaller caller,UUID uploadId){UUID document=locate(caller,uploadId,true);var slot=read(caller,document,uploadId,true);return new Status(slot.uploadId(),slot.state(),slot.expiresAt(),slot.failureCode());}
  public ConsumedVersion discover(DocumentCaller caller,UUID documentId,UUID receiptId){

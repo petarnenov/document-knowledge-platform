@@ -20,6 +20,7 @@ import javax.net.ssl.TrustManagerFactory;
 import org.documentknowledge.authorization.TrustedAuthorityFiles;
 import org.documentknowledge.documentmanagement.application.DmFailure;
 import org.documentknowledge.documentmanagement.application.upload.UploadStoragePort;
+import org.documentknowledge.documentmanagement.application.upload.UploadDiagnosticsPort;
 import org.documentknowledge.documentmanagement.application.upload.CompleteBudget;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.ObjectIdentity;
@@ -65,26 +66,30 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     }
 
     /** Only this factory is used by runtime bindings; no ambient credentials, trust or retry fallback. */
-    public static S3UploadStorageAdapter connect(Configuration configuration) {
+    public static S3UploadStorageAdapter connect(Configuration configuration) {return connect(configuration,UploadDiagnosticsPort.NONE);}
+    private static S3UploadStorageAdapter connect(Configuration configuration,UploadDiagnosticsPort.FailureObserver observer) {
         try {
             var root = configuration.privateSpoolRoot();
             byte[] marker = TrustedAuthorityFiles.read(root.resolve(".spool-authority"), 64, true);
             if (!MessageDigest.isEqual(marker, "dkp-private-spool-v1\n".getBytes(StandardCharsets.US_ASCII))) {
                 throw unavailable();
             }
-            S3Client s3 = client(configuration, "normal");
+            S3Client s3 = client(configuration, "normal",observer);
             return new S3UploadStorageAdapter(s3, root);
         } catch (Exception failure) {
-            throw unavailable();
+            observe(observer,failure);throw unavailable();
         }
     }
 
     public static S3UploadStorageAdapter connect(Configuration configuration,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort workspaces){
-        var adapter=connect(configuration);
-        return new S3UploadStorageAdapter(adapter.client,adapter.spoolRoot,workspaces);
+        return connect(configuration,workspaces,UploadDiagnosticsPort.NONE);
     }
 
-    static S3Client client(Configuration configuration, String role) {
+    public static S3UploadStorageAdapter connect(Configuration configuration,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort workspaces,UploadDiagnosticsPort.FailureObserver observer){
+        var adapter=connect(configuration,observer);return new S3UploadStorageAdapter(adapter.client,adapter.spoolRoot,workspaces);
+    }
+    static S3Client client(Configuration configuration,String role){return client(configuration,role,UploadDiagnosticsPort.NONE);}
+    static S3Client client(Configuration configuration, String role,UploadDiagnosticsPort.FailureObserver observer) {
         try {
             String access = credential(configuration.accessKeyFile(), 16, 128);
             String secret = credential(configuration.secretKeyFile(), 32, 256);
@@ -120,7 +125,7 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
                     .socketTimeout(Duration.ofSeconds(30)).tlsTrustManagersProvider(() -> managers))
                 .build();
             return s3;
-        } catch (Exception failure) { throw unavailable(); }
+        } catch (Exception failure) { observe(observer,failure);throw unavailable(); }
     }
 
     // Constructor seam for transport contract tests, never selected by runtime configuration.
@@ -151,7 +156,8 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
 
     @Override
     public ObjectIdentity put(ObjectKey key, Path source, long sizeBytes, String sha256) {return putBounded(key,source,sizeBytes,sha256,null);}
-    private ObjectIdentity putBounded(ObjectKey key,Path source,long sizeBytes,String sha256,StorageBudget phase) {
+    private ObjectIdentity putBounded(ObjectKey key,Path source,long sizeBytes,String sha256,StorageBudget phase) {return putBounded(key,source,sizeBytes,sha256,phase,UploadDiagnosticsPort.NONE);}
+    private ObjectIdentity putBounded(ObjectKey key,Path source,long sizeBytes,String sha256,StorageBudget phase,UploadDiagnosticsPort.FailureObserver observer) {
         try {
             if(phase!=null)phase.check();
             UploadModels.size(sizeBytes);
@@ -172,17 +178,17 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
             var request=builder.build();
             ObjectIdentity object;
             try (InputStream input = Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS);var abort=abortInput(input,phase)) {
-                var response = client.putObject(request, RequestBody.fromInputStream(input, sizeBytes));
+                var response = client.putObject(request, RequestBody.fromInputStream(input, sizeBytes));observedStatus(observer,response);
                 object = identity(key, response.versionId());
             }
             // Stored checksums alone are insufficient: verify bytes of the exact returned version.
-            try (InputStream input = openBounded(object,phase)) {
+            try (InputStream input = openBounded(object,phase,observer)) {
                 Digest readback = digest(input,phase);
                 if (!before.equals(readback)) throw unavailable();
             }
             return object;
         } catch (Exception failure) {
-            throw unavailable(); // A possible write stays charged and durably reconciled by the caller.
+            observe(observer,failure);throw unavailable(); // A possible write stays charged and durably reconciled by the caller.
         }
     }
 
@@ -191,7 +197,12 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
     @Override public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase) {return openBounded(object,wrap(phase));}
     @Override public InputStream open(ObjectIdentity object,org.documentknowledge.documentmanagement.application.upload.GenericTempBudget budget){return openBounded(object,wrap(Objects.requireNonNull(budget)));}
     @Override public ObjectIdentity put(ObjectKey key,Path source,long size,String hash,org.documentknowledge.documentmanagement.application.upload.GenericTempBudget budget){return putBounded(key,source,size,hash,wrap(Objects.requireNonNull(budget)));}
-    private InputStream openBounded(ObjectIdentity object,StorageBudget phase) {
+    @Override public ObjectIdentity put(ObjectKey key,Path source,long size,String hash,org.documentknowledge.documentmanagement.application.upload.GenericTempBudget budget,UploadDiagnosticsPort.FailureObserver observer){return putBounded(key,source,size,hash,observedBudget(wrap(Objects.requireNonNull(budget)),observer),observer);}
+    @Override public InputStream open(ObjectIdentity object,UploadDiagnosticsPort.FailureObserver observer){return openBounded(object,null,observer);}
+    @Override public InputStream open(ObjectIdentity object,org.documentknowledge.documentmanagement.application.upload.GenericTempBudget budget,UploadDiagnosticsPort.FailureObserver observer){return openBounded(object,observedBudget(wrap(Objects.requireNonNull(budget)),observer),observer);}
+    @Override public InputStream open(ObjectIdentity object,CompleteBudget.Phase phase,UploadDiagnosticsPort.FailureObserver observer){return openBounded(object,observedBudget(wrap(phase),observer),observer);}
+    private InputStream openBounded(ObjectIdentity object,StorageBudget phase){return openBounded(object,phase,UploadDiagnosticsPort.NONE);}
+    private InputStream openBounded(ObjectIdentity object,StorageBudget phase,UploadDiagnosticsPort.FailureObserver observer) {
         ResponseInputStream<GetObjectResponse> input = null;
         try {
             if(phase!=null)phase.check();
@@ -199,7 +210,7 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
             var builder=GetObjectRequest.builder().bucket(key.bucket()).key(key.key()).versionId(object.versionId()).checksumMode(ChecksumMode.ENABLED);
             if(phase!=null){var remaining=phase.remaining();builder.overrideConfiguration(c->c.apiCallTimeout(remaining).apiCallAttemptTimeout(remaining));}
             input=client.getObject(builder.build());
-            var response = input.response();
+            var response = input.response();observedStatus(observer,response);
             if (!object.versionId().equals(response.versionId()) || response.contentLength() == null
                     || response.contentLength() < 1 || response.contentLength() > UploadModels.MAX_BYTES) {
                 throw unavailable();
@@ -207,34 +218,38 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
             return new ExactLengthStream(input,response.contentLength(),phase);
         } catch (Exception failure) {
             if (input != null) input.abort();
-            throw unavailable();
+            observe(observer,failure);throw unavailable();
         }
     }
 
     @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target){throw unavailable();}
     @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase){throw unavailable();}
-    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.Workspace workspace){
+    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.Workspace workspace){return copy(source,target,phase,workspace,UploadDiagnosticsPort.NONE);}
+    @Override public ObjectIdentity copy(ObjectIdentity source,ObjectKey target,CompleteBudget.Phase phase,org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.Workspace workspace,UploadDiagnosticsPort.FailureObserver observer){
         workspaces.check(workspace,phase);
         if(!"dkp-quarantine".equals(source.objectKey().bucket())||!"dkp-originals".equals(target.bucket())||!source.objectKey().key().substring(0,102).equals(target.key().substring(0,102)))throw unavailable();
         var scratch=workspace.scratch(org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.Role.COPY,phase);
         ObjectIdentity known=null;
         try{
             org.documentknowledge.documentmanagement.application.upload.VerificationWorkspacePort.ArtifactFile copied;
-            try(var input=open(source,phase);var abort=phase.onCancel(()->{try{input.close();}catch(IOException ignored){}})){copied=scratch.write(input,phase);}
+            try(var input=open(source,phase,observer);var abort=phase.onCancel(()->{try{input.close();}catch(IOException ignored){}})){copied=scratch.write(input,phase);}
             workspaces.check(workspace,phase);
-            try(var use=workspace.retain(phase)){known=putBounded(target,copied.path(),copied.size(),copied.sha256(),wrap(phase));return known;}
-        }catch(Exception failure){throw unavailable();}
-        finally{try{scratch.cleanup(phase);}catch(RuntimeException cleanupFailed){if(known==null)throw cleanupFailed;/* Known remote identity is settlement-only; retained scratch blocks READBACK and receipt. */}}
+            try(var use=workspace.retain(phase)){known=putBounded(target,copied.path(),copied.size(),copied.sha256(),observedBudget(wrap(phase),observer),observer);return known;}
+        }catch(Exception failure){observe(observer,failure);throw unavailable();}
+        finally{try{scratch.cleanup(phase);}catch(RuntimeException cleanupFailed){observe(observer,cleanupFailed);if(known==null)throw cleanupFailed;/* Known remote identity is settlement-only; retained scratch blocks READBACK and receipt. */}}
     }
 
 
     @Override
     public List<ObjectIdentity> versions(ObjectKey key) { return versions(client, key); }
 
-    static List<ObjectIdentity> versions(S3Client client, ObjectKey key) {
+    @Override public List<ObjectIdentity> versions(ObjectKey key,UploadDiagnosticsPort.FailureObserver observer){return versions(client,key,observer);}
+    static List<ObjectIdentity> versions(S3Client client,ObjectKey key){return versions(client,key,UploadDiagnosticsPort.NONE);}
+    static List<ObjectIdentity> versions(S3Client client, ObjectKey key,UploadDiagnosticsPort.FailureObserver observer) {
         try {
             var response = client.listObjectVersions(ListObjectVersionsRequest.builder()
                 .bucket(key.bucket()).prefix(key.key()).maxKeys(1000).build());
+            observedStatus(observer,response);
             if (Boolean.TRUE.equals(response.isTruncated())) throw unavailable();
             var objects = new java.util.ArrayList<ObjectIdentity>();
             response.versions().stream().filter(v -> key.key().equals(v.key()))
@@ -244,10 +259,19 @@ public final class S3UploadStorageAdapter implements UploadStoragePort, AutoClos
             if (objects.size() > 1000) throw unavailable();
             return List.copyOf(objects);
         } catch (Exception failure) {
-            throw unavailable();
+            observe(observer,failure);throw unavailable();
         }
     }
 
+    static void observe(UploadDiagnosticsPort.FailureObserver observer,Throwable failure){
+        if(failure instanceof software.amazon.awssdk.core.exception.SdkServiceException service)UploadDiagnosticsPort.status(observer,service.statusCode());
+        UploadDiagnosticsPort.note(observer,failure);
+    }
+    static void observedStatus(UploadDiagnosticsPort.FailureObserver observer,software.amazon.awssdk.core.SdkResponse response){if(response.sdkHttpResponse()!=null)UploadDiagnosticsPort.status(observer,response.sdkHttpResponse().statusCode());}
+    private static StorageBudget observedBudget(StorageBudget budget,UploadDiagnosticsPort.FailureObserver observer){
+        if(budget==null)return null;
+        return new StorageBudget(){public void check(){budget.check();}public Duration remaining(){return budget.remaining();}public Cancellation onCancel(Runnable hook){return budget.onCancel(()->{try{hook.run();}finally{UploadDiagnosticsPort.cancel(observer);}});}};
+    }
     private static ObjectIdentity identity(ObjectKey key, String versionId) {
         if (versionId == null || versionId.isBlank() || "null".equalsIgnoreCase(versionId)) throw unavailable();
         return new ObjectIdentity(key, versionId);
