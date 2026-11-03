@@ -1,8 +1,9 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+import { loggingManifest } from './tooling/logging-manifest.js';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), loggingManifest(new URL('../../', import.meta.url).pathname, process.env.DKP_LOG_BUILD_MANIFEST)],
   build: {
     rolldownOptions: {
       input: {
@@ -19,7 +20,7 @@ export default defineConfig({
     include: ['src/**/*.test.tsx'],
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.{ts,tsx}'],
+      include: ['src/**/*.{ts,tsx}', 'tooling/**/*.ts'],
       exclude: ['src/**/*.test.tsx', 'src/test-setup.ts'],
       reporter: ['text', 'lcov', 'json-summary'],
       thresholds: { lines: 75, branches: 75, functions: 75, statements: 75 },
