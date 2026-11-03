@@ -36,7 +36,7 @@ def digest(raw): return hashlib.sha256(raw).hexdigest()
 def spawn(command, **kwargs): return subprocess.Popen(command, **kwargs)
 
 
-def inputs(settings_file, directory):
+def inputs(settings_file, directory, *, verify_shared=True):
     settings = i.document(settings_file,32768)
     require(type(settings) is dict and settings.keys() == {'schemaVersion','installation','javaHome','port',
         'sharedDirectory','producerConfig','browserConfig'} and type(settings['schemaVersion']) is int and settings['schemaVersion'] == 1)
@@ -47,7 +47,8 @@ def inputs(settings_file, directory):
     shared = Path(settings['sharedDirectory'])
     require(shared.is_absolute() and shared.resolve(strict=True) == shared)
     state = i.document(shared/'state.json',i.m.MAX_MANIFEST)
-    r.validate_state(state,shared,state['project'],state['port'],state['idpPort']);r.verify_live(state,shared)
+    r.validate_state(state,shared,state['project'],state['port'],state['idpPort'])
+    if verify_shared: r.verify_live(state,shared)
     require(port not in (state['port'],state['idpPort']))
     java_home = Path(settings['javaHome']); java = java_home/'bin/java'
     require(java_home.is_absolute() and java_home.resolve(strict=True) == java_home and os.access(java,os.X_OK))
@@ -126,11 +127,11 @@ def healthy(port):
         require(response.status == 200)
 
 
-def status(settings_file, directory):
+def status(settings_file, directory, *, verify_shared=True):
     require(directory.is_absolute() and directory.resolve(strict=True) == directory and directory.is_dir()
         and directory.stat().st_uid == os.getuid() and not directory.stat().st_mode & 0o077)
     record = i.document(directory/'state.json',2*i.m.MAX_MANIFEST)
-    current = inputs(settings_file,directory)
+    current = inputs(settings_file,directory,verify_shared=verify_shared)
     require(record['references'] == current['references'] and record['installation'] == current['installed']
         and record['sharedOwnerId'] == current['sharedOwnerId'] and record['port'] == current['port']
         and record['optionsSha256'] == digest(current['options']) == digest(i.read(directory/'java.options',32768,True)))

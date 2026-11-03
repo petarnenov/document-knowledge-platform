@@ -645,7 +645,7 @@ def start(state, directory, update=False, target='both', prepared_images=None):
     if target == 'viewer':
         state['viewerEnabled'] = True
     if prepared_images is not None:
-        require(update and target == 'both' and set(prepared_images) == {'query','gateway'})
+        require(update and target in ('both','gateway') and set(prepared_images) == set(components))
     for component in components:
         state.update(build_image(state, directory, component=component) if prepared_images is None else prepared_images[component])
         save(directory, state)
@@ -1179,6 +1179,8 @@ def main():
             directory = Path(state['directory'])
             if 'browserGrantUpdate' in state:
                 require(args.action in ('status','observer-status','install-browser-grant'), 'LOG_BROWSER_GRANT_UPDATE_PENDING')
+            if 'portalAdoption' in state:
+                require(args.action in ('status','observer-status'), 'LOG_PORTAL_ADOPTION_PENDING')
             if args.action == 'status':
                 result = verify_live(state, directory)
             elif args.action == 'renew-readers':
