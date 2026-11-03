@@ -143,3 +143,6 @@ tasks.named('check') {
         dependsOn ":services:browser-bff:adapters-out:${name}CoverageVerification"
     }
 }
+
+// #457: bootstrap composes the replaceable producer adapter.
+dependencies { implementation project(':modules:observability-java-sdk') }

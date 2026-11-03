@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "buildId": "00000000-0000-4000-8000-000000000001",
+  "component": "browser-bff",
+  "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "compiledAt": "2026-11-03T00:00:00Z",
+  "toolchainFingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "dependencyFingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "vocabularySha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "sourceFingerprintAlgorithm": "dkp-public-inputs-v1",
+  "dirty": true,
+  "vocabulary": {
+    "events": [
+      "process.started",
+      "process.stopped",
+      "operation.started",
+      "operation.succeeded",
+      "operation.failed",
+      "operation.cancelled",
+      "dependency.started",
+      "dependency.succeeded",
+      "dependency.failed",
+      "build.started",
+      "build.succeeded",
+      "build.failed",
+      "ui.route.changed",
+      "ui.identity.changed",
+      "producer.delivery.degraded",
+      "producer.events.lost"
+    ],
+    "phases": [
+      "STARTUP",
+      "SHUTDOWN"
+    ],
+    "errorCodes": [],
+    "dependencies": [],
+    "exceptionClasses": [],
+    "frames": []
+  }
+}

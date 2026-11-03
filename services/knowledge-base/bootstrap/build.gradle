@@ -1,1 +1,4 @@
 // Shared build conventions are defined in the root build.gradle.
+
+// #457: bootstrap composes the replaceable producer adapter.
+dependencies { implementation project(':modules:observability-java-sdk') }
