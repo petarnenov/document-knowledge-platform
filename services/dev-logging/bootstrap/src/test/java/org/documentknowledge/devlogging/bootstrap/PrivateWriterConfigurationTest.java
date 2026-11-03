@@ -8,6 +8,9 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
+import org.documentknowledge.devlogging.adapters.outbound.persistence.ConfiguredLogRegistrars;
+import org.documentknowledge.devlogging.adapters.outbound.persistence.ConfiguredLogObserver;
+import org.documentknowledge.devlogging.domain.LogFailure;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PrivateWriterConfigurationTest {
@@ -53,6 +56,34 @@ class PrivateWriterConfigurationTest {
             var d=delegator();d.put(field,field.equals("id")?registrarId.toString():"b".repeat(64));var root2=registration();root2.put("delegators",List.of(d));safe(()->load(root2,observer()));
         }
     }
+    @Test void restartRetainsExpiredGrantsButRejectsTheirCredentialsWithoutBlockingLiveGrants() throws Exception {
+        String expiredRegistrar="r".repeat(64),liveRegistrar="s".repeat(64),expiredDelegator="t".repeat(64),liveDelegator="u".repeat(64),expiredObserver="v".repeat(64);
+        for(String expiry:List.of("2026-11-02T09:59:59Z","2026-11-02T10:00:00Z")) {
+            var oldRegistrar=registrar();oldRegistrar.put("expiresAt",expiry);oldRegistrar.put("tokenSha256",hash(expiredRegistrar));
+            var newRegistrar=registrar();newRegistrar.put("id",UUID.randomUUID().toString());newRegistrar.put("tokenSha256",hash(liveRegistrar));
+            var oldDelegator=delegator();oldDelegator.put("expiresAt",expiry);oldDelegator.put("tokenSha256",hash(expiredDelegator));
+            var newDelegator=delegator();newDelegator.put("id",UUID.randomUUID().toString());newDelegator.put("tokenSha256",hash(liveDelegator));
+            var root=registration();root.put("registrars",List.of(oldRegistrar,newRegistrar));root.put("delegators",List.of(oldDelegator,newDelegator));
+            var ob=observer();ob.put("expiresAt",expiry);ob.put("tokenSha256",hash(expiredObserver));
+            var config=load(root,ob);
+            assertEquals(6,config.nonproducerHashes().size());
+            assertEquals(Instant.parse(expiry),config.registrars().getFirst().authority().expiresAt());
+            assertEquals(Instant.parse(expiry),config.delegators().getFirst().authority().expiresAt());
+            assertEquals(Instant.parse(expiry),config.observer().expiresAt());
+            var authentication=new ConfiguredLogRegistrars(config.registrars(),config.delegators(),clock);
+            assertEquals(LogFailure.Kind.EXPIRED,assertThrows(LogFailure.class,()->authentication.registrar(expiredRegistrar)).kind());
+            assertEquals(LogFailure.Kind.EXPIRED,assertThrows(LogFailure.class,()->authentication.delegator(expiredDelegator)).kind());
+            assertEquals(UUID.fromString((String)newRegistrar.get("id")),authentication.registrar(liveRegistrar).id());
+            assertEquals(UUID.fromString((String)newDelegator.get("id")),authentication.delegator(liveDelegator).id());
+            var observation=new ConfiguredLogObserver(config.observer(),clock);
+            assertEquals(LogFailure.Kind.EXPIRED,assertThrows(LogFailure.class,()->observation.authenticate(expiredObserver)).kind());
+            // Expired hashes still reserve their role: a duplicate is not hidden by expiry.
+            ob.put("tokenSha256",hash(liveRegistrar));safe(()->load(root,ob));
+        }
+    }
+    static String hash(String token) throws Exception {
+        return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.US_ASCII)));
+    }
     @Test void malformedOrUnboundedPrivateJsonRejectsBeforeAuthority() throws Exception {
         String good=json.writeValueAsString(registration()),ob=json.writeValueAsString(observer());
         for(String bad:List.of("null","[]","{}",good+"{}",good.replace("\"schemaVersion\":1","\"schemaVersion\":1,\"schemaVersion\":1"),
@@ -73,7 +104,7 @@ class PrivateWriterConfigurationTest {
         for(Object bad:List.of(7,"INVALID","00000000-0000-0000-0000-000000000000")) {
             var row=registrar();row.put("id",bad);var root=registration();root.put("registrars",List.of(row));safe(()->load(root,observer()));
         }
-        for(String date:List.of("2026-11-02T09:59:59Z","2026-11-03T24:00:00Z","2026-11-03T10:60:00Z","2026-11-03T10:00:60Z","2026-11-03T10:00:00+00:00","private")) {
+        for(String date:List.of("2026-11-03T24:00:00Z","2026-11-03T10:60:00Z","2026-11-03T10:00:60Z","2026-11-03T10:00:00+00:00","private")) {
             var row=observer();row.put("expiresAt",date);safe(()->load(registration(),row));
         }
         for(var permission:List.of(Map.of("kind","UNKNOWN"),Map.of("kind","TENANT"),Map.of("kind","UNATTRIBUTED","issuer","https://issuer.invalid"))) {

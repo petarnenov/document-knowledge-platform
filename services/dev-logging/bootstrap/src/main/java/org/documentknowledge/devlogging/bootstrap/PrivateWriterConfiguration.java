@@ -33,12 +33,12 @@ final class PrivateWriterConfiguration {
             var rs=new ArrayList<ConfiguredLogRegistrars.RegistrarGrant>();
             for(Object row:rows(root,"registrars")) {
                 var item=object(row);keys(item,Set.of("id","expiresAt","tokenSha256"));
-                rs.add(new ConfiguredLogRegistrars.RegistrarGrant(new Registrar(id(text(item,"id")),expiry(item,clock)),hash(item)));
+                rs.add(new ConfiguredLogRegistrars.RegistrarGrant(new Registrar(id(text(item,"id")),expiry(item)),hash(item)));
             }
             var ds=new ArrayList<ConfiguredLogRegistrars.DelegatorGrant>();
             for(Object row:rows(root,"delegators")) {
                 var item=object(row);keys(item,Set.of("id","expiresAt","tokenSha256","parents","bridgeManifests","permissions"));
-                var authority=new Delegator(id(text(item,"id")),expiry(item,clock),
+                var authority=new Delegator(id(text(item,"id")),expiry(item),
                     unique(rows(item,"parents"),value->id(string(value))),
                     unique(rows(item,"bridgeManifests"),value->digest(string(value))),
                     unique(rows(item,"permissions"),PrivateWriterConfiguration::permission));
@@ -48,7 +48,7 @@ final class PrivateWriterConfiguration {
             new ConfiguredLogRegistrars(registrars,delegators,clock);
             var ob=parse(PrivateLogConfiguration.read(observerFile,4096),4);
             keys(ob,Set.of("schemaVersion","id","expiresAt","tokenSha256"));version(ob);
-            observer=new ConfiguredLogObserver.Grant(id(text(ob,"id")),expiry(ob,clock),hash(ob));
+            observer=new ConfiguredLogObserver.Grant(id(text(ob,"id")),expiry(ob),hash(ob));
             var ids=new HashSet<UUID>();var hashes=new HashSet<String>();var all=new ArrayList<byte[]>();
             for(var grant:readers.grants())add(ids,hashes,all,grant.reader().id(),grant.tokenSha256());
             for(var grant:registrars)add(ids,hashes,all,grant.authority().id(),grant.tokenSha256());
@@ -89,12 +89,14 @@ final class PrivateWriterConfiguration {
         if(!(item.get(key) instanceof List<?> list) || list.size()>4096) {fail();return List.of();}
         return (List<?>)item.get(key);
     }
-    private static Instant expiry(Map<?,?> item,Clock clock) {
+    private static Instant expiry(Map<?,?> item) {
         String value=text(item,"expiresAt");
         if(!value.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z")
                 || value.substring(11,13).compareTo("23")>0 || value.substring(14,16).compareTo("59")>0
                 || value.substring(17,19).compareTo("59")>0)fail();
-        Instant result=Instant.parse(value);if(!clock.instant().isBefore(result))fail();return result;
+        // An expired catalog entry cannot disable unrelated live authorities at
+        // restart. Authentication retains the original expiry and denies its use.
+        return Instant.parse(value);
     }
     private static UUID id(String value) {
         if(!value.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}") || value.equals("00000000-0000-0000-0000-000000000000"))fail();

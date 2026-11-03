@@ -91,7 +91,8 @@ final class PrivateLogConfiguration {
             if (operator && (keys.contains("issuer") || keys.contains("tenantId"))) fail();
             var reader = new LogReader(UUID.fromString(id), operator, operator ? null : text(item, "issuer"),
                 operator ? null : text(item, "tenantId"), Instant.parse(expiry));
-            reader.requireActive(clock.instant());
+            // Keep expired entries and their hashes for role/duplicate checks.
+            // ConfiguredLogReaders rejects them on every authentication attempt.
             result.add(new ConfiguredLogReaders.Grant(reader, HexFormat.of().parseHex(hash)));
         }
         // Registry constructor performs the bounded duplicate-ID/hash checks as well as immutable copying.

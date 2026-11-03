@@ -7,6 +7,8 @@ import java.util.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
+import org.documentknowledge.devlogging.adapters.outbound.persistence.ConfiguredLogReaders;
+import org.documentknowledge.devlogging.domain.LogFailure;
 
 class PrivateLogConfigurationTest {
     @TempDir Path directory;
@@ -46,6 +48,22 @@ class PrivateLogConfigurationTest {
         for(var bad:List.of("b".repeat(63),"B".repeat(64),"b".repeat(66),"b".repeat(64)+"x"))
             safe(()->config(url,doc(row()),"p".repeat(32),bad));
     }
+    @Test void restartWithExpiredReaderRetainsDenialAndAllowsAnotherLiveReader() throws Exception {
+        String expiredToken="e".repeat(64),liveToken="l".repeat(64);
+        var digest=java.security.MessageDigest.getInstance("SHA-256");
+        String expiredHash=HexFormat.of().formatHex(digest.digest(expiredToken.getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
+        String liveHash=HexFormat.of().formatHex(digest.digest(liveToken.getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
+        for(String expiry:List.of("2026-11-02T09:59:59Z","2026-11-02T10:00:00Z")) {
+            String expired=row().replace("2026-11-03T10:00:00Z",expiry).replace("a".repeat(64),expiredHash);
+            String live=row().replace(id,UUID.randomUUID().toString()).replace("a".repeat(64),liveHash);
+            var config=config(url,doc(expired+","+live),"p".repeat(64),"b".repeat(64));
+            assertEquals(2,config.grants().size());assertEquals(Instant.parse(expiry),config.grants().getFirst().reader().expiresAt());
+            var authentication=new ConfiguredLogReaders(config.grants(),clock);
+            assertEquals(LogFailure.Kind.EXPIRED,assertThrows(LogFailure.class,()->authentication.authenticate(expiredToken)).kind());
+            assertTrue(authentication.authenticate(liveToken).operator());
+            safe(()->config(url,doc(expired+","+expired),"p".repeat(64),"b".repeat(64)));
+        }
+    }
     @Test void duplicateKeysTrailingDocumentsAndAmbiguousGrantShapesFailBeforeAuthority() throws Exception {
         for(var bad:List.of(doc(row()).replace("\"schemaVersion\":1","\"schemaVersion\":1,\"schemaVersion\":1"),
                 doc(row().replace("\"operator\":true","\"operator\":true,\"operator\":false")),doc(row())+"{}",
@@ -53,7 +71,6 @@ class PrivateLogConfigurationTest {
                 "{}",doc(""),doc("null"),doc(row().replace("true","\"true\"")),
                 doc(row().replace("\"id\":","\"unknown\":")),doc(row().replace("true","false")),
                 doc(row().replace("}",",\"tenantId\":null}")),doc(row()+","+row()),
-                doc(row().replace("2026-11-03T10:00:00Z","2026-11-01T10:00:00Z")),
                 doc(row().replace("2026-11-03T10:00:00Z","2026-11-03T10:00:00+00:00")),
                 doc(row().replace(id,"00000000-0000-0000-0000-000000000000")),
                 doc(row().replace("a".repeat(64),"private-not-a-hash")),
