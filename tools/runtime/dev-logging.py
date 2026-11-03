@@ -372,19 +372,50 @@ def config_digest(directory, writer=False):
     return digest.hexdigest()
 
 
+def portal_adapter():
+    spec = importlib.util.spec_from_file_location('runtime_portal_image', ROOT/'tools/runtime/log-portal-image.py')
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    return module
+
+
+def portal_selection(state, directory):
+    selected = state.get('portalRuntime')
+    if selected is None: return None
+    require(type(selected) is dict and selected.keys() == {'context', 'contextSha256', 'buildId', 'manifestSha256',
+        'artifactSha256', 'nativeBffPort'}, 'LOG_RUNTIME_PORTAL_BINDING_INVALID')
+    adapter = portal_adapter()
+    build_id = adapter.m.identifier(selected['buildId'])
+    context = directory/'operator/portal-builds'/build_id
+    require(selected['context'] == str(context), 'LOG_RUNTIME_PORTAL_BINDING_INVALID')
+    record = adapter.verify_prepared(context)
+    require(hashlib.sha256(private(context/'image-context.json')).hexdigest() == selected['contextSha256']
+        and record['buildId'] == selected['buildId'] and record['manifestSha256'] == selected['manifestSha256']
+        and record['artifact']['sha256'] == selected['artifactSha256'], 'LOG_RUNTIME_PORTAL_BINDING_INVALID')
+    port = selected['nativeBffPort']
+    require(type(port) is int and 1024 <= port <= 65535 and port not in
+        {state['port'], state['idpPort'], 18081, 18082, 18083, 19081, 19082, 19083}, 'LOG_RUNTIME_NATIVE_BFF_PORT_INVALID')
+    return selected
+
+
 def build_image(state, directory, component='query'):
     sys.path.insert(0, str(ROOT / 'tools/ci'))
     import verify
     with tempfile.TemporaryDirectory(prefix='dkp-log-public-source-') as temporary:
         source = verify.snapshot(ROOT, Path(temporary))
+        selected = portal_selection(state, directory) if component == 'gateway' else None
         image = state['project'] + '-' + component + ':' + source['fingerprint'][:16]
+        if selected: image += '-' + selected['buildId']
+        context = str(selected['context']) if selected else temporary
         args = ['build', '--platform', 'linux/amd64', '--tag', image,
-                '--file', str(COMPOSE.with_name('dev-logging-'+component+'.Dockerfile' if component != 'query' else 'dev-logging.Dockerfile'))]
-        for key, value in {**labels(state), 'dkp.logging.source': source['fingerprint']}.items():
+                '--file', str(Path(context)/'Dockerfile') if selected else str(COMPOSE.with_name('dev-logging-'+component+'.Dockerfile' if component != 'query' else 'dev-logging.Dockerfile'))]
+        extra = {'dkp.logging.portal-build': selected['buildId'], 'dkp.logging.portal-manifest': selected['manifestSha256'],
+                 'dkp.logging.portal-artifact': selected['artifactSha256']} if selected else {}
+        for key, value in {**labels(state), 'dkp.logging.source': source['fingerprint'], **extra}.items():
             args.extend(['--label', key + '=' + value])
         if exists('image', image):
             owned(inspect('image', image), state)
-        docker(*args, temporary, timeout=900)
+        docker(*args, context, timeout=900)
+        if selected: require(portal_selection(state, directory) == selected, 'LOG_RUNTIME_PORTAL_BINDING_INVALID')
     item = inspect('image', image)
     owned(item, state)
     require(item['Os'] == 'linux' and item['Architecture'] == 'amd64')
@@ -544,6 +575,11 @@ def verify_live(state, directory):
     gateway_image = inspect('image', state['gatewayImageId'])
     owned(gateway_image, state)
     require(gateway_image['Config']['Labels'].get('dkp.logging.source') == state['gatewaySourceFingerprint'])
+    selected = portal_selection(state, directory)
+    if selected:
+        require(all(gateway_image['Config']['Labels'].get(key) == value for key, value in {
+            'dkp.logging.portal-build': selected['buildId'], 'dkp.logging.portal-manifest': selected['manifestSha256'],
+            'dkp.logging.portal-artifact': selected['artifactSha256']}.items()), 'LOG_RUNTIME_PORTAL_IMAGE_MISMATCH')
     require(gateway_digest(directory) == state['gatewayConfigSha256'], 'LOG_RUNTIME_CONFIG_UPDATE_REQUIRED')
     if state.get('viewerEnabled'):
         viewer_image = inspect('image', state['viewerImageId']);owned(viewer_image,state)
@@ -626,7 +662,9 @@ def start(state, directory, update=False, target='both', prepared_images=None):
     disk(state, directory)
     provision(state, directory)
     if update and 'gateway' in components:
-        gateway_config(directory, state['port'], state['idpPort'], viewer=state.get('viewerEnabled',False), writer=state.get('writerEnabled',False))
+        selected = portal_selection(state, directory)
+        gateway_config(directory, state['port'], state['idpPort'], viewer=state.get('viewerEnabled',False), writer=state.get('writerEnabled',False),
+            native_bff_port=selected['nativeBffPort'] if selected else None)
     for component in components:
         compose(state, directory, 'up', '--detach', '--wait', '--no-deps', '--force-recreate' if update else '--no-recreate', component)
     if 'query' in components:
