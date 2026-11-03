@@ -59,3 +59,5 @@ Owner clarification2026-11-02: prioritize the normal working #457 shared logging
 - [ ] Normal Java SDK queue persistence prerequisite: implement/review/verify [java-sdk-spool.md](java-sdk-spool.md) under #457 before isolated producer adoption; preserve exact original credential/execution/event binding and visible unspooled state. Additional exceptional capacity/OS matrices remain P3 #458/#459.
 
 - [ ] Actual original-build Java application adoption: review/select/implement/verify [java-application-wiring.md](java-application-wiring.md) under #457. First prove a real native application startup in the persistent shared store; preserve existing stacks and distinguish partial lifecycle adoption from full instrumentation/SDK/CI/dev completion.
+
+- [ ] Normal accepted BFF batch persistence/replay: review/select/implement/verify [browser-server-spool.md](browser-server-spool.md) under #457; original scoped authority and event IDs, finite bounds, normal unavailable/restart/recovery, coordinated original portal/BFF adoption. No deferred #458/#459 or full-delivery closure claim.
