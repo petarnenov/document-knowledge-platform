@@ -309,11 +309,19 @@ def logging_routes(writer=False):
     return '\n'.join(routes)
 
 
-def gateway_config(directory, port, idp_port, viewer=False, writer=False):
+def gateway_config(directory, port, idp_port, viewer=False, writer=False, native_bff_port=None):
+    if native_bff_port is not None:
+        require(type(native_bff_port) is int and 1024 <= native_bff_port <= 65535
+            and native_bff_port not in {port, idp_port, 18081, 18082, 18083, 19081, 19082, 19083},
+            'LOG_RUNTIME_NATIVE_BFF_PORT_INVALID')
     (directory / 'gateway').mkdir(mode=0o700, exist_ok=True)
     for name, template in [('server.conf','dev-logging-gateway-server.template.conf'),('log-proxy.conf','dev-logging-log-proxy.template.conf')]:
         routes = COMPOSE.with_name('dev-logging-viewer-routes.template.conf').read_text() if viewer else 'location = /dev/logs { return 404; }\nlocation ^~ /dev/logs/ { return 404; }\nlocation = /logs.html { return 404; }'
         value = COMPOSE.with_name(template).read_text().replace('__VIEWER_ROUTES__',routes).replace('__LOG_ROUTES__',logging_routes(writer)).replace('__PORTAL_PORT__', str(port)).replace('__IDP_PORT__', str(idp_port))
+        if native_bff_port is not None and name == 'server.conf':
+            upstream = 'set $bff http://browser-bff:8080;'
+            require(value.count(upstream) == 1, 'LOG_RUNTIME_NATIVE_BFF_TEMPLATE_INVALID')
+            value = value.replace(upstream, 'set $bff http://host.docker.internal:'+str(native_bff_port)+';')
         write_private(directory / 'gateway' / name, value, replace=(directory / 'gateway' / name).exists())
 
 

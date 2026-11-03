@@ -396,6 +396,28 @@ class LoggingRuntimeTests(unittest.TestCase):
         self.assertIn('http://viewer:18088',config.read_text())
         self.assertNotIn('__VIEWER_ROUTES__',config.read_text())
 
+    def test_native_bff_uses_only_fixed_operator_port_and_preserves_routes(self):
+        config=self.directory/'gateway/server.conf'
+        m.gateway_config(self.directory,18087,18088,viewer=True,writer=True)
+        original=config.read_text()
+        m.gateway_config(self.directory,18087,18088,viewer=True,writer=True,native_bff_port=58480)
+        selected=config.read_text()
+        self.assertEqual(original.replace('set $bff http://browser-bff:8080;',
+            'set $bff http://host.docker.internal:58480;'),selected)
+        for invalid in [True,False,'58480','http://example.invalid',0,1023,65536,18087,18088,
+                        18081,18082,18083,19081,19082,19083]:
+            with self.subTest(port=invalid),self.assertRaisesRegex(m.RuntimeFailure,'NATIVE_BFF_PORT_INVALID'):
+                m.gateway_config(self.directory,18087,18088,native_bff_port=invalid)
+            self.assertEqual(selected,config.read_text())
+        # A changed upstream template cannot silently omit the selected native binding.
+        read_text=Path.read_text
+        def drift(path,*args,**kwargs):
+            value=read_text(path,*args,**kwargs)
+            return value.replace('http://browser-bff:8080','http://unknown:8080') if path.name=='dev-logging-gateway-server.template.conf' else value
+        with patch.object(Path,'read_text',drift),self.assertRaisesRegex(m.RuntimeFailure,'NATIVE_BFF_TEMPLATE_INVALID'):
+            m.gateway_config(self.directory,18087,18088,native_bff_port=58480)
+        self.assertEqual(selected,config.read_text())
+
     def test_writer_routes_require_explicit_selection_and_precede_general_bff_proxy(self):
         config=self.directory/'gateway/server.conf'
         original=config.read_text()

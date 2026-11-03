@@ -68,6 +68,54 @@ class PortalImageTest(unittest.TestCase):
         with self.assertRaises(ValueError): m.prepare(self.root, self.receipt, self.output)
         self.assertFalse(self.output.exists())
 
+    def test_prepared_context_verification_survives_later_source_revision(self):
+        record = m.prepare(self.root, self.receipt, self.output)
+        (self.root/'source.txt').write_text('later workspace revision')
+        self.assertEqual(record, m.verify_prepared(self.output))
+
+    def test_prepared_rejects_changed_asset_recipe_inventory_or_extra_file(self):
+        record = m.prepare(self.root, self.receipt, self.output)
+        for relative, replacement in [('public/index.html', b'changed'), ('Dockerfile', b'FROM unknown'),
+                ('nginx.conf', b'changed'), ('.dockerignore', b'!image-context.json')]:
+            with self.subTest(relative=relative):
+                path = self.output/relative; original = path.read_bytes(); path.write_bytes(replacement)
+                with self.assertRaises(ValueError): m.verify_prepared(self.output)
+                path.write_bytes(original)
+        extra = self.output/'public/private.json'; extra.write_text('private')
+        with self.assertRaises(ValueError): m.verify_prepared(self.output)
+        extra.unlink()
+        extra = self.output/'public/unlisted'; extra.mkdir()
+        with self.assertRaises(ValueError): m.verify_prepared(self.output)
+        extra.rmdir()
+        path = self.output/'image-context.json'
+        for changed in [dict(record, schemaVersion=True), dict(record, buildId='00000000-0000-0000-0000-000000000000'),
+                dict(record, manifestSha256='0'*64), dict(record, artifact=dict(record['artifact'], bytes=True)),
+                dict(record, unexpected='field'), dict(record, files={}), dict(record, runtimeImage='BUILT')]:
+            with self.subTest(changed=list(changed)):
+                path.write_bytes(m.m.canonical(changed))
+                with self.assertRaises(ValueError): m.verify_prepared(self.output)
+        path.write_bytes(m.m.canonical(record))
+        self.assertEqual(record, m.verify_prepared(self.output))
+
+    def test_prepared_rejects_symlinks_permissions_and_manifest_substitution(self):
+        record = m.prepare(self.root, self.receipt, self.output)
+        for relative, mode in [('', 0o755), ('public', 0o777), ('public/index.html', 0o666), ('image-context.json', 0o644)]:
+            path = self.output/relative; original_mode = path.stat().st_mode & 0o777
+            path.chmod(mode)
+            with self.assertRaises(ValueError): m.verify_prepared(self.output)
+            path.chmod(original_mode)
+        asset = self.output/'public/index.html'; original = asset.read_bytes()
+        other = self.output.parent/'external.html'; other.write_bytes(original); other.chmod(0o644)
+        asset.unlink(); asset.symlink_to(other)
+        with self.assertRaises(ValueError): m.verify_prepared(self.output)
+        asset.unlink(); asset.write_bytes(original); asset.chmod(0o644)
+        # Even a rewritten inventory cannot make HTML with a substituted original manifest valid.
+        raw = (self.output/'public/dkp-logging-manifest.json').read_bytes()
+        asset.write_bytes(original.replace(raw, b'{}'))
+        record['files']['index.html'] = {'sha256': m.hashlib.sha256(asset.read_bytes()).hexdigest(), 'bytes': asset.stat().st_size}
+        (self.output/'image-context.json').write_bytes(m.m.canonical(record))
+        with self.assertRaises(ValueError): m.verify_prepared(self.output)
+
     def test_valid_seal_does_not_allow_unsafe_special_duplicate_or_mismatched_archive(self):
         cases = [[('../escape', b'x', tarfile.REGTYPE)], [('/absolute', b'x', tarfile.REGTYPE)],
             [('index.html', b'x', tarfile.SYMTYPE)], [('index.html', b'x', tarfile.LNKTYPE)],

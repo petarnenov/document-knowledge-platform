@@ -12,6 +12,7 @@ spec = importlib.util.spec_from_file_location('portal_original_build', Path(__fi
 p = importlib.util.module_from_spec(spec); spec.loader.exec_module(p)
 m = p.m
 MAX_BYTES = 64 * 1024 * 1024
+DOCKERIGNORE = '*\n!Dockerfile\n!nginx.conf\n!public\n!public/**\n'
 
 
 def require(condition):
@@ -30,6 +31,70 @@ def private(path, maximum):
 
 def document(path, maximum):
     return json.loads(private(path, maximum), object_pairs_hook=p.unique)
+
+
+def verify_prepared(output):
+    """Recheck the installed original artifact without rebuilding against runtime HEAD."""
+    output = Path(output)
+    require(output.is_absolute() and output.resolve(strict=True) == output)
+    info = output.lstat()
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid() and not info.st_mode & 0o077)
+    record = document(output/'image-context.json', 2 * m.MAX_MANIFEST)
+    require(type(record) is dict and record.keys() == {'schemaVersion', 'result', 'component', 'buildId',
+        'manifestSha256', 'artifact', 'files', 'recipeSha256', 'nginxConfigSha256', 'runtimeImage', 'sharedStoreDelivery'})
+    require(type(record['schemaVersion']) is int and record['schemaVersion'] == 1 and record['result'] == 'PREPARED'
+        and record['component'] == 'admin-portal' and record['runtimeImage'] == 'NOT_BUILT'
+        and record['sharedStoreDelivery'] == 'NOT_STARTED')
+    build_id = m.identifier(record['buildId'])
+    artifact = record['artifact']
+    require(type(artifact) is dict and artifact.keys() == {'path', 'sha256', 'bytes'}
+        and artifact['path'] == 'build/generated/dkp-logging/admin-portal/'+build_id+'/portal.tar'
+        and type(artifact['bytes']) is int and 0 < artifact['bytes'] <= MAX_BYTES + 1024 * 1024)
+    for value in (artifact['sha256'], record['manifestSha256'], record['recipeSha256'], record['nginxConfigSha256']):
+        require(type(value) is str and len(value) == 64 and all(c in '0123456789abcdef' for c in value))
+    files = record['files']
+    require(type(files) is dict and 1 <= len(files) <= 512)
+    expected = {'Dockerfile', 'nginx.conf', '.dockerignore', 'image-context.json'}
+    directories = {'public'}; total = 0; raw_manifest = None; pages = {}
+    for name, entry in files.items():
+        require(m.path_name(name) == name and type(entry) is dict and entry.keys() == {'sha256', 'bytes'})
+        require(type(entry['bytes']) is int and 0 <= entry['bytes'] <= MAX_BYTES)
+        total += entry['bytes']; require(total <= MAX_BYTES)
+        path = output/'public'/name
+        # Strict path resolution rejects symlinked files and ancestor directories.
+        require(path.resolve(strict=True) == path)
+        info = path.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) == 0o644
+            and info.st_size == entry['bytes'])
+        data = path.read_bytes()
+        require(len(data) == entry['bytes'] and hashlib.sha256(data).hexdigest() == entry['sha256'])
+        expected.add('public/'+name)
+        directories.update(str(parent) for parent in Path('public', name).parents if str(parent) != '.')
+        if name == 'dkp-logging-manifest.json': raw_manifest = data
+        if name in ('index.html', 'logs.html'): pages[name] = data
+    require(raw_manifest is not None and hashlib.sha256(raw_manifest).hexdigest() == record['manifestSha256'])
+    manifest = json.loads(raw_manifest, object_pairs_hook=p.unique)
+    require(m.canonical(manifest) == raw_manifest and manifest['buildId'] == build_id and manifest['component'] == 'admin-portal')
+    escaped = raw_manifest.decode('utf-8').replace('<', '\\u003c')
+    require(pages.keys() == {'index.html', 'logs.html'})
+    for data in pages.values():
+        html = data.decode('utf-8', errors='strict')
+        require('id="dkp-log-build-manifest"' in html and escaped in html)
+    for path in output.rglob('*'):
+        name = str(path.relative_to(output)); info = path.lstat()
+        require(not path.is_symlink() and info.st_uid == os.getuid())
+        if stat.S_ISDIR(info.st_mode):
+            require(name in directories and stat.S_IMODE(info.st_mode) == 0o755)
+        else:
+            require(name in expected and stat.S_ISREG(info.st_mode))
+    trusted = Path(__file__).resolve().parents[2]/'infra/docker-compose'
+    for name, source, field in [('Dockerfile', 'dev-logging-portal-runtime.Dockerfile', 'recipeSha256'),
+                               ('nginx.conf', 'dev-logging-nginx.conf', 'nginxConfigSha256')]:
+        path = output/name; data = path.read_bytes()
+        require(path.resolve(strict=True) == path and stat.S_IMODE(path.stat().st_mode) == 0o644
+            and data == (trusted/source).read_bytes() and hashlib.sha256(data).hexdigest() == record[field])
+    require((output/'.dockerignore').read_text() == DOCKERIGNORE)
+    return record
 
 
 def verified(root, receipt_file):
@@ -82,7 +147,7 @@ def prepare(root, receipt_file, output):
         inventory[name] = {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
     for target, source in [('Dockerfile', 'dev-logging-portal-runtime.Dockerfile'), ('nginx.conf', 'dev-logging-nginx.conf')]:
         (output/target).write_bytes((root/'infra/docker-compose'/source).read_bytes()); (output/target).chmod(0o644)
-    (output/'.dockerignore').write_text('*\n!Dockerfile\n!nginx.conf\n!public\n!public/**\n')
+    (output/'.dockerignore').write_text(DOCKERIGNORE); (output/'.dockerignore').chmod(0o644)
     record = {'schemaVersion': 1, 'result': 'PREPARED', 'component': 'admin-portal', 'buildId': receipt['buildId'],
         'manifestSha256': receipt['manifestSha256'], 'artifact': receipt['artifact'], 'files': inventory,
         'recipeSha256': hashlib.sha256((output/'Dockerfile').read_bytes()).hexdigest(),
