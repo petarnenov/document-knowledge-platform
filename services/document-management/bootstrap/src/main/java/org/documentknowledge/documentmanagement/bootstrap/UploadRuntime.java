@@ -16,6 +16,7 @@ import org.documentknowledge.authorization.TrustedAuthorityFiles;
 import org.documentknowledge.documentmanagement.adapters.outbound.storage.S3UploadStorageAdapter;
 import org.documentknowledge.documentmanagement.adapters.outbound.verification.*;
 import org.documentknowledge.documentmanagement.application.DmFailure;
+import org.documentknowledge.documentmanagement.application.DiagnosticContext;
 import org.documentknowledge.documentmanagement.application.upload.*;
 import org.documentknowledge.documentmanagement.domain.upload.UploadModels.*;
 
@@ -116,6 +117,7 @@ final class UploadRuntime implements UploadStoragePort,MalwareScanPort,Structure
     @Override public List<ObjectIdentity> versions(ObjectKey key,UploadDiagnosticsPort.FailureObserver observer){return storage(observer).port().versions(key,observer);}
     @Override public ScanEvidence scan(ArtifactSource source,CompleteBudget.Phase phase,UploadDiagnosticsPort.FailureObserver observer){phase.check();var port=scanner().port();phase.check();return port.scan(source,phase,observer);}
     @Override public InspectionEvidence inspect(ArtifactSource source,CompleteBudget.Phase phase,UploadDiagnosticsPort.FailureObserver observer){phase.check();var port=inspector(observer).port();phase.check();return port.inspect(source,phase,observer);}
+    @Override public InspectionEvidence inspect(ArtifactSource source,CompleteBudget.Phase phase,UploadDiagnosticsPort.FailureObserver observer,DiagnosticContext context){Objects.requireNonNull(context);phase.check();var port=inspector(observer).port();phase.check();return port.inspect(source,phase,observer,context);}
     boolean ready(){if(stopped)return false;if(!enabled())return true;try{return verificationPort.ready() && genericPort.ready() && storage().ready().getAsBoolean() && cleanupConnection().ready().getAsBoolean() && scanner().ready().getAsBoolean() && inspectorReady();}catch(Exception unavailable){return false;}}
     private boolean inspectorReady()throws Exception{
         inspector();URI origin=URI.create(required("dkp.dm.inspector.endpoint"));

@@ -11,6 +11,7 @@ import javax.net.ssl.SSLContext;
 import org.documentknowledge.documentmanagement.adapters.outbound.storage.S3UploadStorageAdapter;
 import org.documentknowledge.documentmanagement.adapters.outbound.verification.StandardDefinitions;
 import org.documentknowledge.documentmanagement.application.DmFailure;
+import org.documentknowledge.documentmanagement.application.DiagnosticContext;
 import org.documentknowledge.documentmanagement.application.upload.*;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,12 +32,15 @@ class UploadDiagnosticsRuntimeTest {
         final VerificationRuntimeBindingTest.Manager workspace=new VerificationRuntimeBindingTest.Manager();
         final List<UploadDiagnosticsPort.FailureObserver> dispatched=new ArrayList<>();
         final List<UploadDiagnosticsPort.FailureObserver> factories=new ArrayList<>();
+        final List<DiagnosticContext> contexts=new ArrayList<>();
         int storageCreated,cleanupCreated,inspectorCreated;
         RuntimeException connectionFailure;
         @SuppressWarnings("unchecked") private <T> T port(Class<T> type) {
             return (T)Proxy.newProxyInstance(type.getClassLoader(),new Class<?>[]{type},(proxy,method,args)->{
-                assertInstanceOf(UploadDiagnosticsPort.FailureObserver.class,args[args.length-1]);
-                dispatched.add((UploadDiagnosticsPort.FailureObserver)args[args.length-1]);
+                int observer=args.length-1;
+                if(args[observer] instanceof DiagnosticContext diagnostics){contexts.add(diagnostics);observer--;}
+                assertInstanceOf(UploadDiagnosticsPort.FailureObserver.class,args[observer]);
+                dispatched.add((UploadDiagnosticsPort.FailureObserver)args[observer]);
                 if(method.getReturnType()==InputStream.class)return new ByteArrayInputStream(new byte[]{7});
                 if(method.getReturnType()==List.class)return List.of();
                 return null;
@@ -98,6 +102,28 @@ class UploadDiagnosticsRuntimeTest {
         try(var context=ApplicationContext.run(configuration());var runtime=new UploadRuntime(context.getEnvironment(),Clock.systemUTC(),authority(),connections)) {
             for(int i=0;i<2;i++){var observer=new Observer();assertEquals(503,assertThrows(DmFailure.class,()->runtime.open(null,observer)).status());assertEquals(List.of(original),observer.failures);}
             assertEquals(2,connections.storageCreated);assertEquals(1,connections.cleanupCreated);assertTrue(connections.dispatched.isEmpty());
+        }
+    }
+    @Test void inspectorCompositionPreservesEachRequestContextAndCancellation()throws Exception {
+        var connections=new Connections();var observer=new Observer();
+        var traced=new DiagnosticContext(UUID.randomUUID(),"a".repeat(32),"b".repeat(16));
+        var untraced=DiagnosticContext.fresh();
+        try(var context=ApplicationContext.run(configuration());var runtime=new UploadRuntime(context.getEnvironment(),Clock.systemUTC(),authority(),connections)) {
+            for(var diagnostics:List.of(traced,untraced)) {
+                var budget=new CompleteBudget(Clock.systemUTC());
+                try(var phase=budget.phase(CompleteBudget.Kind.INSPECT)) {
+                    runtime.inspect(null,phase,observer,diagnostics);
+                    budget.cancel();
+                    assertThrows(DmFailure.class,()->runtime.inspect(null,phase,observer,diagnostics));
+                }
+            }
+            assertEquals(List.of(traced,untraced),connections.contexts);
+            assertEquals(List.of(observer,observer),connections.dispatched);
+            assertEquals(1,connections.inspectorCreated);
+            try(var phase=new CompleteBudget(Clock.systemUTC()).phase(CompleteBudget.Kind.INSPECT)) {
+                assertThrows(NullPointerException.class,()->runtime.inspect(null,phase,observer,null));
+            }
+            assertEquals(2,connections.dispatched.size());
         }
     }
     @Test void actualAuthorityReadFailureIsObservedWithoutWeakeningCredentialSeparation()throws Exception {
