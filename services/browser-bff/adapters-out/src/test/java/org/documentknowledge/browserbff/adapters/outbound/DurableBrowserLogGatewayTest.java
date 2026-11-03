@@ -33,10 +33,12 @@ class DurableBrowserLogGatewayTest {
             transport.before = () -> {
                 assertEquals(1, store.entries.size()); assertArrayEquals(batch, store.entries.getFirst().batch());
                 assertEquals(1, gateway.status().claimedEvents());
+                assertEquals(1, store.health.claimedEvents()); assertEquals(1, store.health.pendingEvents());
             };
             BrowserLogPendingJson.committed(gateway.ingest(scope, batch, deadline), List.of(id));
             assertSame(deadline, transport.deadline); assertTrue(store.entries.isEmpty()); assertEquals(0, gateway.status().pendingEvents());
             assertEquals(1, gateway.status().committedEvents()); assertEquals(1, transport.delegations);
+            assertEquals(1, store.health.committedEvents()); assertEquals(0, store.health.pendingEvents());
             assertArrayEquals(new byte[]{1}, gateway.receipts(scope, new byte[]{2}, BrowserLogDeadline.start()));
             assertEquals(DurableBrowserLogGateway.Replay.IDLE, gateway.replayOne(BrowserLogDeadline.start()));
         }
@@ -157,12 +159,53 @@ class DurableBrowserLogGatewayTest {
             }
         }
     }
+    @Test void healthFailureIsVisibleStopsForwardingAndNeverLeaksAnOwnedClaim() throws Exception {
+        var transport = new Transport(); var store = new MemoryStore(); var grant = grant(); var scope = transport.delegate(grant, BrowserLogDeadline.start());
+        try (var gateway = new DurableBrowserLogGateway(transport, store)) {
+            store.failHealth = true;
+            unavailable(() -> gateway.ingest(scope, batch(grant, UUID.randomUUID()), BrowserLogDeadline.start()));
+            assertTrue(gateway.status().storageUncertain()); assertEquals(1, gateway.status().pendingEvents());
+            assertEquals(0, gateway.status().claimedEvents()); assertEquals(0, transport.forwards.get());
+            unavailable(() -> gateway.replayOne(BrowserLogDeadline.start()));
+            store.failHealth = false;
+        }
+        assertTrue(store.closed); assertTrue(store.health.closed()); assertTrue(store.health.storageUncertain());
+        assertEquals("STORAGE_UNCERTAIN", store.health.lastReason());
+        var failedStartup = new MemoryStore(); failedStartup.failHealth = true;
+        assertThrows(IOException.class, () -> new DurableBrowserLogGateway(transport, failedStartup)); assertTrue(failedStartup.closed);
+    }
+    @Test void closeAfterCommittedRemovalKeepsLifetimeLockThroughTheFinalHealthWriter() throws Exception {
+        var transport = new Transport(); var grant = grant(); var scope = transport.delegate(grant, BrowserLogDeadline.start());
+        var completed = new CountDownLatch(1); var finish = new CountDownLatch(1);
+        var gateway = new DurableBrowserLogGateway(transport, file(), () -> {
+            completed.countDown(); try { assertTrue(finish.await(3, TimeUnit.SECONDS)); }
+            catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new IllegalStateException(); }
+        });
+        var worker = Executors.newSingleThreadExecutor();
+        try {
+            var response = worker.submit(() -> gateway.ingest(scope, batch(grant, UUID.randomUUID()), BrowserLogDeadline.start()));
+            assertTrue(completed.await(2, TimeUnit.SECONDS)); assertEquals(0, gateway.status().pendingEvents());
+            assertEquals(1, gateway.status().committedEvents()); gateway.close();
+            assertThrows(IOException.class, () -> { try (var unexpectedContender = file()) { /* Close an unexpected owner even on regression failure. */ } });
+            finish.countDown(); assertNotNull(response.get(3, TimeUnit.SECONDS)); assertFalse(gateway.status().storageUncertain());
+            try (var recovered = file()) {
+                assertTrue(recovered.load().isEmpty());
+                var health = JSON.readValue(Files.readAllBytes(directory.resolve("health.json")), Map.class);
+                assertEquals(true, health.get("closed")); assertEquals(false, health.get("storageUncertain"));
+                assertEquals(1, health.get("committedEvents"));
+            }
+        } finally { finish.countDown(); gateway.close(); worker.shutdownNow(); assertTrue(worker.awaitTermination(3, TimeUnit.SECONDS)); }
+    }
     enum Mode { NORMAL, TRANSIENT, AFTER_COMMIT, TERMINAL }
     static final class MemoryStore implements BrowserLogPendingStore {
         List<Entry> entries = List.of(); int writes, failWrite; boolean closed;
+        boolean failHealth; Health health;
         @Override public List<Entry> load() { return entries; }
         @Override public void replace(List<Entry> next) throws IOException {
             if (++writes == failWrite) throw new IOException("private-evidence-not-exposed"); entries = List.copyOf(next);
+        }
+        @Override public void health(Health value) throws IOException {
+            if (failHealth) throw new IOException("private-health-cause"); health = value;
         }
         @Override public void close() { closed = true; }
     }

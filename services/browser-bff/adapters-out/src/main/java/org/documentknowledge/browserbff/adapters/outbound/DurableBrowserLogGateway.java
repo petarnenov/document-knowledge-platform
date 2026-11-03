@@ -23,13 +23,20 @@ public final class DurableBrowserLogGateway implements BrowserLogGateway, AutoCl
     private record Attempt(byte[] receipt, boolean discarded) { }
     private final BrowserLogRecoveryGateway gateway;
     private final BrowserLogPendingStore store;
+    private final Runnable beforeRelease;
     private final Map<UUID, Pending> pending = new LinkedHashMap<>();
     private boolean closed, storeClosed, storageUncertain;
+    private int activeWriters;
     private long committed, discarded;
     private Reason reason = Reason.NONE;
 
     public DurableBrowserLogGateway(BrowserLogRecoveryGateway gateway, BrowserLogPendingStore store) throws IOException {
+        this(gateway, store, () -> { });
+    }
+    /** Package-local lifecycle seam verifies shutdown at the completed-attempt/final-writer boundary. */
+    DurableBrowserLogGateway(BrowserLogRecoveryGateway gateway, BrowserLogPendingStore store, Runnable beforeRelease) throws IOException {
         this.gateway = Objects.requireNonNull(gateway); this.store = Objects.requireNonNull(store);
+        this.beforeRelease = Objects.requireNonNull(beforeRelease);
         try {
             for (var entry : store.load()) {
                 var scope = gateway.restore(entry.authority()); var ids = gateway.eventIds(scope, entry.batch());
@@ -37,6 +44,7 @@ public final class DurableBrowserLogGateway implements BrowserLogGateway, AutoCl
                     throw unavailable();
                 pending.put(entry.id(), new Pending(entry, scope, ids)); requireBounds();
             }
+            publishHealth(); availableStorage();
         } catch (Exception invalid) { store.close(); throw new IOException("INVALID_BROWSER_LOG_PENDING"); }
     }
     @Override public Scope delegate(Grant grant, BrowserLogDeadline deadline) {
@@ -62,7 +70,7 @@ public final class DurableBrowserLogGateway implements BrowserLogGateway, AutoCl
                             || bytes.length > BrowserLogPendingStore.MAX_BYTES - status.pendingBytes()) throw limited();
                     var snapshot = entries(); snapshot.add(entry); replace(snapshot); pending.put(entry.id(), work);
                 }
-                if (work.claimed) throw limited(); work.claimed = true;
+                claim(work);
             }
         } catch (BffFailure fixed) { throw fixed; }
         catch (Exception failure) { throw unavailable(); }
@@ -70,18 +78,18 @@ public final class DurableBrowserLogGateway implements BrowserLogGateway, AutoCl
             var result = attempt(work, deadline);
             if (result.discarded()) throw unavailable();
             return result.receipt();
-        } finally { release(work); }
+        } finally { finish(work); }
     }
     /** Bootstrap submits this operation through the existing bounded logging dispatcher. */
     public Replay replayOne(BrowserLogDeadline deadline) {
         Pending work;
         synchronized (this) {
             available(); work = pending.values().stream().filter(row -> !row.claimed).findFirst().orElse(null);
-            if (work == null) return Replay.IDLE; work.claimed = true;
+            if (work == null) return Replay.IDLE; claim(work);
         }
         try { return attempt(work, deadline).discarded() ? Replay.DISCARDED : Replay.COMMITTED; }
         catch (BffFailure unavailable) { return Replay.RETRY; }
-        finally { release(work); }
+        finally { finish(work); }
     }
     private Attempt attempt(Pending work, BrowserLogDeadline deadline) {
         byte[] receipt;
@@ -113,7 +121,16 @@ public final class DurableBrowserLogGateway implements BrowserLogGateway, AutoCl
         try { store.replace(entries); }
         catch (Exception failure) { storageUncertain = true; reason = Reason.STORAGE_UNCERTAIN; throw unavailable(); }
     }
-    private synchronized void release(Pending work) { work.claimed = false; closeStoreWhenIdle(); }
+    private void claim(Pending work) {
+        if (work.claimed) throw limited(); work.claimed = true; activeWriters++; publishHealth();
+        if (storageUncertain) { work.claimed = false; activeWriters--; throw unavailable(); }
+    }
+    private synchronized void release(Pending work) {
+        work.claimed = false; publishHealth(); activeWriters--; closeStoreWhenIdle();
+    }
+    private void finish(Pending work) {
+        try { beforeRelease.run(); } finally { release(work); }
+    }
     private Pending same(byte[] authority, byte[] bytes) {
         for (var row : pending.values())
             if (Arrays.equals(authority, row.entry.authority()) && Arrays.equals(bytes, row.entry.batch())) return row;
@@ -137,9 +154,18 @@ public final class DurableBrowserLogGateway implements BrowserLogGateway, AutoCl
     private synchronized void degraded(Reason value) { if (!storageUncertain) reason = value; }
     private void availableStorage() { if (storageUncertain || storeClosed) throw unavailable(); }
     private void available() { availableStorage(); if (closed) throw unavailable(); }
-    @Override public synchronized void close() { closed = true; closeStoreWhenIdle(); }
+    @Override public synchronized void close() {
+        if (closed) return;
+        closed = true; publishHealth(); closeStoreWhenIdle();
+    }
+    private void publishHealth() {
+        var value = status();
+        try { store.health(new BrowserLogPendingStore.Health(value.pendingEvents(), value.pendingBytes(), value.claimedEvents(),
+            value.committedEvents(), value.discardedEvents(), value.lastReason().name(), value.storageUncertain(), value.closed())); }
+        catch (Exception failure) { storageUncertain = true; reason = Reason.STORAGE_UNCERTAIN; }
+    }
     private void closeStoreWhenIdle() {
-        if (closed && !storeClosed && pending.values().stream().noneMatch(row -> row.claimed)) { storeClosed = true; store.close(); }
+        if (closed && !storeClosed && activeWriters == 0) { storeClosed = true; store.close(); }
     }
     private static long add(long current, int count) { return current > Long.MAX_VALUE - count ? Long.MAX_VALUE : current + count; }
     private static BffFailure unavailable() { return new BffFailure(503, "LOG_STORE_UNAVAILABLE"); }

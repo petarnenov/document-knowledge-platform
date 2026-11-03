@@ -111,4 +111,36 @@ class FileBrowserLogPendingStoreTest {
         assertThrows(IOException.class, () -> new FileBrowserLogPendingStore(directory(), BINDING));
         assertFalse(Files.exists(directory(), LinkOption.NOFOLLOW_LINKS));
     }
+    @Test void privateBoundedHealthSnapshotIsAtomicContainsOnlyCountersAndPreservesQueuedBytes() throws Exception {
+        var health = new BrowserLogPendingStore.Health(2, 1234, 1, 7, 3, "TRANSIENT_DELIVERY_UNCERTAIN", false, false);
+        Path file = directory().resolve("health.json");
+        try (var store = new FileBrowserLogPendingStore(directory(), BINDING)) {
+            assertThrows(IOException.class, () -> store.health(health)); store.load(); store.replace(List.of(entry(2)));
+            byte[] before = Files.readAllBytes(directory().resolve("pending.bin")); store.health(health);
+            var json = BrowserLogPendingFixtures.JSON.readValue(Files.readAllBytes(file), Map.class);
+            assertEquals(Set.of("schemaVersion", "updatedAt", "pendingEvents", "pendingBytes", "claimedEvents", "committedEvents",
+                "discardedEvents", "lastReason", "storageUncertain", "closed"), json.keySet());
+            assertEquals(1, json.get("schemaVersion")); assertEquals(2, json.get("pendingEvents")); assertEquals(1, json.get("claimedEvents"));
+            assertEquals(7, json.get("committedEvents")); assertEquals(3, json.get("discardedEvents"));
+            assertEquals(health.lastReason(), json.get("lastReason")); java.time.Instant.parse((String)json.get("updatedAt"));
+            assertTrue(Files.size(file) <= 4096); assertEquals(PosixFilePermissions.fromString("rw-------"), Files.getPosixFilePermissions(file));
+            assertFalse(Files.readString(file).contains("private-original-scope"));
+            privateWrite(directory().resolve("health.next"), new byte[]{1});
+            store.health(new BrowserLogPendingStore.Health(0, 0, 0, 9, 3, "NONE", true, true));
+            assertFalse(Files.exists(directory().resolve("health.next"))); assertArrayEquals(before, Files.readAllBytes(directory().resolve("pending.bin")));
+            var updated = BrowserLogPendingFixtures.JSON.readValue(Files.readAllBytes(file), Map.class);
+            assertEquals(9, updated.get("committedEvents")); assertEquals(true, updated.get("closed")); assertEquals(true, updated.get("storageUncertain"));
+            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-r--r--")); byte[] evidence = Files.readAllBytes(file);
+            assertThrows(IOException.class, () -> store.health(health)); assertArrayEquals(evidence, Files.readAllBytes(file));
+        }
+    }
+    @Test void healthRejectsInvalidCountsAndArbitraryOrSecretTextBeforeFilesystemWrites() {
+        for (int[] counts : List.of(new int[]{-1, 0, 0}, new int[]{2049, 0, 0}, new int[]{1, -1, 0},
+                new int[]{1, BrowserLogPendingStore.MAX_BYTES + 1, 0}, new int[]{1, 0, -1}, new int[]{1, 0, 2}))
+            assertThrows(IllegalArgumentException.class, () -> new BrowserLogPendingStore.Health(counts[0], counts[1], counts[2], 0, 0, "NONE", false, false));
+        assertThrows(IllegalArgumentException.class, () -> new BrowserLogPendingStore.Health(0, 0, 0, -1, 0, "NONE", false, false));
+        assertThrows(IllegalArgumentException.class, () -> new BrowserLogPendingStore.Health(0, 0, 0, 0, -1, "NONE", false, false));
+        for (String reason : Arrays.asList(null, "", "secret arbitrary text", "A".repeat(49)))
+            assertThrows(IllegalArgumentException.class, () -> new BrowserLogPendingStore.Health(0, 0, 0, 0, 0, reason, false, false));
+    }
 }

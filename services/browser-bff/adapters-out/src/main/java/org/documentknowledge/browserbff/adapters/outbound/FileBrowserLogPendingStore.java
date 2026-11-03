@@ -129,14 +129,35 @@ public final class FileBrowserLogPendingStore implements BrowserLogPendingStore 
                 Path file = directory.resolve(health); if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)) retained += checkFile(file, 4096).size();
             }
             require(retained + snapshot.length <= DISK_BYTES);
-            if (Files.exists(staging, LinkOption.NOFOLLOW_LINKS)) { checkFile(staging, SNAPSHOT_BYTES); Files.delete(staging); }
-            try (var stream = FileChannel.open(staging, Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS),
-                    PosixFilePermissions.asFileAttribute(FILE_MODE))) {
-                var data = ByteBuffer.wrap(snapshot); while (data.hasRemaining()) stream.write(data); stream.force(true);
-            }
-            checkFile(staging, SNAPSHOT_BYTES); Files.move(staging, pending, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            try (var parent = FileChannel.open(directory, StandardOpenOption.READ)) { parent.force(true); }
+            writeSnapshot(staging, pending, snapshot, SNAPSHOT_BYTES);
         } catch (Exception unavailable) { throw failure(); }
+    }
+    @Override public synchronized void health(Health health) throws IOException {
+        try {
+            require(!closed && loaded); checkDirectory(); Objects.requireNonNull(health);
+            String json = "{\"schemaVersion\":1,\"updatedAt\":\"" + java.time.Instant.now() + "\",\"pendingEvents\":" + health.pendingEvents()
+                + ",\"pendingBytes\":" + health.pendingBytes() + ",\"claimedEvents\":" + health.claimedEvents()
+                + ",\"committedEvents\":" + health.committedEvents() + ",\"discardedEvents\":" + health.discardedEvents()
+                + ",\"lastReason\":\"" + health.lastReason() + "\",\"storageUncertain\":" + health.storageUncertain()
+                + ",\"closed\":" + health.closed() + "}";
+            byte[] snapshot = json.getBytes(java.nio.charset.StandardCharsets.UTF_8); require(snapshot.length <= 4096);
+            long retained = snapshot.length;
+            for (String name : List.of("pending.bin", "pending.next", "health.json", "health.next")) {
+                Path file = directory.resolve(name);
+                if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)) retained += checkFile(file, name.startsWith("pending") ? SNAPSHOT_BYTES : 4096).size();
+            }
+            require(retained <= DISK_BYTES);
+            writeSnapshot(directory.resolve("health.next"), directory.resolve("health.json"), snapshot, 4096);
+        } catch (Exception unavailable) { throw failure(); }
+    }
+    private void writeSnapshot(Path next, Path stable, byte[] snapshot, int maximum) throws IOException {
+        if (Files.exists(next, LinkOption.NOFOLLOW_LINKS)) { checkFile(next, maximum); Files.delete(next); }
+        try (var stream = FileChannel.open(next, Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS),
+                PosixFilePermissions.asFileAttribute(FILE_MODE))) {
+            var data = ByteBuffer.wrap(snapshot); while (data.hasRemaining()) stream.write(data); stream.force(true);
+        }
+        checkFile(next, maximum); Files.move(next, stable, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        try (var parent = FileChannel.open(directory, StandardOpenOption.READ)) { parent.force(true); }
     }
     @Override public synchronized void close() {
         if (!closed) {
