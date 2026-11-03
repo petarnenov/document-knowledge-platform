@@ -1,0 +1,114 @@
+package org.documentknowledge.browserbff.adapters.outbound;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
+import java.io.IOException;
+import java.nio.file.*;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+class FileBrowserLogPendingStoreTest {
+    @TempDir Path temporary;
+    @BeforeEach void canonicalTemporaryDirectory() throws IOException {
+        temporary = temporary.toRealPath();
+        Files.createDirectory(directory(), PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+    }
+    static final String BINDING = "a".repeat(64);
+    Path directory() { return temporary.resolve("queue"); }
+    BrowserLogPendingStore.Entry entry(int count) {
+        return new BrowserLogPendingStore.Entry(UUID.randomUUID(), "private-original-scope".getBytes(), "sanitized-original-batch".getBytes(), count);
+    }
+    void privateWrite(Path path, byte[] bytes) throws IOException {
+        Files.write(path, bytes); Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
+    }
+    @Test void exactOriginalBytesAndIdsSurviveRestartAndRemovalIsDurable() throws Exception {
+        var first = entry(2); var second = entry(1);
+        try (var store = new FileBrowserLogPendingStore(directory(), BINDING)) {
+            assertTrue(store.load().isEmpty()); store.replace(List.of(first, second));
+            assertEquals(2, store.load().size());
+            assertEquals(PosixFilePermissions.fromString("rwx------"), Files.getPosixFilePermissions(directory()));
+            assertEquals(PosixFilePermissions.fromString("rw-------"), Files.getPosixFilePermissions(directory().resolve("pending.bin")));
+        }
+        try (var recovered = new FileBrowserLogPendingStore(directory(), BINDING)) {
+            var records = recovered.load(); assertEquals(first.id(), records.getFirst().id());
+            assertArrayEquals(first.authority(), records.getFirst().authority()); assertArrayEquals(first.batch(), records.getFirst().batch());
+            assertEquals(first.eventCount(), records.getFirst().eventCount()); recovered.replace(List.of(second));
+        }
+        try (var recovered = new FileBrowserLogPendingStore(directory(), BINDING)) {
+            assertEquals(second.id(), recovered.load().getFirst().id()); recovered.replace(List.of());
+        }
+        try (var recovered = new FileBrowserLogPendingStore(directory(), BINDING)) { assertTrue(recovered.load().isEmpty()); }
+    }
+    @Test void opaqueEntryDefensivelyCopiesAndNeverPrintsAuthority() {
+        byte[] authority = "secret".getBytes(), batch = "original".getBytes(); var value = new BrowserLogPendingStore.Entry(UUID.randomUUID(), authority, batch, 1);
+        authority[0] = 0; batch[0] = 0; value.authority()[0] = 0; value.batch()[0] = 0;
+        assertEquals("secret", new String(value.authority())); assertEquals("original", new String(value.batch()));
+        assertFalse(value.toString().contains("secret"));
+        for (int count : List.of(0, 33)) assertThrows(IllegalArgumentException.class, () -> entry(count));
+        assertThrows(IllegalArgumentException.class, () -> new BrowserLogPendingStore.Entry(new UUID(0, 0), authority, batch, 1));
+        assertThrows(IllegalArgumentException.class, () -> new BrowserLogPendingStore.Entry(UUID.randomUUID(), new byte[8193], batch, 1));
+        assertThrows(IllegalArgumentException.class, () -> new BrowserLogPendingStore.Entry(UUID.randomUUID(), authority, new byte[32769], 1));
+    }
+    @Test void originalBindingAndLifetimeOwnerCannotBeReplaced() throws Exception {
+        try (var owner = new FileBrowserLogPendingStore(directory(), BINDING)) {
+            owner.load(); owner.replace(List.of(entry(1)));
+            assertThrows(IOException.class, () -> new FileBrowserLogPendingStore(directory(), BINDING));
+            owner.replace(List.of(entry(1)));
+        }
+        byte[] before = Files.readAllBytes(directory().resolve("pending.bin"));
+        try (var wrong = new FileBrowserLogPendingStore(directory(), "b".repeat(64))) { assertThrows(IOException.class, wrong::load); }
+        assertArrayEquals(before, Files.readAllBytes(directory().resolve("pending.bin")));
+        try (var right = new FileBrowserLogPendingStore(directory(), BINDING)) { assertEquals(1, right.load().size()); }
+    }
+    @Test void admissionBoundsAndDuplicateIdsPreservePreviousSnapshot() throws Exception {
+        try (var store = new FileBrowserLogPendingStore(directory(), BINDING)) {
+            assertThrows(IOException.class, () -> store.replace(List.of(entry(1)))); store.load(); var original = entry(1); store.replace(List.of(original));
+            assertThrows(IOException.class, () -> store.replace(List.of(original, original)));
+            var excessiveEvents = new ArrayList<BrowserLogPendingStore.Entry>(); for (int i = 0; i < 65; i++) excessiveEvents.add(entry(32));
+            assertThrows(IOException.class, () -> store.replace(excessiveEvents));
+            var excessiveBytes = new ArrayList<BrowserLogPendingStore.Entry>(); for (int i = 0; i < 257; i++) excessiveBytes.add(new BrowserLogPendingStore.Entry(UUID.randomUUID(), new byte[]{1}, new byte[32768], 1));
+            assertThrows(IOException.class, () -> store.replace(excessiveBytes)); assertEquals(original.id(), store.load().getFirst().id());
+            store.close(); assertThrows(IOException.class, store::load); assertThrows(IOException.class, () -> store.replace(List.of()));
+        }
+    }
+    @Test void corruptionTruncationPermissionAndUnknownFileFailClosedWithoutDeletingEvidence() throws Exception {
+        try (var store = new FileBrowserLogPendingStore(directory(), BINDING)) { store.load(); store.replace(List.of(entry(1))); }
+        Path pending = directory().resolve("pending.bin"); byte[] original = Files.readAllBytes(pending);
+        for (byte[] invalid : List.of(Arrays.copyOf(original, original.length - 1), new byte[]{1, 2}, Arrays.copyOf(original, original.length + 1))) {
+            privateWrite(pending, invalid);
+            try (var store = new FileBrowserLogPendingStore(directory(), BINDING)) { assertThrows(IOException.class, store::load); }
+            assertArrayEquals(invalid, Files.readAllBytes(pending));
+        }
+        byte[] changed = original.clone(); changed[changed.length - 1] ^= 1; privateWrite(pending, changed);
+        try (var store = new FileBrowserLogPendingStore(directory(), BINDING)) { assertThrows(IOException.class, store::load); }
+        privateWrite(pending, original); Files.setPosixFilePermissions(pending, PosixFilePermissions.fromString("rw-r--r--"));
+        try (var store = new FileBrowserLogPendingStore(directory(), BINDING)) { assertThrows(IOException.class, store::load); }
+        privateWrite(pending, original); privateWrite(directory().resolve("foreign"), new byte[]{1});
+        assertThrows(IOException.class, () -> new FileBrowserLogPendingStore(directory(), BINDING)); assertArrayEquals(original, Files.readAllBytes(pending));
+    }
+    @Test void canonicalPathsAndStagingOwnershipAreRequired() throws Exception {
+        assertThrows(IOException.class, () -> new FileBrowserLogPendingStore(Path.of("relative"), BINDING));
+        Path alias = temporary.resolve("alias"); Files.createSymbolicLink(alias, directory()); assertThrows(IOException.class, () -> new FileBrowserLogPendingStore(alias, BINDING));
+        privateWrite(directory().resolve("pending.next"), new byte[]{1}); assertThrows(IOException.class, () -> new FileBrowserLogPendingStore(directory(), BINDING));
+        Files.delete(directory().resolve("pending.next"));
+        try (var store = new FileBrowserLogPendingStore(directory(), BINDING)) { store.load(); store.replace(List.of(entry(1))); }
+        privateWrite(directory().resolve("pending.next"), new byte[]{1}); privateWrite(directory().resolve("health.json"), "{}".getBytes());
+        try (var store = new FileBrowserLogPendingStore(directory(), BINDING)) { assertEquals(1, store.load().size()); store.replace(List.of()); assertFalse(Files.exists(directory().resolve("pending.next"))); }
+    }
+    @Test void exposedDirectoryAndLinkedPendingFileCannotBeAdoptedOrOverwritten() throws Exception {
+        Files.setPosixFilePermissions(directory(), PosixFilePermissions.fromString("rwxr-xr-x"));
+        assertThrows(IOException.class, () -> new FileBrowserLogPendingStore(directory(), BINDING));
+        Files.setPosixFilePermissions(directory(), PosixFilePermissions.fromString("rwx------"));
+        Path original = temporary.resolve("original-private-evidence"); privateWrite(original, new byte[]{1, 2, 3});
+        Files.createSymbolicLink(directory().resolve("pending.bin"), original);
+        try (var store = new FileBrowserLogPendingStore(directory(), BINDING)) { assertThrows(IOException.class, store::load); }
+        assertTrue(Files.isSymbolicLink(directory().resolve("pending.bin"))); assertArrayEquals(new byte[]{1, 2, 3}, Files.readAllBytes(original));
+    }
+    @Test void missingConfiguredStorageIsNeverSilentlyRecreated() throws Exception {
+        Files.delete(directory());
+        assertThrows(IOException.class, () -> new FileBrowserLogPendingStore(directory(), BINDING));
+        assertFalse(Files.exists(directory(), LinkOption.NOFOLLOW_LINKS));
+    }
+}

@@ -19,7 +19,7 @@ import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /** Server-only source bridge. One owned HTTPS client; no business outbound pool or ambient credentials. */
-public final class HttpsBrowserLogGateway implements BrowserLogGateway, AutoCloseable {
+public final class HttpsBrowserLogGateway implements BrowserLogRecoveryGateway, AutoCloseable {
     private static final JsonMapper JSON = JsonMapper.builder(JsonFactory.builder()
         .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
         .streamReadConstraints(StreamReadConstraints.builder().maxDocumentLength(32768).maxNestingDepth(16)
@@ -29,6 +29,7 @@ public final class HttpsBrowserLogGateway implements BrowserLogGateway, AutoClos
     private final UUID parent;
     private final String delegator;
     private final Clock clock;
+    private final BrowserLogScopeCheckpoint.Binding recovery;
     private final HttpClient client;
     private final ThreadPoolExecutor callbacks;
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -36,18 +37,26 @@ public final class HttpsBrowserLogGateway implements BrowserLogGateway, AutoClos
     private final class Credential implements Scope {
         final String token;
         final Instant replayUntil;
-        Credential(String token, Instant replayUntil) { this.token = token; this.replayUntil = replayUntil; }
+        final BrowserLogScopeCheckpoint.Recovered checkpoint;
+        Credential(BrowserLogScopeCheckpoint.Recovered checkpoint) {
+            this.checkpoint = checkpoint; token = checkpoint.token(); replayUntil = checkpoint.replayUntil();
+        }
         HttpsBrowserLogGateway owner() { return HttpsBrowserLogGateway.this; }
         @Override public String toString() { return "BrowserLogScope[REDACTED]"; }
     }
 
     public HttpsBrowserLogGateway(URI endpoint, UUID parent, String delegator, SSLContext tls, Clock clock) {
+        this(endpoint, parent, delegator, tls, clock, null, Map.of());
+    }
+    public HttpsBrowserLogGateway(URI endpoint, UUID parent, String delegator, SSLContext tls, Clock clock,
+                                  String caSha256, Map<UUID, BrowserLogContexts.Artifact> artifacts) {
         Objects.requireNonNull(endpoint); Objects.requireNonNull(tls); this.clock = Objects.requireNonNull(clock);
         if (!"https".equals(endpoint.getScheme()) || endpoint.getHost() == null || endpoint.getUserInfo() != null
                 || endpoint.getRawQuery() != null || endpoint.getRawFragment() != null
                 || !"/api/v1/dev-logs".equals(endpoint.getRawPath()) || parent == null || parent.equals(new UUID(0, 0))
                 || !token(delegator)) throw new IllegalArgumentException("INVALID_BROWSER_LOG_CONFIGURATION");
         this.endpoint = endpoint; this.parent = parent; this.delegator = delegator;
+        recovery = caSha256 == null ? null : new BrowserLogScopeCheckpoint.Binding(endpoint, parent, caSha256, artifacts);
         callbacks = new ThreadPoolExecutor(2, 2, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<>(16),
             Thread.ofPlatform().daemon().name("bff-log-https-", 0).factory(), new ThreadPoolExecutor.AbortPolicy());
         client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).sslContext(tls)
@@ -86,19 +95,36 @@ public final class HttpsBrowserLogGateway implements BrowserLogGateway, AutoClos
             if (!capture.equals(grant.captureUntil().truncatedTo(java.time.temporal.ChronoUnit.MICROS)) || replay.isBefore(capture) || !clock.instant().isBefore(replay)
                     || !token(reply.get("producerToken"))) throw unavailable();
             deadline.requireTime();
-            return new Credential((String) reply.get("producerToken"), replay);
+            return new Credential(new BrowserLogScopeCheckpoint.Recovered(grant, UUID.fromString((String) reply.get("scopeId")),
+                (String) reply.get("producerToken"), replay));
         } catch (Exception invalid) { throw unavailable(); }
     }
 
     @Override public byte[] ingest(Scope scope, byte[] sanitizedBatch, BrowserLogDeadline deadline) {
-        return post("batches", credential(scope).token, sanitizedBatch, 200, deadline);
+        try { return forward(scope, sanitizedBatch, deadline); } catch (Exception failure) { throw unavailable(); }
     }
     @Override public byte[] receipts(Scope scope, byte[] eventIds, BrowserLogDeadline deadline) {
-        return post("receipts", credential(scope).token, eventIds, 200, deadline);
+        try { return post("receipts", credential(scope).token, eventIds, 200, deadline); }
+        catch (Exception failure) { throw unavailable(); }
+    }
+    @Override public byte[] checkpoint(Scope scope) {
+        if (recovery == null) throw unavailable();
+        return BrowserLogScopeCheckpoint.encode(recovery, credential(scope).checkpoint);
+    }
+    @Override public Scope restore(byte[] checkpoint) {
+        if (recovery == null) throw unavailable();
+        return new Credential(BrowserLogScopeCheckpoint.decode(recovery, checkpoint));
+    }
+    @Override public boolean expired(Scope scope) {
+        if (!(scope instanceof HttpsBrowserLogGateway.Credential value) || value.owner() != this) throw unavailable();
+        return !clock.instant().isBefore(value.replayUntil);
+    }
+    @Override public byte[] forward(Scope scope, byte[] sanitizedBatch, BrowserLogDeadline deadline) {
+        return post("batches", credential(scope).token, sanitizedBatch, 200, deadline);
     }
     private Credential credential(Scope scope) {
         if (!(scope instanceof HttpsBrowserLogGateway.Credential credential) || credential.owner() != this
-                || !clock.instant().isBefore(credential.replayUntil)) throw unavailable();
+                || !clock.instant().isBefore(credential.replayUntil)) throw new DeliveryFailure(true);
         return credential;
     }
     private byte[] post(String route, String credential, byte[] body, int expected, BrowserLogDeadline deadline) {
@@ -113,13 +139,18 @@ public final class HttpsBrowserLogGateway implements BrowserLogGateway, AutoClos
             exchange = client.sendAsync(request, info -> new LimitedBody());
             var response = exchange.get(deadline.remainingNanos(), TimeUnit.NANOSECONDS);
             deadline.requireTime();
+            if (response.statusCode() != expected) {
+                int status = response.statusCode();
+                throw new DeliveryFailure(status >= 400 && status < 500 && status != 429);
+            }
             if (response.statusCode() != expected || !response.headers().allValues("Content-Encoding").isEmpty()
                     || response.headers().allValues("Content-Type").size() != 1
                     || !response.headers().firstValue("Content-Type").orElse("").split(";", 2)[0].trim().equalsIgnoreCase("application/json"))
                 throw unavailable();
             return response.body();
-        } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw unavailable(); }
-        catch (Exception failure) { throw unavailable(); }
+        } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new DeliveryFailure(false); }
+        catch (DeliveryFailure failure) { throw failure; }
+        catch (Exception failure) { throw new DeliveryFailure(false); }
         finally { if (exchange != null && !exchange.isDone()) exchange.cancel(true); }
     }
     private static void id(Object value) {

@@ -72,6 +72,55 @@ class HttpsBrowserLogGatewayTest {
         assertEquals("LOG_STORE_UNAVAILABLE", failure.getMessage()); assertNull(failure.getCause());
     }
 
+    HttpsBrowserLogGateway recoverable(Clock clock, String ca, BrowserLogContexts.Artifact artifact) {
+        var result = new HttpsBrowserLogGateway(endpoint, PARENT, DELEGATOR, tls, clock, ca, Map.of(artifact.buildId(), artifact));
+        gateways.add(result); return result;
+    }
+    @Test void originalScopeRestoresAfterClientRestartWithoutAnotherDelegationOrSessionCredential() throws Exception {
+        var grant = grant("tenant-a"); var delegation = reply(grant); var delegations = new AtomicInteger();
+        var body = "{\"schemaVersion\":1,\"events\":[]}".getBytes(StandardCharsets.UTF_8);
+        start(exchange -> { try (exchange) {
+            if (exchange.getRequestURI().getPath().endsWith("/delegations")) {
+                delegations.incrementAndGet(); respond(exchange, 201, "application/json", bytes(delegation));
+            } else {
+                assertEquals("Bearer " + PRODUCER, exchange.getRequestHeaders().getFirst("Authorization"));
+                assertArrayEquals(body, exchange.getRequestBody().readNBytes(32769));
+                respond(exchange, 200, "application/json", "{}".getBytes(StandardCharsets.UTF_8));
+            }
+        } });
+        var original = recoverable(Clock.systemUTC(), "a".repeat(64), ARTIFACT);
+        var originalScope = original.delegate(grant, BrowserLogDeadline.start()); byte[] checkpoint = original.checkpoint(originalScope);
+        assertFalse(new String(checkpoint, StandardCharsets.ISO_8859_1).contains("private-session-nonce"));
+        original.close(); assertTrue(original.awaitClosed(Duration.ofSeconds(3)));
+        var reopened = recoverable(Clock.systemUTC(), "a".repeat(64), ARTIFACT); var scope = reopened.restore(checkpoint);
+        assertFalse(reopened.expired(scope)); assertArrayEquals(checkpoint, reopened.checkpoint(scope));
+        assertArrayEquals("{}".getBytes(StandardCharsets.UTF_8), reopened.forward(scope, body, BrowserLogDeadline.start()));
+        assertEquals(1, delegations.get()); assertFalse(scope.toString().contains(PRODUCER));
+        var differentCa = recoverable(Clock.systemUTC(), "b".repeat(64), ARTIFACT);
+        assertThrows(IllegalArgumentException.class, () -> differentCa.restore(checkpoint));
+        var expired = recoverable(Clock.fixed(grant.captureUntil().plusSeconds(60), ZoneOffset.UTC), "a".repeat(64), ARTIFACT);
+        var old = expired.restore(checkpoint); assertTrue(expired.expired(old));
+        var failure = assertThrows(BrowserLogRecoveryGateway.DeliveryFailure.class,
+            () -> expired.forward(old, body, BrowserLogDeadline.start())); assertTrue(failure.terminal());
+        assertEquals(1, delegations.get());
+    }
+    @Test void pendingForwardClassifiesTerminalAndTransientHttpWithoutExposingReply() throws Exception {
+        var grant = grant(null); var status = new AtomicInteger(503);
+        start(exchange -> { try (exchange) {
+            if (exchange.getRequestURI().getPath().endsWith("/delegations")) respond(exchange, 201, "application/json", bytes(reply(grant)));
+            else respond(exchange, status.get(), "application/json", "{\"secret\":\"never-expose\"}".getBytes(StandardCharsets.UTF_8));
+        } });
+        var gateway = recoverable(Clock.systemUTC(), "a".repeat(64), ARTIFACT); var scope = gateway.delegate(grant, BrowserLogDeadline.start());
+        for (int code : List.of(400, 401, 403, 409, 410, 429, 500, 503)) {
+            status.set(code);
+            var failure = assertThrows(BrowserLogRecoveryGateway.DeliveryFailure.class,
+                () -> gateway.forward(scope, new byte[]{'{', '}'}, BrowserLogDeadline.start()));
+            assertEquals(code < 500 && code != 429, failure.terminal());
+            assertEquals("LOG_STORE_UNAVAILABLE", failure.getMessage()); assertNull(failure.getCause());
+            unavailable(() -> gateway.ingest(scope, new byte[]{'{', '}'}, BrowserLogDeadline.start()));
+        }
+    }
+
     @Test void sourceBridgeDelegationAndFixedScopedRoutesKeepCredentialsServerSide() throws Exception {
         var grant = grant("tenant-a"); var seen = new CopyOnWriteArrayList<String>(); var delegated = new AtomicReference<Map<?, ?>>();
         start(exchange -> { try (exchange) {
