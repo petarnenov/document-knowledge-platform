@@ -22,6 +22,7 @@ Owner clarification2026-11-02: prioritize the normal working #457 shared logging
 
 - [ ] 3.1 Propagate explicit compilation buildId and execution runId through Gradle/Vite/images/manifests, runtime tools and CI; test repeated same-SHA compilations and rebuild provenance.
 - [ ] 3.2 Instrument FE console/error/rejection/request/query/mutation/route/identity boundaries using bounded Beacon delivery; test sanitization, offline/unknown/rejected delivery, session transitions and nonblocking actions.
+  - Normal reusable JS/TS adapter detail: [javascript-sdk.md](javascript-sdk.md). Exact-revision independent review and standing development selection precede runtime edits. Library checks alone do not establish BFF/portal adoption or complete #457.
 - [ ] 3.3 Instrument BE services and worker operations, DB/provider/retry/deadline/cancellation/cleanup boundaries and sanitized exceptions with bounded asynchronous emission; reconcile preserved #166 diagnostics without concealing its unresolved cause.
 - [ ] 3.4 Integrate infrastructure/build/CI/runtime producers with the common API, durable sanitized spool/import and explicit reachability/persistence checks; preserve isolated test network controls.
 
