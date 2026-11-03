@@ -37,7 +37,7 @@ public final class BrowserLoggingFactory {
     }
     private final Settings settings;
     public BrowserLoggingFactory(@Value("${dkp.logging.browser-config}") String path) throws IOException { settings = read(Path.of(path)); }
-    @Singleton @Bean(preDestroy = "close") BrowserLoggingRuntime runtime(BrowserLogRequests requests) throws IOException {
+    @Context @Bean(preDestroy = "close") BrowserLoggingRuntime runtime(BrowserLogRequests requests) throws IOException {
         return new BrowserLoggingRuntime(settings, requests);
     }
     @Singleton public BrowserLogGateway gateway(BrowserLoggingRuntime runtime) { return runtime.gateway(); }

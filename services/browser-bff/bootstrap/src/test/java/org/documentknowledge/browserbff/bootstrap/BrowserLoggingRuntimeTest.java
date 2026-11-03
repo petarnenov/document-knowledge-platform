@@ -1,6 +1,7 @@
 package org.documentknowledge.browserbff.bootstrap;
 
 import com.sun.net.httpserver.*;
+import io.micronaut.context.ApplicationContext;
 import java.net.*;
 import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -26,6 +27,10 @@ class BrowserLoggingRuntimeTest {
         while (!condition.getAsBoolean() && System.nanoTime() < end) Thread.sleep(10);
         assertTrue(condition.getAsBoolean());
     }
+    static String sha(byte[] raw) throws Exception { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(raw)); }
+    static Path privateFile(Path path, byte[] raw) throws Exception {
+        Files.write(path, raw); Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------")); return path;
+    }
     @Test void automaticReplayAfterRuntimeReopenUsesOriginalScopeAndBuildThroughRealHttps() throws Exception {
         Path root = temporary.toRealPath(), spool = root.resolve("queue"), keysFile = root.resolve("tls.p12");
         Files.createDirectory(spool, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
@@ -39,9 +44,21 @@ class BrowserLoggingRuntimeTest {
         var km = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()); km.init(keys, password.toCharArray());
         var tm = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); tm.init(keys);
         var tls = SSLContext.getInstance("TLS"); tls.init(km.getKeyManagers(), tm.getTrustManagers(), null);
-        String ca = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(keys.getCertificate("local").getEncoded()));
+        byte[] caPem = ("-----BEGIN CERTIFICATE-----\n" + Base64.getMimeEncoder(64, new byte[]{'\n'}).encodeToString(keys.getCertificate("local").getEncoded())
+            + "\n-----END CERTIFICATE-----\n").getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        String ca = sha(caPem);
         UUID parent = UUID.randomUUID(), eventId = UUID.randomUUID();
-        var artifact = new BrowserLogContexts.Artifact(UUID.randomUUID(), "admin-portal", "a".repeat(40), "b".repeat(64), "c".repeat(64), "e".repeat(64));
+        Map<String, Object> manifest;
+        try (var input = getClass().getResourceAsStream("/META-INF/dkp-logging/manifest.json")) {
+            manifest = JSON.readValue(input, Map.class);
+        }
+        manifest.put("component", "admin-portal"); manifest.put("buildId", UUID.randomUUID().toString());
+        var vocabulary = new TreeMap<String, Object>((Map<String, Object>)manifest.get("vocabulary"));
+        vocabulary.put("phases", List.of("HTTP")); manifest.put("vocabulary", vocabulary);
+        manifest.put("vocabularySha256", sha(JSON.writeValueAsBytes(vocabulary)));
+        byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
+        var artifact = new BrowserLogContexts.Artifact(UUID.fromString((String)manifest.get("buildId")), "admin-portal",
+            (String)manifest.get("gitSha"), (String)manifest.get("sourceFingerprint"), sha(manifestBytes), (String)manifest.get("vocabularySha256"));
         Instant capture = Instant.now().plusSeconds(120).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         var grant = new BrowserLogGateway.Grant(UUID.randomUUID(), artifact, UUID.randomUUID(),
             new BrowserLogContexts.Authority("private-session-nonce", "https://issuer.invalid", "verified-subject", "tenant-a", capture), capture);
@@ -86,9 +103,26 @@ class BrowserLoggingRuntimeTest {
                 Map.of(artifact.buildId(), settings.catalogs().get(artifact.buildId()), newer.buildId(), settings.catalogs().get(artifact.buildId())));
             int prior = forwards.get();
             try (var reopened = new BrowserLoggingRuntime(retained, new BrowserLogRequests())) {
-                until(() -> forwards.get() > prior); available.set(true);
-                until(() -> reopened.status().queue().pendingEvents() == 0);
-                assertEquals(1, reopened.status().queue().committedEvents()); assertEquals(Set.of(eventId), stored); assertEquals(1, delegations.get());
+                until(() -> forwards.get() > prior);
+                assertEquals(1, reopened.status().queue().pendingEvents());
+            }
+            Path caFile = privateFile(root.resolve("ca.pem"), caPem);
+            Path manifestFile = privateFile(root.resolve("portal.json"), manifestBytes);
+            Path config = privateFile(root.resolve("browser.json"), JSON.writeValueAsBytes(Map.of("schemaVersion", 1,
+                "endpoint", settings.endpoint().toASCIIString(), "parentProducerId", parent.toString(), "delegatorToken", DELEGATOR,
+                "caFile", caFile.toString(), "spoolDirectory", spool.toString(),
+                "portalManifests", List.of(Map.of("file", manifestFile.toString(), "sha256", artifact.manifestSha256())))));
+            int startupForwards = forwards.get();
+            // Starting the real factory must reopen/replay without getBean() or any logging HTTP request.
+            try (var context = ApplicationContext.run(Map.of("dkp.logging.browser-config", config.toString()))) {
+                until(() -> forwards.get() > startupForwards);
+                available.set(true);
+                until(() -> {
+                    try { return Integer.valueOf(0).equals(JSON.readValue(Files.readAllBytes(spool.resolve("health.json")), Map.class).get("pendingEvents")); }
+                    catch (Exception unavailable) { return false; }
+                });
+                assertEquals(Set.of(eventId), stored); assertEquals(1, delegations.get());
+                assertEquals(1, JSON.readValue(Files.readAllBytes(spool.resolve("health.json")), Map.class).get("committedEvents"));
             }
             var health = JSON.readValue(Files.readAllBytes(spool.resolve("health.json")), Map.class);
             assertEquals(true, health.get("closed")); assertEquals(false, health.get("storageUncertain"));
