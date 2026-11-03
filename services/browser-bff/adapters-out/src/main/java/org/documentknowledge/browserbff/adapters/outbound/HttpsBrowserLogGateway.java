@@ -119,6 +119,10 @@ public final class HttpsBrowserLogGateway implements BrowserLogRecoveryGateway, 
         if (!(scope instanceof HttpsBrowserLogGateway.Credential value) || value.owner() != this) throw unavailable();
         return !clock.instant().isBefore(value.replayUntil);
     }
+    @Override public List<UUID> eventIds(Scope scope, byte[] sanitizedBatch) {
+        if (!(scope instanceof HttpsBrowserLogGateway.Credential value) || value.owner() != this) throw unavailable();
+        return BrowserLogPendingJson.events(sanitizedBatch, value.checkpoint.grant());
+    }
     @Override public byte[] forward(Scope scope, byte[] sanitizedBatch, BrowserLogDeadline deadline) {
         return post("batches", credential(scope).token, sanitizedBatch, 200, deadline);
     }

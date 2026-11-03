@@ -76,6 +76,37 @@ class HttpsBrowserLogGatewayTest {
         var result = new HttpsBrowserLogGateway(endpoint, PARENT, DELEGATOR, tls, clock, ca, Map.of(artifact.buildId(), artifact));
         gateways.add(result); return result;
     }
+    @Test void durableQueueReopensAgainstRealHttpsWithOriginalCredentialAndExactlyTheSameEvents() throws Exception {
+        var grant = grant("tenant-a"); UUID eventId = UUID.randomUUID(); byte[] batch = BrowserLogPendingFixtures.batch(grant, eventId);
+        var delegation = reply(grant); var available = new AtomicBoolean(); var delegations = new AtomicInteger();
+        var committed = ConcurrentHashMap.<UUID>newKeySet();
+        start(exchange -> { try (exchange) {
+            if (exchange.getRequestURI().getPath().endsWith("/delegations")) {
+                delegations.incrementAndGet(); respond(exchange, 201, "application/json", bytes(delegation));
+            } else {
+                assertEquals("Bearer " + PRODUCER, exchange.getRequestHeaders().getFirst("Authorization"));
+                assertArrayEquals(batch, exchange.getRequestBody().readNBytes(32769));
+                if (!available.get()) respond(exchange, 503, "application/json", "{}".getBytes(StandardCharsets.UTF_8));
+                else { committed.add(eventId); respond(exchange, 200, "application/json", BrowserLogPendingFixtures.receipts(List.of(eventId))); }
+            }
+        } });
+        Path directory = temporary.toRealPath().resolve("owned-queue-" + UUID.randomUUID());
+        Files.createDirectory(directory, java.nio.file.attribute.PosixFilePermissions.asFileAttribute(
+            java.nio.file.attribute.PosixFilePermissions.fromString("rwx------")));
+        var original = recoverable(Clock.systemUTC(), "a".repeat(64), ARTIFACT);
+        try (var durable = new DurableBrowserLogGateway(original, new FileBrowserLogPendingStore(directory, "b".repeat(64)))) {
+            var scope = durable.delegate(grant, BrowserLogDeadline.start());
+            unavailable(() -> durable.ingest(scope, batch, BrowserLogDeadline.start())); assertEquals(1, durable.status().pendingEvents());
+        }
+        original.close(); assertTrue(original.awaitClosed(Duration.ofSeconds(3)));
+        available.set(true);
+        var reopened = recoverable(Clock.systemUTC(), "a".repeat(64), ARTIFACT);
+        try (var recovered = new DurableBrowserLogGateway(reopened, new FileBrowserLogPendingStore(directory, "b".repeat(64)))) {
+            assertEquals(DurableBrowserLogGateway.Replay.COMMITTED, recovered.replayOne(BrowserLogDeadline.start()));
+            assertEquals(Set.of(eventId), committed); assertEquals(1, delegations.get()); assertEquals(0, recovered.status().pendingEvents());
+        }
+        try (var store = new FileBrowserLogPendingStore(directory, "b".repeat(64))) { assertTrue(store.load().isEmpty()); }
+    }
     @Test void originalScopeRestoresAfterClientRestartWithoutAnotherDelegationOrSessionCredential() throws Exception {
         var grant = grant("tenant-a"); var delegation = reply(grant); var delegations = new AtomicInteger();
         var body = "{\"schemaVersion\":1,\"events\":[]}".getBytes(StandardCharsets.UTF_8);
