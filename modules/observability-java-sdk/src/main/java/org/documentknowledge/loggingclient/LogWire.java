@@ -62,6 +62,37 @@ final class LogWire {
         return JSON.writeValueAsBytes(Map.of("eventIds",events.stream().map(event->event.id().toString()).toList()));
     }
 
+    /** Reapply the typed policy, preserving the exact original bytes and event ID. */
+    static Prepared restore(byte[] bytes,ExecutionIdentity execution,LogVocabulary vocabulary) {
+        try {
+            if(bytes.length==0 || bytes.length>EVENT_BYTES)throw new IllegalArgumentException();
+            String text=StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString();
+            var row=JSON.readValue(text,Map.class);
+            var build=new org.documentknowledge.observability.BuildIdentity(UUID.fromString((String)row.get("buildId")),
+                (String)row.get("component"),(String)row.get("gitSha"),(String)row.get("sourceFingerprint"));
+            var original=new ExecutionIdentity(build,UUID.fromString((String)row.get("runId")),UUID.fromString((String)row.get("instanceId")));
+            var code=Arrays.stream(org.documentknowledge.observability.EventCode.values())
+                .filter(value->value.wireName().equals(row.get("eventName"))).findFirst().orElseThrow();
+            var metadata=new org.documentknowledge.observability.EventMetadata(UUID.fromString((String)row.get("eventId")),original,
+                Instant.parse((String)row.get("timestamp")),org.documentknowledge.observability.Severity.valueOf((String)row.get("severity")),
+                code,UUID.fromString((String)row.get("correlationId")),new org.documentknowledge.observability.TraceContext(
+                    (String)row.get("traceId"),(String)row.get("spanId")));
+            var context=(Map<?,?>)row.get("context");var attributes=(Map<?,?>)context.get("attributes");
+            var event=new LifecycleEvent(metadata,(String)context.get("phase"),LifecycleEvent.Outcome.valueOf((String)context.get("outcome")),
+                integer(context.get("durationMs")),integer(context.get("attempt")),integer(attributes.get("count")),(Boolean)attributes.get("cleanupSettled"));
+            var validated=prepare(event,execution,vocabulary);
+            // Map equality ignores JSON property order, which may vary between JVMs.
+            if(!JSON.readValue(validated.bytes(),Map.class).equals(row))throw new IllegalArgumentException();
+            return new Prepared(validated.id(),bytes.clone());
+        } catch(Exception invalid) {throw new IllegalArgumentException("INVALID_LOG_SPOOL_EVENT");}
+    }
+
+    private static long integer(Object value) {
+        if(!(value instanceof Integer || value instanceof Long))throw new IllegalArgumentException();
+        return ((Number)value).longValue();
+    }
+
     static Map<UUID,Receipt> receipts(byte[] bytes,List<Prepared> events,boolean commitOnly) {
         try {
             if(bytes.length==0 || bytes.length>BATCH_BYTES)throw new IllegalArgumentException();

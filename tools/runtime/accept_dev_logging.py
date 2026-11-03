@@ -465,28 +465,42 @@ setTimeout(()=>{if(active)active();server.close();process.exit(0);},45000);
         m.write_private(config,json.dumps({'buildId':build_id,'component':'runtime-tools','gitSha':'a'*40,'sourceFingerprint':'b'*64,
             'runId':run_id,'instanceId':str(uuid.uuid4()),'eventId':event_id,'correlationId':str(uuid.uuid4()),
             'endpoint':'https://localhost:'+str(self.port)+'/api/v1/dev-logs','producerToken':producer_token}))
+        spool=self.directory/'operator/java-sdk-spool';spool.mkdir(mode=0o700)
         gateway=m.container(self.state,self.directory,'gateway')
         args=['create','--platform','linux/amd64','--network','container:'+gateway['Id'],'--user',str(os.getuid())+':'+str(os.getgid()),
             '--read-only','--cap-drop','ALL','--security-opt','no-new-privileges:true','--memory','512m','--cpus','1','--pids-limit','128',
             '--tmpfs','/tmp:rw,nosuid,nodev,noexec,size=32m,uid='+str(os.getuid())+',gid='+str(os.getgid())+',mode=0700',
             '--mount','type=bind,source='+str(dist)+',target=/sdk,readonly',
             '--mount','type=bind,source='+str(config)+',target=/run/sdk/config.json,readonly',
+            '--mount','type=bind,source='+str(spool)+',target=/run/sdk/spool',
             '--mount','type=bind,source='+str(self.directory/'gateway-pki/ca.crt')+',target=/run/sdk/ca.crt,readonly']
         for key,value in m.labels(self.state).items():args+=['--label',key+'='+value]
-        identity=m.docker(*args,m.JDK,'java','-XX:ActiveProcessorCount=2','-Xmx128m','-cp','/sdk/lib/*:/sdk/classes',
-            'org.documentknowledge.loggingclient.RealSdkAcceptanceMain','/run/sdk/config.json','/run/sdk/ca.crt').decode().strip()
-        self.fixture_ids.append(identity)
-        result=m.subprocess.run(['docker','start','--attach',identity],capture_output=True,timeout=45)
-        m.write_private(self.directory/'java-sdk-producer.private.log',result.stdout+result.stderr)
-        item=m.inspect('container',identity);m.owned(item,self.state)
-        self.assertEqual(0,result.returncode);self.assertEqual(0,item['State']['ExitCode'])
-        self.assertEqual({'result':'PASS','eventId':event_id,'buildId':build_id,'applicationBuildProvenance':'FIXTURE_ONLY'},json.loads(result.stdout))
+        processes=[]
+        def run_phase(phase):
+            identity=m.docker(*args,m.JDK,'java','-XX:ActiveProcessorCount=2','-Xmx128m','-cp','/sdk/lib/*:/sdk/classes',
+                'org.documentknowledge.loggingclient.RealSdkAcceptanceMain','/run/sdk/config.json','/run/sdk/ca.crt',
+                '/run/sdk/spool',phase).decode().strip()
+            self.fixture_ids.append(identity);processes.append(identity)
+            result=m.subprocess.run(['docker','start','--attach',identity],capture_output=True,timeout=45)
+            m.write_private(self.directory/('java-sdk-'+phase.lower()+'.private.log'),result.stdout+result.stderr)
+            item=m.inspect('container',identity);m.owned(item,self.state)
+            self.assertEqual(0,result.returncode);self.assertEqual(0,item['State']['ExitCode'])
+            self.assertEqual({'result':'PASS','eventId':event_id,'buildId':build_id,
+                'applicationBuildProvenance':'FIXTURE_ONLY','phase':phase},json.loads(result.stdout))
+        query=m.container(self.state,self.directory,'query')
+        m.docker('stop','--time','2',query['Id'])
+        try:run_phase('OFFLINE')
+        finally:
+            m.docker('start',query['Id']);self.wait_observer(after=dt.datetime.now(dt.timezone.utc))
+        m.verify_live(self.state,self.directory)
+        run_phase('REPLAY');self.assertEqual(2,len(set(processes)))
         rows=self.query(build_id=build_id)['events'];found=[row for row in rows if row['event']['eventId']==event_id]
         self.assertEqual(1,len(found));self.assertEqual(build_id,found[0]['event']['buildId'])
         self.assertEqual('runtime-tools',found[0]['event']['component']);self.assertEqual(run_id,found[0]['event']['runId'])
         self.assertIn(b'COMMITTED',self.writer_request('POST','receipts',producer_token,{'eventIds':[event_id]})[2])
         m.write_private(self.directory/'java-sdk-acceptance.json',json.dumps({'result':'PASS','compiledArtifacts':artifacts,
-            'realSdkToTlsApiPostgresAndFilteredQuery':True,'publicTlsAuthorityPreserved':True,'eventId':event_id,'buildId':build_id,
+            'realSdkToTlsApiPostgresAndFilteredQuery':True,'publicTlsAuthorityPreserved':True,'normalProcessRestartOriginalIdentity':True,'realQueryOutageAndRecovery':True,
+            'sdkProcessContainers':processes,'eventId':event_id,'buildId':build_id,
             'applicationBuildProvenance':'FIXTURE_ONLY','full457':'OPEN'}))
 
     def test_persistent_owned_query_lifecycle(self):

@@ -62,6 +62,14 @@ public final class JdkLogTransport implements LogTransport {
         if(closed.compareAndSet(false,true)) {client.shutdownNow();executor.shutdownNow();}
     }
 
+    @Override public java.util.Optional<String> credentialFingerprint() {
+        try {
+            byte[] digest=java.security.MessageDigest.getInstance("SHA-256").digest(
+                ("dkp-log-producer-credential-v1:"+token).getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+            return java.util.Optional.of(java.util.HexFormat.of().formatHex(digest));
+        } catch(java.security.NoSuchAlgorithmException impossible) {throw new IllegalStateException("LOG_DIGEST_UNAVAILABLE");}
+    }
+
     static final class LimitedBody implements HttpResponse.BodySubscriber<byte[]> {
         private final CompletableFuture<byte[]> result=new CompletableFuture<>();
         private final ByteArrayOutputStream bytes=new ByteArrayOutputStream(2048);

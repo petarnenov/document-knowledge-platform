@@ -13,12 +13,15 @@ import tools.jackson.databind.json.JsonMapper;
 public final class RealSdkAcceptanceMain {
     private static String stage="INPUT";
     private static volatile int lastHttpStatus;
+    private static volatile RouteName firstRoute;
+    private enum RouteName { BATCHES, RECEIPTS }
     private static volatile String transportFailure="NONE";
     public static void main(String[] args) {
         try {run(args);}catch(Exception failed) {System.err.println("{\"result\":\"FAIL\",\"code\":\"SDK_ACCEPTANCE_FAILED\",\"stage\":\""+stage+"\",\"lastHttpStatus\":"+lastHttpStatus+",\"transportFailure\":\""+transportFailure+"\"}");System.exit(1);}
     }
     private static void run(String[] args) throws Exception {
-        if(args.length!=2)throw new IllegalArgumentException();
+        if(args.length!=4 || !Set.of("OFFLINE","REPLAY").contains(args[3]))throw new IllegalArgumentException();
+        String phase=args[3];
         var path=Path.of(args[0]);if(Files.isSymbolicLink(path) || Files.size(path)>4096)throw new IllegalArgumentException();
         Map<?,?> config=JsonMapper.builder().build().readValue(Files.readAllBytes(path),Map.class);
         stage="IDENTITY";
@@ -36,23 +39,41 @@ public final class RealSdkAcceptanceMain {
         var http=new JdkLogTransport(java.net.URI.create(text(config,"endpoint")),text(config,"producerToken"),tls);
         var transport=new LogTransport() {
             @Override public Response post(Route route,byte[] body) throws java.io.IOException,InterruptedException {
+                if(firstRoute==null)firstRoute=RouteName.valueOf(route.name());
                 try {var reply=http.post(route,body);lastHttpStatus=reply.status();return reply;}
                 catch(java.io.IOException unavailable) {transportFailure="IO";throw unavailable;}
             }
+            @Override public Optional<String> credentialFingerprint() {return http.credentialFingerprint();}
             @Override public void close() {http.close();}
         };
+        stage="RECOVERY";
+        var spool=new FileLogSpool(Path.of(args[2]),new LogSpool.Binding(execution,http.credentialFingerprint().orElseThrow()));
+        var retained=spool.load();
+        if((phase.equals("OFFLINE") && !retained.isEmpty()) || (phase.equals("REPLAY")
+                && (retained.size()!=1 || !retained.getFirst().id().equals(id)))) {
+            spool.close();http.close();throw new IllegalStateException();
+        }
         var producer=new LogProducer(execution,new LogVocabulary(Set.of(EventCode.OPERATION_STARTED),Set.of("STARTUP")),
-            transport);
+            transport,spool);
         try {
-            stage="ENQUEUE";
-            if(producer.emit(new LifecycleEvent(metadata,"STARTUP",LifecycleEvent.Outcome.STARTED,0,0,1,false))!=LogProducer.Admission.ACCEPTED)
-                throw new IllegalStateException();
-            stage="DELIVERY";
-            long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(20);
-            while(producer.status().committed()!=1 && System.nanoTime()<deadline)Thread.sleep(10);
-            if(producer.status().committed()!=1 || producer.status().pendingEvents()!=0)throw new IllegalStateException();
+            if(phase.equals("OFFLINE")) {
+                stage="ENQUEUE";
+                if(producer.emit(new LifecycleEvent(metadata,"STARTUP",LifecycleEvent.Outcome.STARTED,0,0,1,false))!=LogProducer.Admission.ACCEPTED)
+                    throw new IllegalStateException();
+                stage="SPOOL_DURING_REAL_OUTAGE";
+                long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+                while((producer.status().spooledEvents()!=1 || producer.status().unknownEvents()!=1) && System.nanoTime()<deadline)Thread.sleep(10);
+                if(producer.status().spooledEvents()!=1 || producer.status().unknownEvents()!=1 || producer.status().committed()!=0
+                        || producer.status().unspooledEvents()!=0 || firstRoute!=RouteName.BATCHES)throw new IllegalStateException();
+            } else {
+                stage="DELIVERY_AFTER_PROCESS_RESTART";
+                long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(20);
+                while(producer.status().committed()!=1 && System.nanoTime()<deadline)Thread.sleep(10);
+                if(producer.status().committed()!=1 || producer.status().pendingEvents()!=0 || firstRoute!=RouteName.RECEIPTS)
+                    throw new IllegalStateException();
+            }
         } finally {producer.close();if(!producer.awaitClosed(Duration.ofSeconds(2)))throw new IllegalStateException();}
-        System.out.println("{\"result\":\"PASS\",\"eventId\":\""+id+"\",\"buildId\":\""+build.buildId()+"\",\"applicationBuildProvenance\":\"FIXTURE_ONLY\"}");
+        System.out.println("{\"result\":\"PASS\",\"eventId\":\""+id+"\",\"buildId\":\""+build.buildId()+"\",\"applicationBuildProvenance\":\"FIXTURE_ONLY\",\"phase\":\""+phase+"\"}");
     }
     private static String text(Map<?,?> config,String key) {return (String)Objects.requireNonNull(config.get(key));}
 }

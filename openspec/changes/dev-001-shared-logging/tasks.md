@@ -53,3 +53,5 @@ Owner clarification2026-11-02: prioritize the normal working #457 shared logging
 - [ ] Persistent writer activation: review/select/implement/verify [writer-runtime.md](writer-runtime.md) under #457; controlled additive migration, private manifest operator, fixed writer ingress and continuously supervised owned external volume observer. No actual shared mutation before isolated verification and exact independent activation clearance.
 
 - [ ] Original compilation identity prerequisite: implement/review/verify [build-manifest-builder.md](build-manifest-builder.md) under #457 before actual component wiring. Existing Java in-memory SDK vertical is locally verified; durable recovery, remaining SDKs, real producer adoption and full #457 integration remain open.
+
+- [ ] Normal Java SDK queue persistence prerequisite: implement/review/verify [java-sdk-spool.md](java-sdk-spool.md) under #457 before isolated producer adoption; preserve exact original credential/execution/event binding and visible unspooled state. Additional exceptional capacity/OS matrices remain P3 #458/#459.

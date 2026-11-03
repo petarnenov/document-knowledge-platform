@@ -13,5 +13,7 @@ public interface LogTransport extends AutoCloseable {
         @Override public byte[] body() {return body.clone();}
     }
     Response post(Route route,byte[] body) throws Exception;
+    /** Private equality binding, never a bearer credential or persistence authority. */
+    default java.util.Optional<String> credentialFingerprint() {return java.util.Optional.empty();}
     @Override default void close() {}
 }
