@@ -1,0 +1,33 @@
+dependencies {
+    api project(':modules:observability-support')
+    implementation platform(rootProject.libs.micronaut.platform)
+    implementation 'tools.jackson.core:jackson-databind'
+    testImplementation platform(rootProject.libs.micronaut.platform)
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+tasks.named('test') { finalizedBy 'jacocoTestReport' }
+tasks.named('jacocoTestReport') { reports { xml.required = true; html.required = true } }
+tasks.named('jacocoTestCoverageVerification') {
+    dependsOn 'test'
+    violationRules { rule { limit { counter = 'LINE'; minimum = 0.75 }; limit { counter = 'BRANCH'; minimum = 0.75 } } }
+}
+tasks.named('check') { dependsOn 'jacocoTestCoverageVerification' }
+
+// These selected suites share the owned local verification envelope; keep real I/O fixtures separate.
+tasks.named('test') {
+    mustRunAfter ':services:dev-logging:adapters-out:test', ':services:dev-logging:adapters-in:test',
+        ':services:dev-logging:bootstrap:test'
+}
+
+// Owned real-API acceptance fixture; never part of an application distribution.
+tasks.register('acceptanceProducerDist', Sync) {
+    dependsOn 'testClasses', 'jar'
+    into layout.buildDirectory.dir('acceptance-producer')
+    from(tasks.named('jar')) { into 'lib' }
+    from(configurations.runtimeClasspath) { into 'lib' }
+    from(sourceSets.test.output.classesDirs) {
+        include '**/RealSdkAcceptanceMain*.class'
+        into 'classes'
+    }
+}

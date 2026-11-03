@@ -9,7 +9,7 @@ def serviceNames = ['document-management', 'knowledge-base', 'knowledge-search',
 def layerNames = ['domain', 'application', 'adapters-in', 'adapters-out', 'bootstrap']
 
 subprojects {
-    if (name in layerNames || name in ['architecture-tests', 'identity-contracts', 'security-micronaut', 'authorization-catalog', 'observability-support', 'structure-inspector']) {
+    if (name in layerNames || name in ['architecture-tests', 'identity-contracts', 'security-micronaut', 'authorization-catalog', 'observability-support', 'observability-java-sdk', 'structure-inspector']) {
         apply plugin: 'java-library'
         apply plugin: 'jacoco'
         // Gradle resolves components by group/name/version, so repeated layer names
@@ -232,7 +232,8 @@ project(':services:dev-logging:application') {
 
 def allowedLayerDependency = { String from, String target ->
     def f = from.tokenize(':'); def t = target.tokenize(':')
-    if (target == ':modules:observability-support') return from == ':services:dev-logging:domain'
+    if (target == ':modules:observability-support') return from in [':services:dev-logging:domain', ':modules:observability-java-sdk']
+    if (target == ':modules:observability-java-sdk') return f.size() == 3 && f[0] == 'services' && f[2] in ['adapters-in', 'adapters-out', 'bootstrap']
     if (target == ':modules:identity-contracts') return from.startsWith(':services:') || from in [':modules:security-micronaut', ':modules:authorization-catalog']
     if (target == ':modules:authorization-catalog') return from in [':services:document-management:adapters-out', ':services:document-management:bootstrap']
     if (target == ':modules:security-micronaut') return f.size() == 3 && f[0] == 'services' && f[2] in ['adapters-in', 'adapters-out', 'bootstrap']
@@ -267,9 +268,15 @@ tasks.register('architectureDependencyTest') {
         assert !allowedLayerDependency(':modules:observability-support', ':services:browser-bff:application')
         assert !allowedLayerDependency(':services:browser-bff:application', ':modules:observability-support')
         assert allowedLayerDependency(':services:dev-logging:domain', ':modules:observability-support')
+        assert allowedLayerDependency(':modules:observability-java-sdk', ':modules:observability-support')
+        assert allowedLayerDependency(':services:browser-bff:adapters-out', ':modules:observability-java-sdk')
+        assert !allowedLayerDependency(':services:browser-bff:application', ':modules:observability-java-sdk')
+        assert !allowedLayerDependency(':services:document-management:domain', ':modules:observability-java-sdk')
+        assert !allowedLayerDependency(':modules:observability-support', ':modules:observability-java-sdk')
+        assert !allowedLayerDependency(':modules:observability-java-sdk', ':services:dev-logging:application')
         assert !allowedLayerDependency(':services:dev-logging:domain', ':modules:security-micronaut')
         assert !allowedLayerDependency(':services:dev-logging:application', ':services:document-management:domain')
-        (serviceProjects + [project(':modules:identity-contracts'), project(':modules:security-micronaut'), project(':modules:authorization-catalog'), project(':modules:observability-support'), project(':workers:structure-inspector')]).each { p ->
+        (serviceProjects + [project(':modules:identity-contracts'), project(':modules:security-micronaut'), project(':modules:authorization-catalog'), project(':modules:observability-support'), project(':modules:observability-java-sdk'), project(':workers:structure-inspector')]).each { p ->
                 def layer = p.name
                 p.configurations.matching { it.name in ['api', 'implementation', 'compileOnly', 'runtimeOnly'] }.each { config ->
                     config.dependencies.each { dependency ->

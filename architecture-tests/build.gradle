@@ -6,6 +6,7 @@ dependencies {
     testImplementation 'io.micronaut:micronaut-runtime'
     testImplementation project(':workers:structure-inspector')
     testImplementation project(':modules:observability-support')
+    testImplementation project(':modules:observability-java-sdk')
     ['domain', 'application', 'adapters-in', 'adapters-out'].each { layer ->
         testImplementation project(":services:dev-logging:${layer}")
     }
@@ -14,4 +15,10 @@ dependencies {
             testImplementation project(":services:${service}:${layer}")
         }
     }
+}
+
+// Scan last when these tests are already selected; ordering does not add any test task.
+tasks.named('test') {
+    mustRunAfter ':services:dev-logging:adapters-out:test', ':services:dev-logging:adapters-in:test',
+        ':services:dev-logging:bootstrap:test', ':modules:observability-java-sdk:test'
 }

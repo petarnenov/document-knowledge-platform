@@ -399,6 +399,8 @@ BROWSER
         self.assertEqual(200,self.writer_request('POST','receipts',producer_token,{'eventIds':[event_id]})[0])
         found=[row for row in self.query(build_id=build_id)['events'] if row['event']['buildId']==build_id]
         self.assertEqual(1,len(found));self.assertEqual(event_id,found[0]['event']['eventId'])
+        if os.environ.get('DKP_LOG_JAVA_SDK_ACCEPTANCE_DIST'):
+            self.java_sdk_acceptance(build_id,run_id,producer_token)
         self.assertEqual(before['postgres'],m.container(self.state,self.directory,'postgres')['Id'])
         self.assertEqual(before['viewer'],m.container(self.state,self.directory,'viewer')['Id'])
         self.assertEqual(token,m.private(self.directory/'operator/read-token'))
@@ -409,6 +411,83 @@ BROWSER
             'preservedLegacyData':True,'manifestPrivateCli':True,'registrationIngestionReceiptQuery':True,'realPhysicalVolumeTls204':True,
             'nativePostCallerProgressAndCrashRecovery':sys.platform=='darwin','queryRestartPersistence':True,'missingStaleObserverRejected':True,
             'closedNginxRoutesAndHeaders':True,'full457':'OPEN'}))
+
+    def java_sdk_acceptance(self,build_id,run_id,producer_token):
+        # Test-only transparent TCP forwarding, as used by the browser fixture:
+        # retain the exact public TLS authority/Host without changing the SDK or gateway.
+        gateway=m.container(self.state,self.directory,'gateway')
+        relay_script=r"""
+const net=require('node:net');
+const port=Number(process.argv[1]);
+if(!Number.isInteger(port)||port<1024||port>65535)process.exit(1);
+let active;
+const server=net.createServer({highWaterMark:8192},incoming=>{
+ if(active){incoming.destroy();return;}
+ const outgoing=net.connect({host:'127.0.0.1',port:8443,highWaterMark:8192});
+ const close=()=>{incoming.destroy();outgoing.destroy();};
+ active=close;
+ const timer=setTimeout(close,10000);
+ incoming.setTimeout(5000,close);outgoing.setTimeout(5000,close);
+ incoming.on('error',close);outgoing.on('error',close);
+ incoming.on('close',()=>{clearTimeout(timer);outgoing.destroy();if(active===close)active=undefined;});
+ outgoing.on('close',()=>incoming.destroy());
+ incoming.pipe(outgoing).pipe(incoming);
+});
+server.maxConnections=1;
+server.on('error',()=>process.exit(1));
+server.listen(port,'127.0.0.1',()=>console.log('READY'));
+setTimeout(()=>{if(active)active();server.close();process.exit(0);},45000);
+"""
+        relay_args=['create','--platform','linux/amd64','--network','container:'+gateway['Id'],
+            '--user',str(os.getuid())+':'+str(os.getgid()),'--read-only','--cap-drop','ALL',
+            '--security-opt','no-new-privileges:true','--memory','128m','--cpus','1','--pids-limit','32']
+        for key,value in m.labels(self.state).items():relay_args+=['--label',key+'='+value]
+        relay=m.docker(*relay_args,'node:24.22.1@sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c',
+            'node','--max-old-space-size=32','-e',relay_script,str(self.port)).decode().strip()
+        self.fixture_ids.append(relay);m.docker('start',relay)
+        for _ in range(25):
+            item=m.inspect('container',relay);m.owned(item,self.state)
+            self.assertTrue(item['State']['Running'])
+            if m.docker('logs',relay).strip()==b'READY':break
+            time.sleep(.2)
+        else:self.fail('SDK authority relay not ready')
+        # An owned compiled test fixture joins only this owned gateway's network namespace.
+        # The localhost TLS identity is preserved; no insecure hostname override is needed.
+        dist=Path(os.environ['DKP_LOG_JAVA_SDK_ACCEPTANCE_DIST'])
+        self.assertEqual(dist,dist.resolve(strict=True));self.assertTrue(dist.is_dir())
+        artifacts={}
+        for path in dist.rglob('*'):
+            self.assertFalse(path.is_symlink())
+            if path.is_file():artifacts[path.relative_to(dist).as_posix()]=hashlib.sha256(m.private(path,8*1024*1024)).hexdigest()
+        self.assertTrue(1<=len(artifacts)<=32)
+        self.assertIn('classes/org/documentknowledge/loggingclient/RealSdkAcceptanceMain.class',artifacts)
+        event_id=str(uuid.uuid4());config=self.directory/'operator/java-sdk-acceptance.json'
+        m.write_private(config,json.dumps({'buildId':build_id,'component':'runtime-tools','gitSha':'a'*40,'sourceFingerprint':'b'*64,
+            'runId':run_id,'instanceId':str(uuid.uuid4()),'eventId':event_id,'correlationId':str(uuid.uuid4()),
+            'endpoint':'https://localhost:'+str(self.port)+'/api/v1/dev-logs','producerToken':producer_token}))
+        gateway=m.container(self.state,self.directory,'gateway')
+        args=['create','--platform','linux/amd64','--network','container:'+gateway['Id'],'--user',str(os.getuid())+':'+str(os.getgid()),
+            '--read-only','--cap-drop','ALL','--security-opt','no-new-privileges:true','--memory','512m','--cpus','1','--pids-limit','128',
+            '--tmpfs','/tmp:rw,nosuid,nodev,noexec,size=32m,uid='+str(os.getuid())+',gid='+str(os.getgid())+',mode=0700',
+            '--mount','type=bind,source='+str(dist)+',target=/sdk,readonly',
+            '--mount','type=bind,source='+str(config)+',target=/run/sdk/config.json,readonly',
+            '--mount','type=bind,source='+str(self.directory/'gateway-pki/ca.crt')+',target=/run/sdk/ca.crt,readonly']
+        for key,value in m.labels(self.state).items():args+=['--label',key+'='+value]
+        identity=m.docker(*args,m.JDK,'java','-XX:ActiveProcessorCount=2','-Xmx128m','-cp','/sdk/lib/*:/sdk/classes',
+            'org.documentknowledge.loggingclient.RealSdkAcceptanceMain','/run/sdk/config.json','/run/sdk/ca.crt').decode().strip()
+        self.fixture_ids.append(identity)
+        result=m.subprocess.run(['docker','start','--attach',identity],capture_output=True,timeout=45)
+        m.write_private(self.directory/'java-sdk-producer.private.log',result.stdout+result.stderr)
+        item=m.inspect('container',identity);m.owned(item,self.state)
+        self.assertEqual(0,result.returncode);self.assertEqual(0,item['State']['ExitCode'])
+        self.assertEqual({'result':'PASS','eventId':event_id,'buildId':build_id,'applicationBuildProvenance':'FIXTURE_ONLY'},json.loads(result.stdout))
+        rows=self.query(build_id=build_id)['events'];found=[row for row in rows if row['event']['eventId']==event_id]
+        self.assertEqual(1,len(found));self.assertEqual(build_id,found[0]['event']['buildId'])
+        self.assertEqual('runtime-tools',found[0]['event']['component']);self.assertEqual(run_id,found[0]['event']['runId'])
+        self.assertIn(b'COMMITTED',self.writer_request('POST','receipts',producer_token,{'eventIds':[event_id]})[2])
+        m.write_private(self.directory/'java-sdk-acceptance.json',json.dumps({'result':'PASS','compiledArtifacts':artifacts,
+            'realSdkToTlsApiPostgresAndFilteredQuery':True,'publicTlsAuthorityPreserved':True,'eventId':event_id,'buildId':build_id,
+            'applicationBuildProvenance':'FIXTURE_ONLY','full457':'OPEN'}))
 
     def test_persistent_owned_query_lifecycle(self):
         self.assertEqual('PASS',self.result['result'])
