@@ -4,6 +4,8 @@ import { portalLogging } from './portal-logging';
 
 export function RouteLogging() {
   const location = useLocation();
-  useEffect(() => { portalLogging.record('ROUTE', 'ui.route.changed'); }, [location.key]);
+  useEffect(() => {
+    portalLogging.record('ROUTE', 'ui.route.changed');
+  }, [location.key]);
   return null;
 }

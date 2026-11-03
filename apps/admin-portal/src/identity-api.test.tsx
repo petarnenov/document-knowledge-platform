@@ -21,29 +21,52 @@ const signal = () => new AbortController().signal;
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status });
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('same-origin identity client', () => {
   it('retires logging before identity requests and replaces context only after a verified session', async () => {
     const retired = vi.spyOn(portalLogging, 'retire');
     const adopted = vi.spyOn(portalLogging, 'session');
-    const selected = { ...session, selectedTenant: 'tenant-b', csrfToken: 'csrf-2' };
-    const fetcher = vi.fn().mockImplementationOnce(async () => {
-      expect(retired).toHaveBeenCalledTimes(1); expect(adopted).not.toHaveBeenCalled();
-      return json(selected);
-    }).mockImplementationOnce(async () => {
-      expect(retired).toHaveBeenCalledTimes(2); return new Response(null, { status: 204 });
-    });
+    const selected = {
+      ...session,
+      selectedTenant: 'tenant-b',
+      csrfToken: 'csrf-2',
+    };
+    const fetcher = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        expect(retired).toHaveBeenCalledTimes(1);
+        expect(adopted).not.toHaveBeenCalled();
+        return json(selected);
+      })
+      .mockImplementationOnce(async () => {
+        expect(retired).toHaveBeenCalledTimes(2);
+        return new Response(null, { status: 204 });
+      });
     vi.stubGlobal('fetch', fetcher);
-    await selectTenant(session, 'tenant-b', signal()); expect(adopted).toHaveBeenCalledWith(selected);
-    await logout(selected, signal()); expect(adopted).toHaveBeenCalledTimes(1);
+    await selectTenant(session, 'tenant-b', signal());
+    expect(adopted).toHaveBeenCalledWith(selected);
+    await logout(selected, signal());
+    expect(adopted).toHaveBeenCalledTimes(1);
   });
 
   it('retires expired identity and never adopts malformed session responses', async () => {
-    const retired = vi.spyOn(portalLogging, 'retire'), adopted = vi.spyOn(portalLogging, 'session');
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json({}, 401)).mockResolvedValueOnce(json({ ...session, csrfToken: '' })));
-    await expect(getSession(signal())).rejects.toMatchObject({ status: 401 }); expect(retired).toHaveBeenCalledOnce();
-    await expect(getSession(signal())).rejects.toMatchObject({ status: 503 }); expect(adopted).not.toHaveBeenCalled();
+    const retired = vi.spyOn(portalLogging, 'retire'),
+      adopted = vi.spyOn(portalLogging, 'session');
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(json({}, 401))
+        .mockResolvedValueOnce(json({ ...session, csrfToken: '' })),
+    );
+    await expect(getSession(signal())).rejects.toMatchObject({ status: 401 });
+    expect(retired).toHaveBeenCalledOnce();
+    await expect(getSession(signal())).rejects.toMatchObject({ status: 503 });
+    expect(adopted).not.toHaveBeenCalled();
   });
   it('keeps only safe session fields and never caches or follows redirects', async () => {
     const fetcher = vi

@@ -3,7 +3,13 @@ import { defineConfig } from 'vitest/config';
 import { loggingManifest } from './tooling/logging-manifest.js';
 
 export default defineConfig({
-  plugins: [react(), loggingManifest(new URL('../../', import.meta.url).pathname, process.env.DKP_LOG_BUILD_MANIFEST)],
+  plugins: [
+    react(),
+    loggingManifest(
+      new URL('../../', import.meta.url).pathname,
+      process.env.DKP_LOG_BUILD_MANIFEST,
+    ),
+  ],
   build: {
     rolldownOptions: {
       input: {
