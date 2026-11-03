@@ -9,7 +9,7 @@ public interface BrowserLogGateway {
     interface Scope { }
     record Grant(UUID contextEpoch, BrowserLogContexts.Artifact artifact, UUID runId,
                  BrowserLogContexts.Authority authority, Instant captureUntil) { }
-    Scope delegate(Grant grant);
-    byte[] ingest(Scope scope, byte[] sanitizedBatch);
-    byte[] receipts(Scope scope, byte[] eventIds);
+    Scope delegate(Grant grant, BrowserLogDeadline deadline);
+    byte[] ingest(Scope scope, byte[] sanitizedBatch, BrowserLogDeadline deadline);
+    byte[] receipts(Scope scope, byte[] eventIds, BrowserLogDeadline deadline);
 }
