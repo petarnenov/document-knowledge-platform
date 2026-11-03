@@ -45,6 +45,15 @@ export class LogQueue {
       if (row?.capture === capture) { this.#events.delete(id); this.#size -= row.event.size; this.#committed++; }
     }
   }
+  /** Permanent response retires local retry; it does not prove earlier submitted data was absent. */
+  reject(ids, capture) {
+    for (const id of ids) {
+      const row = this.#events.get(id);
+      if (row?.capture !== capture) continue;
+      this.#events.delete(id); this.#size -= row.event.size; this.#rejected++;
+      if (row.unknown) this.#unknownDiscarded++;
+    }
+  }
   expired(ids, capture) {
     for (const id of ids) {
       const row = this.#events.get(id);

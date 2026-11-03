@@ -92,3 +92,9 @@ test('changing accessors cannot replace validated diagnostic fields with raw dat
   let identities=0;const identity={...execution};Object.defineProperty(identity,'component',{enumerable:true,get(){return identities++===0?'admin-portal':'password-secret';}});
   const client=createWire(identity,catalog());assert.equal(identities,1);assert.equal(client.execution.component,'admin-portal');
 });
+
+test('permanent response rejection retires only matching capture and preserves submitted uncertainty', () => {
+  const queue=new LogQueue(),client=wire();queue.admit(client.prepare(input(10)),'old');queue.admit(client.prepare(input(11)),'old');queue.admit(client.prepare(input(12)),'new');queue.submitted([id(10)]);
+  queue.reject([id(10)],'wrong');assert.equal(queue.status().rejected,0);queue.reject([id(10),id(11),id(999)],'old');
+  assert.equal(queue.status().rejected,2);assert.equal(queue.status().discardedUnknown,1);assert.equal(queue.status().committed,0);assert.equal(queue.status().dropped,0);assert.equal(queue.status().pending,1);assert.equal(queue.batch('new')[0].id,id(12));
+});

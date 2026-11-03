@@ -14,6 +14,10 @@
     "./browser": {
       "types": "./src/browser.d.ts",
       "import": "./src/browser.js"
+    },
+    "./node": {
+      "types": "./src/node.d.ts",
+      "import": "./src/node.js"
     }
   }
 }
