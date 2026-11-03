@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { portalLogging } from './portal-logging';
 import type { BrowserSession } from '../../../generated-clients/typescript/types/models/BrowserSession';
 import type { SecurityContext } from '../../../generated-clients/typescript/types/models/SecurityContext';
 
@@ -61,7 +62,10 @@ async function request(
   } catch {
     throw new IdentityRequestError(503);
   }
-  if (!response.ok) throw new IdentityRequestError(response.status);
+  if (!response.ok) {
+    if (response.status === 401) portalLogging.retire();
+    throw new IdentityRequestError(response.status);
+  }
   if (response.status === 204) return undefined;
   try {
     return (await response.json()) as unknown;
@@ -71,7 +75,9 @@ async function request(
 }
 
 export async function getSession(signal: AbortSignal): Promise<SessionView> {
-  return parseSession(await request('/api/v1/session', signal));
+  const session = parseSession(await request('/api/v1/session', signal));
+  portalLogging.session(session);
+  return session;
 }
 
 export async function selectTenant(
@@ -79,18 +85,22 @@ export async function selectTenant(
   tenantId: string,
   signal: AbortSignal,
 ): Promise<SessionView> {
-  return parseSession(
+  portalLogging.retire();
+  const selected = parseSession(
     await request('/api/v1/session/tenant', signal, {
       csrfToken: session.csrfToken,
       body: { tenantId },
     }),
   );
+  portalLogging.session(selected);
+  return selected;
 }
 
 export async function logout(
   session: SessionView,
   signal: AbortSignal,
 ): Promise<void> {
+  portalLogging.retire();
   await request('/api/v1/session/logout', signal, {
     csrfToken: session.csrfToken,
     body: {},

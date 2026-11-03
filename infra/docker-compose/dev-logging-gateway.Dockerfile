@@ -7,6 +7,7 @@ COPY apps/admin-portal/package.json apps/admin-portal/package.json
 RUN pnpm install --frozen-lockfile
 COPY generated-clients/typescript generated-clients/typescript
 COPY apps/admin-portal apps/admin-portal
+COPY sdks/javascript/src sdks/javascript/src
 RUN pnpm --filter admin-portal build
 
 FROM nginxinc/nginx-unprivileged:1.30.2-alpine@sha256:de3e40ec8b7debd7194fc798d4bbfb102c7f8b012b2c73032816b5f72393acdd AS runtime

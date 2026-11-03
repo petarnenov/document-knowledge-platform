@@ -15,6 +15,7 @@ COPY apps/admin-portal/package.json apps/admin-portal/package.json
 RUN pnpm install --frozen-lockfile
 COPY generated-clients/typescript generated-clients/typescript
 COPY apps/admin-portal apps/admin-portal
+COPY sdks/javascript/src sdks/javascript/src
 COPY tools/runtime/synthetic-documents.mjs tools/runtime/synthetic-documents.mjs
 RUN node tools/runtime/synthetic-documents.mjs
 RUN <<'BUILD'

@@ -5,8 +5,11 @@ import { App } from './App';
 import '@mantine/core/styles.css';
 import './styles.css';
 import { initializeTheme } from './theme-settings';
+import { portalLogging } from './portal-logging';
 
 initializeTheme();
+portalLogging.start();
+import.meta.hot?.dispose(() => portalLogging.close());
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
