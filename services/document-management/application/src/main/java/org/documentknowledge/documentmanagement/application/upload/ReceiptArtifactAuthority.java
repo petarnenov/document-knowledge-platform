@@ -9,13 +9,14 @@ public final class ReceiptArtifactAuthority implements VerifiedArtifactAuthority
  private final DocumentUnitOfWork transactions;private final UploadStoragePort storage;private final Clock clock;private final GenericTempPort genericTemps;
  public ReceiptArtifactAuthority(DocumentUnitOfWork transactions,UploadStoragePort storage,Clock clock,Path temporary){this(transactions,storage,clock,GenericTempPort.unavailable());java.util.Objects.requireNonNull(temporary);}
  public ReceiptArtifactAuthority(DocumentUnitOfWork transactions,UploadStoragePort storage,Clock clock,GenericTempPort genericTemps){this.transactions=java.util.Objects.requireNonNull(transactions);this.storage=java.util.Objects.requireNonNull(storage);this.clock=java.util.Objects.requireNonNull(clock);this.genericTemps=java.util.Objects.requireNonNull(genericTemps);}
- @Override public VerifiedArtifact verify(Actor actor,String tenant,UUID document,String identifier){
-  var budget=new GenericTempBudget(clock,GenericTempPort.Role.PREAPPEND);return budget.execute(()->verifyBounded(actor,tenant,document,identifier,budget));
+ @Override public VerifiedArtifact verify(Actor actor,String tenant,UUID document,String identifier){return verify(DiagnosticContext.fresh(),actor,tenant,document,identifier);}
+ @Override public VerifiedArtifact verify(DiagnosticContext context,Actor actor,String tenant,UUID document,String identifier){
+  java.util.Objects.requireNonNull(context);var budget=new GenericTempBudget(clock,GenericTempPort.Role.PREAPPEND);return budget.execute(()->verifyBounded(context,actor,tenant,document,identifier,budget));
  }
- private VerifiedArtifact verifyBounded(Actor actor,String tenant,UUID document,String identifier,GenericTempBudget budget){
+ private VerifiedArtifact verifyBounded(DiagnosticContext context,Actor actor,String tenant,UUID document,String identifier,GenericTempBudget budget){
   budget.check();
   UUID id;try{id=UUID.fromString(identifier);}catch(IllegalArgumentException bad){throw UploadPolicy.hidden();}
-  var receipt=transactions.execute(r->{budget.check();var u=r.uploads();var value=u.receipt(tenant,id).orElseThrow(UploadPolicy::hidden);if(!value.tenant().equals(tenant)||!value.documentId().equals(document)||!value.actor().issuer().equals(actor.issuer())||!value.actor().subject().equals(actor.subject()))throw UploadPolicy.hidden();if(!clock.instant().isBefore(value.expiresAt()))throw new DmFailure(409,"UPLOAD_EXPIRED");return value;});
+  var receipt=transactions.execute(context,r->{budget.check();var u=r.uploads();var value=u.receipt(tenant,id).orElseThrow(UploadPolicy::hidden);if(!value.tenant().equals(tenant)||!value.documentId().equals(document)||!value.actor().issuer().equals(actor.issuer())||!value.actor().subject().equals(actor.subject()))throw UploadPolicy.hidden();if(!clock.instant().isBefore(value.expiresAt()))throw new DmFailure(409,"UPLOAD_EXPIRED");return value;});
   budget.check();
   try(var workspace=genericTemps.reserve(GenericTempPort.Role.PREAPPEND,GenericTempPort.Identity.of(tenant,actor,document,receipt.uploadId(),receipt.receiptId(),receipt.sizeBytes()),budget)){
    boolean cleanupAttempted=false;

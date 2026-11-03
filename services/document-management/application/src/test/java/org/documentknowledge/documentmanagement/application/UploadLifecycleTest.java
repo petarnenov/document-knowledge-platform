@@ -15,7 +15,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class UploadLifecycleTest {
  @TempDir Path temporary;
- final UploadMemory store=new UploadMemory();final TestClock clock=new TestClock();final Actor actor=new Actor("https://issuer.example","staff");
+ final List<DiagnosticContext> diagnosticContexts=new java.util.concurrent.CopyOnWriteArrayList<>();
+ final Set<Long> diagnosticThreads=java.util.concurrent.ConcurrentHashMap.newKeySet();
+ final UploadMemory store=new UploadMemory(){
+  @Override public <T>T execute(DiagnosticContext context,java.util.function.Function<DocumentRepository,T> work){
+   diagnosticContexts.add(context);diagnosticThreads.add(Thread.currentThread().threadId());return super.execute(work);
+  }
+ };final TestClock clock=new TestClock();final Actor actor=new Actor("https://issuer.example","staff");
  final DocumentCaller caller=new DocumentCaller(actor,"tenant-a",()->AuthorityDecision.ALLOW);final EnumSet<Action> allowed=EnumSet.allOf(Action.class);
  final BytesStorage storage=new BytesStorage();AuthorityDecision override;Runnable grantHook=()->{};
  final ResourceAuthorizationPort grants=(a,t,x,r)->{grantHook.run();return override!=null?override:allowed.contains(Action.parse(x))?AuthorityDecision.ALLOW:AuthorityDecision.DENY;};
@@ -37,6 +43,29 @@ class UploadLifecycleTest {
  byte[] bytes(){return "explicit synthetic UNIT fixture only".getBytes(java.nio.charset.StandardCharsets.UTF_8);}
  UUID admitted(UploadService app,UploadFormat format){return app.initialize(caller,UUID.randomUUID().toString(),document,store.docs.get(document).revision(),format,bytes().length).uploadId();}
  UploadService.CompleteReceipt verified(UploadService app,UploadFormat format){UUID slot=admitted(app,format);app.transfer(caller,slot,"body",new ByteArrayInputStream(bytes()));return app.complete(caller,slot,"complete");}
+ @Test void callerCorrelationSurvivesUploadWorkersAndPreAppendVerification(){
+  diagnosticContexts.clear();diagnosticThreads.clear();
+  var receipt=verified(uploads(),UploadFormat.PDF);
+  documents().appendVersion(caller,document,0,"correlated-append",receipt.receiptId().toString());
+  assertTrue(diagnosticContexts.size()>5);assertTrue(diagnosticThreads.size()>1,"Actual upload/pre-append worker boundary must be exercised");
+  for(var context:diagnosticContexts)assertSame(caller.diagnostics(),context);
+ }
+ @Test void callerCorrelationSurvivesTransferAndVerificationFailurePaths(){
+  diagnosticContexts.clear();diagnosticThreads.clear();
+  var app=uploads();UUID slot=admitted(app,UploadFormat.PDF);
+  storage.onPut=()->allowed.remove(Action.VERSION_APPEND);
+  failure(403,"OPERATION_DENIED",()->app.transfer(caller,slot,"denied-transfer",new ByteArrayInputStream(bytes())));
+  for(var context:diagnosticContexts)assertSame(caller.diagnostics(),context);
+  allowed.add(Action.VERSION_APPEND);storage.onPut=()->{};
+  var pending=store.uploads.pendingCleanup(caller.tenant(),slot).getFirst();
+  assertTrue(cleanup().cleanup(caller.tenant(),pending.workId(),UUID.randomUUID()));
+  diagnosticContexts.clear();diagnosticThreads.clear();
+  app.transfer(caller,slot,"retry-transfer",new ByteArrayInputStream(bytes()));
+  scanner=source->{throw new DmFailure(422,"MALWARE_DETECTED");};
+  failure(422,"MALWARE_DETECTED",()->uploads().complete(caller,slot,"failed-verification"));
+  assertTrue(diagnosticContexts.size()>5);assertTrue(diagnosticThreads.size()>1);
+  for(var context:diagnosticContexts)assertSame(caller.diagnostics(),context);
+ }
  @Test void sourceCleanupUsesRemainingSharedStorageBeforeAnyReceiptAndPreservesImmutableFacts(){
   for(long cleanupSeconds:new long[]{29,30,31}){
    resetUploads();storage.onOpen=()->{};var observed=new AtomicReference<Path>();

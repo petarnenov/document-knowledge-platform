@@ -148,6 +148,17 @@ class ApplicationLogRuntimeTest {
             assertEquals(config.get("runId"),runtime.execution().runId().toString());
         }
     }
+    @Test void databaseObservationReusesOriginalExecutionAndBoundedQueue() throws Exception {
+        var vocabulary=new LinkedHashMap<Object,Object>((Map<?,?>)manifest.get("vocabulary"));
+        vocabulary.put("phases",List.of("STARTUP","SHUTDOWN","DATABASE"));manifest.put("vocabulary",vocabulary);
+        raw=JSON.writeValueAsBytes(manifest);config.put("manifestSha256",digest(raw));save();
+        try(var runtime=open()) {
+            var operation=runtime.operations().started(UUID.randomUUID(),new org.documentknowledge.observability.TraceContext(null,null),"DATABASE");
+            assertEquals(LogProducer.Admission.ACCEPTED,runtime.operations().completed(operation,null));
+            assertEquals(2,runtime.status().pendingEvents());assertEquals(0,runtime.status().committed());
+            assertEquals(config.get("runId"),runtime.execution().runId().toString());
+        }
+    }
     @Test void mismatchedArtifactComponentVocabularyAndOriginalIdentityRefuse() throws Exception {
         byte[] original=raw;
         for(var entry:Map.<String,Object>of("component","browser-bff","schemaVersion",2,"sourceFingerprintAlgorithm","other",

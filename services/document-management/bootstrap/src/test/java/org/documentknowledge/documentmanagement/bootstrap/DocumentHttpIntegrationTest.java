@@ -102,6 +102,49 @@ class DocumentHttpIntegrationTest {
             assertEquals(3,((Number)body(call(server,"GET",BASE+"/"+id,"user","tenant-a",null,null)).get("revision")).longValue());
         }
     }
+    @Test void actualHttpDatabaseSuccessAndSqlFailureShareRequestContextWithoutWaitingForCollector() throws Exception {
+        try(var collector=new DatabaseLogCollector(directory.toRealPath())) {
+            var settings=configuration();settings.put("dkp.logging.producer-config",collector.configuration.toString());
+            try(var server=ApplicationContext.run(EmbeddedServer.class,settings)) {
+                var runtime=server.getApplicationContext().getBean(DevelopmentLogging.class).runtime();
+                assertTrue(collector.entered.await(3,java.util.concurrent.TimeUnit.SECONDS));
+                var correlations=new ArrayList<String>();
+                for(boolean sqlFailure:new boolean[]{false,true}) {
+                    if(sqlFailure)try(var connection=admin.getConnection();var statement=connection.createStatement()){
+                        statement.execute("REVOKE SELECT ON dm.command_outcomes FROM dkp_dm_runtime");
+                    }
+                    try {
+                        String correlation=UUID.randomUUID().toString();correlations.add(correlation);
+                        var request=HttpRequest.newBuilder(server.getURI().resolve(BASE)).header("Authorization","Bearer "+token("user"))
+                            .header("X-DKP-Tenant","tenant-a").header("Idempotency-Key",UUID.randomUUID().toString())
+                            .header("X-Correlation-Id",correlation).header("traceparent","00-"+"a".repeat(32)+"-"+"b".repeat(16)+"-01")
+                            .header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(draft()))).build();
+                        var response=client.sendAsync(request,HttpResponse.BodyHandlers.ofString()).get(3,java.util.concurrent.TimeUnit.SECONDS);
+                        assertEquals(sqlFailure?503:201,response.statusCode(),response.body());assertNoStore(response);
+                        if(sqlFailure){assertEquals("UNAVAILABLE",body(response).get("code"));assertFalse(response.body().contains("command_outcomes"));}
+                        assertEquals(1,collector.release.getCount());assertEquals(0,runtime.status().committed());
+                    } finally {
+                        if(sqlFailure)try(var connection=admin.getConnection();var statement=connection.createStatement()){
+                            statement.execute("GRANT SELECT ON dm.command_outcomes TO dkp_dm_runtime");
+                        }
+                    }
+                }
+                collector.release.countDown();long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+                while(runtime.status().committed()<9 && System.nanoTime()<deadline)Thread.sleep(10);
+                assertEquals(9,runtime.status().committed());
+                for(int i=0;i<correlations.size();i++) {
+                    String correlation=correlations.get(i);var rows=collector.rows.stream().filter(row->correlation.equals(row.get("correlationId"))).toList();
+                    assertEquals(4,rows.size());for(var row:rows){assertEquals(collector.run,row.get("runId"));assertEquals("a".repeat(32),row.get("traceId"));assertEquals("b".repeat(16),row.get("spanId"));}
+                    var database=rows.stream().filter(row->"DATABASE".equals(object(row.get("context")).get("phase"))).toList();assertEquals(2,database.size());
+                    var terminal=database.stream().filter(row->!"operation.started".equals(row.get("eventName"))).findFirst().orElseThrow();
+                    assertEquals(i==0?"operation.succeeded":"operation.failed",terminal.get("eventName"));
+                    var context=object(terminal.get("context"));assertFalse(context.containsKey("status"));
+                    if(i==1){assertEquals("42501",context.get("sqlState"));assertEquals("DB_UNAVAILABLE",context.get("errorCode"));assertEquals("org.postgresql.util.PSQLException",context.get("exceptionClass"));}
+                }
+                String serialized=JSON.writeValueAsString(collector.rows);assertFalse(serialized.contains("command_outcomes"));assertFalse(serialized.contains("untrusted</script>"));
+            }
+        }
+    }
     @Test void realAuthenticatedUploadAdmissionAndClosedBinaryBoundaries() throws Exception {
         try(var server=server()) {
             UUID id=created(server,"tenant-a");String uploads=BASE+"/uploads";

@@ -44,6 +44,8 @@ class LogRequestDiagnosticsTest {
         try(var h=new Harness(CATALOG,false)) {
             String correlation=UUID.randomUUID().toString();String trace="a".repeat(32),span="b".repeat(16);
             var token=h.requests.started(correlation,"00-"+trace+"-"+span+"-01");
+            assertEquals(UUID.fromString(correlation),token.correlationId());
+            assertEquals(new org.documentknowledge.observability.TraceContext(trace,span),token.trace());
             Thread.sleep(5);
             assertEquals(LogProducer.Admission.ACCEPTED,h.requests.completed(token,204,null));
             assertEquals(LogProducer.Admission.DUPLICATE,h.requests.completed(token,500,new IllegalStateException("private-canary")));

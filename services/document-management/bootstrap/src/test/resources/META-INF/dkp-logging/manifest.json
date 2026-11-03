@@ -32,7 +32,8 @@
     "phases": [
       "STARTUP",
       "SHUTDOWN",
-      "REQUEST"
+      "REQUEST",
+      "DATABASE"
     ],
     "errorCodes": [
       "INVALID_INPUT",
@@ -50,7 +51,9 @@
     ],
     "dependencies": [],
     "exceptionClasses": [
-      "java.lang.IllegalStateException"
+      "java.lang.IllegalStateException",
+      "java.sql.SQLException",
+      "org.postgresql.util.PSQLException"
     ],
     "frames": []
   }

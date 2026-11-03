@@ -41,7 +41,7 @@ public final class DocumentService {
         route(caller,Action.CREATE,"",false);
         CommandKey commandKey=key(caller,Action.CREATE,"",key);
         String fingerprint=fingerprint("create",metadata.title(),metadata.description());
-        return transactions.execute(repository->{
+        return transactions.execute(caller.diagnostics(),repository->{
             repository.lockCommand(commandKey);
             route(caller,Action.CREATE,"",false);
             var previous=repository.command(commandKey);
@@ -69,7 +69,7 @@ public final class DocumentService {
     public DocumentAggregate inspectHolds(DocumentCaller caller,UUID id){return inspectAction(caller,id,Action.HOLD_INSPECT);}
     private DocumentAggregate inspectAction(DocumentCaller caller,UUID id,Action action) {
         route(caller,action,id.toString(),true);
-        return transactions.execute(repository->{
+        return transactions.execute(caller.diagnostics(),repository->{
             DocumentAggregate document=load(repository,caller,id,action);
             route(caller,action,id.toString(),true);
             requireAcl(repository.find(caller.tenant(),id).orElseThrow(DocumentService::hidden),caller,action);
@@ -86,7 +86,7 @@ public final class DocumentService {
             catch(RuntimeException invalid){throw new DmFailure(400,"INVALID_CURSOR");}
         }
         PagePosition position=after;
-        return transactions.execute(repository->{
+        return transactions.execute(caller.diagnostics(),repository->{
             List<DocumentAggregate> documents=repository.listVisible(caller.tenant(),caller.principal(),Action.INSPECT_DRAFT,position,limit);
             if(documents.size()>limit)throw new DmFailure(503,"UNAVAILABLE");
             for(DocumentAggregate document:documents) {
@@ -147,12 +147,12 @@ public final class DocumentService {
         Validation.text(receiptId,256,false);route(caller,Action.VERSION_APPEND,id.toString(),false);
         String fingerprint=fingerprint("version",expected,receiptId);CommandKey commandKey=key(caller,Action.VERSION_APPEND,id.toString(),key);
         // Current authorized replay precedes expiry/preflight. No network work is performed under the document transaction.
-        CommandReceipt replayed=transactions.execute(repository->{repository.lockCommand(commandKey);repository.uploads().lockAccounts(caller.tenant());
+        CommandReceipt replayed=transactions.execute(caller.diagnostics(),repository->{repository.lockCommand(commandKey);repository.uploads().lockAccounts(caller.tenant());
             load(repository,caller,id,Action.VERSION_APPEND);var old=repository.command(commandKey);
             if(old.isPresent()){route(caller,Action.VERSION_APPEND,id.toString(),false);requireAcl(repository.find(caller.tenant(),id).orElseThrow(DocumentService::hidden),caller,Action.VERSION_APPEND);return replay(old.get(),fingerprint);}
             receipt(repository,caller,id,receiptId);return null;});
         if(replayed!=null)return replayed;
-        var artifact=artifacts.verify(caller.actor(),caller.tenant(),id,receiptId);
+        var artifact=artifacts.verify(caller.diagnostics(),caller.actor(),caller.tenant(),id,receiptId);
         if(artifact==null)throw new DmFailure(503,"UNAVAILABLE");
         return mutate(caller,id,expected,key,Action.VERSION_APPEND,fingerprint,document->{
             var next=new ArrayList<>(document.versions());
@@ -192,7 +192,7 @@ public final class DocumentService {
             Function<DocumentAggregate,DocumentAggregate> update,int status,Runnable finalAuthority,BiConsumer<DocumentRepository,DocumentAggregate> afterUpdate) {
         route(caller,action,id.toString(),false);
         CommandKey commandKey=key(caller,action,id.toString(),key);
-        return transactions.execute(repository->{
+        return transactions.execute(caller.diagnostics(),repository->{
             repository.lockCommand(commandKey);
             if(action==Action.HOLD_PLACE||action==Action.VERSION_APPEND)repository.uploads().lockAccounts(caller.tenant());
             route(caller,action,id.toString(),false);

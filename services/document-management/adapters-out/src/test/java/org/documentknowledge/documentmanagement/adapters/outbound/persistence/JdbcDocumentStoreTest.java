@@ -14,6 +14,7 @@ import org.postgresql.ds.PGSimpleDataSource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.documentknowledge.documentmanagement.domain.upload.UploadModels.*;
 
 class JdbcDocumentStoreTest {
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(DockerImageName.parse("postgres:18.6@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4").asCompatibleSubstituteFor("postgres"))
@@ -174,6 +175,60 @@ class JdbcDocumentStoreTest {
         var d=create("sql-error");assertEquals("UNAVAILABLE",assertThrows(DmFailure.class,()->store.execute(r->{r.insert(d);return null;})).code());
         var broken=source("no_such_role",UUID.randomUUID().toString());assertEquals(503,assertThrows(DmFailure.class,()->new JdbcDocumentStore(broken).execute(r->null)).status());
         assertThrows(NullPointerException.class,()->new JdbcDocumentStore(null));
+    }
+    @Test void originalSqlFailureIsObservedBeforeMappingAndEarlierWritesRollBack() throws Exception {
+        var existing=create("diagnostic-duplicate");var inserted=document("diagnostic-rollback",visible());
+        var observed=new ArrayList<SQLException>();var diagnosed=new JdbcDocumentStore(runtime,observed::add);
+        var mapped=assertThrows(DmFailure.class,()->diagnosed.execute(r->{r.insert(inserted);r.insert(existing);return null;}));
+        assertEquals(503,mapped.status());assertEquals("UNAVAILABLE",mapped.code());
+        assertEquals(1,observed.size());assertEquals("23505",observed.getFirst().getSQLState());
+        assertInstanceOf(org.postgresql.util.PSQLException.class,observed.getFirst());
+        assertTrue(Arrays.stream(observed.getFirst().getStackTrace()).anyMatch(frame->frame.getClassName().startsWith("org.postgresql.")));
+        assertTrue(store.execute(r->r.find(inserted.tenant(),inserted.documentId())).isEmpty());
+        observed.clear();assertEquals(existing,diagnosed.execute(r->r.find(existing.tenant(),existing.documentId()).orElseThrow()));assertTrue(observed.isEmpty());
+    }
+    @Test void diagnosticCallbackFailureNeverReplacesMappingOrBusinessRollback() {
+        var existing=create("diagnostic-throw");var inserted=document("diagnostic-throw-rollback",visible());
+        var observed=new ArrayList<SQLException>();
+        var diagnosed=new JdbcDocumentStore(runtime,failure->{observed.add(failure);throw new IllegalStateException("diagnostic observer failed");});
+        var mapped=assertThrows(DmFailure.class,()->diagnosed.execute(r->{r.insert(inserted);r.insert(existing);return null;}));
+        assertEquals("UNAVAILABLE",mapped.code());assertEquals("23505",observed.getFirst().getSQLState());
+        assertTrue(store.execute(r->r.find(inserted.tenant(),inserted.documentId())).isEmpty());
+        observed.clear();var original=new DmFailure(409,"REVISION_CONFLICT");
+        assertSame(original,assertThrows(DmFailure.class,()->diagnosed.execute(r->{r.insert(inserted);throw original;})));
+        assertTrue(observed.isEmpty());assertTrue(store.execute(r->r.find(inserted.tenant(),inserted.documentId())).isEmpty());
+    }
+    @Test void connectionFailureRetainsActualDriverStateBeforeSafeMapping() {
+        var observed=new ArrayList<SQLException>();var broken=source("no_such_diagnostic_role",UUID.randomUUID().toString());
+        var diagnosed=new JdbcDocumentStore(broken,observed::add);
+        assertEquals("UNAVAILABLE",assertThrows(DmFailure.class,()->diagnosed.execute(r->null)).code());
+        assertEquals(1,observed.size());assertEquals("28P01",observed.getFirst().getSQLState());
+        assertInstanceOf(org.postgresql.util.PSQLException.class,observed.getFirst());
+        assertThrows(NullPointerException.class,()->new JdbcDocumentStore(runtime,null));
+    }
+    @Test void uploadSqlFailureUsesSameCallbackAndCallbackFaultDoesNotReplaceMapping() throws Exception {
+        var observed=new ArrayList<SQLException>();
+        try(var connection=runtime.getConnection()) {
+            connection.close(); // Actual PostgreSQL connection lifecycle, with no simulated JDBC implementation.
+            var uploads=new JdbcUploadRepository(connection,observed::add);
+            assertEquals("UNAVAILABLE",assertThrows(DmFailure.class,()->uploads.slot("diagnostic-upload",UUID.randomUUID())).code());
+            assertEquals(1,observed.size());assertEquals("08003",observed.getFirst().getSQLState());
+            assertInstanceOf(org.postgresql.util.PSQLException.class,observed.getFirst());
+            var documentId=UUID.randomUUID();
+            var key=new ObjectKey("dkp-quarantine","a".repeat(64)+"/"+documentId+"/"+UUID.randomUUID());
+            var cleanup=new CleanupWork(UUID.randomUUID(),"diagnostic-upload",UUID.randomUUID(),documentId,key,null,CleanupReason.EXPIRED,NOW,false);
+            for(Runnable operation:List.<Runnable>of(
+                ()->uploads.pendingCleanup("diagnostic-upload",cleanup.uploadId()),
+                ()->uploads.expirable(NOW,1),
+                ()->uploads.completeCleanup(cleanup))) {
+                observed.clear();assertEquals("UNAVAILABLE",assertThrows(DmFailure.class,operation::run).code());
+                assertEquals(1,observed.size());assertEquals("08003",observed.getFirst().getSQLState());
+                assertInstanceOf(org.postgresql.util.PSQLException.class,observed.getFirst());
+            }
+            var failingObserver=new JdbcUploadRepository(connection,failure->{throw new IllegalStateException("diagnostic observer failed");});
+            assertEquals(503,assertThrows(DmFailure.class,()->failingObserver.slot("diagnostic-upload",UUID.randomUUID())).status());
+            assertThrows(NullPointerException.class,()->new JdbcUploadRepository(connection,null));
+        }
     }
     @Test void durableCommittedStateSurvivesRealServerRestart() throws Exception {
         var d=create("durability");String id=POSTGRES.getContainerId();POSTGRES.getDockerClient().stopContainerCmd(id).withTimeout(10).exec();POSTGRES.getDockerClient().startContainerCmd(id).exec();

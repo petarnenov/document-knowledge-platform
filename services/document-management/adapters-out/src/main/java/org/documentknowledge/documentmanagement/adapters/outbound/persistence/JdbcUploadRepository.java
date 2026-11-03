@@ -3,6 +3,7 @@ package org.documentknowledge.documentmanagement.adapters.outbound.persistence;
 import java.sql.*;
 import java.time.Instant;
 import java.util.*;
+import java.util.function.Consumer;
 import org.documentknowledge.documentmanagement.application.*;
 import org.documentknowledge.documentmanagement.application.upload.UploadRepository;
 import org.documentknowledge.documentmanagement.domain.Principal;
@@ -12,8 +13,14 @@ import static org.documentknowledge.documentmanagement.domain.upload.UploadModel
 /** Transaction-bound upload adapter. It never opens another connection or performs network I/O. */
 final class JdbcUploadRepository implements UploadRepository {
     private final Connection connection;
-    JdbcUploadRepository(Connection connection) { this.connection=Objects.requireNonNull(connection); }
+    private final Consumer<SQLException> failures;
+    JdbcUploadRepository(Connection connection) {this(connection,ignored->{});}
+    JdbcUploadRepository(Connection connection,Consumer<SQLException> failures) {this.connection=Objects.requireNonNull(connection);this.failures=Objects.requireNonNull(failures);}
     private static DmFailure unavailable() { return new DmFailure(503,"UNAVAILABLE"); }
+    private DmFailure unavailable(SQLException failure) {
+        try {failures.accept(failure);}catch(RuntimeException ignored) { /* Preserve the original public SQL failure mapping. */ }
+        return unavailable();
+    }
     private PreparedStatement prepare(String sql,Object... values) throws SQLException {
         PreparedStatement statement=connection.prepareStatement(sql);
         try {
@@ -27,13 +34,13 @@ final class JdbcUploadRepository implements UploadRepository {
     }
     private int change(String sql,Object... values) {
         try(PreparedStatement statement=prepare(sql,values)){return statement.executeUpdate();}
-        catch(SQLException failure){throw unavailable();}
+        catch(SQLException failure){throw unavailable(failure);}
     }
     private interface Reader<T> {T read(ResultSet rows)throws SQLException;}
     private <T> Optional<T> one(String sql,Reader<T> read,Object... values) {
         try(PreparedStatement statement=prepare(sql,values);ResultSet rows=statement.executeQuery()) {
             return rows.next()?Optional.of(read.read(rows)):Optional.empty();
-        }catch(SQLException failure){throw unavailable();}
+        }catch(SQLException failure){throw unavailable(failure);}
     }
     private static UUID uuid(ResultSet rows,String name)throws SQLException{return rows.getObject(name,UUID.class);}
     private static Instant time(ResultSet rows,String name)throws SQLException{Timestamp timestamp=rows.getTimestamp(name);return timestamp==null?null:timestamp.toInstant();}
@@ -143,7 +150,7 @@ final class JdbcUploadRepository implements UploadRepository {
     @Override public List<CleanupWork> pendingCleanup(String tenant,UUID upload) {
         try(PreparedStatement statement=prepare("SELECT * FROM dm.upload_cleanup_work WHERE tenant_id=? AND upload_id=? AND completed_at IS NULL ORDER BY created_at,work_id FOR UPDATE",tenant,upload);ResultSet rows=statement.executeQuery()) {
             List<CleanupWork> result=new ArrayList<>();while(rows.next())result.add(readCleanup(rows));return List.copyOf(result);
-        }catch(SQLException failure){throw unavailable();}
+        }catch(SQLException failure){throw unavailable(failure);}
     }
     @Override public List<UploadSlot> expirable(Instant at,int limit) {
         requireLimit(limit);Objects.requireNonNull(at);
@@ -157,7 +164,7 @@ final class JdbcUploadRepository implements UploadRepository {
     private <T> List<T> many(String sql,Reader<T> read,Object... values) {
         try(PreparedStatement statement=prepare(sql,values);ResultSet rows=statement.executeQuery()) {
             List<T> result=new ArrayList<>();while(rows.next())result.add(read.read(rows));return List.copyOf(result);
-        }catch(SQLException failure){throw unavailable();}
+        }catch(SQLException failure){throw unavailable(failure);}
     }
     @Override public void deferCleanup(CleanupWork expected,Instant nextAttempt) {
         Objects.requireNonNull(nextAttempt);

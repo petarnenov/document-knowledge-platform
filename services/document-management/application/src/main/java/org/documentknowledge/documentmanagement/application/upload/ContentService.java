@@ -29,7 +29,7 @@ public final class ContentService implements AutoCloseable {
  }
  @Override public synchronized void close(){if(stopped)return;stopped=true;for(var source:List.copyOf(sources))try{source.close();}catch(IOException failure){/* Active lease retains capacity until its writer exits. */}for(var response:List.copyOf(responses))try{response.close();}catch(RuntimeException retained){/* Durable reservation remains charged for recovery. */}if(spools!=null)spools.close();}
 
- private UploadReceipt resolve(DocumentCaller caller,UUID document,UUID version){return transactions.execute(r->{var doc=policy.document(r,caller,document,Action.CONTENT_REVIEW,true);var found=doc.versions().stream().filter(v->v.versionId().equals(version)).findFirst().orElseThrow(UploadPolicy::hidden);
+ private UploadReceipt resolve(DocumentCaller caller,UUID document,UUID version){return transactions.execute(caller.diagnostics(),r->{var doc=policy.document(r,caller,document,Action.CONTENT_REVIEW,true);var found=doc.versions().stream().filter(v->v.versionId().equals(version)).findFirst().orElseThrow(UploadPolicy::hidden);
   UUID receiptId;try{receiptId=UUID.fromString(found.originalArtifactRef());}catch(IllegalArgumentException legacy){throw UploadPolicy.unavailable();}
   var u=r.uploads();var receipt=u.receipt(caller.tenant(),receiptId).orElseThrow(UploadPolicy::hidden);var consumption=u.consumption(caller.tenant(),receiptId).orElseThrow(UploadPolicy::hidden);
   if(!receipt.tenant().equals(caller.tenant())||!receipt.documentId().equals(document)||!consumption.documentId().equals(document)||!consumption.versionId().equals(version)||!found.sha256().equals(receipt.sha256())||!found.mimeType().equals(receipt.format().mime()))throw UploadPolicy.hidden();

@@ -10,6 +10,7 @@ import io.micronaut.http.annotation.ResponseFilter;
 import io.micronaut.http.annotation.ServerFilter;
 import io.micronaut.web.router.RouteAttributes;
 import org.documentknowledge.loggingclient.LogRequestDiagnostics;
+import org.documentknowledge.documentmanagement.application.DiagnosticContext;
 
 /** Bootstrap observation only; request authorization and business behavior remain owned by their adapters. */
 @ServerFilter("/**")
@@ -20,7 +21,9 @@ public final class RequestDiagnosticsFilter {
     private final LogRequestDiagnostics requests;
     public RequestDiagnosticsFilter(DevelopmentLogging logging) {requests=logging.runtime().requests();}
     @RequestFilter public void started(HttpRequest<?> request) {
-        request.setAttribute(TOKEN,requests.started(request.getHeaders().get("X-Correlation-Id"),request.getHeaders().get("traceparent")));
+        var token=requests.started(request.getHeaders().get("X-Correlation-Id"),request.getHeaders().get("traceparent"));
+        request.setAttribute(TOKEN,token);
+        request.setAttribute(DiagnosticContext.REQUEST_ATTRIBUTE,new DiagnosticContext(token.correlationId(),token.trace().traceId(),token.trace().spanId()));
     }
     @ResponseFilter public void completed(HttpRequest<?> request,HttpResponse<?> response) {
         request.getAttribute(TOKEN,LogRequestDiagnostics.Token.class).ifPresent(token->

@@ -33,12 +33,14 @@ public final class ApplicationLogRuntime implements AutoCloseable {
     private final LogProducer producer;
     private final LogDiagnosticCatalog diagnostics;
     private final LogRequestDiagnostics requests;
+    private final LogOperationDiagnostics operations;
     private final AtomicBoolean started=new AtomicBoolean(),stopped=new AtomicBoolean();
     private final long openedAt=System.nanoTime();
 
     private ApplicationLogRuntime(ExecutionIdentity execution,LogProducer producer,LogDiagnosticCatalog diagnostics) {
         this.execution=execution;this.producer=producer;this.diagnostics=diagnostics;
         this.requests=new LogRequestDiagnostics(execution,producer,diagnostics);
+        this.operations=new LogOperationDiagnostics(execution,producer,diagnostics);
     }
 
     /** All filesystem/bootstrap work happens here, never on an event-emitting business call. */
@@ -105,6 +107,7 @@ public final class ApplicationLogRuntime implements AutoCloseable {
     }
 
     public LogRequestDiagnostics requests() {return requests;}
+    public LogOperationDiagnostics operations() {return operations;}
     public ExecutionIdentity execution() {return execution;}
     public LogProducer.Status status() {return producer.status();}
     /** Actual boundary metadata from the captured original execution; callers supply no authority. */

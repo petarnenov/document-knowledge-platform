@@ -4,6 +4,7 @@ import java.sql.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Consumer;
 import javax.sql.DataSource;
 import org.documentknowledge.documentmanagement.application.*;
 import org.documentknowledge.documentmanagement.domain.*;
@@ -11,7 +12,13 @@ import org.documentknowledge.documentmanagement.domain.*;
 /** Runtime-only datasource. Migration credentials must never be passed to this adapter. */
 public final class JdbcDocumentStore implements DocumentUnitOfWork {
     private final DataSource source;
-    public JdbcDocumentStore(DataSource source) { this.source = Objects.requireNonNull(source); }
+    private final Consumer<SQLException> failures;
+    public JdbcDocumentStore(DataSource source) {this(source,ignored->{});}
+    public JdbcDocumentStore(DataSource source,Consumer<SQLException> failures) {this.source=Objects.requireNonNull(source);this.failures=Objects.requireNonNull(failures);}
+    private void observe(SQLException failure) {
+        try {failures.accept(failure);}catch(RuntimeException ignored) { /* Diagnostics never replace transaction/cleanup behavior. */ }
+    }
+    private DmFailure mapped(SQLException failure) {observe(failure);return unavailable(failure);}
     @Override public <T> T execute(Function<DocumentRepository,T> work) {
         try (Connection connection = source.getConnection()) {
             connection.setAutoCommit(false);
@@ -20,15 +27,16 @@ public final class JdbcDocumentStore implements DocumentUnitOfWork {
                     statement.execute("SET LOCAL statement_timeout = '10s'");
                     statement.execute("SET LOCAL lock_timeout = '10s'");
                 }
-                T result = work.apply(new Repository(connection));
+                T result = work.apply(new Repository(connection,this::observe));
                 connection.commit();
                 return result;
             } catch (RuntimeException | SQLException failure) {
-                try { connection.rollback(); } catch (SQLException rollback) { failure.addSuppressed(rollback); }
+                if(failure instanceof SQLException sql)observe(sql);
+                try { connection.rollback(); } catch (SQLException rollback) {observe(rollback);failure.addSuppressed(rollback);}
                 if (failure instanceof RuntimeException runtime) throw runtime;
-                throw unavailable((SQLException) failure);
+                throw mapped((SQLException) failure);
             }
-        } catch (SQLException failure) { throw unavailable(failure); }
+        } catch (SQLException failure) { throw mapped(failure); }
     }
     private static DmFailure unavailable(SQLException failure) {
         // Never disclose SQL text, credentials, table names or driver diagnostics over HTTP.
@@ -36,8 +44,10 @@ public final class JdbcDocumentStore implements DocumentUnitOfWork {
     }
     private static final class Repository implements DocumentRepository {
         private final Connection connection;
-        Repository(Connection connection) { this.connection = connection; }
-        @Override public org.documentknowledge.documentmanagement.application.upload.UploadRepository uploads() { return new JdbcUploadRepository(connection); }
+        private final Consumer<SQLException> failures;
+        Repository(Connection connection,Consumer<SQLException> failures) {this.connection=connection;this.failures=failures;}
+        private DmFailure unavailable(SQLException failure) {failures.accept(failure);return JdbcDocumentStore.unavailable(failure);}
+        @Override public org.documentknowledge.documentmanagement.application.upload.UploadRepository uploads() { return new JdbcUploadRepository(connection,failures); }
         private PreparedStatement prepare(String sql, Object... values) throws SQLException {
             PreparedStatement statement = connection.prepareStatement(sql);
             try {

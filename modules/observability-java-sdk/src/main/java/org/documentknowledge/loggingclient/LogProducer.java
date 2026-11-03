@@ -60,7 +60,7 @@ public final class LogProducer implements AutoCloseable {
     public Admission emit(LifecycleEvent event) {
         LogWire.Prepared prepared;
         try {prepared=LogWire.prepare(Objects.requireNonNull(event),execution,vocabulary);}
-        catch(RuntimeException invalid) {synchronized(lock) {rejected++;}return Admission.REJECTED;}
+        catch(RuntimeException invalid) {return reject();}
         synchronized(lock) {
             if(closed) {dropped++;return Admission.CLOSED;}
             var prior=pending.get(prepared.id());
@@ -74,6 +74,8 @@ public final class LogProducer implements AutoCloseable {
             lock.notifyAll();return Admission.ACCEPTED;
         }
     }
+
+    Admission reject() {synchronized(lock) {rejected++;return Admission.REJECTED;}}
 
     public Status status() {
         synchronized(lock) {return new Status(pending.size(),bytes,pending.values().stream().filter(item->item.unknown).count(),

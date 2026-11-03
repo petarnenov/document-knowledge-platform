@@ -16,6 +16,8 @@ public final class LogRequestDiagnostics {
         private final TraceContext trace;
         private final long openedAt=System.nanoTime();
         private final AtomicBoolean terminal=new AtomicBoolean();
+        public UUID correlationId() {return correlation;}
+        public TraceContext trace() {return trace;}
         private Token(LogRequestDiagnostics owner,UUID correlation,TraceContext trace) {
             this.owner=owner;this.correlation=correlation;this.trace=trace;
         }

@@ -8,12 +8,10 @@ import jakarta.inject.Singleton;
 import java.nio.file.*;
 import java.time.Clock;
 import java.util.*;
-import java.util.function.Function;
 import javax.sql.DataSource;
 import org.documentknowledge.authorization.GrantCatalog;
 import org.documentknowledge.authorization.TrustedAuthorityFiles;
 import org.documentknowledge.documentmanagement.adapters.outbound.CatalogDelegationAdapter;
-import org.documentknowledge.documentmanagement.adapters.outbound.persistence.JdbcDocumentStore;
 import org.documentknowledge.documentmanagement.application.*;
 import org.documentknowledge.documentmanagement.application.upload.*;
 import org.documentknowledge.identity.*;
@@ -26,7 +24,11 @@ public final class DocumentFactory {
     record Bindings(DocumentUnitOfWork transactions,ResourceAuthorizationPort grants,DelegationPolicyPort delegation,DocumentCursorPort cursors,UploadRuntime uploads) implements AutoCloseable {public void close(){uploads.close();}}
     @Singleton
     @Bean(preDestroy="close")
-    Bindings bindings(Environment environment,@Named("default") BeanProvider<DataSource> runtime) {
+    Bindings bindings(Environment environment,@Named("default") BeanProvider<DataSource> runtime,BeanProvider<DevelopmentLogging> logging) {
+        return bindings(environment,runtime,logging.isPresent()?logging.get().runtime():null);
+    }
+    Bindings bindings(Environment environment,BeanProvider<DataSource> runtime) {return bindings(environment,runtime,(org.documentknowledge.loggingclient.ApplicationLogRuntime)null);}
+    private Bindings bindings(Environment environment,BeanProvider<DataSource> runtime,org.documentknowledge.loggingclient.ApplicationLogRuntime logging) {
         boolean standalone=environment.getProperty("dkp.security.profile",String.class).orElse("").equals("standalone");
         var catalog=new GrantCatalog(path(environment,"dkp.dm.catalog.path","/run/dkp/authority/grants.json"));
         ResourceAuthorizationPort grants=standalone?catalog:(actor,tenant,action,resource)->AuthorityDecision.UNAVAILABLE;
@@ -34,12 +36,7 @@ public final class DocumentFactory {
             public AuthorityDecision targetGrant(Actor actor,String tenant,org.documentknowledge.documentmanagement.domain.Action action){return AuthorityDecision.UNAVAILABLE;}
             public AuthorityDecision ceiling(Actor actor,String tenant,org.documentknowledge.documentmanagement.domain.Action action){return AuthorityDecision.UNAVAILABLE;}
         };
-        DocumentUnitOfWork transactions=new DocumentUnitOfWork(){
-            @Override public <T> T execute(Function<DocumentRepository,T> work){
-                try {if(!runtime.isPresent())throw new DmFailure(503,"UNAVAILABLE");return new JdbcDocumentStore(runtime.get()).execute(work);}
-                catch(DmFailure failure){throw failure;}catch(RuntimeException failure){throw new DmFailure(503,"UNAVAILABLE");}
-            }
-        };
+        DocumentUnitOfWork transactions=new LoggingDocumentTransactions(runtime,logging);
         Path secret=path(environment,"dkp.dm.cursor.key-path","/run/dkp/authority/cursor.key");
         DocumentCursorPort cursors=new DocumentCursorPort(){
             public PagePosition decode(String cursor,Actor actor,String tenant){return cursor(secret).decode(cursor,actor,tenant);}
