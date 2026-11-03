@@ -9,6 +9,7 @@ export class LogQueue {
   #rejected = 0;
   #dropped = 0;
   #unknownDiscarded = 0;
+  #expired = 0;
   admit(event, capture) {
     if (this.#closed) return 'CLOSED';
     if (!isPrepared(event) || typeof capture !== 'string' || capture.length < 1 || capture.length > 128) { this.#rejected++; return 'REJECTED'; }
@@ -44,6 +45,14 @@ export class LogQueue {
       if (row?.capture === capture) { this.#events.delete(id); this.#size -= row.event.size; this.#committed++; }
     }
   }
+  expired(ids, capture) {
+    for (const id of ids) {
+      const row = this.#events.get(id);
+      if (row?.capture !== capture) continue;
+      this.#events.delete(id); this.#size -= row.event.size; this.#expired++;
+      if (row.unknown) this.#unknownDiscarded++;
+    }
+  }
   retire(capture) {
     for (const [id, row] of this.#events) {
       if (row.capture !== capture) continue;
@@ -52,7 +61,7 @@ export class LogQueue {
     }
   }
   status() {
-    return Object.freeze({ pending: this.#events.size, pendingBytes: this.#size, unknown: [...this.#events.values()].filter(row => row.unknown).length, committed: this.#committed, rejected: this.#rejected, dropped: this.#dropped, discardedUnknown: this.#unknownDiscarded, closed: this.#closed });
+    return Object.freeze({ pending: this.#events.size, pendingBytes: this.#size, unknown: [...this.#events.values()].filter(row => row.unknown).length, committed: this.#committed, rejected: this.#rejected, dropped: this.#dropped, discardedUnknown: this.#unknownDiscarded, expired: this.#expired, closed: this.#closed });
   }
   close() { this.#closed = true; }
 }

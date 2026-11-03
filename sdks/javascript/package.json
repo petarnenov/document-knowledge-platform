@@ -3,9 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": "24.22.1" },
+  "engines": {
+    "node": "24.22.1"
+  },
   "scripts": {
-    "test": "node --test",
-    "test:coverage": "node --experimental-test-coverage --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test"
+    "test": "node --test test/*.test.js",
+    "test:coverage": "node --experimental-test-coverage --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test test/*.test.js"
+  },
+  "exports": {
+    "./browser": {
+      "types": "./src/browser.d.ts",
+      "import": "./src/browser.js"
+    }
   }
 }
