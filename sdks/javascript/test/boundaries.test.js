@@ -16,3 +16,12 @@ test('Node entrypoint is explicit and does not depend on browser/session impleme
  await visit(new URL('../src/node.js',import.meta.url));assert.equal(visited.size,5);
  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));assert.equal(pkg.exports['./node'].import,'./src/node.js');assert.equal(pkg.exports['./node'].types,'./src/node.d.ts');
 });
+
+test('filesystem spool is a separate Node-only export and is absent from browser and producer graphs',async()=>{
+ const source=await readFile(new URL('../src/node-spool.js',import.meta.url),'utf8');
+ assert.deepEqual(new Set(imports(source).filter(path=>path.startsWith('node:'))),new Set(['node:fs/promises','node:fs','node:crypto','node:path']));
+ for(const name of ['browser.js','node.js'])assert.ok(!imports(await readFile(new URL('../src/'+name,import.meta.url),'utf8')).some(path=>path.includes('node-spool')));
+ const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
+ assert.equal(pkg.exports['./node-spool'].import,'./src/node-spool.js');assert.equal(pkg.exports['./node-spool'].types,'./src/node-spool.d.ts');
+ assert.throws(()=>allowed(source),/Browser dependency/);
+});

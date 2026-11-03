@@ -15,6 +15,10 @@
       "types": "./src/browser.d.ts",
       "import": "./src/browser.js"
     },
+    "./node-spool": {
+      "types": "./src/node-spool.d.ts",
+      "import": "./src/node-spool.js"
+    },
     "./node": {
       "types": "./src/node.d.ts",
       "import": "./src/node.js"

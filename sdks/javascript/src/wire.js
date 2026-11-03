@@ -57,6 +57,23 @@ export function createWire(identity, vocabulary) {
     const record = Object.freeze({ id: event.eventId, event, text, size });
     prepared.add(record);
     return record;
+  }, restore(text) {
+    try {
+      requireLog(typeof text === 'string' && bytes(text) > 0 && bytes(text) <= LIMITS.eventBytes);
+      const event = JSON.parse(text), context = event.context;
+      keys(context, ['phase', 'outcome', 'durationMs', 'attempt', 'attributes']);
+      keys(context.attributes, ['count', 'cleanupSettled']);
+      const input = { eventId:event.eventId, timestamp:event.timestamp, severity:event.severity,
+        eventName:event.eventName, correlationId:event.correlationId, phase:context.phase,
+        outcome:context.outcome, durationMs:context.durationMs, attempt:context.attempt,
+        count:context.attributes.count, cleanupSettled:context.attributes.cleanupSettled };
+      if (event.traceId !== undefined) input.traceId = event.traceId;
+      if (event.spanId !== undefined) input.spanId = event.spanId;
+      const result = this.prepare(input);
+      // Also rejects altered execution, extra/duplicate fields and noncanonical bytes.
+      requireLog(result.text === text);
+      return result;
+    } catch { throw new TypeError('INVALID_LOG_EVENT'); }
   } });
 }
 export function isPrepared(event) { return event !== null && typeof event === 'object' && prepared.has(event); }

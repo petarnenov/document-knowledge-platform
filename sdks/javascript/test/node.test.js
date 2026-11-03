@@ -9,6 +9,9 @@ import { randomUUID, createHash } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { NodeHttpsTransport } from '../src/node-https.js';
 import { NodeLogProducer } from '../src/node.js';
+import { createWire } from '../src/wire.js';
+import { FileLogSpool } from '../src/node-spool.js';
+import * as asynchronousFs from 'node:fs/promises';
 const id=n=>`00000000-0000-4000-8000-${n.toString(16).padStart(12,'0')}`;
 const identity={buildId:id(1),runId:id(2),instanceId:id(3),component:'runtime-tools',gitSha:'a'.repeat(40),sourceFingerprint:'b'.repeat(64)};
 const vocabulary={events:['process.started'],phases:['STARTUP']};
@@ -136,4 +139,102 @@ test('permanent rejection after earlier UNKNOWN preserves uncertainty while reti
   if(++batches===1)return req.socket.destroy();respond(res,{},400);
  });const client=producer(t,f.configuration);client.emit(event());await until(()=>client.status().rejected===1);assert.equal(client.status().committed,0);assert.equal(client.status().discardedUnknown,1);assert.equal(client.status().dropped,0);assert.equal(client.status().pending,0);assert.equal(client.status().deliveryFailures,1);
  const count=f.requests.length;await pause(600);assert.equal(f.requests.length,count);
+});
+
+test('real private spool and TLS restore same original events after graceful process lifecycle restart', async t => {
+ let available=false;const rows=new Map();
+ const f=await fixture(t,(row,req,res)=>{
+  if(!available)return respond(res,{},503);
+  if(row.path.endsWith('/batches')){
+   for(const event of row.body.events){if(rows.has(event.eventId))assert.deepEqual(rows.get(event.eventId),event);rows.set(event.eventId,event);}
+   return respond(res,commit(row.body.events.map(event=>event.eventId)));
+  }
+  respond(res,{receipts:row.body.eventIds.map(eventId=>rows.has(eventId)?commit([eventId]).receipts[0]:{eventId,state:'UNKNOWN'})});
+ });
+ const path=join(await asynchronousFs.realpath(directory),'original-restart');
+ const fingerprint=createHash('sha256').update('dkp-log-producer-credential-v1:'+token).digest('hex');
+ const firstSpool=await FileLogSpool.open(path,identity,vocabulary,fingerprint);
+ const first=new NodeLogProducer(identity,vocabulary,f.configuration,firstSpool);
+ first.emit(event(80));first.emit(event(81));
+ await until(()=>first.status().spooled===2&&first.status().deliveryFailures>0);
+ first.close();await first.whenClosed();
+ assert.equal(first.status().leaseReleased,true);assert.equal(first.status().pending,2);
+ const original=await asynchronousFs.readFile(join(path,'pending.bin'),'utf8');
+ assert.ok(original.includes(id(80))&&original.includes(id(81)));assert.ok(!original.includes(token));
+ const boundary=f.requests.length;available=true;
+ const secondSpool=await FileLogSpool.open(path,identity,vocabulary,fingerprint);
+ const second=new NodeLogProducer(identity,vocabulary,f.configuration,secondSpool);
+ t.after(()=>{second.close();return second.whenClosed();});
+ assert.equal(second.status().unknown,2);
+ await until(()=>second.status().committed===2);second.close();await second.whenClosed();
+ assert.equal(second.status().pending,0);assert.equal(second.status().unspooled,0);assert.equal(second.status().leaseReleased,true);
+ assert.equal(f.requests[boundary].path,'/api/v1/dev-logs/receipts');
+ assert.deepEqual(new Set(rows.keys()),new Set([id(80),id(81)]));
+ assert.equal(JSON.parse(await asynchronousFs.readFile(join(path,'pending.bin'),'utf8')).events.length,0);
+});
+
+test('emit never waits on storage and whenClosed witnesses the actual pending storage operation', async t => {
+ const f=await fixture(t,(row,req,res)=>respond(res,commit(row.body.events.map(event=>event.eventId))));
+ let release,entered=false,portClosed=false;
+ const gate=new Promise(resolve=>{release=resolve;});
+ const spool={load:()=>[],replace:async()=>{entered=true;await gate;},close:async()=>{portClosed=true;}};
+ const client=new NodeLogProducer(identity,vocabulary,f.configuration,spool);
+ const start=performance.now();assert.equal(client.emit(event(82)),'ACCEPTED');assert.ok(performance.now()-start<50);
+ await until(()=>entered);assert.equal(client.status().unspooled,1);assert.equal(client.status().requestActive,false);
+ client.close();let closed=false;const stopped=client.whenClosed().then(()=>{closed=true;});
+ await pause(30);assert.equal(closed,false);assert.equal(portClosed,false);assert.equal(client.status().dispatcherAlive,true);
+ release();await stopped;assert.equal(portClosed,true);assert.equal(client.status().dispatcherAlive,false);assert.equal(f.requests.length,0);
+});
+
+test('storage failure retains visible unspooled state and no batch; failed lease release is explicit', async t => {
+ const f=await fixture(t,(row,req,res)=>respond(res,{}));
+ const spool={load:()=>[],replace:async()=>{throw new Error('private-host-path');},close:async()=>{throw new Error('private-host-path');}};
+ const client=new NodeLogProducer(identity,vocabulary,f.configuration,spool);
+ client.emit(event(83));await until(()=>client.status().spoolDegraded);
+ assert.equal(client.status().unspooled,1);assert.equal(client.status().committed,0);assert.equal(f.requests.length,0);
+ client.close();await client.whenClosed();assert.equal(client.status().leaseReleased,false);
+ assert.ok(!JSON.stringify(client.status()).includes('private-host-path'));
+ assert.throws(()=>new NodeLogProducer(identity,vocabulary,f.configuration,{load:()=>['private-raw-data']}),/LOG_SPOOL_UNAVAILABLE/);
+});
+
+test('one preopened spool cannot be owned by two producer lifecycles', async t => {
+ const f=await fixture(t,(row,req,res)=>respond(res,{}));
+ const spool={load:()=>[],replace:async()=>{},close:async()=>{}};
+ const first=new NodeLogProducer(identity,vocabulary,f.configuration,spool);
+ t.after(()=>{first.close();return first.whenClosed();});
+ assert.throws(()=>new NodeLogProducer(identity,vocabulary,f.configuration,spool),/LOG_SPOOL_UNAVAILABLE/);
+ first.close();await first.whenClosed();
+ assert.throws(()=>new NodeLogProducer(identity,vocabulary,f.configuration,spool),/LOG_SPOOL_UNAVAILABLE/);
+});
+
+for(const restored of [false,true])test('only exact persisted events enter '+(restored?'post-receipt rebatch':'initial batch'),async t=>{
+ const original=createWire(identity,vocabulary).prepare(event(90)).text;
+ let releaseFirst,releaseSecond,lookupStarted=false,replaceStarted=0;
+ const firstGate=new Promise(resolve=>{releaseFirst=resolve;}),secondGate=new Promise(resolve=>{releaseSecond=resolve;});
+ const durable=new Map(),violations=[];
+ const f=await fixture(t,async(row,req,res)=>{
+  if(row.path.endsWith('/receipts')){
+   lookupStarted=true;await firstGate;
+   return respond(res,{receipts:row.body.eventIds.map(eventId=>({eventId,state:'UNKNOWN'}))});
+  }
+  for(const value of row.body.events)if(durable.get(value.eventId)!==JSON.stringify(value))violations.push(value.eventId);
+  respond(res,commit(row.body.events.map(value=>value.eventId)));
+ });
+ const spool={load:()=>restored?[original]:[],replace:async texts=>{
+  const turn=++replaceStarted;
+  if(turn===1&&!restored)await firstGate;
+  if(turn===2)await secondGate;
+  durable.clear();for(const text of texts)durable.set(JSON.parse(text).eventId,text);
+ },close:async()=>{}};
+ const client=new NodeLogProducer(identity,vocabulary,f.configuration,spool);
+ t.after(async()=>{releaseFirst();releaseSecond();client.close();await client.whenClosed();});
+ if(!restored)client.emit(event(90));
+ await until(()=>restored?lookupStarted:replaceStarted===1);
+ client.emit(event(91));releaseFirst();
+ await until(()=>replaceStarted===2);
+ assert.deepEqual(violations,[],'No event can reach HTTP before its exact bytes were persisted');
+ const firstBatch=f.requests.find(row=>row.path.endsWith('/batches'));
+ assert.deepEqual(firstBatch.body.events.map(value=>value.eventId),[id(90)]);
+ releaseSecond();await until(()=>client.status().committed===2);
+ assert.deepEqual(violations,[]);
 });

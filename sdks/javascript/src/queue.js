@@ -23,10 +23,10 @@ export class LogQueue {
     return 'ACCEPTED';
   }
   /** envelope is a trusted SDK encoder; it may add transient fields without retaining them. */
-  batch(capture, envelope = encodeBatch) {
+  batch(capture, envelope = encodeBatch, eligible = () => true) {
     const result = [];
     for (const row of this.#events.values()) {
-      if (row.capture !== capture) continue;
+      if (row.capture !== capture || !eligible(row.event)) continue;
       const next = [...result, row.event];
       if (next.length > LIMITS.batchEvents) break;
       let text;
@@ -38,6 +38,7 @@ export class LogQueue {
     return Object.freeze(result);
   }
   submitted(ids) { for (const id of ids) { const row = this.#events.get(id); if (row) row.unknown = true; } }
+  snapshot(capture) { return Object.freeze([...this.#events.values()].filter(row => row.capture === capture).map(row => row.event)); }
   /** Only a transport's exact scoped valid receipt may call this method. */
   committed(ids, capture) {
     for (const id of ids) {
