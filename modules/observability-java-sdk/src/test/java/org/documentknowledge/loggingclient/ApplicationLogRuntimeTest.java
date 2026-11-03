@@ -11,7 +11,7 @@ import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
 import javax.net.ssl.*;
-import org.documentknowledge.observability.EventCode;
+import org.documentknowledge.observability.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
@@ -88,6 +88,49 @@ class ApplicationLogRuntimeTest {
             assertFalse(new String(Files.readAllBytes(directory.resolve("queue/pending.bin")),StandardCharsets.ISO_8859_1).contains(TOKEN));
         } finally {runtime.close();assertTrue(runtime.awaitClosed(Duration.ofSeconds(2)));}
         assertTrue(runtime.status().closed());assertEquals(2,runtime.status().committed());
+    }
+    @Test void capturedOperationUsesOriginalCatalogAndReturnsWhileTlsResponseIsHeld() throws Exception {
+        String symbol=getClass().getName()+".capturedOperationUsesOriginalCatalogAndReturnsWhileTlsResponseIsHeld";
+        String source="modules/observability-java-sdk/src/test/java/org/documentknowledge/loggingclient/ApplicationLogRuntimeTest.java";
+        manifest.put("vocabulary",Map.of("events",Arrays.stream(EventCode.values()).map(EventCode::wireName).toList(),
+            "phases",List.of("STARTUP","SHUTDOWN","DATABASE"),"errorCodes",List.of("DB_UNAVAILABLE"),
+            "dependencies",List.of(Map.of("name","postgresql","version","42.7.7","vendorBuildProvenance","UNKNOWN")),
+            "exceptionClasses",List.of(IOException.class.getName()),"frames",List.of(Map.of("symbol",symbol,"source",source))));
+        raw=JSON.writeValueAsBytes(manifest);config.put("manifestSha256",digest(raw));
+        var entered=new CountDownLatch(1);var release=new CountDownLatch(1);var captured=new CopyOnWriteArrayList<Map<?,?>>();
+        server=HttpsServer.create(new InetSocketAddress("127.0.0.1",0),8);server.setHttpsConfigurator(new HttpsConfigurator(serverTls));
+        workers=Executors.newFixedThreadPool(2);server.setExecutor(workers);
+        server.createContext("/",exchange->{try(exchange) {
+            assertEquals("Bearer "+TOKEN,exchange.getRequestHeaders().getFirst("Authorization"));
+            var batch=JSON.readValue(exchange.getRequestBody().readNBytes(32769),Map.class);
+            var row=(Map<?,?>)((List<?>)batch.get("events")).getFirst();captured.add(row);entered.countDown();
+            try {assertTrue(release.await(3,TimeUnit.SECONDS));}catch(InterruptedException interrupted) {Thread.currentThread().interrupt();return;}
+            byte[] reply=JSON.writeValueAsBytes(Map.of("receipts",List.of(Map.of("eventId",row.get("eventId"),"state","COMMITTED","receivedAt",Instant.now().toString()))));
+            exchange.getResponseHeaders().set("Content-Type","application/json");
+            exchange.sendResponseHeaders(200,reply.length);exchange.getResponseBody().write(reply);
+        }});server.start();config.put("endpoint","https://localhost:"+server.getAddress().getPort()+"/api/v1/dev-logs");save();
+        var runtime=open();
+        try {
+            IOException actual;
+            try {throw new IOException("private-operation-content-canary",new IOException("private-cause-canary"));}
+            catch(IOException failure) {actual=failure;}
+            var failure=runtime.capture(actual);assertEquals(IOException.class.getName(),failure.failure().exceptionClass());
+            assertEquals(List.of(IOException.class.getName()),failure.failure().causeClasses());assertFalse(failure.failure().stackFrames().isEmpty());
+            var metadata=runtime.metadata(Severity.ERROR,EventCode.OPERATION_STARTED,UUID.randomUUID(),new TraceContext("a".repeat(32),"b".repeat(16)));
+            assertEquals(runtime.execution(),metadata.execution());
+            var dependency=new LogDiagnosticCatalog.Dependency("postgresql","42.7.7",null,LogDiagnosticCatalog.Provenance.UNKNOWN);
+            var diagnostics=new LogDiagnostics(503,500L,"DB_UNAVAILABLE","08006",dependency,failure.failure(),new LogDiagnostics.Attributes(null,1L,false),failure.counts());
+            var event=new LifecycleEvent(metadata,"DATABASE",LifecycleEvent.Outcome.FAILED,1,1,1,true,diagnostics);
+            assertEquals(LogProducer.Admission.ACCEPTED,runtime.emit(event));
+            assertTrue(entered.await(3,TimeUnit.SECONDS));assertEquals(0,runtime.status().committed());
+            // Emit has returned and the real TLS peer still holds its response.
+            assertEquals(1,release.getCount());assertEquals(LogProducer.Admission.DUPLICATE,runtime.emit(event));
+            release.countDown();committed(runtime,1);
+            var row=captured.getFirst();assertEquals(metadata.eventId().toString(),row.get("eventId"));
+            var context=(Map<?,?>)row.get("context");assertEquals("DB_UNAVAILABLE",context.get("errorCode"));assertEquals("08006",context.get("sqlState"));
+            assertEquals(List.of(IOException.class.getName()),context.get("causeClasses"));
+            assertFalse(JSON.writeValueAsString(row).contains("canary"));assertEquals(manifest.get("buildId"),row.get("buildId"));
+        } finally {release.countDown();runtime.close();assertTrue(runtime.awaitClosed(Duration.ofSeconds(2)));}
     }
     static void committed(ApplicationLogRuntime runtime,long count) throws Exception {
         long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(4);

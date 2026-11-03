@@ -72,6 +72,24 @@ class LogProducerSpoolTest {
         try {until(()->producer.status().committed()==1);assertEquals(List.of(LogTransport.Route.RECEIPTS,LogTransport.Route.BATCHES),routes);}
         finally {producer.close();assertTrue(producer.awaitClosed(Duration.ofSeconds(2)));}
     }
+    @Test void richDiagnosticSpoolRecoversOriginalEventBeforeScopedLookupAndReplay() throws Exception {
+        Path directory=root.toRealPath().resolve("rich-queue");
+        var original=LogWireDiagnosticsTest.prepare(LogWireDiagnosticsTest.rich());
+        try(var spool=new FileLogSpool(directory,binding())) {
+            assertTrue(spool.load().isEmpty());spool.replace(List.of(new LogSpool.Stored(original.id(),original.bytes())));
+        }
+        var routes=new CopyOnWriteArrayList<LogTransport.Route>();
+        var transport=bound((route,body)->{
+            routes.add(route);
+            if(route==LogTransport.Route.BATCHES)assertArrayEquals(LogWire.batch(List.of(original)),body);
+            else assertArrayEquals(LogWire.lookup(List.of(original)),body);
+            return new LogTransport.Response(200,LogWireTest.receipt(List.of(original),route==LogTransport.Route.RECEIPTS?"UNKNOWN":"COMMITTED"));
+        });
+        var producer=new LogProducer(LogWireTest.EXECUTION,LogWireDiagnosticsTest.VOCAB,transport,new FileLogSpool(directory,binding()));
+        try {until(()->producer.status().committed()==1);assertEquals(List.of(LogTransport.Route.RECEIPTS,LogTransport.Route.BATCHES),routes);}
+        finally {producer.close();assertTrue(producer.awaitClosed(Duration.ofSeconds(2)));}
+        assertEquals(0,producer.status().pendingEvents());
+    }
     @Test void delayedStorageDoesNotGateAdmissionAndCloseDoesNotRecycleLiveOwner() throws Exception {
         var entered=new CountDownLatch(1);var release=new CountDownLatch(1);var released=new AtomicBoolean();var network=new AtomicInteger();
         var spool=new LogSpool() {

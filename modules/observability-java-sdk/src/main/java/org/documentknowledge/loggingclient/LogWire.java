@@ -36,12 +36,79 @@ final class LogWire {
         row.put("eventName",metadata.eventCode().wireName());row.put("correlationId",metadata.correlationId().toString());
         if(metadata.trace().traceId()!=null)row.put("traceId",metadata.trace().traceId());
         if(metadata.trace().spanId()!=null)row.put("spanId",metadata.trace().spanId());
-        row.put("context",Map.of("phase",event.phase(),"outcome",event.outcome().name(),"durationMs",event.durationMs(),
-            "attempt",event.attempt(),"attributes",Map.of("count",event.count(),"cleanupSettled",event.cleanupSettled())));
+        row.put("context",context(event,vocabulary.diagnostics()));
         byte[] bytes=JSON.writeValueAsBytes(row);
         if(bytes.length>EVENT_BYTES)throw new IllegalArgumentException("LOG_EVENT_TOO_LARGE");
         return new Prepared(metadata.eventId(),bytes);
     }
+
+    private static Map<String,Object> context(LifecycleEvent event,LogDiagnosticCatalog catalog) {
+        var context=new HashMap<String,Object>(Map.of("phase",event.phase(),"outcome",event.outcome().name(),
+            "durationMs",event.durationMs(),"attempt",event.attempt()));
+        var attributes=new HashMap<String,Object>(Map.of("count",event.count(),"cleanupSettled",event.cleanupSettled()));
+        context.put("attributes",attributes);var diagnostics=event.diagnostics();if(diagnostics==null)return context;
+        optional(context,"status",diagnostics.status());optional(context,"remainingDeadlineMs",diagnostics.remainingDeadlineMs());
+        if(diagnostics.errorCode()!=null)LogDiagnosticCatalog.require(catalog.errorCodes().contains(diagnostics.errorCode()));
+        optional(context,"errorCode",diagnostics.errorCode());optional(context,"sqlState",diagnostics.sqlState());
+        var dependency=diagnostics.dependency();
+        if(dependency!=null) {
+            LogDiagnosticCatalog.require(dependency.name().matches("[a-z][a-z0-9.-]{0,95}")
+                && dependency.equals(catalog.dependencies().get(dependency.name())));
+            context.put("dependency",dependency.name());context.put("dependencyVersion",dependency.version());
+            optional(context,"dependencyImageDigest",dependency.imageDigest());attributes.put("vendorBuildProvenance",dependency.provenance().name());
+        }
+        if(diagnostics.attributes()!=null) {
+            optional(attributes,"bytes",diagnostics.attributes().bytes());optional(attributes,"queueDepth",diagnostics.attributes().queueDepth());
+            optional(attributes,"cancelRequested",diagnostics.attributes().cancelRequested());
+        }
+        long omitted=0;var failure=diagnostics.failure();
+        if(failure!=null) {
+            if(failure.exceptionClass()!=null) {
+                if(catalog.exceptionClasses().contains(failure.exceptionClass()))context.put("exceptionClass",failure.exceptionClass());else omitted++;
+            }
+            var causes=new ArrayList<String>();
+            for(String name:failure.causeClasses()) {if(catalog.exceptionClasses().contains(name))causes.add(name);else omitted++;}
+            context.put("causeClasses",causes);var frames=new ArrayList<Map<String,Object>>();
+            for(var frame:failure.stackFrames()) {
+                var known=catalog.frame(frame.symbol());
+                if(known==null || (frame.source()!=null && !frame.source().equals(known.source()))) {omitted++;continue;}
+                var row=new HashMap<String,Object>();row.put("symbol",frame.symbol());optional(row,"source",frame.source());optional(row,"line",frame.line());frames.add(row);
+            }
+            context.put("stackFrames",frames);
+        }
+        var counts=diagnostics.counts();
+        LogDiagnosticCatalog.require(counts.unregisteredSymbols()<=LifecycleEvent.MAX_INTEGER-omitted);
+        if(counts.redactedFields()>0)context.put("redactedFields",counts.redactedFields());
+        if(counts.truncatedFields()>0)context.put("truncatedFields",counts.truncatedFields());
+        if(counts.unregisteredSymbols()+omitted>0)context.put("unregisteredSymbols",counts.unregisteredSymbols()+omitted);
+        return context;
+    }
+    private static void optional(Map<String,Object> target,String name,Object value) {if(value!=null)target.put(name,value);}
+
+    private static LogDiagnostics diagnostics(Map<?,?> context,Map<?,?> attributes) {
+        LogDiagnostics.Failure failure=null;
+        if(context.containsKey("exceptionClass") || context.containsKey("causeClasses") || context.containsKey("stackFrames")) {
+            var causes=new ArrayList<String>();
+            for(Object value:(List<?>)context.getOrDefault("causeClasses",null))causes.add((String)value);
+            var frames=new ArrayList<LogDiagnostics.Frame>();
+            for(Object value:(List<?>)context.getOrDefault("stackFrames",null)) {
+                var frame=(Map<?,?>)value;frames.add(new LogDiagnostics.Frame((String)frame.get("symbol"),(String)frame.get("source"),optionalInteger(frame,"line")));
+            }
+            failure=new LogDiagnostics.Failure((String)context.get("exceptionClass"),causes,frames);
+        }
+        LogDiagnosticCatalog.Dependency dependency=null;
+        if(context.containsKey("dependency"))dependency=new LogDiagnosticCatalog.Dependency((String)context.get("dependency"),
+            (String)context.get("dependencyVersion"),(String)context.get("dependencyImageDigest"),
+            LogDiagnosticCatalog.Provenance.valueOf((String)attributes.get("vendorBuildProvenance")));
+        Long status=optionalInteger(context,"status");
+        return new LogDiagnostics(status==null?null:Math.toIntExact(status),optionalInteger(context,"remainingDeadlineMs"),
+            (String)context.get("errorCode"),(String)context.get("sqlState"),dependency,failure,
+            new LogDiagnostics.Attributes(optionalInteger(attributes,"bytes"),optionalInteger(attributes,"queueDepth"),(Boolean)attributes.get("cancelRequested")),
+            new LogDiagnostics.Counts(context.containsKey("redactedFields")?integer(context.get("redactedFields")):0,
+                context.containsKey("truncatedFields")?integer(context.get("truncatedFields")):0,
+                context.containsKey("unregisteredSymbols")?integer(context.get("unregisteredSymbols")):0));
+    }
+    private static Long optionalInteger(Map<?,?> source,String key) {return source.containsKey(key)?integer(source.get(key)):null;}
 
     static byte[] batch(List<Prepared> events) {
         if(events.isEmpty() || events.size()>BATCH_EVENTS)throw new IllegalArgumentException("INVALID_LOG_BATCH");
@@ -80,7 +147,7 @@ final class LogWire {
                     (String)row.get("traceId"),(String)row.get("spanId")));
             var context=(Map<?,?>)row.get("context");var attributes=(Map<?,?>)context.get("attributes");
             var event=new LifecycleEvent(metadata,(String)context.get("phase"),LifecycleEvent.Outcome.valueOf((String)context.get("outcome")),
-                integer(context.get("durationMs")),integer(context.get("attempt")),integer(attributes.get("count")),(Boolean)attributes.get("cleanupSettled"));
+                integer(context.get("durationMs")),integer(context.get("attempt")),integer(attributes.get("count")),(Boolean)attributes.get("cleanupSettled"),diagnostics(context,attributes));
             var validated=prepare(event,execution,vocabulary);
             // Map equality ignores JSON property order, which may vary between JVMs.
             if(!JSON.readValue(validated.bytes(),Map.class).equals(row))throw new IllegalArgumentException();

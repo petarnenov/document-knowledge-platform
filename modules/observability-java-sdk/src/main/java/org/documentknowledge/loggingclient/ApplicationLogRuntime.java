@@ -31,11 +31,12 @@ public final class ApplicationLogRuntime implements AutoCloseable {
         .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
     private final ExecutionIdentity execution;
     private final LogProducer producer;
+    private final LogDiagnosticCatalog diagnostics;
     private final AtomicBoolean started=new AtomicBoolean(),stopped=new AtomicBoolean();
     private final long openedAt=System.nanoTime();
 
-    private ApplicationLogRuntime(ExecutionIdentity execution,LogProducer producer) {
-        this.execution=execution;this.producer=producer;
+    private ApplicationLogRuntime(ExecutionIdentity execution,LogProducer producer,LogDiagnosticCatalog diagnostics) {
+        this.execution=execution;this.producer=producer;this.diagnostics=diagnostics;
     }
 
     /** All filesystem/bootstrap work happens here, never on an event-emitting business call. */
@@ -67,7 +68,7 @@ public final class ApplicationLogRuntime implements AutoCloseable {
             for(Object phase:(List<?>)catalog.get("phases"))require(phases.add((String)phase));
             require(codes.containsAll(List.of(EventCode.PROCESS_STARTED,EventCode.PROCESS_STOPPED))
                 && phases.containsAll(List.of("STARTUP","SHUTDOWN")));
-            var vocabulary=new LogVocabulary(codes,phases);
+            var vocabulary=new LogVocabulary(codes,phases,LogDiagnosticCatalog.fromManifest(catalog));
             var trust=KeyStore.getInstance(KeyStore.getDefaultType());trust.load(null,null);
             try(var bytes=new ByteArrayInputStream(privateBytes(Path.of((String)config.get("caFile")),16384))) {
                 trust.setCertificateEntry("logging-root",CertificateFactory.getInstance("X.509").generateCertificate(bytes));
@@ -77,7 +78,7 @@ public final class ApplicationLogRuntime implements AutoCloseable {
             transport=new JdkLogTransport(URI.create((String)config.get("endpoint")),(String)config.get("producerToken"),tls);
             spool=new FileLogSpool(Path.of((String)config.get("spoolDirectory")),
                 new LogSpool.Binding(execution,transport.credentialFingerprint().orElseThrow()));
-            return new ApplicationLogRuntime(execution,new LogProducer(execution,vocabulary,transport,spool));
+            return new ApplicationLogRuntime(execution,new LogProducer(execution,vocabulary,transport,spool),vocabulary.diagnostics());
         } catch(Exception invalid) {
             try {if(spool!=null)spool.close();}catch(RuntimeException ignored) { /* Preserve fixed refusal. */ }
             try {if(transport!=null)transport.close();}catch(RuntimeException ignored) { /* Preserve fixed refusal. */ }
@@ -103,6 +104,13 @@ public final class ApplicationLogRuntime implements AutoCloseable {
 
     public ExecutionIdentity execution() {return execution;}
     public LogProducer.Status status() {return producer.status();}
+    /** Actual boundary metadata from the captured original execution; callers supply no authority. */
+    public EventMetadata metadata(Severity severity,EventCode code,UUID correlation,TraceContext trace) {
+        return new EventMetadata(UUID.randomUUID(),execution,Instant.now(),severity,code,correlation,trace);
+    }
+    public LogExceptionCapture.Captured capture(Throwable failure) {return LogExceptionCapture.capture(failure,diagnostics);}
+    /** Validation, queue admission and bounded asynchronous delivery remain owned by the producer. */
+    public LogProducer.Admission emit(LifecycleEvent event) {return producer.emit(event);}
     public LogProducer.Admission started() {
         return started.compareAndSet(false,true)?lifecycle(EventCode.PROCESS_STARTED,"STARTUP",LifecycleEvent.Outcome.STARTED):LogProducer.Admission.DUPLICATE;
     }

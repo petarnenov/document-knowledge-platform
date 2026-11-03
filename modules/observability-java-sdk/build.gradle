@@ -27,7 +27,7 @@ tasks.register('acceptanceProducerDist', Sync) {
     from(tasks.named('jar')) { into 'lib' }
     from(configurations.runtimeClasspath) { into 'lib' }
     from(sourceSets.test.output.classesDirs) {
-        include '**/RealSdkAcceptanceMain*.class'
+        include '**/RealSdkAcceptanceMain*.class', '**/DiagnosticSdkAcceptanceMain*.class'
         into 'classes'
     }
 }

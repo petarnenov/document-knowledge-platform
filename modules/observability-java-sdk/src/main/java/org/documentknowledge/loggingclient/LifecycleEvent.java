@@ -3,9 +3,12 @@ package org.documentknowledge.loggingclient;
 import java.util.Objects;
 import org.documentknowledge.observability.EventMetadata;
 
-/** Initial typed lifecycle payload. No arbitrary text, Throwable or authority fields. */
+/** Typed lifecycle/diagnostic payload. No arbitrary text, Throwable or authority fields. */
 public record LifecycleEvent(EventMetadata metadata, String phase, Outcome outcome,
-                             long durationMs, long attempt, long count, boolean cleanupSettled) {
+                             long durationMs, long attempt, long count, boolean cleanupSettled,LogDiagnostics diagnostics) {
+    public LifecycleEvent(EventMetadata metadata,String phase,Outcome outcome,long durationMs,long attempt,long count,boolean cleanupSettled) {
+        this(metadata,phase,outcome,durationMs,attempt,count,cleanupSettled,null);
+    }
     public static final long MAX_INTEGER=9_007_199_254_740_991L;
     public enum Outcome { STARTED, SUCCEEDED, FAILED, CANCELLED, RETRYING, REJECTED, UNKNOWN }
     public LifecycleEvent {
