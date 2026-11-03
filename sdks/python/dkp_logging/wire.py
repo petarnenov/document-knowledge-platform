@@ -48,6 +48,16 @@ def encode(value):
     return json.dumps(value, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8')
 
 
+def queue_binding(identity, credential_fingerprint):
+    closed(identity, IDENTITY)
+    require(matches(credential_fingerprint, r'[0-9a-f]{64}'))
+    # Equality metadata must not depend on caller/JSON object insertion order.
+    execution = {key: identity[key] for key in sorted(IDENTITY)}
+    result = encode({'execution': execution, 'credentialFingerprint': credential_fingerprint})
+    require(len(result) <= 1024)
+    return result
+
+
 @dataclass(frozen=True)
 class Prepared:
     event_id: str
@@ -94,6 +104,25 @@ class Wire:
         data = encode(row)
         require(len(data) <= EVENT_BYTES)
         return Prepared(value['eventId'], data)
+
+    def restore(self, data):
+        require(type(data) is bytes and 0 < len(data) <= EVENT_BYTES)
+        row = parse_response(data)
+        fields = IDENTITY | frozenset(('eventId', 'timestamp', 'severity', 'eventName', 'correlationId', 'context'))
+        closed(row, fields, frozenset(('traceId', 'spanId')))
+        require({key: row[key] for key in IDENTITY} == self._identity)
+        context = row['context']
+        closed(context, frozenset(('phase', 'outcome', 'durationMs', 'attempt', 'attributes')))
+        closed(context['attributes'], frozenset(('count', 'cleanupSettled')))
+        value = {key: row[key] for key in ('eventId', 'timestamp', 'severity', 'eventName', 'correlationId')}
+        value.update({key: context[key] for key in ('phase', 'outcome', 'durationMs', 'attempt')})
+        value.update(context['attributes'])
+        for key in ('traceId', 'spanId'):
+            if key in row:
+                value[key] = row[key]
+        prepared = self.prepare(value)
+        require(parse_response(prepared.data) == row)
+        return Prepared(prepared.event_id, data)
 
 
 def encode_batch(events):

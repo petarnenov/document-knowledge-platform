@@ -10,7 +10,10 @@ import unittest
 from unittest.mock import patch
 
 from dkp_logging.https import HttpsTransport
-from test_wire import receipts
+from dkp_logging.producer import LogProducer
+from dkp_logging.spool import FileLogSpool
+from test_producer import until
+from test_wire import receipts, identity, vocabulary, event
 
 
 class HttpsTests(unittest.TestCase):
@@ -31,6 +34,7 @@ class HttpsTests(unittest.TestCase):
     def setUp(self):
         self.code, self.body, self.headers = 200, b'{"receipts":[]}', {'Content-Type': 'application/json'}
         self.requests = []
+        self.respond = None
         self.hold, self.entered, self.release = False, threading.Event(), threading.Event()
         fixture = self
 
@@ -45,12 +49,13 @@ class HttpsTests(unittest.TestCase):
                 if fixture.hold:
                     fixture.release.wait(2)
                 try:
-                    self.send_response(fixture.code)
+                    code, data = fixture.respond(self.path, body) if fixture.respond else (fixture.code, fixture.body)
+                    self.send_response(code)
                     for key, value in fixture.headers.items():
                         self.send_header(key, value)
-                    self.send_header('Content-Length', str(len(fixture.body)))
+                    self.send_header('Content-Length', str(len(data)))
                     self.end_headers()
-                    self.wfile.write(fixture.body)
+                    self.wfile.write(data)
                 except OSError:
                     pass
 
@@ -153,6 +158,43 @@ class HttpsTests(unittest.TestCase):
             factory.return_value.connect.side_effect = OSError('raw-secret')
             with self.assertRaisesRegex(OSError, '^LOG_HTTP_UNAVAILABLE$'):
                 transport.post('batches', b'{}')
+
+    def test_actual_tls_normal_outage_restart_receipts_then_original_batch_recovery(self):
+        execution, original = identity(), event()
+        committed = set()
+
+        def respond(path, body):
+            root = json.loads(body)
+            if path.endswith('/receipts'):
+                ids = root['eventIds']
+                return 200, receipts(ids, 'COMMITTED' if all(value in committed for value in ids) else 'UNKNOWN')
+            ids = [row['eventId'] for row in root['events']]
+            committed.update(ids)
+            return 200, receipts(ids)
+
+        with tempfile.TemporaryDirectory() as base:
+            directory = Path(base).resolve() / 'queue'
+            transport = self.make()
+            spool = FileLogSpool(directory, execution, transport.credential_fingerprint())
+            first = LogProducer(execution, vocabulary(), transport, spool)
+            self.addCleanup(lambda: (first.close(), first.await_closed()))
+            self.code, self.body = 503, b'{}'
+            first.emit(original)
+            until(lambda: first.status()['unknown'] == 1 and first.status()['lastHttpStatus'] == 503)
+            first.close()
+            self.assertTrue(first.await_closed())
+            self.respond = respond
+            replacement_transport = self.make()
+            replacement = LogProducer(execution, vocabulary(), replacement_transport,
+                FileLogSpool(directory, execution, replacement_transport.credential_fingerprint()))
+            self.addCleanup(lambda: (replacement.close(), replacement.await_closed()))
+            until(lambda: replacement.status()['committed'] == 1)
+            replacement.close()
+            self.assertTrue(replacement.await_closed())
+            self.assertEqual([original['eventId']], list(committed))
+            self.assertEqual(['/api/v1/dev-logs/batches', '/api/v1/dev-logs/receipts', '/api/v1/dev-logs/batches'],
+                [path for path, _, _ in self.requests])
+            self.assertEqual(self.requests[0][2], self.requests[-1][2])
 
 
 if __name__ == '__main__':

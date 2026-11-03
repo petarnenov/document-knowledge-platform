@@ -9,6 +9,7 @@ ALLOWED = {
     'wire': {'datetime', 'json', 're', 'uuid', 'dataclasses'},
     'producer': {'threading', '.wire'},
     'https': {'hashlib', 'http.client', 'ipaddress', 'socket', 'ssl', 'threading', 'time', 'urllib.parse', '.wire'},
+    'spool': {'fcntl', 'os', 'pathlib', 'stat', 'struct', 'uuid', '.wire'},
 }
 
 
