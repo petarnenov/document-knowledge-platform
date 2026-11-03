@@ -19,7 +19,10 @@ COMMANDS=[['python','-m','coverage','run','--branch','--data-file=/tmp/runner.co
           ['python','-m','coverage','json','-o','/tmp/coverage.json'],
           ['node','--experimental-test-coverage','--test-coverage-include=tools/runtime/log-node-package.mjs',
            '--test-coverage-lines=75','--test-coverage-branches=75','--test-coverage-functions=75',
-           '--test','tools/runtime/log-node-package.test.mjs']]
+           '--test','tools/runtime/log-node-package.test.mjs'],
+          ['node','--experimental-test-coverage','--test-coverage-include=tools/runtime/log-node-deliver.mjs',
+           '--test-coverage-lines=75','--test-coverage-branches=75','--test-coverage-functions=75',
+           '--test','tools/runtime/log-node-deliver.test.mjs']]
 
 def helper_names(source=Path('.')):
     return (HELPERS+tuple(name for name in FEATURE_HELPERS if (source/'tools/runtime'/name).is_file())

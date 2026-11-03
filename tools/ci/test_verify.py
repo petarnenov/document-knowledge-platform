@@ -106,7 +106,7 @@ class CheckTests(unittest.TestCase):
 
     def test_node_build_requires_python_floor_and_actual_node_helper_coverage(self):
         self.assertIn('log-node-build.py', inside.FEATURE_HELPERS)
-        command = inside.COMMANDS[-1]
+        command = inside.COMMANDS[-2]
         self.assertEqual('node', command[0])
         self.assertIn('--test-coverage-include=tools/runtime/log-node-package.mjs', command)
         self.assertIn('--test-coverage-branches=75', command)
@@ -114,6 +114,9 @@ class CheckTests(unittest.TestCase):
         pins = json.loads((HERE / 'python-runtime-pins.json').read_text())
         self.assertEqual('24.22.1', pins['node'])
         self.assertIn('@sha256:', pins['nodeImage'])
+        delivery = inside.COMMANDS[-1]
+        self.assertIn('--test-coverage-include=tools/runtime/log-node-deliver.mjs', delivery)
+        self.assertEqual('tools/runtime/log-node-deliver.test.mjs', delivery[-1])
 
     def test_owned_cleanup_never_guesses_foreign_container(self):
         item={'Id':'a'*64,'Image':'sha256:'+'b'*64,'Config':{'Labels':{'dkp.check.run':'c','dkp.issue':'427'}}}
