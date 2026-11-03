@@ -53,7 +53,9 @@ class SecurityIntegrationTest {
             .header("X-Tenant-Id","forged").header("X-User-Id","admin").header("X-Spiffe-Id","spiffe://forged").GET();
         if(token!=null)request.header("Authorization","Bearer "+token);
         if(tenant!=null)request.header("X-DKP-Tenant",tenant);
-        return HttpClient.newHttpClient().send(request.build(),HttpResponse.BodyHandlers.ofString());
+        try(var client=HttpClient.newHttpClient()) {
+            return client.send(request.build(),HttpResponse.BodyHandlers.ofString());
+        }
     }
     @Test void independentlyProtectsRealHttpBoundaryAndSafeTenantContext() throws Exception {
         try(var server=ApplicationContext.run(EmbeddedServer.class,settings("standalone"))) {
@@ -121,8 +123,10 @@ class SecurityIntegrationTest {
             var response=call(server,token(claims()),"tenant-a");assertEquals(401,response.statusCode());
             assertEquals("no-store",response.headers().firstValue("Cache-Control").orElse(""));
             assertEquals("{\"code\":\"UNAUTHENTICATED\"}",response.body());
-            var probe=HttpClient.newHttpClient().send(HttpRequest.newBuilder(server.getURI().resolve("/health/liveness")).GET().build(),HttpResponse.BodyHandlers.ofString());
-            assertEquals(200,probe.statusCode());assertEquals("{\"status\":\"UP\"}",probe.body());
+            try(var client=HttpClient.newHttpClient()) {
+                var probe=client.send(HttpRequest.newBuilder(server.getURI().resolve("/health/liveness")).GET().build(),HttpResponse.BodyHandlers.ofString());
+                assertEquals(200,probe.statusCode());assertEquals("{\"status\":\"UP\"}",probe.body());
+            }
         } finally { KEYS_UNAVAILABLE.set(false); }
     }
     @Test void missingTrustConfigurationCannotOpenProtectedCapability() throws Exception {

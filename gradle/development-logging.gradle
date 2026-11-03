@@ -1,0 +1,56 @@
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import java.nio.file.Files
+import java.nio.file.StandardOpenOption
+import java.nio.file.attribute.PosixFilePermissions
+
+// Trusted build inputs only. No runtime credentials or registration authority.
+def component = project.parent.name
+def selectedDirectory = {
+    def value = providers.gradleProperty('dkpLogBuildDirectory').orNull
+    if (value == null) throw new GradleException('LOG_BUILD_DIRECTORY_REQUIRED')
+    def directory = file(value).toPath().toAbsolutePath().normalize()
+    def base = rootProject.layout.buildDirectory.dir("generated/dkp-logging/${component}").get().asFile.toPath()
+    if (directory.parent != base || !(directory.fileName.toString() ==~ /[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}/)
+            || !Files.isDirectory(directory) || directory.toRealPath() != directory)
+        throw new GradleException('LOG_BUILD_DIRECTORY_INVALID')
+    directory
+}
+
+tasks.register('recordDevelopmentLogBuild') {
+    mustRunAfter 'compileJava'
+    doLast {
+        def directory = selectedDirectory()
+        def records = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.collect {
+            def id = it.moduleVersion.id
+            [name: "${id.group}.${id.name}".toString(), version: id.version, vendorBuildProvenance: 'UNKNOWN']
+        }.unique().sort { a, b -> a.name <=> b.name }
+        if (records.size() > 256 || records*.name.toSet().size() != records.size())
+            throw new GradleException('LOG_BUILD_DEPENDENCIES_INVALID')
+        def compiler = tasks.named('compileJava').get().javaCompiler.get().metadata
+        if (compiler.languageVersion.asInt() != 25) throw new GradleException('LOG_BUILD_TOOLCHAIN_INVALID')
+        def toolchain = [[name: 'java', version: compiler.javaRuntimeVersion, vendorBuildProvenance: 'UNKNOWN'],
+                         [name: 'gradle', version: gradle.gradleVersion, vendorBuildProvenance: 'UNKNOWN']]
+        def raw = JsonOutput.toJson([schemaVersion: 1, component: component,
+            toolchain: toolchain, dependencies: records]).getBytes('UTF-8')
+        if (raw.length > 65536) throw new GradleException('LOG_BUILD_RECORD_TOO_LARGE')
+        def output = directory.resolve('build-record.json')
+        Files.createFile(output, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString('rw-------')))
+        Files.write(output, raw, StandardOpenOption.WRITE)
+    }
+}
+
+if (providers.gradleProperty('dkpLogBuildDirectory').isPresent()) {
+    tasks.named('processResources') {
+        def manifest = providers.provider { selectedDirectory().resolve('manifest.json').toFile() }
+        from(manifest) { into 'META-INF/dkp-logging'; rename { 'manifest.json' } }
+        doFirst {
+            def path = manifest.get().toPath()
+            if (Files.isSymbolicLink(path) || !Files.isRegularFile(path) || Files.size(path) > 1048576)
+                throw new GradleException('LOG_BUILD_MANIFEST_INVALID')
+            def value = new JsonSlurper().parse(path.toFile(), 'UTF-8')
+            if (value.component != component || value.buildId != path.parent.fileName.toString())
+                throw new GradleException('LOG_BUILD_MANIFEST_INVALID')
+        }
+    }
+}

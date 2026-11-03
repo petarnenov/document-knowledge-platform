@@ -142,6 +142,7 @@ serviceNames.each { service ->
     }
     project("${base}:bootstrap") {
         apply plugin: 'application'
+        apply from: rootProject.file('gradle/development-logging.gradle')
         dependencies {
             annotationProcessor platform(rootProject.libs.micronaut.platform)
             annotationProcessor 'io.micronaut:micronaut-inject-java'
