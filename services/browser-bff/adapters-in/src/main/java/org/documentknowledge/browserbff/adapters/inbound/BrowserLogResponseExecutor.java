@@ -13,9 +13,12 @@ import org.documentknowledge.browserbff.application.BrowserLogGateway;
 @Requires(beans = BrowserLogGateway.class)
 public final class BrowserLogResponseExecutor {
     public static final String NAME = "bff-log-responses";
+    public static final class CapacityException extends RejectedExecutionException {
+        public CapacityException() { super("Logging response capacity unavailable"); }
+    }
     @Bean(preDestroy = "shutdownNow") @Singleton @Named(NAME)
     public ExecutorService executor() {
         return new ThreadPoolExecutor(2, 2, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(16),
-            Thread.ofPlatform().daemon().name(NAME + "-", 0).factory(), new ThreadPoolExecutor.AbortPolicy());
+            Thread.ofPlatform().daemon().name(NAME + "-", 0).factory(), (task, executor) -> { throw new CapacityException(); });
     }
 }
