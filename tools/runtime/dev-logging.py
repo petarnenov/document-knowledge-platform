@@ -820,6 +820,103 @@ def renew_writer_grants(state, directory):
     return result
 
 
+def unique_object(pairs):
+    result = {}
+    for key,value in pairs:
+        require(key not in result, 'LOG_BROWSER_GRANT_INVALID'); result[key] = value
+    return result
+
+
+def install_browser_grant(state, directory, grant_file):
+    """Finite operator-only browser bridge grant; controlled query-only replacement."""
+    require(state.get('writerEnabled') is True, 'LOG_RUNTIME_WRITER_NOT_ENABLED')
+    require(grant_file is not None and grant_file.is_absolute()
+            and grant_file.resolve(strict=True) == grant_file, 'LOG_BROWSER_GRANT_INVALID')
+    raw = private(grant_file, 32768); grant_sha = hashlib.sha256(raw).hexdigest()
+    value = json.loads(raw, object_pairs_hook=unique_object)
+    require(type(value) is dict and value.keys() == {'id','expiresAt','tokenSha256','parents','bridgeManifests','permissions'},
+            'LOG_BROWSER_GRANT_INVALID')
+    def identifier(value):
+        require(isinstance(value,str) and str(uuid.UUID(value)) == value and int(uuid.UUID(value)) != 0,
+                'LOG_BROWSER_GRANT_INVALID')
+    identifier(value['id'])
+    require(isinstance(value['tokenSha256'],str) and re.fullmatch('[0-9a-f]{64}',value['tokenSha256']), 'LOG_BROWSER_GRANT_INVALID')
+    expiry = value['expiresAt']
+    require(isinstance(expiry,str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z',expiry),
+            'LOG_BROWSER_GRANT_INVALID')
+    remaining = dt.datetime.fromisoformat(expiry.replace('Z','+00:00')) - dt.datetime.now(dt.timezone.utc)
+    require(dt.timedelta() < remaining <= dt.timedelta(hours=48), 'LOG_BROWSER_GRANT_INVALID')
+    require(type(value['parents']) is list and len(value['parents']) == 1, 'LOG_BROWSER_GRANT_INVALID')
+    identifier(value['parents'][0])
+    bridges = value['bridgeManifests']
+    require(type(bridges) is list and 1 <= len(bridges) <= 64
+            and all(isinstance(item,str) and re.fullmatch('[0-9a-f]{64}',item) for item in bridges)
+            and len(set(bridges)) == len(bridges), 'LOG_BROWSER_GRANT_INVALID')
+    issuer = security_bootstrap().origins(state['port'],state['idpPort'])[1]
+    catalog = json.loads(private(directory/'gateway-pki/authority/grants.json'), object_pairs_hook=unique_object)
+    require(type(catalog) is dict and catalog.get('schemaVersion') == 1 and type(catalog.get('entries')) is list
+            and 1 <= len(catalog['entries']) <= 4096, 'LOG_BROWSER_GRANT_INVALID')
+    permissions = [{'kind':'AUTHENTICATED_UNSELECTED','issuer':issuer}]
+    for row in catalog['entries']:
+        require(type(row) is dict and row.get('issuer') == issuer and isinstance(row.get('tenant'),str), 'LOG_BROWSER_GRANT_INVALID')
+        permissions.append({'kind':'TENANT','issuer':issuer,'tenantId':row['tenant']})
+    allowed = {json.dumps(row,sort_keys=True) for row in permissions}
+    requested = value['permissions']
+    require(type(requested) is list and 1 <= len(requested) <= 65
+            and all(type(row) is dict and json.dumps(row,sort_keys=True) in allowed for row in requested)
+            and len({json.dumps(row,sort_keys=True) for row in requested}) == len(requested), 'LOG_BROWSER_GRANT_INVALID')
+    pending = state.get('browserGrantUpdate')
+    if pending is None: verify_live(state,directory)
+    registration = json.loads(private(directory/'query/registration-grants.json'), object_pairs_hook=unique_object)
+    require(type(registration) is dict and registration.keys() == {'schemaVersion','registrars','delegators'}
+            and type(registration['schemaVersion']) is int and registration['schemaVersion'] == 1
+            and type(registration['delegators']) is list and len(registration['delegators']) < 4096, 'LOG_BROWSER_GRANT_INVALID')
+    existing = [row for row in registration['delegators'] if row.get('id') == value['id']]
+    if existing:
+        require(existing == [value], 'LOG_BROWSER_GRANT_CONFLICT')
+        if pending is None: return {'result':'UNCHANGED','stage':'BROWSER_DELEGATOR_INSTALLED','grantId':value['id'],'full457':'OPEN'}
+    else:
+        others = registration['registrars'] + registration['delegators']
+        others += json.loads(private(directory/'query/readers.json'))['readers']
+        others += [json.loads(private(directory/'query/observer-grant.json'))]
+        require(all(row['id'] != value['id'] and row['tokenSha256'] != value['tokenSha256'] for row in others),
+                'LOG_BROWSER_GRANT_CONFLICT')
+        registration['delegators'].append(value)
+    updated = json.dumps(registration,sort_keys=True,separators=(',',':')).encode()
+    require(len(updated) <= 1048576, 'LOG_BROWSER_GRANT_INVALID')
+    if pending is None:
+        before = writer_bindings(directory); after = {**before,'query/registration-grants.json':hashlib.sha256(updated).hexdigest()}
+        preserved = {service:{'id':container(state,directory,service)['Id'],'image':container(state,directory,service)['Image']}
+                     for service in (('postgres','gateway','viewer') if state.get('viewerEnabled') else ('postgres','gateway'))}
+        pending = {'grantSha256':grant_sha,'before':before,'after':after,'gatewaySha256':gateway_digest(directory),
+                   'volumes':state['volumes'].copy(),'preserved':preserved,
+                   'queryBeforeImage':state['imageId'],'queryBeforeSource':state['sourceFingerprint']}
+        state['browserGrantUpdate'] = pending; save(directory,state)
+    require(pending['grantSha256'] == grant_sha and pending['after']['query/registration-grants.json'] == hashlib.sha256(updated).hexdigest()
+            and writer_bindings(directory) in (pending['before'],pending['after'])
+            and gateway_digest(directory) == pending['gatewaySha256'] and state['volumes'] == pending['volumes'], 'LOG_BROWSER_GRANT_UPDATE_DRIFT')
+    check_resources(state); assert_schema(state,directory)
+    query = container(state,directory,'query')
+    require(query['Image'] in (pending['queryBeforeImage'],state['imageId']), 'LOG_BROWSER_GRANT_UPDATE_DRIFT')
+    image = inspect('image',query['Image']); owned(image,state)
+    expected_source = pending['queryBeforeSource'] if query['Image'] == pending['queryBeforeImage'] else state['sourceFingerprint']
+    require(image['Config']['Labels'].get('dkp.logging.source') == expected_source, 'LOG_BROWSER_GRANT_UPDATE_DRIFT')
+    for service,identity in pending['preserved'].items():
+        item = container(state,directory,service)
+        require({'id':item['Id'],'image':item['Image']} == identity, 'LOG_BROWSER_GRANT_UPDATE_DRIFT')
+    if writer_bindings(directory) != pending['after']:
+        write_private(directory/'query/registration-grants.json',updated,replace=True)
+    # An interrupted update retains the exact private plan; repeat only that same transition.
+    start(state,directory,update=True,target='query')
+    require(writer_bindings(directory) == pending['after'], 'LOG_BROWSER_GRANT_UPDATE_DRIFT')
+    for service,identity in pending['preserved'].items():
+        item = container(state,directory,service)
+        require({'id':item['Id'],'image':item['Image']} == identity, 'LOG_BROWSER_GRANT_UPDATE_DRIFT')
+    if 'writerActivation' in state: state['writerActivation']['files'] = writer_bindings(directory)
+    del state['browserGrantUpdate']; save(directory,state)
+    return {'result':'INSTALLED','stage':'BROWSER_DELEGATOR_INSTALLED','grantId':value['id'],'full457':'OPEN'}
+
+
 def install_manifest(state, directory, manifest, expected):
     require(state.get('writerEnabled') is True, 'LOG_RUNTIME_WRITER_NOT_ENABLED')
     require(manifest is not None and expected is not None and re.fullmatch('[0-9a-f]{64}',expected), 'LOG_MANIFEST_INPUT_INVALID')
@@ -1014,7 +1111,7 @@ def operator_lock(directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('action', choices=('start', 'status', 'update', 'renew-readers', 'enable-writer', 'renew-writer-grants', 'install-manifest', 'observer-install', 'observer-status'))
+    parser.add_argument('action', choices=('start', 'status', 'update', 'renew-readers', 'enable-writer', 'renew-writer-grants', 'install-browser-grant', 'install-manifest', 'observer-install', 'observer-status'))
     parser.add_argument('--directory', type=Path, default=ROOT / 'local-data/security/dev-logging/shared')
     parser.add_argument('--project', default='dkp-dev-logging')
     parser.add_argument('--port', type=int, default=18443)
@@ -1023,6 +1120,7 @@ def main():
     parser.add_argument('--observer-python', type=Path)
     parser.add_argument('--manifest', type=Path)
     parser.add_argument('--sha256')
+    parser.add_argument('--grant', type=Path)
     args = parser.parse_args()
     if args.action == 'update' and args.target is None:
         parser.error('update requires explicit --target query|gateway|both|viewer')
@@ -1033,6 +1131,8 @@ def main():
                 require((args.directory / 'state.json').is_file(), 'LOG_RUNTIME_NOT_INITIALIZED')
             state = initialize(args.directory, args.project, args.port, args.idp_port)
             directory = Path(state['directory'])
+            if 'browserGrantUpdate' in state:
+                require(args.action in ('status','observer-status','install-browser-grant'), 'LOG_BROWSER_GRANT_UPDATE_PENDING')
             if args.action == 'status':
                 result = verify_live(state, directory)
             elif args.action == 'renew-readers':
@@ -1043,6 +1143,8 @@ def main():
                 result = renew_writer_grants(state,directory)
             elif args.action == 'install-manifest':
                 result = install_manifest(state,directory,args.manifest,args.sha256)
+            elif args.action == 'install-browser-grant':
+                result = install_browser_grant(state,directory,args.grant)
             elif args.action == 'observer-install':
                 result = install_observer(state, directory, args.observer_python)
             elif args.action == 'observer-status':
