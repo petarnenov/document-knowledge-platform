@@ -272,6 +272,30 @@ def logging_routes(writer=False):
             'add_header X-Content-Type-Options nosniff always; '
             'add_header Referrer-Policy no-referrer always; return 404; }')
     routes = ['location = /api/v1/dev-logs ' + deny]
+    # Browser context/Beacon receipts retain the BFF session/Origin/CSRF boundary.
+    # Never send browser envelopes or session cookies to the producer ingestion API.
+    for path, limit in [('context', 1024), ('beacon', 32768), ('beacon/receipts', 32768)]:
+        routes.append('location = /api/v1/dev-logs/' + path + ' {\n'
+                      '    if ($request_method != POST) { return 405; }\n'
+                      '    client_max_body_size ' + str(limit) + ';\n'
+                      '    proxy_pass $bff;\n'
+                      '    proxy_set_header Host localhost:__PORTAL_PORT__;\n'
+                      '    proxy_set_header X-Forwarded-Proto https;\n'
+                      '    proxy_set_header X-Forwarded-Host localhost:__PORTAL_PORT__;\n'
+                      '    proxy_set_header X-Forwarded-Port __PORTAL_PORT__;\n'
+                      '    proxy_set_header Forwarded "";\n'
+                      '    proxy_http_version 1.1;\n'
+                      '    proxy_connect_timeout 1s;\n'
+                      '    proxy_send_timeout 5s;\n'
+                      '    proxy_read_timeout 6s;\n'
+                      '    proxy_buffering off;\n'
+                      '    proxy_request_buffering off;\n'
+                      '    proxy_intercept_errors off;\n'
+                      '    proxy_hide_header Cache-Control;\n'
+                      '    proxy_hide_header X-Content-Type-Options;\n'
+                      '    add_header Cache-Control no-store always;\n'
+                      '    add_header X-Content-Type-Options nosniff always;\n'
+                      '    add_header Referrer-Policy no-referrer always;\n}')
     for path, method in [('events', 'GET'), ('registrations', 'POST'), ('delegations', 'POST'),
                          ('batches', 'POST'), ('receipts', 'POST'), ('storage-observation', 'POST')]:
         routes.append('location = /api/v1/dev-logs/' + path + ' {\n'

@@ -405,6 +405,21 @@ class LoggingRuntimeTests(unittest.TestCase):
         selected=config.read_text()
         self.assertNotIn('__LOG_ROUTES__',selected)
         self.assertNotIn('location ^~ /api/v1/dev-logs/',selected)
+        for path,limit in [('context',1024),('beacon',32768),('beacon/receipts',32768)]:
+            route=selected.split('location = /api/v1/dev-logs/'+path+' {',1)[1].split('\n}',1)[0]
+            self.assertIn('if ($request_method != POST) { return 405; }',route)
+            self.assertIn('client_max_body_size '+str(limit)+';',route)
+            self.assertIn('proxy_pass $bff;',route);self.assertNotIn('proxy_pass $logs;',route)
+            self.assertIn('proxy_set_header X-Forwarded-Host localhost:18087;',route)
+            self.assertIn('proxy_set_header X-Forwarded-Proto https;',route)
+            self.assertIn('proxy_set_header Forwarded "";',route)
+            self.assertIn('proxy_read_timeout 6s;',route)
+            self.assertIn('proxy_request_buffering off;',route)
+            self.assertIn('add_header Cache-Control no-store always;',route)
+            self.assertNotIn('proxy_set_header Origin',route)
+            self.assertNotIn('proxy_set_header Cookie',route)
+            self.assertNotIn('proxy_set_header X-CSRF',route)
+            self.assertLess(selected.index('location = /api/v1/dev-logs/'+path+' {'),selected.index('location ~ "^/api/v1/dev-logs/"'))
         for path,method in [('events','GET'),('registrations','POST'),('delegations','POST'),
                             ('batches','POST'),('receipts','POST'),('storage-observation','POST')]:
             route=selected.split('location = /api/v1/dev-logs/'+path+' {',1)[1].split('\n}',1)[0]
