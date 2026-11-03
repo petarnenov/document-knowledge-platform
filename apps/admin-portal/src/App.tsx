@@ -9,6 +9,9 @@ import {
   useMantineColorScheme,
 } from '@mantine/core';
 import { PortalTheme } from './theme';
+import { useQuery } from '@tanstack/react-query';
+import { getSession } from './identity-api';
+import { sessionKey } from './session-key';
 import { Link, NavLink, Route, Routes } from 'react-router-dom';
 import { Identity } from './Identity';
 import { Documents } from './Documents';
@@ -27,6 +30,10 @@ export function App() {
 }
 
 function Shell() {
+  useQuery({
+    queryKey: sessionKey,
+    queryFn: ({ signal }) => getSession(signal),
+  });
   const { colorScheme, setColorScheme } = useMantineColorScheme();
 
   return (

@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+import { portalLogging } from './portal-logging';
 
 function renderShell(path = '/') {
   return render(
@@ -12,7 +13,80 @@ function renderShell(path = '/') {
   );
 }
 
+const verifiedSession = {
+  issuer: 'https://idp.example/realms/dkp',
+  subject: 'user-1',
+  displayName: 'Test User',
+  tenants: ['tenant-a'],
+  selectedTenant: null,
+  csrfToken: 'csrf-1',
+};
+
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(new Response('{}', { status: 401 })),
+  );
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
 describe('foundation shell', () => {
+  it('adopts the verified session on overview without opening workspace access', async () => {
+    const adopted = vi.spyOn(portalLogging, 'session');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(verifiedSession))),
+    );
+    renderShell();
+    await waitFor(() => expect(adopted).toHaveBeenCalledWith(verifiedSession));
+    expect(
+      screen.getByRole('heading', { name: 'A foundation for knowledge.' }),
+    ).toBeTruthy();
+  });
+
+  it('keeps navigation and theme usable while session verification is pending', async () => {
+    let release!: (response: Response) => void;
+    const fetcher = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const adopted = vi.spyOn(portalLogging, 'session');
+    vi.stubGlobal('fetch', fetcher);
+    renderShell();
+    await waitFor(() => expect(fetcher).toHaveBeenCalled());
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('switch', { name: 'Light theme' }));
+    expect(
+      (screen.getByRole('switch', { name: 'Light theme' }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
+    await user.click(
+      screen.getByRole('link', { name: 'Explore the foundation' }),
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Built to grow with care.' }),
+    ).toBeTruthy();
+    expect(adopted).not.toHaveBeenCalled();
+    release(new Response(JSON.stringify(verifiedSession)));
+    await waitFor(() => expect(adopted).toHaveBeenCalledWith(verifiedSession));
+  });
+
+  it('retires unauthorized logging on direct foundation entry without hiding the page', async () => {
+    const retired = vi.spyOn(portalLogging, 'retire');
+    const adopted = vi.spyOn(portalLogging, 'session');
+    renderShell('/foundation');
+    await waitFor(() => expect(retired).toHaveBeenCalled());
+    expect(adopted).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('heading', { name: 'Guiding principles' }),
+    ).toBeTruthy();
+  });
+
   it('shows honest scope, semantic landmarks and active home navigation', () => {
     renderShell();
     expect(
