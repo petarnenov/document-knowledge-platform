@@ -98,6 +98,12 @@ class CheckTests(unittest.TestCase):
         record=self.receipt();path.write_text(json.dumps(record));(self.source/'public.txt').write_text('late')
         with self.assertRaises(ValueError):v.validate(self.source,self.evidence)
 
+    def test_only_generated_sourceless_sdk_copy_is_omitted_from_runtime_measurement(self):
+        runtime = inside.COMMANDS[2]
+        self.assertEqual('--omit=*/python-logging.zip/*', runtime[5])
+        self.assertIn('dkp_logging/wire.py', inside.SDK_HELPERS)
+        self.assertIn('log-python-deliver.py', inside.FEATURE_HELPERS)
+
     def test_owned_cleanup_never_guesses_foreign_container(self):
         item={'Id':'a'*64,'Image':'sha256:'+'b'*64,'Config':{'Labels':{'dkp.check.run':'c','dkp.issue':'427'}}}
         with patch.object(v,'inspect',return_value=item):self.assertEqual(item,v.owned('a'*64,'c','sha256:'+'b'*64))
@@ -116,7 +122,7 @@ class CheckTests(unittest.TestCase):
             target=self.root/('timeout' if timeout else 'success')
             def execute(args,**kwargs):
                 if args[:2]==['docker','create']:
-                    self.assertIn('none',args);self.assertIn('--read-only',args);self.assertIn('10001:10001',args);self.assertNotIn('/var/run/docker.sock',' '.join(args));return identifier.encode()
+                    self.assertIn('--init',args);self.assertIn('none',args);self.assertIn('--read-only',args);self.assertIn('10001:10001',args);self.assertNotIn('/var/run/docker.sock',' '.join(args));return identifier.encode()
                 if args[:2]==['docker','rm']:removed.append(args);return b''
                 return original(args,**kwargs)
             def logged(args,path,seconds):

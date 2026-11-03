@@ -7,12 +7,12 @@ import sys
 from pathlib import Path
 
 HELPERS=('clam-definitions.py','rustfs-runtime.py','upload-runtime.py','upload-durability.py','upload-accounting-acceptance.py','upload-acceptance.py','upload-faults.py')
-FEATURE_HELPERS=('provider-jobs.py','application-provenance.py','provider-job-control-acceptance.py','dev-logging.py','dev-log-viewer.py','log-volume-observer.py','log-build-manifest.py','log-java-build.py','log-portal-build.py','log-portal-image.py','log-java-install.py','log-native-bff.py','log-portal-adopt.py','log-identity-peer.py','log-python-build.py','log-python-compile.py')
+FEATURE_HELPERS=('provider-jobs.py','application-provenance.py','provider-job-control-acceptance.py','dev-logging.py','dev-log-viewer.py','log-volume-observer.py','log-build-manifest.py','log-java-build.py','log-portal-build.py','log-portal-image.py','log-java-install.py','log-native-bff.py','log-portal-adopt.py','log-identity-peer.py','log-python-build.py','log-python-compile.py','log-python-deliver.py')
 SDK_HELPERS=('dkp_logging/wire.py','dkp_logging/producer.py','dkp_logging/https.py','dkp_logging/spool.py')
 RUNNER_HELPERS=('verify.py','python_runtime_inside.py')
 COMMANDS=[['python','-m','coverage','run','--branch','--data-file=/tmp/runner.coverage','-m','unittest','discover','-s','/opt/dkp','-p','test_verify.py'],
           ['python','-m','coverage','json','--data-file=/tmp/runner.coverage','-o','/tmp/runner-coverage.json'],
-          ['python','-m','coverage','run','--branch','-m','unittest','discover','-s','tools/runtime','-p','test_*.py'],
+          ['python','-m','coverage','run','--branch','--omit=*/python-logging.zip/*','-m','unittest','discover','-s','tools/runtime','-p','test_*.py'],
           ['python','-m','coverage','run','--branch','--append','-m','unittest','discover','-s','infra/docker-compose','-p','test_*.py'],
           ['python','-m','coverage','run','--branch','--append','-m','unittest','discover','-s','sdks/python/tests','-p','test_*.py'],
           ['python','-m','coverage','report','--include=*/smoke.py,*/bootstrap-security.py,*/identity-provider-check.py,*/document-database-check.py','--fail-under=75'],

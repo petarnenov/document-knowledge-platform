@@ -100,7 +100,7 @@ def run(source,evidence):
         record['imageId']=image
         record['stage']='CONTAINER_CREATE'
         record['cleanup']='UNKNOWN'
-        identifier=command(['docker','create','--platform','linux/amd64','--name','dkp-python-check-'+run_id,'--label','dkp.issue=427','--label','dkp.check.run='+run_id,'--network','none','--read-only','--user','10001:10001','--cap-drop','ALL','--security-opt','no-new-privileges:true','--memory','1g','--cpus','2','--pids-limit','128','--tmpfs','/tmp:rw,nosuid,nodev,noexec,uid=10001,gid=10001,mode=0700,size=256m','--mount','type=bind,src='+str(evidence/'snapshot')+',dst=/workspace,readonly',image]).decode().strip()
+        identifier=command(['docker','create','--init','--platform','linux/amd64','--name','dkp-python-check-'+run_id,'--label','dkp.issue=427','--label','dkp.check.run='+run_id,'--network','none','--read-only','--user','10001:10001','--cap-drop','ALL','--security-opt','no-new-privileges:true','--memory','1g','--cpus','2','--pids-limit','128','--tmpfs','/tmp:rw,nosuid,nodev,noexec,uid=10001,gid=10001,mode=0700,size=256m','--mount','type=bind,src='+str(evidence/'snapshot')+',dst=/workspace,readonly',image]).decode().strip()
         if not re.fullmatch('[a-f0-9]{64}',identifier):raise ValueError('Exact container identity required')
         record['cleanup']='UNKNOWN';owned(identifier,run_id,image)
         record['stage']='CHECK'
