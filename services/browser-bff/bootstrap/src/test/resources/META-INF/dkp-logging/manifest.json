@@ -31,11 +31,27 @@
     ],
     "phases": [
       "STARTUP",
-      "SHUTDOWN"
+      "SHUTDOWN",
+      "REQUEST"
     ],
-    "errorCodes": [],
+    "errorCodes": [
+      "INVALID_INPUT",
+      "UNAUTHENTICATED",
+      "FORBIDDEN",
+      "NOT_FOUND",
+      "CONFLICT",
+      "CAPACITY",
+      "DEADLINE_EXCEEDED",
+      "CANCELLED",
+      "DB_UNAVAILABLE",
+      "PROVIDER_UNAVAILABLE",
+      "OPERATION_FAILED",
+      "CLEANUP_FAILED"
+    ],
     "dependencies": [],
-    "exceptionClasses": [],
+    "exceptionClasses": [
+      "java.lang.IllegalStateException"
+    ],
     "frames": []
   }
 }
