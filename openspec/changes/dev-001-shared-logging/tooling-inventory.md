@@ -27,6 +27,8 @@ Mechanisms: **P** explicit inner-stage diagnostic port plus external command bou
 | `tools/contracts/null-model.mjs` | LIBRARY | L | caller unit/negative + dependency boundary |
 | `tools/contracts/sdk-tree.mjs` | LIBRARY | L | caller unit/negative + dependency boundary |
 | `tools/dependencies/bp03-sbom.mjs` | ENTRYPOINT | B | Node/command checks + exact actual invocation |
+| `tools/runtime/log-tool-compile.py` | ENTRYPOINT | O | original pinned compiler/catalog tests plus later external invocation observation; NOT_ADOPTED |
+| `tools/runtime/tool-diagnostics.py` | LIBRARY | L | pure original binding/event unit/negative coverage; transport NOT_ADOPTED |
 | `tools/runtime/accept_dev_logging.py` | ENTRYPOINT | O | logging runtime/helper + external actual observation |
 | `tools/runtime/application-provenance.py` | LIBRARY | L | caller unit/negative + dependency boundary |
 | `tools/runtime/clam-definitions.py` | ENTRYPOINT | P | pinned Python runtime/infra + stage/cause E2E |
