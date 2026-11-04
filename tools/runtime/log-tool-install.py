@@ -12,7 +12,9 @@ spec = importlib.util.spec_from_file_location('tool_install_verify', HERE / 'log
 v = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(v)
 PRIVATE = 'source/local-data/security/bp03-upload'
-PRIVATE_DIRS = frozenset(('source/local-data', 'source/local-data/security', PRIVATE))
+SCANNER = 'source/local-data/scanner'
+PRIVATE_LEAVES = frozenset((PRIVATE, SCANNER))
+PRIVATE_DIRS = frozenset(('source/local-data', 'source/local-data/security', *PRIVATE_LEAVES))
 FIELDS = frozenset(('schemaVersion', 'buildId', 'manifestSha256', 'artifactSha256', 'compilerImage', 'files'))
 MAX_RECORD = 4 * 1024 * 1024
 
@@ -132,7 +134,7 @@ def verify_installation(target, installation_sha256):
                 v.require(name in dirs)
                 directory(child, 0o700 if name in PRIVATE_DIRS else 0o555)
                 observed_dirs.add(name)
-                if name != PRIVATE:visit(child)
+                if name not in PRIVATE_LEAVES:visit(child)
             else:
                 v.require(stat.S_ISREG(info.st_mode) and name in set(names) | {'installation.json'})
                 observed_files.add(name)

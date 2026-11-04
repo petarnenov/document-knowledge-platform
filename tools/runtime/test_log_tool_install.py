@@ -17,7 +17,11 @@ spec.loader.exec_module(i)
 
 
 class ToolInstallTests(unittest.TestCase):
-    setUp = fixtures.ToolBuildTests.setUp
+    def setUp(self):
+        fixtures.ToolBuildTests.setUp(self)
+        (self.root / 'tools/runtime/clam-definitions.py').write_bytes((fixtures.HERE / 'clam-definitions.py').read_bytes())
+        fixtures.subprocess.run(['git', '-C', str(self.root), 'add', 'tools/runtime/clam-definitions.py'],
+            check=True, capture_output=True)
     thaw = fixtures.ToolBuildTests.thaw
     docker = fixtures.ToolBuildTests.docker
     start = fixtures.ToolBuildTests.start
@@ -54,6 +58,25 @@ class ToolInstallTests(unittest.TestCase):
         # No read, adoption or inventory assertion about the private leaf contents.
         self.assertEqual(actual, i.verify_installation(target, installed['installationSha256']))
         with self.assertRaises(ValueError):i.install(Path(original['artifact']), Path(original['finalized']), Path(original['receipt']), target, **expected)
+
+    def test_normal_fixed_scanner_root_is_a_declared_private_leaf_without_implicit_adoption(self):
+        _, _, target, installed = self.installed()
+        spec = importlib.util.spec_from_file_location('installed_scanner_layout_test', target / 'source/tools/runtime/clam-definitions.py')
+        scanner = importlib.util.module_from_spec(spec);spec.loader.exec_module(scanner)
+        leaf = target / i.SCANNER
+        self.assertEqual(leaf, scanner.scanner_root())
+        self.assertEqual(0o700, leaf.stat().st_mode & 0o777)
+        self.assertEqual([], list(leaf.iterdir()))
+        self.assertEqual(leaf / 'runs/new', scanner.confined(leaf / 'runs/new'))
+        with self.assertRaises(ValueError):scanner.confined(target / i.PRIVATE / 'scanner')
+        # Inventory exclusion is not a Clam generation/freshness acceptance claim.
+        (leaf / 'owned-record-placeholder').write_text('synthetic private state only')
+        i.verify_installation(target, installed['installationSha256'])
+        foreign = target / 'source/local-data/foreign-scanner';foreign.mkdir(mode=0o700)
+        with self.assertRaises(ValueError):i.verify_installation(target, installed['installationSha256'])
+        foreign.rmdir()
+        leaf.chmod(0o755)
+        with self.assertRaises(ValueError):i.verify_installation(target, installed['installationSha256'])
 
     def test_invalid_original_never_creates_installation(self):
         result, expected, target = self.prepared()
