@@ -385,6 +385,54 @@ class AuthorityTests(unittest.TestCase):
             execute.assert_not_called()
         self.assertEqual([], list((self.directory / 'bootstrap').glob('.apply-*')))
 
+    def test_rejected_request_retains_safe_status_role_and_operation_with_original_cleanup(self):
+        canary = 'private-credential-and-body-canary'
+        def rejected(*args):
+            self.assertIn('--aws-sigv4', args)
+            self.assertIn('--max-time', args)
+            self.assertEqual('15', args[args.index('--max-time') + 1])
+            self.assertNotIn('--insecure', args)
+            Path(args[args.index('--output') + 1]).write_text(canary)
+            return b'403'
+        with patch.object(module, 'run', side_effect=rejected), self.assertRaises(module.BootstrapFailure) as caught:
+            module.request(self.directory, 'https://localhost', 'PUT',
+                '/rustfs/admin/v3/add-user?accessKey=' + canary, canary, authority='root')
+        failure = caught.exception
+        self.assertEqual('REQUEST_HTTP', failure.kind)
+        self.assertEqual(403, failure.status)
+        self.assertEqual('iam-REQUEST_HTTP-PUT-root-IAM_USER-http403', failure.category)
+        self.assertNotIn(canary, str(failure));self.assertNotIn('https:', str(failure))
+        self.assertEqual([], list((self.directory / 'bootstrap').glob('.apply-*')))
+
+    def test_malformed_status_and_original_response_header_bounds_have_safe_categories(self):
+        for raw, body, headers, expected in ((b'private-canary', b'', b'', 'REQUEST_STATUS_INVALID'),
+                (b'099', b'', b'', 'REQUEST_STATUS_INVALID'), (b'600', b'', b'', 'REQUEST_STATUS_INVALID'),
+                (b'200', b'a' * 65537, b'', 'RESPONSE_BOUND'),
+                (b'200', b'', b'a' * 16385, 'HEADERS_BOUND'),
+                (b'200', b'', b'x-amz-version-id: first\nx-amz-version-id: second\n', 'FIXTURE_VERSION')):
+            def execute(*args):
+                Path(args[args.index('--output') + 1]).write_bytes(body)
+                Path(args[args.index('--dump-header') + 1]).write_bytes(headers)
+                return raw
+            with self.subTest(expected=expected, raw=raw), patch.object(module, 'run', side_effect=execute), self.assertRaises(module.BootstrapFailure) as caught:
+                module.request(self.directory, 'https://localhost', 'GET', '/dkp-quarantine?versioning', response_headers={})
+            self.assertEqual(expected, caught.exception.kind)
+            self.assertNotIn('private-canary', str(caught.exception))
+            self.assertEqual([], list((self.directory / 'bootstrap').glob('.apply-*')))
+
+    def test_native_process_failure_keeps_exit_without_private_stderr_and_same_owned_cleanup(self):
+        def execute(args, **kwargs):
+            if args[:3] == ['docker', 'rm', '--force']:return subprocess.CompletedProcess(args, 0)
+            Path(args[args.index('--cidfile') + 1]).write_text('e' * 64)
+            return subprocess.CompletedProcess(args, 60, b'credential-canary', b'private-path-and-key-canary')
+        with patch.object(module, 'owned_network', return_value='a' * 64), patch.object(module.subprocess, 'run', side_effect=execute) as process, self.assertRaises(module.BootstrapFailure) as caught:
+            module.request(self.directory, 'https://rustfs:9000', 'GET', '/dkp-originals?versioning', authority='app', docker_network='owned')
+        self.assertEqual('iam-TRANSPORT_PROCESS-GET-app-BUCKET_VERSIONING-exit60', caught.exception.category)
+        self.assertNotIn('canary', str(caught.exception))
+        self.assertEqual(['docker', 'rm', '--force', 'e' * 64], process.call_args_list[-1].args[0])
+        self.assertEqual([], list((self.directory / 'bootstrap').glob('.apply-*')))
+
+
     def test_cli_requires_endpoint_and_suppresses_private_failures(self):
         for args in (['apply'], ['prepare', '--endpoint', 'https://localhost']):
             with patch('sys.argv', ['rustfs-runtime', *args]), self.assertRaises(SystemExit):
@@ -394,6 +442,50 @@ class AuthorityTests(unittest.TestCase):
             with patch('sys.argv', ['rustfs-runtime', '--directory', str(self.directory), *args]), patch.object(module, action) as operation, contextlib.redirect_stdout(io.StringIO()) as output:
                 module.main()
             operation.assert_called_once();self.assertIn('no production readiness', output.getvalue())
+
+
+class ClosedDiagnosticTests(unittest.TestCase):
+    def test_closed_context_and_numeric_bounds_preserve_value_error_compatibility(self):
+        for kind in module.CATEGORIES:
+            for code in (-255, 0, 255):
+                value = module.BootstrapFailure(kind, method='HEAD', authority='cleanup', operation='OBJECT_VERSION', status=599, exit_code=code)
+                self.assertIsInstance(value, ValueError)
+                self.assertTrue(value.category.isascii());self.assertLessEqual(len(value.category), 256)
+                self.assertIn('http599', value.category);self.assertIn('exit' + str(code), value.category)
+        self.assertEqual('iam-FIXTURE_ABSENCE', module.BootstrapFailure('FIXTURE_ABSENCE').category)
+        for context in ({'kind':'private-canary'}, {'kind':[]}, {'method':'GET private-canary'},
+                {'method':[]}, {'authority':'credential-canary'}, {'authority':{}}, {'operation':'/private/path'},
+                {'operation':[]}, {'status':True}, {'status':99}, {'status':600}, {'status':'403'},
+                {'exit_code':False}, {'exit_code':-256}, {'exit_code':256}, {'exit_code':1.0}):
+            arguments = {'kind':'REQUEST_HTTP', **context}
+            with self.subTest(context=context), self.assertRaises(ValueError) as caught:module.BootstrapFailure(**arguments)
+            self.assertNotIn('canary', str(caught.exception));self.assertNotIn('/private/path', str(caught.exception))
+        with self.assertRaises(TypeError):module.BootstrapFailure('REQUEST_HTTP', response_body='secret')
+
+    def test_operation_labels_discard_dynamic_credentials_queries_and_keys(self):
+        canary = 'private-credential-canary'
+        cases = [(None,'UNKNOWN'),([], 'UNKNOWN'),('/unknown/' + canary, 'UNKNOWN'),
+            ('/rustfs/admin/v3/add-canned-policy?name=' + canary, 'IAM_POLICY'),
+            ('/rustfs/admin/v3/add-user?accessKey=' + canary, 'IAM_USER'),
+            ('/rustfs/admin/v3/set-user-or-group-policy?userOrGroup=' + canary, 'IAM_BINDING'),
+            ('/rustfs/admin/v3/info','ADMIN_INFO'),('/dkp-quarantine','BUCKET'),
+            ('/dkp-originals?policy','BUCKET_POLICY'),('/dkp-quarantine?versioning','BUCKET_VERSIONING'),
+            ('/dkp-originals?versions&prefix=' + canary,'VERSION_LIST'),
+            ('/dkp-quarantine/tenant/' + canary,'OBJECT'),
+            ('/dkp-originals/tenant/' + canary + '?versionId=' + canary,'OBJECT_VERSION'),
+            ('/dkp-originals?private=' + canary,'UNKNOWN')]
+        for path, expected in cases:
+            with self.subTest(path=path):self.assertEqual(expected,module.operation_kind(path))
+            self.assertNotIn(canary,module.operation_kind(path))
+
+    def test_real_upload_stage_propagates_only_original_closed_failure_context(self):
+        spec = importlib.util.spec_from_file_location('iam_safe_stage', Path(__file__).with_name('upload-runtime.py'))
+        upload = importlib.util.module_from_spec(spec);spec.loader.exec_module(upload)
+        original = module.BootstrapFailure('REQUEST_HTTP', method='PUT', authority='root', operation='IAM_POLICY', status=503)
+        def fail():raise original
+        with self.assertRaises(upload.StageFailure) as caught:upload.stage('native-iam',fail)
+        self.assertEqual('Owned BP03 stage native-iam failed (iam-REQUEST_HTTP-PUT-root-IAM_POLICY-http503); private diagnostics suppressed', str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
 
 
 if __name__ == '__main__':

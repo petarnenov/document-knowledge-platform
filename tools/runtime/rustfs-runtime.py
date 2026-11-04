@@ -27,6 +27,52 @@ FILES = ('server/rustfs_cert.pem', 'server/rustfs_key.pem', 'server/root-access'
          'cleanup/access.key', 'cleanup/secret.key', 'cleanup/access.key.role',
          'spool/.spool-authority', 'bootstrap/ca.key', 'bootstrap/root-curl.conf')
 
+CATEGORIES = frozenset(('AUTHORITY_COMMAND', 'TRANSPORT_PROCESS', 'TRANSPORT_DEADLINE',
+    'REQUEST_HTTP', 'REQUEST_STATUS_INVALID', 'RESPONSE_BOUND', 'HEADERS_BOUND',
+    'BUCKET_OWNERSHIP', 'BUCKET_POLICY', 'BUCKET_VERSIONING', 'APP_VERSIONING',
+    'FIXTURE_VERSION', 'FIXTURE_READBACK', 'PRIVACY_DENIAL', 'FIXTURE_LISTING',
+    'FIXTURE_UNCHANGED', 'FIXTURE_ABSENCE'))
+OPERATIONS = frozenset(('BUCKET', 'BUCKET_POLICY', 'BUCKET_VERSIONING', 'IAM_POLICY',
+    'IAM_USER', 'IAM_BINDING', 'OBJECT', 'OBJECT_VERSION', 'VERSION_LIST', 'ADMIN_INFO', 'UNKNOWN'))
+
+
+class BootstrapFailure(ValueError):
+    """Only source-owned labels and bounded numbers may cross the safe stage port."""
+    def __init__(self, kind, *, method=None, authority=None, operation=None, status=None, exit_code=None):
+        if (type(kind) is not str or kind not in CATEGORIES
+                or (method is not None and (type(method) is not str or method not in ('GET', 'PUT', 'HEAD', 'DELETE')))
+                or (authority is not None and (type(authority) is not str or authority not in ('root', 'app', 'cleanup', 'anonymous')))
+                or (operation is not None and (type(operation) is not str or operation not in OPERATIONS))
+                or (status is not None and (type(status) is not int or not 100 <= status <= 599))
+                or (exit_code is not None and (type(exit_code) is not int or not -255 <= exit_code <= 255))):
+            raise ValueError('Private IAM diagnostic context invalid; diagnostics suppressed')
+        self.kind, self.status, self.exit_code = kind, status, exit_code
+        parts = ['iam', kind, *(value for value in (method, authority, operation) if value is not None)]
+        if status is not None:parts.append('http' + str(status))
+        if exit_code is not None:parts.append('exit' + str(exit_code))
+        self.category = '-'.join(parts)
+        super().__init__('Private RustFS operation failed (' + self.category + '); diagnostics suppressed')
+
+
+def operation_kind(path):
+    # Discard all dynamic values. These labels never contain the supplied path.
+    if type(path) is not str:return 'UNKNOWN'
+    for prefix, label in (('/rustfs/admin/v3/add-canned-policy?', 'IAM_POLICY'),
+                          ('/rustfs/admin/v3/add-user?', 'IAM_USER'),
+                          ('/rustfs/admin/v3/set-user-or-group-policy?', 'IAM_BINDING')):
+        if path.startswith(prefix):return label
+    if path == '/rustfs/admin/v3/info':return 'ADMIN_INFO'
+    bucket = next((name for name in BUCKETS if path == '/' + name or path.startswith('/' + name + '?')
+                   or path.startswith('/' + name + '/')), None)
+    if bucket is None:return 'UNKNOWN'
+    if path == '/' + bucket:return 'BUCKET'
+    if path == '/' + bucket + '?policy':return 'BUCKET_POLICY'
+    if path == '/' + bucket + '?versioning':return 'BUCKET_VERSIONING'
+    if path.startswith('/' + bucket + '?versions'):return 'VERSION_LIST'
+    if path.startswith('/' + bucket + '/'):
+        return 'OBJECT_VERSION' if '?versionId=' in path else 'OBJECT'
+    return 'UNKNOWN'
+
 
 def authority_root():
     return Path(__file__).resolve().parents[2] / 'local-data/security/bp03-upload'
@@ -43,7 +89,7 @@ def confined(path):
 def run(*args):
     result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode:
-        raise ValueError('Private RustFS authority command failed; diagnostics suppressed')
+        raise BootstrapFailure('AUTHORITY_COMMAND', exit_code=result.returncode)
     return result.stdout
 
 
@@ -185,10 +231,12 @@ def private_network_request(arguments, root, ca, network_id):
     try:
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=35)
         if result.returncode:
-            raise ValueError('Private bootstrap transport failed; diagnostics suppressed')
+            raise BootstrapFailure('TRANSPORT_PROCESS', exit_code=result.returncode)
         return result.stdout
-    except (subprocess.TimeoutExpired, OSError):
-        raise ValueError('Private bootstrap transport deadline failed; diagnostics suppressed') from None
+    except subprocess.TimeoutExpired:
+        raise BootstrapFailure('TRANSPORT_DEADLINE') from None
+    except OSError:
+        raise BootstrapFailure('TRANSPORT_PROCESS') from None
     finally:
         # A cidfile exists only after this invocation created a container. Never
         # remove a guessed name on startup failure or touch another task's data.
@@ -208,44 +256,52 @@ def request(directory, origin, method, path, body=None, allowed=(200, 204), *, d
         raise ValueError('Unknown bootstrap request authority')
     # Validate ownership before writing any credential into the request mount.
     network_id = owned_network(docker_network, origin) if docker_network is not None else None
-    # URLs may contain the app credential identifier. Keep all signing/config/body material
-    # in private files, not argv, environment, stdout or exception messages.
-    with tempfile.TemporaryDirectory(prefix='.apply-', dir=directory / 'bootstrap') as temporary:
-        root = Path(temporary)
-        config, response, headers = root / 'curl.conf', root / 'response', root / 'headers'
-        private(response, '')
-        private(headers, '')
-        lines = ['url = ' + json.dumps(origin + path), 'request = ' + json.dumps(method)]
-        if authority == 'root':
-            lines.append((directory / 'bootstrap/root-curl.conf').read_text().rstrip())
-        elif authority in ('app', 'cleanup'):
-            credentials = ':'.join((directory / (authority + '/' + n + '.key')).read_text().strip()
-                                   for n in ('access', 'secret'))
-            lines.append('user = ' + json.dumps(credentials))
-        if method == 'HEAD':
-            lines.append('head')
-        if body is not None:
-            private(root / 'body', body)
-            lines.append('data-binary = ' + json.dumps('@' + str(root / 'body')))
-        private(config, '\n'.join(lines) + '\n')
-        arguments = ('curl', '--disable', '--silent', '--show-error', '--max-time', '15', '--max-filesize', '65536', '--proto', '=https', '--cacert', str(directory / 'app/ca.crt'), '--config', str(config), '--dump-header', str(headers), '--output', str(response), '--write-out', '%{http_code}')
-        if authority != 'anonymous':
-            arguments += ('--aws-sigv4', 'aws:amz:us-east-1:s3')
-        raw = (private_network_request(arguments, root, directory / 'app/ca.crt', network_id)
-               if network_id is not None else run(*arguments))
-        if raw.decode().strip() not in {str(c) for c in allowed} or response.stat().st_size > 65536:
-            raise ValueError('RustFS bootstrap request rejected; private response suppressed')
-        if headers.stat().st_size > 16384:
-            raise ValueError('Bootstrap response headers exceed bound')
-        if response_headers is not None:
-            for line in headers.read_text().splitlines():
-                if ':' in line:
-                    name, value = line.split(':', 1)
-                    name = name.lower().strip()
-                    if name == 'x-amz-version-id' and name in response_headers:
-                        raise ValueError('Ambiguous exact object version')
-                    response_headers[name] = value.strip()
-        return int(raw), response.read_bytes()
+    try:
+        # URLs may contain the app credential identifier. Keep all signing/config/body material
+        # in private files, not argv, environment, stdout or exception messages.
+        with tempfile.TemporaryDirectory(prefix='.apply-', dir=directory / 'bootstrap') as temporary:
+            root = Path(temporary)
+            config, response, headers = root / 'curl.conf', root / 'response', root / 'headers'
+            private(response, '')
+            private(headers, '')
+            lines = ['url = ' + json.dumps(origin + path), 'request = ' + json.dumps(method)]
+            if authority == 'root':
+                lines.append((directory / 'bootstrap/root-curl.conf').read_text().rstrip())
+            elif authority in ('app', 'cleanup'):
+                credentials = ':'.join((directory / (authority + '/' + n + '.key')).read_text().strip()
+                                       for n in ('access', 'secret'))
+                lines.append('user = ' + json.dumps(credentials))
+            if method == 'HEAD':
+                lines.append('head')
+            if body is not None:
+                private(root / 'body', body)
+                lines.append('data-binary = ' + json.dumps('@' + str(root / 'body')))
+            private(config, '\n'.join(lines) + '\n')
+            arguments = ('curl', '--disable', '--silent', '--show-error', '--max-time', '15', '--max-filesize', '65536', '--proto', '=https', '--cacert', str(directory / 'app/ca.crt'), '--config', str(config), '--dump-header', str(headers), '--output', str(response), '--write-out', '%{http_code}')
+            if authority != 'anonymous':
+                arguments += ('--aws-sigv4', 'aws:amz:us-east-1:s3')
+            raw = (private_network_request(arguments, root, directory / 'app/ca.crt', network_id)
+                   if network_id is not None else run(*arguments))
+            if re.fullmatch(rb'[0-9]{3}', raw.strip()) is None or not 100 <= int(raw) <= 599:
+                raise BootstrapFailure('REQUEST_STATUS_INVALID')
+            if int(raw) not in allowed:
+                raise BootstrapFailure('REQUEST_HTTP', status=int(raw))
+            if response.stat().st_size > 65536:
+                raise BootstrapFailure('RESPONSE_BOUND', status=int(raw))
+            if headers.stat().st_size > 16384:
+                raise BootstrapFailure('HEADERS_BOUND', status=int(raw))
+            if response_headers is not None:
+                for line in headers.read_text().splitlines():
+                    if ':' in line:
+                        name, value = line.split(':', 1)
+                        name = name.lower().strip()
+                        if name == 'x-amz-version-id' and name in response_headers:
+                            raise BootstrapFailure('FIXTURE_VERSION', status=int(raw))
+                        response_headers[name] = value.strip()
+            return int(raw), response.read_bytes()
+    except BootstrapFailure as failure:
+        raise BootstrapFailure(failure.kind, method=method, authority=authority,
+            operation=operation_kind(path), status=failure.status, exit_code=failure.exit_code) from None
 
 
 def apply(directory, origin, *, docker_network=None):
@@ -259,17 +315,17 @@ def apply(directory, origin, *, docker_network=None):
     for bucket in BUCKETS:
         status, body = send(directory, origin, 'PUT', '/' + bucket, allowed=(200, 409))
         if status == 409 and XML.fromstring(body).findtext('Code') != 'BucketAlreadyOwnedByYou':
-            raise ValueError('Bucket ownership is not established')
+            raise BootstrapFailure('BUCKET_OWNERSHIP', method='PUT', authority='root', operation='BUCKET', status=status)
         status, body = send(directory, origin, 'GET', '/' + bucket + '?policy', allowed=(200, 404))
         if status != 404 or XML.fromstring(body).findtext('Code') != 'NoSuchBucketPolicy':
-            raise ValueError('Owned bucket must have no public or custom bucket policy')
+            raise BootstrapFailure('BUCKET_POLICY', method='GET', authority='root', operation='BUCKET_POLICY', status=status)
         # RustFS 1.0.4 GetBucketAcl returns a FULL_CONTROL placeholder with
         # an empty CanonicalUser grantee. ACL authorization is unsupported;
         # privacy is demonstrated below through IAM and unsigned 403 responses.
         send(directory, origin, 'PUT', '/' + bucket + '?versioning', '<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Status>Enabled</Status></VersioningConfiguration>')
         _, body = send(directory, origin, 'GET', '/' + bucket + '?versioning')
         if XML.fromstring(body).findtext('{*}Status') != 'Enabled':
-            raise ValueError('Versioned private bucket required')
+            raise BootstrapFailure('BUCKET_VERSIONING', method='GET', authority='root', operation='BUCKET_VERSIONING')
     fixtures = []
     try:
         for bucket in BUCKETS:
@@ -285,7 +341,7 @@ def apply(directory, origin, *, docker_network=None):
             verify_fixture(directory, origin, send, bucket, 'app', fixtures)
             _, body = send(directory, origin, 'GET', '/' + bucket + '?versioning', authority='app')
             if XML.fromstring(body).findtext('{*}Status') != 'Enabled':
-                raise ValueError('Application cannot verify bucket versioning')
+                raise BootstrapFailure('APP_VERSIONING', method='GET', authority='app', operation='BUCKET_VERSIONING')
             outside = '/' + bucket + '/' + hashlib.sha256(b'outside-tenant').hexdigest() + '/bootstrap-denied'
             for method, path, data in [('GET', outside, None), ('PUT', outside, 'synthetic'),
                                        ('DELETE', outside + '?versionId=denied-fixture', None),
@@ -305,7 +361,7 @@ def apply(directory, origin, *, docker_network=None):
 def require_denied(send, directory, origin, method, path, body=None, *, authority):
     status, response = send(directory, origin, method, path, body, allowed=(403,), authority=authority)
     if status != 403 or XML.fromstring(response).findtext('{*}Code') != 'AccessDenied':
-        raise ValueError('Exact AccessDenied privacy proof required')
+        raise BootstrapFailure('PRIVACY_DENIAL', method=method, authority=authority, operation=operation_kind(path), status=status)
 
 
 def verify_fixture(directory, origin, send, bucket, authority, fixtures):
@@ -318,14 +374,14 @@ def verify_fixture(directory, origin, send, bucket, authority, fixtures):
         send(directory, origin, 'PUT', path, payload, authority=authority, response_headers=headers)
         version = headers.get('x-amz-version-id', '')
         if not re.fullmatch(r'[A-Za-z0-9._~-]{1,256}', version) or version == 'null':
-            raise ValueError('Exact synthetic fixture version required')
+            raise BootstrapFailure('FIXTURE_VERSION', authority=authority, operation='OBJECT')
         fixtures.append((path, version, authority))
         version_path = path + '?versionId=' + quote(version, safe='')
         for read_path in (path, version_path):
             read_headers = {}
             _, content = send(directory, origin, 'GET', read_path, authority=authority, response_headers=read_headers)
             if content != payload.encode() or read_headers.get('x-amz-version-id') != version:
-                raise ValueError('Authenticated exact fixture readback failed')
+                raise BootstrapFailure('FIXTURE_READBACK', authority=authority, operation=operation_kind(read_path))
             require_denied(send, directory, origin, 'GET', read_path, authority='anonymous')
         for method, denied_path, data in [('GET', '/' + bucket, None),
                                           ('GET', '/' + bucket + '?versions', None),
@@ -337,19 +393,19 @@ def verify_fixture(directory, origin, send, bucket, authority, fixtures):
             entries = XML.fromstring(listed).findall('{*}Version')
             if not any(e.findtext('{*}Key') == path[len(bucket) + 2:] and
                        e.findtext('{*}VersionId') == version for e in entries):
-                raise ValueError('Scoped application version listing failed')
+                raise BootstrapFailure('FIXTURE_LISTING', authority='app', operation='VERSION_LIST')
             require_denied(send, directory, origin, 'DELETE', path, authority='app')
             require_denied(send, directory, origin, 'DELETE', version_path, authority='app')
             _, unchanged = send(directory, origin, 'GET', version_path, authority='app')
             if unchanged != payload.encode():
-                raise ValueError('Normal delete denial changed immutable object')
+                raise BootstrapFailure('FIXTURE_UNCHANGED', authority='app', operation='OBJECT_VERSION')
             for method, denied_path, body in [('PUT', path, payload), ('DELETE', path, None), ('GET', '/rustfs/admin/v3/info', None), ('PUT', '/dkp-bootstrap-denied', None), ('DELETE', '/' + bucket + '/' + hashlib.sha256(b'outside-tenant').hexdigest() + '/denied?versionId=synthetic', None)]:
                 require_denied(send, directory, origin, method, denied_path, body, authority='cleanup')
             send(directory, origin, 'HEAD', version_path, authority='cleanup')
             send(directory, origin, 'DELETE', version_path, authority='cleanup')
             status, absent = send(directory, origin, 'GET', version_path, allowed=(404,), authority='root')
             if status != 404 or XML.fromstring(absent).findtext('{*}Code') not in ('NoSuchKey', 'NoSuchVersion'):
-                raise ValueError('Cleanup exact version absence unproven')
+                raise BootstrapFailure('FIXTURE_ABSENCE', authority='root', operation='OBJECT_VERSION', status=status)
 
 
 
