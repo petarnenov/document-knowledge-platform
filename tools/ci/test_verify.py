@@ -98,9 +98,15 @@ class CheckTests(unittest.TestCase):
         record=self.receipt();path.write_text(json.dumps(record));(self.source/'public.txt').write_text('late')
         with self.assertRaises(ValueError):v.validate(self.source,self.evidence)
 
-    def test_only_generated_sourceless_sdk_copy_is_omitted_from_runtime_measurement(self):
+    def test_only_generated_sdk_and_temporary_installation_copies_are_omitted(self):
         runtime = inside.COMMANDS[2]
-        self.assertEqual('--omit=*/python-logging.zip/*', runtime[5])
+        import fnmatch
+        self.assertEqual('--omit=*/python-logging.zip/*,/tmp/*/installation/source/*', runtime[5])
+        patterns = runtime[5].removeprefix('--omit=').split(',')
+        for name in ('log-tool-install.py', 'log-tool-run.py'):
+            self.assertIn(name, inside.FEATURE_HELPERS)
+            self.assertFalse(any(fnmatch.fnmatch('/workspace/tools/runtime/' + name, pattern) for pattern in patterns))
+            self.assertTrue(any(fnmatch.fnmatch('/tmp/unit/installation/source/tools/runtime/' + name, pattern) for pattern in patterns))
         self.assertIn('dkp_logging/wire.py', inside.SDK_HELPERS)
         self.assertIn('log-python-deliver.py', inside.FEATURE_HELPERS)
 

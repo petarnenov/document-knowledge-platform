@@ -20,7 +20,7 @@ The first exact source slice is proposed in [python-tool-port.md](python-tool-po
 
 Before implementation, check in a finite inventory of all public production entrypoints and their integration mechanism. Derive it from tracked executable files, Python `__main__` blocks, package scripts, Gradle tasks, Docker entrypoints and all three current workflows, rather than assuming every entrypoint defines a function named `main`. Tests, synthetic input generators and third-party build tools remain identified explicitly; a helper being tested is not proof that its real invocation logs.
 
-The proposed finite [tooling-inventory.md](tooling-inventory.md) enumerates68 tracked tooling files and the package/Gradle/workflow/Compose invocation surfaces. Its planned mechanisms are not adoption evidence. Resolve any ambiguous owner/caller before selecting the corresponding runtime slice.
+The proposed finite [tooling-inventory.md](tooling-inventory.md) enumerates70 tracked tooling files and the package/Gradle/workflow/Compose invocation surfaces. Its planned mechanisms are not adoption evidence. Resolve any ambiguous owner/caller before selecting the corresponding runtime slice.
 
 | Area | Current integration targets | Required useful boundaries |
 | --- | --- | --- |

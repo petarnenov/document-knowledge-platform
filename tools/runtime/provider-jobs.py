@@ -71,9 +71,10 @@ def diagnostic_call(diagnostics, method, *args, **kwargs):
 
 
 @contextmanager
-def diagnostic_scope(stage, diagnostics):
-    scope = diagnostic_call(diagnostics, 'operation', 'PROVIDER_JOBS_' + stage.value,
-                            error_code='PROVIDER_JOBS_STAGE_FAILED')
+def diagnostic_scope(stage, diagnostics, *, dm=False):
+    phase = 'PROVIDER_JOBS_' + ('DM_' + stage if dm else stage.value)
+    error_code = phase + '_FAILED' if dm else 'PROVIDER_JOBS_STAGE_FAILED'
+    scope = diagnostic_call(diagnostics, 'operation', phase, error_code=error_code)
     entered = False
     if scope is not None:
         try:
@@ -502,46 +503,59 @@ def dm_boundary(state, work, diagnostics=None):
         target = None;stopped = False;browser_identity = None
         phase = 'PREPARED'
         try:
-            value = fixture(wait(lambda: marker(work, 'prepared'), 180))
-            browser_identity = browser_instance(work)
-            if browser_identity is None:raise ValueError('Actual owned browser required')
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                value = fixture(wait(lambda: marker(work, 'prepared'), 180))
+                browser_identity = browser_instance(work)
+                if browser_identity is None:raise ValueError('Actual owned browser required')
             phase = 'OLD_BASELINE'
-            baseline = d.sql(state, d.SNAPSHOT)
-            original_evidence = no_forbidden_facts(state, value)
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                baseline = d.sql(state, d.SNAPSHOT)
+                original_evidence = no_forbidden_facts(state, value)
             phase = 'BEGIN'
-            write_marker(work, 'begin');wait(lambda: browser_marker(work, 'submitted'), 10)
-            def verifying():
-                status = d.sql(state, "SELECT state FROM dm.upload_slots WHERE tenant_id='" + value['tenant'] + "' AND upload_id='" + value['first']['uploadId'] + "';")
-                if status == 'VERIFYING':return True
-                if status != 'QUARANTINED':raise ValueError('Old verifying boundary not exercised')
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                write_marker(work, 'begin');wait(lambda: browser_marker(work, 'submitted'), 10)
+                def verifying():
+                    status = d.sql(state, "SELECT state FROM dm.upload_slots WHERE tenant_id='" + value['tenant'] + "' AND upload_id='" + value['first']['uploadId'] + "';")
+                    if status == 'VERIFYING':return True
+                    if status != 'QUARANTINED':raise ValueError('Old verifying boundary not exercised')
             phase = 'VERIFYING'
-            wait(verifying, 10)
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                wait(verifying, 10)
             phase = 'ABORT'
-            write_marker(work, 'abort-now');wait(lambda: browser_marker(work, 'aborted'), 10)
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                write_marker(work, 'abort-now');wait(lambda: browser_marker(work, 'aborted'), 10)
             phase = 'CRASH'
-            target = provider(state, 'document-management')
-            # Explicit crash, not a graceful drain mistaken for an in-flight restart.
-            bound(state);runtime.command(['docker', 'kill', '--signal', 'KILL', target]);stopped = True
-            bound(state);runtime.owned(runtime.docker('inspect', target)[0], state)
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                target = provider(state, 'document-management')
+                # Explicit crash, not a graceful drain mistaken for an in-flight restart.
+                bound(state);runtime.command(['docker', 'kill', '--signal', 'KILL', target]);stopped = True
+                bound(state);runtime.owned(runtime.docker('inspect', target)[0], state)
             phase = 'RECOVERY'
-            runtime.command(['docker', 'start', target]);stopped = False
-            runtime.health(state)
-            if provider(state, 'document-management') != target:raise ValueError('DM restart changed exact instance')
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                runtime.command(['docker', 'start', target]);stopped = False
+                runtime.health(state)
+                if provider(state, 'document-management') != target:raise ValueError('DM restart changed exact instance')
             phase = 'OLD_FACTS_AFTER_RECOVERY'
-            if no_forbidden_facts(state, value) != original_evidence:raise ValueError('Restart changed original evidence')
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                if no_forbidden_facts(state, value) != original_evidence:raise ValueError('Restart changed original evidence')
             phase = 'SECOND_COMPLETE'
-            write_marker(work, 'restored');wait(lambda: browser_marker(work, 'completed'), 180)
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                write_marker(work, 'restored');wait(lambda: browser_marker(work, 'completed'), 180)
             phase = 'OLD_FACTS_AFTER_COMPLETE'
-            if no_forbidden_facts(state, value) != original_evidence:raise ValueError('New work changed old evidence')
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                if no_forbidden_facts(state, value) != original_evidence:raise ValueError('New work changed old evidence')
             phase = 'FINAL_SNAPSHOT'
-            after = d.sql(state, d.SNAPSHOT)
-            if not re.fullmatch('[a-f0-9]{64}', baseline) or not re.fullmatch('[a-f0-9]{64}', after):raise ValueError('Full18table digest required')
-            runtime.private(work / 'dm-facts.json', json.dumps({'before18TableSha256': baseline, 'after18TableSha256': after, 'noForbiddenFacts': True, 'accountingBalances': True}))
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                after = d.sql(state, d.SNAPSHOT)
+                if not re.fullmatch('[a-f0-9]{64}', baseline) or not re.fullmatch('[a-f0-9]{64}', after):raise ValueError('Full18table digest required')
+                runtime.private(work / 'dm-facts.json', json.dumps({'before18TableSha256': baseline, 'after18TableSha256': after, 'noForbiddenFacts': True, 'accountingBalances': True}))
             phase = 'FINISH'
-            write_marker(work, 'finish')
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                write_marker(work, 'finish')
             phase = 'BROWSER_EXIT'
-            if browser.wait(timeout=30):raise ValueError('Genuine guarded browser boundary failed')
-            return {'phase': 'dm', 'result': 'PASS', 'boundary': 'OBSERVED_VERIFYING_THEN_ABORT_AND_EXACT_PROCESS_CRASH', 'remoteCancellationAcknowledged': False}
+            with diagnostic_scope(phase, diagnostics, dm=True):
+                if browser.wait(timeout=30):raise ValueError('Genuine guarded browser boundary failed')
+                return {'phase': 'dm', 'result': 'PASS', 'boundary': 'OBSERVED_VERIFYING_THEN_ABORT_AND_EXACT_PROCESS_CRASH', 'remoteCancellationAcknowledged': False}
         except Exception as error:
             diagnostic_call(diagnostics, 'failure_note', 'PROVIDER_JOBS_DM_FAILURE', error,
                 boundary_started_at=started, error_code='PROVIDER_JOBS_DM_' + phase + '_FAILED')
@@ -598,11 +612,14 @@ def run(directory, runtime_directory, diagnostics=None):
     return {'schemaVersion': 1, 'result': 'PASS', 'required': 3, 'passed': 3, 'skipped': 0, 'directEngineEntryExitObserved': False}
 
 
-def main():
+def main(diagnostics=None, argv=None):
     parser = argparse.ArgumentParser(description=__doc__);parser.add_argument('--directory', required=True, type=Path);parser.add_argument('--runtime-directory', required=True, type=Path)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
-        with checkpoint(AcceptanceStage.LAUNCH):print(json.dumps(run(args.directory, args.runtime_directory)))
+        with checkpoint(AcceptanceStage.LAUNCH, diagnostics):
+            result = (run(args.directory, args.runtime_directory) if diagnostics is None
+                else run(args.directory, args.runtime_directory, diagnostics))
+            print(json.dumps(result))
     except Exception as failure:
         if isinstance(failure, AcceptanceFailure) and failure.stage is AcceptanceStage.DM_BOUNDARY:
             emit_dm_observation(args.directory)

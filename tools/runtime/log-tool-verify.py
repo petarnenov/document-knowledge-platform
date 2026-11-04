@@ -115,9 +115,11 @@ def inputs(prepared):
 
 def vocabulary(compiled):
     return dict(events=sorted(m.EVENTS),
-        phases=['PROVIDER_JOBS_' + phase for phase in CHECKPOINTS]
+        phases=['PROVIDER_JOBS_MODULE_LOAD', 'PROVIDER_JOBS_ENTRYPOINT']
+            + ['PROVIDER_JOBS_' + phase for phase in CHECKPOINTS]
             + ['PROVIDER_JOBS_DM_FAILURE'] + ['PROVIDER_JOBS_DM_' + phase for phase in DM_PHASES],
-        errorCodes=['PROVIDER_JOBS_STAGE_FAILED'] + ['PROVIDER_JOBS_DM_' + phase + '_FAILED' for phase in DM_PHASES],
+        errorCodes=['PROVIDER_JOBS_MODULE_LOAD_FAILED', 'PROVIDER_JOBS_ENTRYPOINT_FAILED',
+            'PROVIDER_JOBS_STAGE_FAILED'] + ['PROVIDER_JOBS_DM_' + phase + '_FAILED' for phase in DM_PHASES],
         dependencies=[], exceptionClasses=list(CLASSES),
         frames=[dict(symbol=f['symbol'], source=f['source']) for row in compiled['modules'] for f in row['frames']])
 

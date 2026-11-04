@@ -29,6 +29,8 @@ Mechanisms: **P** explicit inner-stage diagnostic port plus external command bou
 | `tools/dependencies/bp03-sbom.mjs` | ENTRYPOINT | B | Node/command checks + exact actual invocation |
 | `tools/runtime/log-tool-build.py` | ENTRYPOINT | O | original pinned build/archive/owned compiler tests; delivery NOT_ADOPTED |
 | `tools/runtime/log-tool-verify.py` | LIBRARY | L | closed original artifact/identity/content negative tests; runtime NOT_ADOPTED |
+| `tools/runtime/log-tool-install.py` | ENTRYPOINT | O | original immutable installation and membership/mode tests; runtime NOT_ADOPTED |
+| `tools/runtime/log-tool-run.py` | ENTRYPOINT | P | fixed original provider/SDK loader, actual hooks and bounded finish/forward-only tests; real delivery NOT_ADOPTED |
 | `tools/runtime/log-tool-compile.py` | ENTRYPOINT | O | original pinned compiler/catalog tests plus later external invocation observation; NOT_ADOPTED |
 | `tools/runtime/tool-diagnostics.py` | LIBRARY | L | pure original binding/event unit/negative coverage; transport NOT_ADOPTED |
 | `tools/runtime/accept_dev_logging.py` | ENTRYPOINT | O | logging runtime/helper + external actual observation |
