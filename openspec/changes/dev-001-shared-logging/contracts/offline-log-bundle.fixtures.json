@@ -1,0 +1,710 @@
+{
+  "scope": "SYNTAX_ONLY; encoded empty objects intentionally fail mandatory semantic import validation",
+  "fixtures": [
+    {
+      "name": "local-syntax-only-not-semantic-admission",
+      "valid": true,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "ci-syntax-only-not-authority",
+      "valid": true,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "GITHUB_ACTIONS",
+          "repository": "petarnenov/document-knowledge-platform",
+          "workflow": ".github/workflows/foundation.yml",
+          "runId": "123456789",
+          "runAttempt": 1,
+          "job": "java",
+          "matrix": "document-management",
+          "check": "DM_BUILD"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "unknown-root-field",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        },
+        "token": "synthetic-canary"
+      }
+    },
+    {
+      "name": "unknown-execution-field",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tenant": "fake"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "unknown-event-field",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "message": "synthetic-canary"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "empty-events",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "invalid-hash",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "bad",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "invalid-base64-symbol",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "!!!!",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "negative-counter",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": -1,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "overflow-counter",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 9007199254740992,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "nonboolean-finished",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": 1
+        }
+      }
+    },
+    {
+      "name": "local-claims-ci-field",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL",
+          "job": "java"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "wrong-version",
+      "valid": false,
+      "value": {
+        "schemaVersion": 2,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "missing-artifact",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "LOCAL"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "foreign-repository",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "GITHUB_ACTIONS",
+          "repository": "foreign/repo",
+          "workflow": ".github/workflows/foundation.yml",
+          "runId": "123456789",
+          "runAttempt": 1,
+          "job": "java",
+          "matrix": "document-management",
+          "check": "DM_BUILD"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "unknown-workflow",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "GITHUB_ACTIONS",
+          "repository": "petarnenov/document-knowledge-platform",
+          "workflow": ".github/workflows/unknown.yml",
+          "runId": "123456789",
+          "runAttempt": 1,
+          "job": "java",
+          "matrix": "document-management",
+          "check": "DM_BUILD"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "unknown-matrix",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "GITHUB_ACTIONS",
+          "repository": "petarnenov/document-knowledge-platform",
+          "workflow": ".github/workflows/foundation.yml",
+          "runId": "123456789",
+          "runAttempt": 1,
+          "job": "java",
+          "matrix": "arbitrary",
+          "check": "DM_BUILD"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "bad-run",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "GITHUB_ACTIONS",
+          "repository": "petarnenov/document-knowledge-platform",
+          "workflow": ".github/workflows/foundation.yml",
+          "runId": "001",
+          "runAttempt": 1,
+          "job": "java",
+          "matrix": "document-management",
+          "check": "DM_BUILD"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    },
+    {
+      "name": "zero-attempt",
+      "valid": false,
+      "value": {
+        "schemaVersion": 1,
+        "execution": {
+          "buildId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "instanceId": "33333333-3333-4333-8333-333333333333",
+          "component": "runtime-tools",
+          "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sourceFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "origin": {
+          "kind": "GITHUB_ACTIONS",
+          "repository": "petarnenov/document-knowledge-platform",
+          "workflow": ".github/workflows/foundation.yml",
+          "runId": "123456789",
+          "runAttempt": 0,
+          "job": "java",
+          "matrix": "document-management",
+          "check": "DM_BUILD"
+        },
+        "manifestBase64": "e30=",
+        "manifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "artifactSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "events": [
+          {
+            "eventBase64": "e30=",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "collection": {
+          "admitted": 1,
+          "persisted": 1,
+          "rejected": 0,
+          "dropped": 0,
+          "writeFailures": 0,
+          "finished": true
+        }
+      }
+    }
+  ]
+}
