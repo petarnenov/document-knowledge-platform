@@ -54,7 +54,9 @@ class Diagnostics:
                     or frame.keys() != {'symbol', 'source'}
                     or (frame['symbol'], frame['source']) not in known_frames):
                 raise ValueError('TOOL_DIAGNOSTICS_CONFIG_INVALID')
-            self._frames[code] = dict(frame)
+            # Code equality deliberately ignores co_filename. Retain the exact
+            # original object so a different source's equal code cannot match.
+            self._frames[id(code)] = (code, dict(frame))
         self._counts = dict(admitted=0, rejected=0, emitFailures=0)
 
     def _increment(self, name):
@@ -98,11 +100,12 @@ class Diagnostics:
             trace = BaseException.__getattribute__(current, '__traceback__')
             while trace is not None and frame_count < 32:
                 frame_count += 1
-                registered = self._frames.get(trace.tb_frame.f_code)
-                if registered is None:
+                actual = trace.tb_frame.f_code
+                registered = self._frames.get(id(actual))
+                if registered is None or registered[0] is not actual:
                     counts['unregisteredSymbols'] += 1
                 else:
-                    failure['stackFrames'].append({**registered, 'line': trace.tb_lineno})
+                    failure['stackFrames'].append({**registered[1], 'line': trace.tb_lineno})
                 trace = trace.tb_next
             if trace is not None:
                 counts['truncatedFields'] += 1

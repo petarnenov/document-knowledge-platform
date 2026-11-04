@@ -102,6 +102,22 @@ class DiagnosticsTests(unittest.TestCase):
         self.assertNotIn('exceptionClass', events[-1]['diagnostics']['failure'])
         self.assertGreater(events[-1]['diagnostics']['counts']['unregisteredSymbols'], 0)
 
+    def test_equal_bytecode_from_another_file_is_not_an_original_registered_frame(self):
+        diagnostic, events = self.make()
+        original = nested_failure.__code__
+        # This is generated code, not a real missing source file for coverage.
+        foreign = original.replace(co_filename='<synthetic-secret-canary>')
+        self.assertEqual(original, foreign)  # Python code equality omits source filename.
+        self.assertIsNot(original, foreign)
+        import types
+        recreated = types.FunctionType(foreign, nested_failure.__globals__)
+        with self.assertRaises(ValueError):
+            with diagnostic.operation('TEST'):recreated()
+        frames = events[-1]['diagnostics']['failure']['stackFrames']
+        self.assertEqual(frames, [])
+        self.assertGreater(events[-1]['diagnostics']['counts']['unregisteredSymbols'], 0)
+        self.assertNotIn('synthetic-secret-canary', repr(events))
+
     def test_suppressed_context_is_omitted_and_unsuppressed_context_retained(self):
         for suppress in (True, False):
             with self.subTest(suppress=suppress):
