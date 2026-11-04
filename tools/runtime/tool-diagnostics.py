@@ -40,24 +40,56 @@ class Diagnostics:
         self._correlation = correlation_id
         self._phases = frozenset(vocabulary['phases'])
         self._errors = frozenset(vocabulary['errorCodes'])
-        known_classes = frozenset(vocabulary['exceptionClasses'])
-        known_frames = {(row['symbol'], row['source']) for row in vocabulary['frames']}
+        self._known_classes = frozenset(vocabulary['exceptionClasses'])
+        self._known_frames = frozenset((row['symbol'], row['source']) for row in vocabulary['frames'])
         if not (callable(emit) and callable(clock) and callable(now) and callable(identifier)):
             raise ValueError('TOOL_DIAGNOSTICS_CONFIG_INVALID')
         self._classes, self._frames = {}, {}
-        for cls, name in classes.items():
-            if not isinstance(cls, type) or not issubclass(cls, BaseException) or name not in known_classes:
-                raise ValueError('TOOL_DIAGNOSTICS_CONFIG_INVALID')
-            self._classes[cls] = name
-        for code, frame in frames.items():
-            if (not isinstance(code, types.CodeType) or type(frame) is not dict
-                    or frame.keys() != {'symbol', 'source'}
-                    or (frame['symbol'], frame['source']) not in known_frames):
-                raise ValueError('TOOL_DIAGNOSTICS_CONFIG_INVALID')
-            # Code equality deliberately ignores co_filename. Retain the exact
-            # original object so a different source's equal code cannot match.
-            self._frames[id(code)] = (code, dict(frame))
         self._counts = dict(admitted=0, rejected=0, emitFailures=0)
+        # Mapping input is retained for existing callers. Original loaders use
+        # pairs, because a code-keyed dict collapses structurally equal objects.
+        class_pairs = tuple(classes.items()) if type(classes) is dict else classes
+        frame_pairs = tuple(frames.items()) if type(frames) is dict else frames
+        if not self.bind(classes=class_pairs, frames=frame_pairs):
+            raise ValueError('TOOL_DIAGNOSTICS_CONFIG_INVALID')
+
+    def _stage_bindings(self, pairs, previous, maximum, *, frames=False):
+        if type(pairs) not in (list, tuple) or len(pairs) > maximum:
+            raise ValueError('TOOL_DIAGNOSTICS_BIND_INVALID')
+        staged = dict(previous)
+        for pair in pairs:
+            if type(pair) not in (list, tuple) or len(pair) != 2:
+                raise ValueError('TOOL_DIAGNOSTICS_BIND_INVALID')
+            actual, descriptor = pair
+            if frames:
+                if (not isinstance(actual, types.CodeType) or type(descriptor) is not dict
+                        or descriptor.keys() != {'symbol', 'source'}
+                        or type(descriptor['symbol']) is not str or type(descriptor['source']) is not str
+                        or (descriptor['symbol'], descriptor['source']) not in self._known_frames):
+                    raise ValueError('TOOL_DIAGNOSTICS_BIND_INVALID')
+                descriptor = dict(descriptor)
+            elif (not isinstance(actual, type) or not issubclass(actual, BaseException)
+                    or type(descriptor) is not str or descriptor not in self._known_classes):
+                raise ValueError('TOOL_DIAGNOSTICS_BIND_INVALID')
+            existing = staged.get(id(actual))
+            if existing is not None and (existing[0] is not actual or existing[1] != descriptor):
+                raise ValueError('TOOL_DIAGNOSTICS_BIND_INVALID')
+            # Strong references prevent id reuse; equality never confers origin.
+            staged[id(actual)] = (actual, descriptor)
+            if len(staged) > maximum:
+                raise ValueError('TOOL_DIAGNOSTICS_BIND_INVALID')
+        return staged
+
+    def bind(self, classes=(), frames=()):
+        """Atomically bind trusted original identities; never widen vocabulary."""
+        try:
+            staged_classes = self._stage_bindings(classes, self._classes, 8192)
+            staged_frames = self._stage_bindings(frames, self._frames, 32768, frames=True)
+        except BaseException:
+            self._increment('rejected')
+            return False
+        self._classes, self._frames = staged_classes, staged_frames
+        return True
 
     def _increment(self, name):
         self._counts[name] = min(MAX_INTEGER, self._counts[name] + 1)
@@ -90,7 +122,9 @@ class Diagnostics:
         current, visited, frame_count = error, set(), 0
         for depth in range(5):
             visited.add(id(current))
-            name = self._classes.get(type(current))
+            concrete = type(current)
+            registered_class = self._classes.get(id(concrete))
+            name = registered_class[1] if registered_class is not None and registered_class[0] is concrete else None
             if name is None:
                 counts['unregisteredSymbols'] += 1
             elif depth == 0:

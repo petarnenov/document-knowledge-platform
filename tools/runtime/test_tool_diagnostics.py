@@ -54,6 +54,9 @@ class DiagnosticsTests(unittest.TestCase):
         ids = itertools.count(100)
         parameters = dict(clock=lambda: 10., now=lambda: '2026-11-04T00:00:00Z', identifier=lambda: str(uuid.UUID(int=next(ids))))
         parameters.update(options)
+        frames = parameters.pop('frames', frames)
+        classes = parameters.pop('classes', classes)
+        vocabulary = parameters.pop('vocabulary', vocabulary)
         diagnostic = port.Diagnostics(Wire(IDENTITY, vocabulary), vocabulary, parameters.pop('emit', emit),
             str(uuid.UUID(int=4)), classes, frames, **parameters)
         return diagnostic, events
@@ -117,6 +120,101 @@ class DiagnosticsTests(unittest.TestCase):
         self.assertEqual(frames, [])
         self.assertGreater(events[-1]['diagnostics']['counts']['unregisteredSymbols'], 0)
         self.assertNotIn('synthetic-secret-canary', repr(events))
+
+    def test_constructor_pairs_keep_distinct_equal_original_code_objects(self):
+        import types
+        original = nested_failure.__code__
+        second = original.replace(co_filename='<second-original>')
+        descriptor = dict(symbol='tests.nested_failure', source='tools/runtime/test_tool_diagnostics.py')
+        alternate = dict(symbol='tests.second_original', source='tools/runtime/test_tool_diagnostics.py')
+        vocabulary = dict(events=sorted(EVENTS), phases=['TEST'], errorCodes=['TEST_FAILED'],
+            exceptionClasses=['builtins.ValueError', 'builtins.OSError'], dependencies=[], frames=[descriptor, alternate])
+        diagnostic, events = self.make(classes={ValueError:'builtins.ValueError', OSError:'builtins.OSError'},
+            vocabulary=vocabulary, frames=[(original, descriptor), (second, alternate)])
+        self.assertEqual(original, second)
+        self.assertEqual(len(diagnostic._frames), 2)
+        for code, expected in ((original, descriptor), (second, alternate)):
+            with self.assertRaises(ValueError):
+                with diagnostic.operation('TEST'):types.FunctionType(code, globals())()
+            self.assertEqual(events[-1]['diagnostics']['failure']['stackFrames'][0]['symbol'], expected['symbol'])
+        self.assertFalse(diagnostic.bind(frames=[(second, descriptor)]))
+        self.assertFalse(diagnostic.bind(frames=[(original, descriptor), (original, alternate)]))
+        vocabulary['frames'].append(dict(symbol='tests.unreviewed', source='new.py'))
+        self.assertFalse(diagnostic.bind(frames=[(original.replace(), dict(symbol='tests.unreviewed', source='new.py'))]))
+        foreign = second.replace(co_filename='<foreign-secret-canary>')
+        with self.assertRaises(ValueError):
+            with diagnostic.operation('TEST'):types.FunctionType(foreign, globals())()
+        self.assertEqual(events[-1]['diagnostics']['failure']['stackFrames'], [])
+        self.assertNotIn('foreign-secret-canary', repr(events))
+
+    def test_additive_binding_idempotence_conflicts_and_atomicity(self):
+        diagnostic, events = self.make()
+        descriptor = dict(symbol='tests.nested_failure', source='tools/runtime/test_tool_diagnostics.py')
+        second = nested_failure.__code__.replace(co_filename='<bound-original>')
+        class Registered(ValueError):pass
+        self.assertTrue(diagnostic.bind(classes=[(Registered, 'builtins.ValueError')], frames=[(second, descriptor)]))
+        before = (dict(diagnostic._classes), dict(diagnostic._frames))
+        self.assertTrue(diagnostic.bind(classes=((Registered, 'builtins.ValueError'),), frames=((second, descriptor),)))
+        self.assertEqual((diagnostic._classes, diagnostic._frames), before)
+        for classes, frames in (([(Registered, 'builtins.OSError')], []),
+                ([], [(second, dict(symbol='UNKNOWN', source='unknown.py'))]),
+                ([(type('New', (ValueError,), {}), 'builtins.ValueError')], [(second, {})])):
+            self.assertFalse(diagnostic.bind(classes=classes, frames=frames))
+            self.assertEqual((diagnostic._classes, diagnostic._frames), before)
+        with self.assertRaises(Registered):
+            with diagnostic.operation('TEST'):raise Registered('synthetic-secret-canary')
+        self.assertEqual(events[-1]['diagnostics']['failure']['exceptionClass'], 'builtins.ValueError')
+        self.assertNotIn('synthetic-secret-canary', repr(events))
+        self.assertEqual(diagnostic.status()['rejected'], 3)
+
+    def test_binding_rejects_malformed_inputs_without_consuming_generators(self):
+        diagnostic, _ = self.make()
+        consumed = []
+        def generated():
+            consumed.append(True)
+            yield (ValueError, 'builtins.ValueError')
+        malformed = [None, {}, generated(), [None], [(ValueError,)],
+            [(ValueError, 'builtins.ValueError', 'extra')], [(object(), 'builtins.ValueError')],
+            [(ValueError, [])], [(ValueError, 'UNKNOWN')]]
+        before = (dict(diagnostic._classes), dict(diagnostic._frames))
+        for value in malformed:
+            self.assertFalse(diagnostic.bind(classes=value))
+        for value in (None, {}, generated(), [None], [(object(), {})],
+                [(nested_failure.__code__, {'symbol':'tests.nested_failure', 'source':[]})],
+                [(nested_failure.__code__, {'symbol':'tests.nested_failure', 'source':'tools/runtime/test_tool_diagnostics.py', 'extra':1})]):
+            self.assertFalse(diagnostic.bind(frames=value))
+        self.assertEqual(consumed, [])
+        self.assertEqual((diagnostic._classes, diagnostic._frames), before)
+        self.assertEqual(diagnostic.status()['rejected'], len(malformed) + 7)
+
+    def test_binding_actual_caps_and_duplicate_batches(self):
+        diagnostic, _ = self.make(classes={}, frames=[])
+        descriptor = dict(symbol='tests.nested_failure', source='tools/runtime/test_tool_diagnostics.py')
+        classes = [(type('Registered', (ValueError,), {}), 'builtins.ValueError') for _ in range(8192)]
+        frames = [(nested_failure.__code__.replace(), descriptor) for _ in range(32768)]
+        self.assertTrue(diagnostic.bind(classes=classes, frames=frames))
+        self.assertEqual((len(diagnostic._classes), len(diagnostic._frames)), (8192, 32768))
+        self.assertTrue(diagnostic.bind(classes=classes, frames=frames))
+        self.assertFalse(diagnostic.bind(classes=classes + [classes[0]]))
+        self.assertFalse(diagnostic.bind(frames=frames + [frames[0]]))
+        self.assertFalse(diagnostic.bind(classes=[(type('Overflow', (ValueError,), {}), 'builtins.ValueError')]))
+        self.assertFalse(diagnostic.bind(frames=[(nested_failure.__code__.replace(), descriptor)]))
+        self.assertEqual((len(diagnostic._classes), len(diagnostic._frames)), (8192, 32768))
+
+    def test_binding_cross_input_conflicts_and_copied_vocabulary(self):
+        diagnostic, _ = self.make(frames=[])
+        descriptor = dict(symbol='tests.nested_failure', source='tools/runtime/test_tool_diagnostics.py')
+        # Two original allowed names cannot be assigned to one actual class.
+        class New(ValueError):pass
+        self.assertFalse(diagnostic.bind(classes=[(New, 'builtins.ValueError'), (New, 'builtins.OSError')]))
+        self.assertEqual(len(diagnostic._classes), 5)
+        self.assertTrue(diagnostic.bind(frames=[(nested_failure.__code__, descriptor)]))
+        descriptor['source'] = 'synthetic-secret-canary'
+        self.assertNotIn('synthetic-secret-canary', repr(diagnostic._frames))
+        diagnostic._counts['rejected'] = port.MAX_INTEGER
+        self.assertFalse(diagnostic.bind(frames=None))
+        self.assertEqual(diagnostic.status()['rejected'], port.MAX_INTEGER)
+        with self.assertRaises(ValueError):self.make(frames=[(object(), {})])
 
     def test_suppressed_context_is_omitted_and_unsuppressed_context_retained(self):
         for suppress in (True, False):
