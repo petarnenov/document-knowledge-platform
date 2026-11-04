@@ -14,6 +14,8 @@ Implement sequentially within #457:
 
 These are implementation slices of the existing blocker, not independently completed delivery goals. Normal functional behavior takes priority over deferred pathological/endurance matrices #458/#459 and final resource measurements.
 
+The first exact source slice is proposed in [python-tool-port.md](python-tool-port.md): narrow pure port and explicit optional provider-jobs error hooks. It requires its own exact review/selection and does not claim installed runtime adoption or authorize later importer/observer changes.
+
 ## Inventory and ownership
 
 Before implementation, check in a finite inventory of all public production entrypoints and their integration mechanism. Derive it from tracked executable files, Python `__main__` blocks, package scripts, Gradle tasks, Docker entrypoints and all three current workflows, rather than assuming every entrypoint defines a function named `main`. Tests, synthetic input generators and third-party build tools remain identified explicitly; a helper being tested is not proof that its real invocation logs.
