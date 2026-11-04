@@ -64,11 +64,39 @@ class AcceptanceFailure(ValueError):
         super().__init__('Owned provider acceptance failed')
 
 
+def diagnostic_call(diagnostics, method, *args, **kwargs):
+    if diagnostics is None:return None
+    try:return getattr(diagnostics, method)(*args, **kwargs)
+    except BaseException:return None  # Optional diagnostics cannot replace owned work.
+
+
 @contextmanager
-def checkpoint(stage):
-    if not isinstance(stage, AcceptanceStage):raise ValueError('Closed acceptance stage required')
+def diagnostic_scope(stage, diagnostics):
+    scope = diagnostic_call(diagnostics, 'operation', 'PROVIDER_JOBS_' + stage.value,
+                            error_code='PROVIDER_JOBS_STAGE_FAILED')
+    entered = False
+    if scope is not None:
+        try:
+            scope.__enter__()
+            entered = True
+        except BaseException:
+            pass  # Diagnostic entry cannot skip the owned operation.
     try:
         yield
+    except BaseException as error:
+        if entered:
+            diagnostic_call(scope, '__exit__', type(error), error, error.__traceback__)
+        raise  # Ignore diagnostic suppression and preserve the original failure.
+    else:
+        if entered:diagnostic_call(scope, '__exit__', None, None, None)
+
+
+@contextmanager
+def checkpoint(stage, diagnostics=None):
+    if not isinstance(stage, AcceptanceStage):raise ValueError('Closed acceptance stage required')
+    try:
+        with diagnostic_scope(stage, diagnostics):
+            yield
     except AcceptanceFailure:
         raise
     except Exception:
@@ -463,7 +491,8 @@ def retain_dm_diagnostic(work, phase, error):
         pass  # Diagnostics never replace the original failure or cleanup.
 
 
-def dm_boundary(state, work):
+def dm_boundary(state, work, diagnostics=None):
+    started = diagnostic_call(diagnostics, 'boundary_start')
     bound(state)
     runtime.private(work / 'input.json', '{"schemaVersion":1}\n')
     log = work / 'browser.private.log';runtime.private(log, '')
@@ -514,6 +543,8 @@ def dm_boundary(state, work):
             if browser.wait(timeout=30):raise ValueError('Genuine guarded browser boundary failed')
             return {'phase': 'dm', 'result': 'PASS', 'boundary': 'OBSERVED_VERIFYING_THEN_ABORT_AND_EXACT_PROCESS_CRASH', 'remoteCancellationAcknowledged': False}
         except Exception as error:
+            diagnostic_call(diagnostics, 'failure_note', 'PROVIDER_JOBS_DM_FAILURE', error,
+                boundary_started_at=started, error_code='PROVIDER_JOBS_DM_' + phase + '_FAILED')
             retain_dm_diagnostic(work, phase, error)
             raise
         finally:
@@ -530,39 +561,39 @@ def dm_boundary(state, work):
 
 
 
-def run(directory, runtime_directory):
-    with checkpoint(AcceptanceStage.OPERATOR):
+def run(directory, runtime_directory, diagnostics=None):
+    with checkpoint(AcceptanceStage.OPERATOR, diagnostics):
         if os.getuid() == 0:raise ValueError('Nonroot trusted operator required')
         runtime.local_daemon()
-    with checkpoint(AcceptanceStage.DIRECTORY):
+    with checkpoint(AcceptanceStage.DIRECTORY, diagnostics):
         work = runtime.confined(directory)
         if work.exists():raise ValueError('Fresh acceptance directory required')
-    with checkpoint(AcceptanceStage.RUNTIME):
+    with checkpoint(AcceptanceStage.RUNTIME, diagnostics):
         state = runtime.load(runtime_directory)
         bound(state)
         if runtime.verify(runtime_directory) != state:raise ValueError('Original runtime changed')
-    with checkpoint(AcceptanceStage.CAPACITY):
+    with checkpoint(AcceptanceStage.CAPACITY, diagnostics):
         free_admissions(state)
-    with checkpoint(AcceptanceStage.SOURCE_BINDING):
+    with checkpoint(AcceptanceStage.SOURCE_BINDING, diagnostics):
         work.mkdir(mode=0o700);(work / 'control').mkdir(mode=0o700)
         hashes = {p: runtime.digest(ROOT / p) for p in SOURCES}
         runtime.private(work / 'sources.json', json.dumps(hashes))
-    with checkpoint(AcceptanceStage.PRIVATE_CONTROL):
+    with checkpoint(AcceptanceStage.PRIVATE_CONTROL, diagnostics):
         control_proof = module('provider-job-control-acceptance').run()
         runtime.private(work / 'control-proof.json', json.dumps(control_proof))
     results = []
     for phase in ('scanner', 'inspector'):
-        with checkpoint(AcceptanceStage.SCANNER if phase == 'scanner' else AcceptanceStage.INSPECTOR):
+        with checkpoint(AcceptanceStage.SCANNER if phase == 'scanner' else AcceptanceStage.INSPECTOR, diagnostics):
             if hashes != {p: runtime.digest(ROOT / p) for p in SOURCES}:raise ValueError('Acceptance source changed')
             results.append(probe(state, work, phase))
-    with checkpoint(AcceptanceStage.DM_BOUNDARY):
+    with checkpoint(AcceptanceStage.DM_BOUNDARY, diagnostics):
         if hashes != {p: runtime.digest(ROOT / p) for p in SOURCES}:raise ValueError('Acceptance source changed')
-        results.append(dm_boundary(state, work))
-    with checkpoint(AcceptanceStage.FINAL_VERIFY):
+        results.append(dm_boundary(state, work, diagnostics))
+    with checkpoint(AcceptanceStage.FINAL_VERIFY, diagnostics):
         if hashes != {p: runtime.digest(ROOT / p) for p in SOURCES}:raise ValueError('Acceptance source changed')
         bound(state)
         if runtime.verify(runtime_directory) != state:raise ValueError('Original runtime changed')
-    with checkpoint(AcceptanceStage.RESULT):
+    with checkpoint(AcceptanceStage.RESULT, diagnostics):
         runtime.private(work / 'result.json', json.dumps({'schemaVersion': 1, 'result': 'PASS', 'phases': results, 'directEngineEntryExitObserved': False, 'dispatchProof': DISPATCH_PROOF}))
     return {'schemaVersion': 1, 'result': 'PASS', 'required': 3, 'passed': 3, 'skipped': 0, 'directEngineEntryExitObserved': False}
 
