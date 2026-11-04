@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from dkp_logging.wire import Wire, encode, MAX_INTEGER
+from dkp_logging.wire import Wire, Prepared, encode, MAX_INTEGER
 from dkp_logging.producer import LogProducer
 from dkp_logging.spool import FileLogSpool
 from test_wire import identity, vocabulary, event
@@ -141,3 +141,36 @@ class DiagnosticTests(unittest.TestCase):
                 self.assertEqual(prepared.event_id,delivered['eventId'])
                 self.assertEqual(json.loads(prepared.data),delivered)
             finally:producer.close();producer.await_closed()
+
+    def test_reordered_diagnostic_restart_duplicates_preserve_original_bytes_and_reject_conflicts(self):
+        fingerprint=hashlib.sha256(b'owned-replay-test-credential').hexdigest()
+        class BoundTransport(Transport):
+            def credential_fingerprint(self):return fingerprint
+        item={**event(),'diagnostics':diagnostic()}
+        prepared=self.wire.prepare(item)
+        def reorder(value):
+            if isinstance(value,dict):return {key:reorder(child) for key,child in reversed(list(value.items()))}
+            if isinstance(value,list):return [reorder(child) for child in value]
+            return value
+        saved=Prepared(prepared.event_id,encode(reorder(json.loads(prepared.data))))
+        self.assertNotEqual(prepared.data,saved.data)
+        self.assertEqual(json.loads(prepared.data),json.loads(saved.data))
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory).resolve()/'queue';spool=FileLogSpool(path,self.identity,fingerprint)
+            spool.load();spool.replace([saved]);spool.close()
+            restored=FileLogSpool(path,self.identity,fingerprint)
+            transport=BoundTransport();transport.lookup='UNKNOWN';transport.release.clear()
+            producer=LogProducer(self.identity,catalog(),transport,restored)
+            try:
+                self.assertTrue(transport.entered.wait(1))
+                self.assertEqual('DUPLICATE',producer.emit(item))
+                changed=copy.deepcopy(item);changed['diagnostics']['status']=503
+                self.assertEqual('REJECTED',producer.emit(changed))
+                self.assertEqual([saved],restored.load())
+                self.assertEqual(1,producer.status()['pending'])
+                self.assertEqual(1,producer.status()['rejected'])
+                transport.release.set();until(lambda:producer.status()['committed']==1)
+                batch=next(data for route,data in transport.calls if route=='batches')
+                self.assertEqual(b'{"schemaVersion":1,"events":['+saved.data+b']}',batch)
+            finally:
+                transport.release.set();producer.close();self.assertTrue(producer.await_closed())

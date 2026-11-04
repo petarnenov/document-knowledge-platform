@@ -1,7 +1,7 @@
 """One bounded asynchronous dispatcher. Business callers never perform I/O."""
 import threading
 
-from .wire import Wire, encode, encode_batch, receipt_states, queue_binding
+from .wire import Wire, encode, encode_batch, receipt_states, queue_binding, parse_response
 
 MAX_EVENTS, MAX_BYTES = 2048, 8 * 1024 * 1024
 
@@ -56,7 +56,7 @@ class LogProducer:
                 return 'CLOSED'
             prior = self._pending.get(prepared.event_id)
             if prior is not None:
-                if prior[0].data == prepared.data:
+                if prior[0].data == prepared.data or parse_response(prior[0].data) == parse_response(prepared.data):
                     return 'DUPLICATE'
                 self._rejected += 1
                 return 'REJECTED'
